@@ -30,12 +30,11 @@ A Decky Loader plugin that brings together games from Steam, Epic Games Store, a
 
 ### Unified Game Library
 
-![20260104022735_1](https://github.com/user-attachments/assets/1d055022-06f1-475c-ace5-695155ff36da)
+![20260104022735_1](https://github.com/user-attachments/assets/208a9610-2b4f-4e1d-941f-33a152cc34d8)
 
 ### Game Details
 
-![20260104022821_1](https://github.com/user-attachments/assets/506cb4ce-d25d-42ba-a59e-1988fa012541)
-
+![20260104022821_1](https://github.com/user-attachments/assets/afc0922e-aace-4d47-925e-1bc7f1e48140)
 
 ## Prerequisites
 
