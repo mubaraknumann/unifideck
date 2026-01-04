@@ -1,0 +1,78 @@
+# Git
+.gitignore
+
+# Dependencies
+node_modules/
+pnpm-lock.yaml
+
+# Build outputs
+dist/
+*.js.map
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Testing
+.pytest_cache/
+coverage/
+test_*.py
+debug_*.py
+verify_*.py
+
+# Environment
+.env
+.env.local
+
+# Temporary
+*.tmp
+*.temp
+
+# Documentation (keep only README.md)
+*.md
+!README.md
+PLAN.md
+TESTING.md
+DEVELOPMENT.md
+FINDINGS.md
+RELEASE-*.md
+BUGFIX-*.md
+
+# Downloaded plugin references
+*-main/
+*-main.zip
+CSSLoader-Desktop-main/
+CSSLoader-Desktop-main.zip
+HeroicGamesLauncher-main/
+SDH-CssLoader-main/
+SDH-CssLoader-main.zip
+TabMaster-main/
+TabMaster-main.zip
+decky-frontend-lib-main/
+decky-frontend-lib-main.zip
+decky-steamgriddb-main/
+protondb-decky-main/
+protondb-decky-main.zip
+junkstore-main/
+
+# Build/maintenance scripts
+build-plugin.sh
+build-plugin3.sh
