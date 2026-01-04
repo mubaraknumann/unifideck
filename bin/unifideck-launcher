@@ -1,0 +1,232 @@
+#!/bin/bash
+# unifideck-launcher - UMU-based game launcher for Unifideck
+#
+# Usage: unifideck-launcher "store:game_id"
+#
+# This script reads from ~/.local/share/unifideck/games.map
+# Format of map file: store:game_id|/path/to/exe|/path/to/workdir
+#
+# For Windows .exe games, umu-launcher handles Proton execution with:
+# - Automatic prefix creation
+# - Protonfixes from umu-database
+# - Steam Runtime container
+
+set -e
+
+LOG_FILE="$HOME/.local/share/unifideck/launcher.log"
+MAP_FILE="$HOME/.local/share/unifideck/games.map"
+PREFIXES_DIR="$HOME/.local/share/unifideck/prefixes"
+
+# Get the plugin directory (parent of bin/)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
+
+# umu-run location (bundled zipapp)
+UMU_RUN="$PLUGIN_DIR/bin/umu/umu/umu-run"
+
+mkdir -p "$(dirname "$LOG_FILE")" "$PREFIXES_DIR"
+
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE"
+}
+
+# Reset environment to avoid conflicts
+unset LD_LIBRARY_PATH
+unset STEAM_RUNTIME
+unset STEAM_COMPAT_CLIENT_INSTALL_PATH
+
+# 1. Get the lookup key (store:game_id)
+KEY="$1"
+shift || true
+
+if [ -z "$KEY" ]; then
+    log "ERROR: No game key provided"
+    exit 1
+fi
+
+log "=== Launching: $KEY ==="
+
+# 2. Look up in map file
+if [ ! -f "$MAP_FILE" ]; then
+    log "ERROR: Map file not found at $MAP_FILE"
+    if command -v zenity &>/dev/null; then
+        zenity --error --title="Unifideck" --text="No games configured.\n\nPlease run Sync Libraries from the Unifideck plugin first." --width=350 2>/dev/null &
+    fi
+    exit 1
+fi
+
+# Find line starting with KEY|
+GAME_ENTRY=$(grep "^$KEY|" "$MAP_FILE" | head -n 1)
+
+if [ -z "$GAME_ENTRY" ]; then
+    log "ERROR: Game not found in map for key: $KEY"
+    # Show user-friendly error using zenity if available
+    if command -v zenity &>/dev/null; then
+        zenity --error --title="Unifideck" --text="Game location not mapped.\n\nPlease run Force Sync from the Unifideck plugin and try again." --width=350 2>/dev/null &
+    fi
+    exit 1
+fi
+
+# 3. Parse entry
+# Format: key|exe|workdir
+IFS='|' read -r _ EXE_PATH WORK_DIR <<< "$GAME_ENTRY"
+
+if [ -z "$EXE_PATH" ]; then
+    log "ERROR: No executable path in map entry"
+    exit 1
+fi
+
+log "Executable: $EXE_PATH"
+log "Work Dir: $WORK_DIR"
+
+# 4. Check if executable exists
+if [ ! -f "$EXE_PATH" ]; then
+    log "ERROR: Executable not found: $EXE_PATH"
+    if command -v zenity &>/dev/null; then
+        zenity --error --title="Unifideck" --text="Game executable not found.\n\nThe game may have been uninstalled. Please reinstall." --width=350 2>/dev/null &
+    fi
+    exit 1
+fi
+
+# 5. Check if this is a Windows game (.exe)
+if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]]; then
+    log "Windows game detected, using umu-launcher with Proton"
+    
+    # Parse store and game ID from key
+    STORE="${KEY%%:*}"      # 'epic' or 'gog'
+    GAME_ID="${KEY#*:}"     # Game ID after colon
+    
+    # Map store names to umu store codes
+    case "$STORE" in
+        epic) UMU_STORE="egs" ;;
+        gog)  UMU_STORE="gog" ;;
+        *)    UMU_STORE="none" ;;
+    esac
+    
+    # Create unique prefix for this game
+    PREFIX_PATH="$PREFIXES_DIR/$GAME_ID"
+    mkdir -p "$PREFIX_PATH"
+    
+    # Set umu environment variables
+    export WINEPREFIX="$PREFIX_PATH"
+    export GAMEID="$GAME_ID"
+    export STORE="$UMU_STORE"
+    
+    # Heroic/Legendary workaround for games requiring Epic Games Launcher
+    if [ "$STORE" == "epic" ] || [ "$STORE" == "egs" ]; then
+        export LEGENDARY_WRAPPER_EXE="C:\\windows\\command\\EpicGamesLauncher.exe"
+    fi
+    
+    # Try to use Steam's Proton (saves download time)
+    for PROTON_DIR in \
+        "$HOME/.steam/steam/steamapps/common/Proton - Experimental" \
+        "$HOME/.steam/steam/steamapps/common/Proton 10.0" \
+        "$HOME/.steam/steam/steamapps/common/Proton 9.0 (Beta)" \
+        "$HOME/.steam/root/steamapps/common/Proton - Experimental"
+    do
+        if [ -d "$PROTON_DIR" ]; then
+            export PROTONPATH="$PROTON_DIR"
+            break
+        fi
+    done
+    
+    log "WINEPREFIX: $WINEPREFIX"
+    log "GAMEID: $GAMEID"
+    log "STORE: $STORE"
+    log "PROTONPATH: ${PROTONPATH:-<umu will download>}"
+    
+    # Check for umu-run
+    if [ ! -f "$UMU_RUN" ]; then
+        log "ERROR: umu-run not found at $UMU_RUN"
+        exit 1
+    fi
+    
+    # Change to work directory
+    if [ -d "$WORK_DIR" ]; then
+        cd "$WORK_DIR"
+        log "Changed to: $WORK_DIR"
+    fi
+    
+    # Launch with umu
+    
+    # For Epic games, we need to get launch arguments (Auth tokens, etc) from legendary
+    APPS_ARGS=""
+    if [ "$STORE" == "epic" ] || [ "$STORE" == "egs" ]; then
+        # AUTO-REPAIR: Ensure "Fake Launcher" files and registry keys exist
+        FIX_SCRIPT="$PLUGIN_DIR/bin/fix_epic_launcher_prefix.py"
+        if [ -f "$FIX_SCRIPT" ]; then
+             python3 "$FIX_SCRIPT" "$PREFIX_PATH" &>/dev/null || true
+        fi
+    
+        log "Fetching Epic launch arguments from legendary..."
+        LEGENDARY_BIN="$PLUGIN_DIR/bin/legendary"
+        
+        if [ -f "$LEGENDARY_BIN" ]; then
+             # Get JSON output from dry-run
+             # legendary launch <AppID> --dry-run --json
+             JSON_OUTPUT=$("$LEGENDARY_BIN" launch "$GAME_ID" --dry-run --json 2>> "$LOG_FILE" || true)
+             
+             # Extract arguments using python (robust parsing)
+             # The JSON output might have empty fields if offline, so careful handling needed
+             APPS_ARGS=$(echo "$JSON_OUTPUT" | python3 -c "import sys, json
+for line in sys.stdin:
+    try:
+        if line.strip().startswith('{'):
+            data = json.loads(line)
+            # We want egl_parameters (Auth tokens, etc)
+            args = data.get('egl_parameters', [])
+            if args:
+                 print(' '.join(f'\"{arg}\"' for arg in args))
+                 break
+    except Exception:
+        continue
+")
+             log "Obtained args: $APPS_ARGS"
+        else
+             log "WARNING: legendary binary not found at $LEGENDARY_BIN, launching without args"
+        fi
+    fi
+    
+    # Construct final command string for logging
+    CMD_STR="python3 $UMU_RUN \"$EXE_PATH\" $APPS_ARGS $*"
+    log "Executing: $CMD_STR"
+    
+    # Use eval to properly handle the quoted arguments string we constructed
+    eval exec python3 "$UMU_RUN" "\"$EXE_PATH\"" $APPS_ARGS "$@" 2>> "$LOG_FILE"
+    
+else
+    # Native Linux game
+    log "Native Linux game detected"
+    
+    # Change to work directory
+    if [ -d "$WORK_DIR" ]; then
+        cd "$WORK_DIR"
+        log "Changed to: $WORK_DIR"
+    fi
+    
+    # Ensure executable permissions
+    chmod +x "$EXE_PATH" 2>/dev/null || true
+    
+    # Try Steam Runtime for legacy library support (libssl.so.1.0.0, etc)
+    STEAM_RUNTIME_RUN="$HOME/.steam/steam/ubuntu12_32/steam-runtime/run.sh"
+    STEAM_RUNTIME_ALT="$HOME/.local/share/Steam/ubuntu12_32/steam-runtime/run.sh"
+    
+    if [ -f "$STEAM_RUNTIME_RUN" ]; then
+        log "Using Steam Runtime: $STEAM_RUNTIME_RUN"
+        log "Executing: $STEAM_RUNTIME_RUN $EXE_PATH $*"
+        exec "$STEAM_RUNTIME_RUN" "$EXE_PATH" "$@" 2>> "$LOG_FILE"
+    elif [ -f "$STEAM_RUNTIME_ALT" ]; then
+        log "Using Steam Runtime (alt): $STEAM_RUNTIME_ALT"
+        log "Executing: $STEAM_RUNTIME_ALT $EXE_PATH $*"
+        exec "$STEAM_RUNTIME_ALT" "$EXE_PATH" "$@" 2>> "$LOG_FILE"
+    else
+        # Fallback: direct execution (may fail for old games needing legacy libs)
+        log "No Steam Runtime found, executing directly"
+        log "Executing: $EXE_PATH $*"
+        exec "$EXE_PATH" "$@" 2>> "$LOG_FILE"
+    fi
+fi
+
+# If exec fails, log it
+log "ERROR: exec failed for $EXE_PATH (exit code: $?)"
+exit 1

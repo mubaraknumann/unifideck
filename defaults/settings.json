@@ -1,0 +1,23 @@
+{
+  "version": "0.2.0",
+  "install_path": "~/Games",
+  "stores": {
+    "epic": {
+      "enabled": true,
+      "auto_sync": true
+    },
+    "gog": {
+      "enabled": true,
+      "auto_sync": true
+    }
+  },
+  "ui": {
+    "show_store_badges": true,
+    "show_deck_compatibility": true,
+    "grid_size": "medium"
+  },
+  "protondb": {
+    "enabled": true,
+    "cache_duration_hours": 24
+  }
+}

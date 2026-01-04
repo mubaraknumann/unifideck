@@ -1,0 +1,34 @@
+/**
+ * Unifideck Tab Hider
+ *
+ * Hides the original Steam library tabs that are being replaced by Unifideck
+ * Requires: REQUIRE_NAV_PATCH flag for proper controller navigation
+ */
+
+/* Hide original tabs from visual display */
+.library-tabs .tab[data-tab-id="all"],
+.library-tabs .tab[data-tab-id="great-on-deck"],
+.library-tabs .tab[data-tab-id="installed"] {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+/* Ensure hidden tabs are not focusable by gamepad navigation */
+.library-tabs .tab[data-tab-id="all"].Focusable,
+.library-tabs .tab[data-tab-id="great-on-deck"].Focusable,
+.library-tabs .tab[data-tab-id="installed"].Focusable {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+/* Alternative selectors (in case Steam changes class names) */
+[href="/library/all"],
+[href="/library/great-on-deck"],
+[href="/library/installed"] {
+  display: none !important;
+}
+
+/*
+ * Note: Actual CSS selectors may need to be updated based on
+ * Steam Deck UI inspection using chrome://inspect
+ */

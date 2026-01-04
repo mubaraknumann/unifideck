@@ -1,0 +1,125 @@
+/**
+ * Settings Tab Component
+ * 
+ * Contains storage location configuration.
+ * Extracted from Content() for tab-based navigation.
+ */
+
+import React, { VFC, useState, useEffect } from "react";
+import { call, toaster } from "@decky/api";
+import {
+    PanelSection,
+    PanelSectionRow,
+    Field,
+    Dropdown,
+    DropdownOption,
+    ButtonItem,
+} from "@decky/ui";
+import { FaSave } from "react-icons/fa";
+
+import type { StorageLocationInfo, StorageLocationsResponse } from "../types/downloads";
+
+/**
+ * Storage Location Settings Component
+ */
+export const StorageSettings: VFC = () => {
+    const [locations, setLocations] = useState<StorageLocationInfo[]>([]);
+    const [defaultStorage, setDefaultStorage] = useState<string>("internal");
+    const [saving, setSaving] = useState(false);
+
+    // Fetch storage locations on mount
+    useEffect(() => {
+        const fetchLocations = async () => {
+            try {
+                const result = await call<[], StorageLocationsResponse>("get_storage_locations");
+                if (result.success) {
+                    setLocations(result.locations);
+                    setDefaultStorage(result.default);
+                }
+            } catch (error) {
+                console.error("[StorageSettings] Error fetching locations:", error);
+            }
+        };
+        fetchLocations();
+    }, []);
+
+    // Handle storage location change
+    const handleStorageChange = async (option: DropdownOption) => {
+        const newLocation = option.data as string;
+        setSaving(true);
+
+        try {
+            const result = await call<[string], { success: boolean; error?: string }>(
+                "set_default_storage_location",
+                newLocation
+            );
+
+            if (result.success) {
+                setDefaultStorage(newLocation);
+                toaster.toast({
+                    title: "Storage Location Updated",
+                    body: `New games will be installed to ${option.label}`,
+                    duration: 3000,
+                });
+            } else {
+                toaster.toast({
+                    title: "Failed to Update",
+                    body: result.error || "Unknown error",
+                    duration: 5000,
+                    critical: true,
+                });
+            }
+        } catch (error) {
+            console.error("[StorageSettings] Error setting storage location:", error);
+        }
+
+        setSaving(false);
+    };
+
+    // Build dropdown options
+    const dropdownOptions: DropdownOption[] = locations
+        .filter((loc) => loc.available)
+        .map((loc) => ({
+            data: loc.id,
+            label: `${loc.label} (${loc.free_space_gb} GB free)`,
+        }));
+
+    const selectedOption = dropdownOptions.find((opt) => opt.data === defaultStorage);
+
+    return (
+        <PanelSection title="DOWNLOAD SETTINGS">
+            <PanelSectionRow>
+                <Field
+                    label="Install Location"
+                    description="Where new games will be downloaded"
+                >
+                    {dropdownOptions.length > 0 ? (
+                        <Dropdown
+                            rgOptions={dropdownOptions}
+                            selectedOption={selectedOption?.data}
+                            onChange={handleStorageChange}
+                            disabled={saving}
+                        />
+                    ) : (
+                        <span style={{ color: "#888", fontSize: "12px" }}>
+                            Loading storage options...
+                        </span>
+                    )}
+                </Field>
+            </PanelSectionRow>
+
+            {/* Show current default path */}
+            {locations.length > 0 && (
+                <PanelSectionRow>
+                    <Field label="Path">
+                        <span style={{ color: "#888", fontSize: "12px" }}>
+                            {locations.find((l) => l.id === defaultStorage)?.path || "Unknown"}
+                        </span>
+                    </Field>
+                </PanelSectionRow>
+            )}
+        </PanelSection>
+    );
+};
+
+export default StorageSettings;

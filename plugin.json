@@ -1,0 +1,20 @@
+{
+  "name": "Unifideck",
+  "version": "0.2.0",
+  "author": "numan",
+  "flags": [
+    "_root"
+  ],
+  "api_version": 2,
+  "publish": {
+    "tags": [
+      "library",
+      "games",
+      "epic",
+      "gog",
+      "multi-store"
+    ],
+    "description": "Unified game library manager - Browse and install games from Steam, Epic Games, and GOG in one place",
+    "image": "https://raw.githubusercontent.com/numanmubarak-PE/unifideck/main/icon.png"
+  }
+}
