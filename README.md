@@ -57,7 +57,7 @@ That's it! All other tools and dependencies are bundled with the plugin.
 
 1. Open the **Quick Access Menu** and find **Unifideck**
 2. Connect your **Epic Games** and/or **GOG** accounts using the authenticate buttons
-3. Click **Sync Libraries** and wait for completion
+3. Click **Sync Libraries** and wait for completion. Restart Steam.
 
 Your games will now appear in your Steam library!
 
