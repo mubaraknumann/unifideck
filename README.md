@@ -24,7 +24,9 @@ A Decky Loader plugin that brings together games from Steam, Epic Games Store, a
 - **One-Click Installation** - Install Epic and GOG games directly from Steam's interface
 - **Automatic Artwork** - Game covers, banners, and logos fetched automatically from SteamGridDB
 - **In-App Authentication** - Log into Epic and GOG stores without leaving Gaming Mode
-- **No Restart Required** - Installed games are playable immediately without restarting Steam
+- **No Restart Required** - Installed games are playable immediately without restarting Steam*
+
+*Still needs one time restart after libraries have been synced
 
 ## Screenshots
 
