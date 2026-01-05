@@ -6,6 +6,7 @@
  */
 
 import { TabFilter, runFilters, updateUnifideckCache, unifideckGameCache } from './filters';
+import { prefetchCompatByTitles } from './protondb';
 import { gamepadTabbedPageClasses } from '@decky/ui';
 import { call } from '@decky/api';
 import React, { ReactElement } from 'react';
@@ -235,8 +236,6 @@ class TabManager {
                     .map((g: any) => g.title);
                 if (titles.length > 0) {
                     console.log(`[Unifideck] Prefetching compatibility for ${titles.length} games...`);
-                    // Import prefetchCompatByTitles dynamically to avoid circular import
-                    const { prefetchCompatByTitles } = await import('./protondb');
                     // Run in background - don't block tab initialization
                     prefetchCompatByTitles(titles).catch((err: Error) =>
                         console.error('[Unifideck] Compat prefetch error:', err)
