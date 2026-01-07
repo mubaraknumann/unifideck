@@ -1,6 +1,6 @@
 # Node/TypeScript build artifacts
 node_modules/
-dist/
+dist/*
 build/
 .tmp/
 .cache/
@@ -34,5 +34,6 @@ env/
 research/
 .DS_Store
 package-lock.json
+pnpm-lock.yaml
 Thumbs.db
 

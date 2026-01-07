@@ -1,0 +1,65 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "setup",
+            "type": "shell",
+            "group": "none",
+            "detail": "Install dependencies and Decky CLI tool",
+            "command": "bash ${workspaceFolder}/.vscode/setup.sh",
+            "problemMatcher": []
+        },
+        {
+            "label": "pnpm install",
+            "type": "shell",
+            "group": "none",
+            "detail": "Install frontend dependencies",
+            "command": "pnpm install",
+            "problemMatcher": []
+        },
+        {
+            "label": "settingscheck",
+            "type": "shell",
+            "group": "none",
+            "detail": "Check VS Code settings for Steam Deck deployment",
+            "command": "bash ${workspaceFolder}/.vscode/config.sh",
+            "problemMatcher": []
+        },
+        {
+            "label": "build",
+            "type": "shell",
+            "group": "build",
+            "detail": "Build frontend (Rollup)",
+            "dependsOn": ["pnpm install"],
+            "command": "pnpm run build",
+            "problemMatcher": []
+        },
+        {
+            "label": "watch",
+            "type": "shell",
+            "group": "build",
+            "detail": "Watch frontend for changes and rebuild",
+            "dependsOn": ["pnpm install"],
+            "command": "pnpm run watch",
+            "isBackground": true,
+            "problemMatcher": []
+        },
+        {
+            "label": "build-plugin",
+            "type": "shell",
+            "group": "build",
+            "detail": "Build plugin zip with Decky CLI",
+            "dependsOn": ["settingscheck", "build"],
+            "command": "bash ${workspaceFolder}/.vscode/build.sh",
+            "problemMatcher": []
+        },
+        {
+            "label": "updatefrontendlib",
+            "type": "shell",
+            "group": "build",
+            "detail": "Update @decky/ui to latest version",
+            "command": "pnpm update @decky/ui --latest",
+            "problemMatcher": []
+        }
+    ]
+}
