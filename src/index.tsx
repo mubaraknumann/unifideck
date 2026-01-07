@@ -582,10 +582,19 @@ function patchGameDetailsRoute() {
   );
 }
 
+// Persistent tab state (survives component remounts)
+let persistentActiveTab: 'settings' | 'downloads' = 'settings';
+
 // Settings panel in Quick Access Menu
 const Content: FC = () => {
-  // Tab navigation state
-  const [activeTab, setActiveTab] = useState<'settings' | 'downloads'>('settings');
+  // Tab navigation state - initialize from persistent value
+  const [activeTab, setActiveTab] = useState<'settings' | 'downloads'>(persistentActiveTab);
+  
+  // Update persistent state whenever tab changes
+  const handleTabChange = (tab: 'settings' | 'downloads') => {
+    persistentActiveTab = tab;
+    setActiveTab(tab);
+  };
 
   const [syncing, setSyncing] = useState(false);
   const [syncCooldown, setSyncCooldown] = useState(false);
@@ -1273,7 +1282,7 @@ const Content: FC = () => {
         <PanelSectionRow>
           <ButtonItem
             layout="below"
-            onClick={() => setActiveTab('settings')}
+            onClick={() => handleTabChange('settings')}
             disabled={activeTab === 'settings'}
           >
             <div ref={mountRef}>⚙️ Settings</div>
@@ -1282,7 +1291,7 @@ const Content: FC = () => {
         <PanelSectionRow>
           <ButtonItem
             layout="below"
-            onClick={() => setActiveTab('downloads')}
+            onClick={() => handleTabChange('downloads')}
             disabled={activeTab === 'downloads'}
           >
             ⬇️ Downloads
