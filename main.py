@@ -2337,11 +2337,20 @@ class AmazonConnector:
             stdout, stderr = await proc.communicate()
 
             if proc.returncode == 0:
-                info = json.loads(stdout.decode())
-                manifest = info.get('manifest', {})
-                download_size = manifest.get('download_size', 0)
-                logger.info(f"[Amazon] Game {game_id} size: {download_size} bytes")
-                return download_size
+                output = stdout.decode()
+                # Find the JSON line (skip INFO/log lines)
+                for line in output.strip().split('\n'):
+                    if line.startswith('{'):
+                        try:
+                            info = json.loads(line)
+                            download_size = info.get('download_size', 0)
+                            logger.info(f"[Amazon] Game {game_id} size: {download_size} bytes")
+                            return download_size
+                        except json.JSONDecodeError:
+                            continue
+                
+                logger.warning(f"[Amazon] Could not parse size info for {game_id}")
+                return None
 
         except Exception as e:
             logger.error(f"[Amazon] Error getting game size: {e}")
