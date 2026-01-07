@@ -7,6 +7,7 @@ build/
 *.log
 npm-debug.log*
 yarn-error.log*
+out/
 
 # Python cache and tooling
 __pycache__/
@@ -29,11 +30,9 @@ env/
 !.env.example
 
 # Editor and OS cruft
-.vscode/
 .idea/
+research/
 .DS_Store
+package-lock.json
 Thumbs.db
 
-# Research clones
-research/HeroicGamesLauncher/
-research/nile/
