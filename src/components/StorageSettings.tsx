@@ -86,23 +86,22 @@ export const StorageSettings: FC = () => {
 
     return (
         <PanelSection title="DOWNLOAD SETTINGS">
-            <PanelSectionRow>
-                <Field
-                    label="Install Location"
-                    description="Where new games will be downloaded"
-                >
-                    {dropdownOptions.length > 0 ? (
-                        <Dropdown
-                            rgOptions={dropdownOptions}
-                            selectedOption={selectedOption?.data}
-                            onChange={handleStorageChange}
-                            disabled={saving}
-                        />
-                    ) : (
-                        <Field description="Loading storage options..." />
-                    )}
-                </Field>
-            </PanelSectionRow>
+            {dropdownOptions.length > 0 ? (
+                <PanelSectionRow>
+                    <Dropdown
+                        label="Install Location"
+                        description="Where new games will be downloaded"
+                        rgOptions={dropdownOptions}
+                        selectedOption={selectedOption?.data}
+                        onChange={handleStorageChange}
+                        disabled={saving}
+                    />
+                </PanelSectionRow>
+            ) : (
+                <PanelSectionRow>
+                    <Field description="Loading storage options..." />
+                </PanelSectionRow>
+            )}
 
             {/* Show current default path */}
             {locations.length > 0 && (
