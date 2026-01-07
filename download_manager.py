@@ -647,8 +647,19 @@ class DownloadQueue:
 
     async def _parse_nile_output(self, item: DownloadItem) -> None:
         """Parse nile output for progress updates"""
-        # Nile outputs: [Installation] [XX%] message
-        progress_re = re.compile(r'\[Installation\]\s*\[(\d+)%\]')
+        # Nile download progress format (from ProgressBar):
+        # INFO [PROGRESS]:  = Progress: 25.06 137141589/442097801, Running for: 00:00:10, ETA: 00:00:29
+        # INFO [PROGRESS]:  = Downloaded: 130.79 MiB, Written: 130.79 MiB
+        # INFO [PROGRESS]:   + Download    - 25.14 MiB/s
+        
+        progress_re = re.compile(
+            r'= Progress:\s+(\d+\.?\d*)\s+(\d+)/(\d+),.*ETA:\s+(\d+):(\d+):(\d+)'
+        )
+        downloaded_re = re.compile(r'= Downloaded:\s+(\d+\.?\d*)\s+MiB')
+        speed_re = re.compile(r'\+ Download\s+-\s+(\d+\.?\d*)\s+MiB/s')
+        
+        # Installation/verification phase (simpler format)
+        install_re = re.compile(r'\[Installation\]\s*\[(\d+)%\]')
         
         buffer = ""
         
@@ -668,19 +679,37 @@ class DownloadQueue:
                 for line in lines[:-1]:
                     logger.debug(f"[Nile] {line}")
                     
-                    # Parse progress
+                    # Parse rich download progress (from PROGRESS logger)
                     if match := progress_re.search(line):
                         item.progress_percent = float(match.group(1))
-                        item.is_preparing = False
+                        item.downloaded_bytes = int(match.group(2))
+                        item.total_bytes = int(match.group(3))
                         
-                        # Save periodically
-                        if int(item.progress_percent) % 5 == 0:
-                            self._save()
+                        # Parse ETA (HH:MM:SS format)
+                        hours = int(match.group(4))
+                        minutes = int(match.group(5))
+                        seconds = int(match.group(6))
+                        item.eta_seconds = hours * 3600 + minutes * 60 + seconds
+                        item.is_preparing = False
                     
-                    # Check for verifying
-                    if '[Verification]' in line:
+                    # Parse download speed
+                    elif match := speed_re.search(line):
+                        item.speed_mbps = float(match.group(1))
+                    
+                    # Parse installation phase (simpler format - after download)
+                    elif match := install_re.search(line):
+                        item.progress_percent = float(match.group(1))
+                        item.is_preparing = False
+                        logger.info(f"[DownloadQueue] Amazon game {item.game_id} installation at {item.progress_percent}%")
+                    
+                    # Check for verification
+                    elif '[Verification]' in line:
                         item.is_preparing = False
                         logger.info(f"[DownloadQueue] Amazon game {item.game_id} verification in progress")
+                    
+                    # Save progress periodically
+                    if int(item.progress_percent) % 5 == 0:
+                        self._save()
                             
             except asyncio.TimeoutError:
                 continue
