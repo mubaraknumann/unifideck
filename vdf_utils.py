@@ -4,11 +4,6 @@ import sys
 import os
 from typing import Dict, Any
 
-# Add lib to path for vdf library
-lib_path = os.path.join(os.path.dirname(__file__), 'lib')
-if lib_path not in sys.path:
-    sys.path.insert(0, lib_path)
-
 import vdf
 
 

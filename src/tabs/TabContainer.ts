@@ -2,7 +2,7 @@
  * Unifideck Tab Container
  * 
  * Manages custom tabs for the Steam library that include
- * Epic and GOG games alongside Steam games.
+ * Epic, GOG, and Amazon games alongside Steam games.
  */
 
 import { TabFilter, runFilters, updateUnifideckCache, unifideckGameCache } from './filters';
@@ -20,7 +20,7 @@ export interface UnifideckTab {
     icon?: string;
 }
 
-// Default Unifideck tabs - ORDERED: Great on Deck, All Games, Installed, Steam, Epic, GOG, Non-Steam
+// Default Unifideck tabs - ORDERED: Great on Deck, All Games, Installed, Steam, Epic, GOG, Amazon, Non-Steam
 export const UNIFIDECK_TABS: UnifideckTab[] = [
     {
         id: 'unifideck-deck',
@@ -59,9 +59,15 @@ export const UNIFIDECK_TABS: UnifideckTab[] = [
         filters: [{ type: 'store', params: { store: 'gog' } }]
     },
     {
+        id: 'unifideck-amazon',
+        title: 'Amazon',
+        position: 6,
+        filters: [{ type: 'store', params: { store: 'amazon' } }]
+    },
+    {
         id: 'unifideck-nonsteam',
         title: 'Non-Steam',
-        position: 6,
+        position: 7,
         filters: [{ type: 'nonSteam', params: {} }]  // All non-Steam shortcuts except non-installed Unifideck
     }
 ];
@@ -222,6 +228,7 @@ class TabManager {
     private cacheLoaded = false;
     private epicGameCount = 0;
     private gogGameCount = 0;
+    private amazonGameCount = 0;
 
     async initialize() {
         if (this.initialized) return;
@@ -247,7 +254,7 @@ class TabManager {
             if (Array.isArray(games) && games.length > 0) {
                 const cacheData = games.map(g => ({
                     appId: g.appId,
-                    store: g.store as 'epic' | 'gog',
+                    store: g.store as 'epic' | 'gog' | 'amazon',
                     isInstalled: g.isInstalled
                 }));
                 updateUnifideckCache(cacheData);
@@ -255,9 +262,10 @@ class TabManager {
                 // Count games by store for tab visibility
                 this.epicGameCount = games.filter((g: any) => g.store === 'epic').length;
                 this.gogGameCount = games.filter((g: any) => g.store === 'gog').length;
-                console.log(`[Unifideck] Loaded ${games.length} games into cache (Epic: ${this.epicGameCount}, GOG: ${this.gogGameCount})`);
+                this.amazonGameCount = games.filter((g: any) => g.store === 'amazon').length;
+                console.log(`[Unifideck] Loaded ${games.length} games into cache (Epic: ${this.epicGameCount}, GOG: ${this.gogGameCount}, Amazon: ${this.amazonGameCount})`);
 
-                // Prefetch compatibility info (ProtonDB + Deck Verified) for Epic/GOG games
+                // Prefetch compatibility info (ProtonDB + Deck Verified) for Epic/GOG/Amazon games
                 const titles = games
                     .filter((g: any) => g.title)
                     .map((g: any) => g.title);
@@ -292,6 +300,9 @@ class TabManager {
         if (tabId === 'unifideck-gog' && this.gogGameCount === 0) {
             return false;
         }
+        if (tabId === 'unifideck-amazon' && this.amazonGameCount === 0) {
+            return false;
+        }
         return true;
     }
 
@@ -306,7 +317,7 @@ class TabManager {
     /**
      * Updates the game cache with Unifideck game info
      */
-    updateGameCache(games: Array<{ appId: number; store: 'epic' | 'gog'; isInstalled: boolean }>) {
+    updateGameCache(games: Array<{ appId: number; store: 'epic' | 'gog' | 'amazon'; isInstalled: boolean }>) {
         updateUnifideckCache(games);
         this.cacheLoaded = true;
         this.rebuildTabs();

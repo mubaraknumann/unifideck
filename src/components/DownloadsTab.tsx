@@ -57,7 +57,7 @@ function formatETA(seconds: number): string {
  * Store icon based on store type
  */
 const StoreIcon: VFC<{ store: string }> = ({ store }) => {
-    const color = store === "epic" ? "#0078f2" : "#a855f7";
+    const color = store === "epic" ? "#0078f2" : store === "amazon" ? "#FF9900" : "#a855f7";
     return (
         <span
             style={{

@@ -1,0 +1,41 @@
+# Node/TypeScript build artifacts
+node_modules/
+dist/*
+build/
+.tmp/
+.cache/
+*.log
+npm-debug.log*
+yarn-error.log*
+out/
+
+# Python cache and tooling
+__pycache__/
+*.py[cod]
+*.pyo
+*.so
+*.egg-info/
+.eggs/
+.mypy_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+.venv/
+venv/
+env/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Editor and OS cruft
+.idea/
+research/
+.DS_Store
+package-lock.json
+pnpm-lock.yaml
+Thumbs.db
+
+dist/index.js
+dist/index.js.map

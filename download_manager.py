@@ -39,7 +39,7 @@ class StorageLocation(str, Enum):
 
 # Storage paths
 STORAGE_PATHS = {
-    StorageLocation.INTERNAL: "/home/deck/Games",
+    StorageLocation.INTERNAL: os.path.expanduser("~/Games"),
     # SD Card path will be resolved dynamically
     StorageLocation.SDCARD: "/run/media/mmcblk0p1/Games" 
 }
@@ -217,7 +217,7 @@ class DownloadQueue:
                 return os.path.join(sd_root, "Games")
             # Fallback
             return "/run/media/mmcblk0p1/Games"
-        return "/home/deck/Games"
+        return os.path.expanduser("~/Games")
 
     def _resolve_sd_path(self) -> Optional[str]:
         """Resolve the actual path to the SD card"""
@@ -445,7 +445,7 @@ class DownloadQueue:
         logger.info("[DownloadQueue] Queue processing complete")
 
     async def _execute_download(self, item: DownloadItem) -> bool:
-        """Execute the actual download using legendary or gogdl"""
+        """Execute the actual download using legendary, gogdl, or nile"""
         install_path = self.get_install_path(item.storage_location)
         os.makedirs(install_path, exist_ok=True)
         
@@ -453,6 +453,8 @@ class DownloadQueue:
             return await self._download_epic(item, install_path)
         elif item.store == 'gog':
             return await self._download_gog(item, install_path)
+        elif item.store == 'amazon':
+            return await self._download_amazon(item, install_path)
         else:
             logger.error(f"[DownloadQueue] Unknown store: {item.store}")
             return False
@@ -596,6 +598,124 @@ class DownloadQueue:
             logger.error(f"[DownloadQueue] GOG download error: {e}")
             item.error_message = str(e)
             return False
+
+    async def _download_amazon(self, item: DownloadItem, install_path: str) -> bool:
+        """Download Amazon game using nile CLI"""
+        # Use bundled nile from plugin directory
+        nile_bin = None
+        if self.plugin_dir:
+            nile_bin = os.path.join(self.plugin_dir, "bin", "nile")
+            if not os.path.exists(nile_bin):
+                nile_bin = None
+        
+        # Fallback to user-installed nile
+        if not nile_bin:
+            nile_bin = os.path.expanduser("~/.local/bin/nile")
+            if not os.path.exists(nile_bin):
+                item.error_message = "nile binary not found"
+                logger.error(f"[DownloadQueue] nile not found in plugin_dir or ~/.local/bin")
+                return False
+        
+        cmd = [
+            nile_bin,
+            "install",
+            item.game_id,
+            "--base-path", install_path
+        ]
+        
+        logger.info(f"[DownloadQueue] Running: {' '.join(cmd)}")
+        
+        try:
+            self.current_process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT
+            )
+            
+            # Parse progress from output
+            await self._parse_nile_output(item)
+            
+            return_code = await self.current_process.wait()
+            self.current_process = None
+            
+            return return_code == 0
+            
+        except Exception as e:
+            logger.error(f"[DownloadQueue] Amazon download error: {e}")
+            item.error_message = str(e)
+            return False
+
+    async def _parse_nile_output(self, item: DownloadItem) -> None:
+        """Parse nile output for progress updates"""
+        # Nile download progress format (from ProgressBar):
+        # INFO [PROGRESS]:  = Progress: 25.06 137141589/442097801, Running for: 00:00:10, ETA: 00:00:29
+        # INFO [PROGRESS]:  = Downloaded: 130.79 MiB, Written: 130.79 MiB
+        # INFO [PROGRESS]:   + Download    - 25.14 MiB/s
+        
+        progress_re = re.compile(
+            r'= Progress:\s+(\d+\.?\d*)\s+(\d+)/(\d+),.*ETA:\s+(\d+):(\d+):(\d+)'
+        )
+        downloaded_re = re.compile(r'= Downloaded:\s+(\d+\.?\d*)\s+MiB')
+        speed_re = re.compile(r'\+ Download\s+-\s+(\d+\.?\d*)\s+MiB/s')
+        
+        # Installation/verification phase (simpler format)
+        install_re = re.compile(r'\[Installation\]\s*\[(\d+)%\]')
+        
+        buffer = ""
+        
+        while self.current_process and self.current_process.returncode is None:
+            try:
+                chunk = await asyncio.wait_for(
+                    self.current_process.stdout.read(4096),
+                    timeout=1.0
+                )
+                if not chunk:
+                    break
+                    
+                buffer += chunk.decode('utf-8', errors='ignore')
+                lines = buffer.split('\n')
+                buffer = lines[-1]  # Keep incomplete line
+                
+                for line in lines[:-1]:
+                    logger.debug(f"[Nile] {line}")
+                    
+                    # Parse rich download progress (from PROGRESS logger)
+                    if match := progress_re.search(line):
+                        item.progress_percent = float(match.group(1))
+                        item.downloaded_bytes = int(match.group(2))
+                        item.total_bytes = int(match.group(3))
+                        
+                        # Parse ETA (HH:MM:SS format)
+                        hours = int(match.group(4))
+                        minutes = int(match.group(5))
+                        seconds = int(match.group(6))
+                        item.eta_seconds = hours * 3600 + minutes * 60 + seconds
+                        item.is_preparing = False
+                    
+                    # Parse download speed
+                    elif match := speed_re.search(line):
+                        item.speed_mbps = float(match.group(1))
+                    
+                    # Parse installation phase (simpler format - after download)
+                    elif match := install_re.search(line):
+                        item.progress_percent = float(match.group(1))
+                        item.is_preparing = False
+                        logger.info(f"[DownloadQueue] Amazon game {item.game_id} installation at {item.progress_percent}%")
+                    
+                    # Check for verification
+                    elif '[Verification]' in line:
+                        item.is_preparing = False
+                        logger.info(f"[DownloadQueue] Amazon game {item.game_id} verification in progress")
+                    
+                    # Save progress periodically
+                    if int(item.progress_percent) % 5 == 0:
+                        self._save()
+                            
+            except asyncio.TimeoutError:
+                continue
+            except Exception as e:
+                logger.warning(f"[DownloadQueue] Error parsing nile output: {e}")
+                break
 
     def set_gog_install_callback(self, callback: Callable) -> None:
         """Set callback for GOG game installation (uses GOGAPIClient)"""

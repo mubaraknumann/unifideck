@@ -2,7 +2,7 @@
  * Unifideck Tab Filters
  * 
  * Filters for creating custom library tabs that include
- * Steam, Epic, and GOG games with proper store detection.
+ * Steam, Epic, GOG, and Amazon games with proper store detection.
  */
 
 import { getCachedRating, getCachedCompatByTitle, meetsGreatOnDeckCriteria } from './protondb';
@@ -14,7 +14,7 @@ export type FilterType = 'installed' | 'platform' | 'store' | 'deckCompat' | 'al
 export interface FilterParams {
     installed: { installed: boolean };
     platform: { platform: 'steam' | 'nonSteam' | 'all' };
-    store: { store: 'steam' | 'epic' | 'gog' | 'all' };
+    store: { store: 'steam' | 'epic' | 'gog' | 'amazon' | 'all' };
     deckCompat: {};  // No params needed - uses Native/Platinum/Verified only
     all: {};
     nonSteam: {};  // All non-Steam shortcuts except non-installed Unifideck
@@ -36,7 +36,7 @@ const DECK_PLAYABLE = 2;
 // Cache for Unifideck game info (store mapping, install status, and Steam appId for ProtonDB)
 // Key is appId - we store BOTH signed and unsigned versions for lookup
 export const unifideckGameCache: Map<number, {
-    store: 'epic' | 'gog';
+    store: 'epic' | 'gog' | 'amazon';
     isInstalled: boolean;
     steamAppId?: number;  // Real Steam appId for ProtonDB lookups
 }> = new Map();
@@ -47,7 +47,7 @@ export const unifideckGameCache: Map<number, {
  */
 export function updateUnifideckCache(games: Array<{
     appId: number;
-    store: 'epic' | 'gog';
+    store: 'epic' | 'gog' | 'amazon';
     isInstalled: boolean;
     steamAppId?: number;
 }>) {
@@ -84,7 +84,7 @@ export function isUnifideckGame(appId: number): boolean {
  * Gets the store for a given app
  * Returns null if unknown non-Steam shortcut (not in our cache)
  */
-export function getStoreForApp(appId: number, appType: number): 'steam' | 'epic' | 'gog' | null {
+export function getStoreForApp(appId: number, appType: number): 'steam' | 'epic' | 'gog' | 'amazon' | null {
     // Check cache first (works for both signed and unsigned appId)
     const cached = unifideckGameCache.get(appId);
     if (cached) {
@@ -146,7 +146,7 @@ export const filterFunctions: {
         return app.app_type === NON_STEAM_APP_TYPE;
     },
 
-    // Filter by store (Steam, Epic, GOG)
+    // Filter by store (Steam, Epic, GOG, Amazon)
     store: (params, app) => {
         if (params.store === 'all') return true;
 
@@ -168,7 +168,7 @@ export const filterFunctions: {
             return true;
         }
 
-        // For Unifideck games (Epic/GOG), use title-based compatibility lookup
+        // For Unifideck games (Epic/GOG/Amazon), use title-based compatibility lookup
         const cached = unifideckGameCache.get(app.appid);
         if (cached) {
             // Use app's display_name for title-based search

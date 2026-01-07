@@ -49,7 +49,6 @@ class SteamGridDBClient:
         possible_paths = [
             os.path.expanduser("~/.steam/steam"),
             os.path.expanduser("~/.local/share/Steam"),
-            "/home/deck/.steam/steam",
         ]
 
         for path in possible_paths:

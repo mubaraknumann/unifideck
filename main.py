@@ -143,13 +143,6 @@ class CDPOAuthMonitor:
                     if ws_url:
                         logger.info(f"[CDP] Closing page via CDP: {page.get('url', '')[:80]}...")
 
-                        # Add bundled lib directory to path
-                        import sys
-                        import os
-                        plugin_dir = os.path.dirname(os.path.abspath(__file__))
-                        lib_path = os.path.join(plugin_dir, 'lib')
-                        if lib_path not in sys.path:
-                            sys.path.insert(0, lib_path)
                         import websockets
 
                         async with websockets.connect(ws_url, ping_interval=None) as websocket:
@@ -190,12 +183,6 @@ class CDPOAuthMonitor:
                 return False
 
             # Connect and clear cookies
-            import sys
-            import os
-            plugin_dir = os.path.dirname(os.path.abspath(__file__))
-            lib_path = os.path.join(plugin_dir, 'lib')
-            if lib_path not in sys.path:
-                sys.path.insert(0, lib_path)
             import websockets
 
             async with websockets.connect(ws_url, ping_interval=None) as websocket:
@@ -241,13 +228,6 @@ class CDPOAuthMonitor:
             logger.info(f"[CDP] Connecting to page via WebSocket...")
 
             # Connect via WebSocket and get page content
-            # Add bundled lib directory to path
-            import sys
-            import os
-            plugin_dir = os.path.dirname(os.path.abspath(__file__))
-            lib_path = os.path.join(plugin_dir, 'lib')
-            if lib_path not in sys.path:
-                sys.path.insert(0, lib_path)
             import websockets
 
             async with websockets.connect(ws_url, ping_interval=None) as websocket:
@@ -297,6 +277,12 @@ class CDPOAuthMonitor:
             match = re.search(r'authorizationCode=([^&\s]+)', url)
             if match:
                 return match.group(1), 'epic'
+
+        # Amazon style - looks for openid.oa2.authorization_code in URL
+        if 'amazon.com' in url.lower() and 'openid.oa2.authorization_code=' in url:
+            match = re.search(r'openid\.oa2\.authorization_code=([^&\s]+)', url)
+            if match:
+                return match.group(1), 'amazon'
 
         # GOG style
         if 'code=' in url:
@@ -490,9 +476,10 @@ class BackgroundSizeFetcher:
     - Starts automatically on plugin load if pending games exist
     """
     
-    def __init__(self, epic_connector, gog_connector):
+    def __init__(self, epic_connector, gog_connector, amazon_connector=None):
         self.epic = epic_connector
         self.gog = gog_connector
+        self.amazon = amazon_connector
         self._running = False
         self._task = None
         self._pending_games = []  # List of (store, game_id) tuples
@@ -566,6 +553,8 @@ class BackgroundSizeFetcher:
                                 size_bytes = await self.epic.get_game_size(game_id)
                             elif store == 'gog':
                                 size_bytes = await self.gog.get_game_size(game_id, session=session)
+                            elif store == 'amazon' and self.amazon:
+                                size_bytes = await self.amazon.get_game_size(game_id)
                             else:
                                 return (store, game_id, None)
                             
@@ -687,7 +676,6 @@ class ShortcutsManager:
         possible_paths = [
             os.path.expanduser("~/.steam/steam"),
             os.path.expanduser("~/.local/share/Steam"),
-            "/home/deck/.steam/steam",  # Steam Deck default
         ]
 
         for path in possible_paths:
@@ -1966,6 +1954,528 @@ class EpicConnector:
                 'success': False,
                 'error': str(e)
             }
+
+
+class AmazonConnector:
+    """Handles Amazon Games via nile CLI"""
+
+    def __init__(self, plugin_dir: Optional[str] = None, plugin_instance=None):
+        self.plugin_dir = plugin_dir
+        self.plugin_instance = plugin_instance  # Reference to parent Plugin for auto-sync
+        self.nile_bin = self._find_nile()
+        self._pending_login_data = None  # Store login data during OAuth flow
+        logger.info(f"Nile binary: {self.nile_bin}")
+
+    def _find_nile(self) -> Optional[str]:
+        """Find nile executable - checks bundled binary first, then system"""
+        import shutil
+
+        # Priority 1: Check bundled nile in plugin bin/ directory
+        if self.plugin_dir:
+            bundled_nile = os.path.join(self.plugin_dir, 'bin', 'nile')
+            if os.path.isfile(bundled_nile) and os.access(bundled_nile, os.X_OK):
+                logger.info(f"[Amazon] Using bundled nile: {bundled_nile}")
+                return bundled_nile
+
+        # Priority 2: Check system PATH
+        nile_path = shutil.which("nile")
+        if nile_path:
+            logger.info(f"[Amazon] Using system nile: {nile_path}")
+            return nile_path
+
+        # Priority 3: Check ~/.local/bin explicitly
+        local_bin_nile = os.path.expanduser("~/.local/bin/nile")
+        if os.path.exists(local_bin_nile):
+            logger.info(f"[Amazon] Using user nile: {local_bin_nile}")
+            return local_bin_nile
+
+        logger.warning("[Amazon] Nile not found - Amazon Games features unavailable")
+        return None
+
+    async def is_available(self) -> bool:
+        """Check if nile is installed and authenticated"""
+        logger.info(f"[Amazon] Checking availability, nile_bin={self.nile_bin}")
+
+        if not self.nile_bin:
+            logger.warning("[Amazon] Nile CLI not found - not installed")
+            return False
+
+        try:
+            # Check for user.json which contains Amazon auth tokens
+            nile_config = os.path.expanduser("~/.config/nile")
+            user_file = os.path.join(nile_config, "user.json")
+
+            if not os.path.exists(user_file):
+                logger.info("[Amazon] No user.json found - not authenticated")
+                return False
+
+            # Verify the file has valid content
+            try:
+                with open(user_file, 'r') as f:
+                    data = json.load(f)
+                    if not data:
+                        logger.info("[Amazon] user.json empty - not authenticated")
+                        return False
+
+                    # Check for customer_info which indicates valid auth
+                    extensions = data.get('extensions', {})
+                    if 'customer_info' not in extensions:
+                        logger.info("[Amazon] user.json missing customer_info - not authenticated")
+                        return False
+
+                    logger.info("[Amazon] Status: Connected (authenticated)")
+                    return True
+
+            except (json.JSONDecodeError, Exception) as e:
+                logger.warning(f"[Amazon] Invalid user.json: {e}")
+                return False
+
+        except Exception as e:
+            logger.error(f"[Amazon] Exception checking status: {e}", exc_info=True)
+            return False
+
+    async def start_auth(self) -> Dict[str, Any]:
+        """Start Amazon OAuth flow via nile (non-interactive mode)"""
+        if not self.nile_bin:
+            return {'success': False, 'error': 'nile not found'}
+
+        try:
+            logger.info("[Amazon] Starting OAuth flow...")
+
+            proc = await asyncio.create_subprocess_exec(
+                self.nile_bin, 'auth', '--login', '--non-interactive',
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc.communicate()
+
+            if proc.returncode == 0:
+                try:
+                    login_data = json.loads(stdout.decode())
+                    # Store login data for completion step
+                    self._pending_login_data = login_data
+                    logger.info(f"[Amazon] Got login URL, waiting for user authorization")
+                    
+                    # Start CDP monitoring in background to auto-capture code
+                    asyncio.create_task(self._monitor_and_complete_auth())
+                    
+                    return {
+                        'success': True,
+                        'url': login_data.get('url', ''),
+                        'message': 'Please login in the browser window'
+                    }
+                except json.JSONDecodeError as e:
+                    logger.error(f"[Amazon] Failed to parse login data: {e}")
+                    return {'success': False, 'error': 'Failed to parse login response'}
+            else:
+                error_msg = stderr.decode() if stderr else 'Unknown error'
+                logger.error(f"[Amazon] Auth failed: {error_msg}")
+                return {'success': False, 'error': error_msg}
+
+        except Exception as e:
+            logger.error(f"[Amazon] Error starting auth: {e}")
+            return {'success': False, 'error': str(e)}
+
+    async def complete_auth(self, auth_code: str) -> Dict[str, Any]:
+        """Complete Amazon OAuth with authorization code from browser"""
+        if not self.nile_bin:
+            return {'success': False, 'error': 'nile not found'}
+
+        if not self._pending_login_data:
+            return {'success': False, 'error': 'No pending login - call start_auth first'}
+
+        try:
+            login_data = self._pending_login_data
+            logger.info(f"[Amazon] Completing auth with code...")
+
+            proc = await asyncio.create_subprocess_exec(
+                self.nile_bin, 'register',
+                '--code', auth_code,
+                '--code-verifier', login_data.get('code_verifier', ''),
+                '--serial', login_data.get('serial', ''),
+                '--client-id', login_data.get('client_id', ''),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc.communicate()
+
+            # Nile prints success message to stderr
+            output = stderr.decode() if stderr else stdout.decode()
+            
+            if 'Succesfully registered' in output or 'Successfully registered' in output:
+                self._pending_login_data = None  # Clear pending data
+                logger.info("[Amazon] Authentication successful!")
+                
+                # Trigger auto-sync if plugin instance available
+                if self.plugin_instance:
+                    logger.info("[Amazon] Triggering library sync after auth")
+                    asyncio.create_task(self.plugin_instance.force_sync_libraries())
+                    
+                return {'success': True, 'message': 'Authenticated successfully'}
+            else:
+                logger.error(f"[Amazon] Registration failed: {output}")
+                return {'success': False, 'error': 'Authentication failed'}
+
+        except Exception as e:
+            logger.error(f"[Amazon] Error completing auth: {e}")
+            return {'success': False, 'error': str(e)}
+
+    async def _monitor_and_complete_auth(self):
+        """Monitor browser for OAuth callback and auto-complete authentication"""
+        try:
+            monitor = CDPOAuthMonitor()
+            logger.info("[Amazon] Starting CDP monitor for auth code...")
+            
+            # Monitor for Amazon OAuth code (5 min timeout)
+            code, store = await monitor.monitor_for_oauth_code(expected_store='amazon', timeout=300)
+            
+            if code and store == 'amazon':
+                logger.info(f"[Amazon] ✓ Auto-captured authorization code via CDP")
+                result = await self.complete_auth(code)
+                if result.get('success'):
+                    logger.info("[Amazon] ✓ Auto-authentication completed successfully")
+                else:
+                    logger.error(f"[Amazon] Auto-auth completion failed: {result.get('error')}")
+            else:
+                logger.warning("[Amazon] CDP monitoring timeout - user may need to manually enter code")
+                
+        except Exception as e:
+            logger.error(f"[Amazon] Error in CDP monitoring: {e}", exc_info=True)
+
+    async def logout(self) -> Dict[str, Any]:
+        """Logout from Amazon Games"""
+        if not self.nile_bin:
+            return {'success': False, 'error': 'nile not found'}
+
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                self.nile_bin, 'auth', '--logout',
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            await proc.communicate()
+
+            logger.info("[Amazon] Logged out successfully")
+            return {'success': True, 'message': 'Logged out successfully'}
+
+        except Exception as e:
+            logger.error(f"[Amazon] Error during logout: {e}")
+            return {'success': False, 'error': str(e)}
+
+    async def sync_library(self) -> bool:
+        """Sync Amazon Games library from server"""
+        if not self.nile_bin:
+            return False
+
+        try:
+            logger.info("[Amazon] Syncing library from server...")
+            proc = await asyncio.create_subprocess_exec(
+                self.nile_bin, 'library', 'sync',
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc.communicate()
+
+            if proc.returncode == 0:
+                logger.info("[Amazon] Library sync complete")
+                return True
+            else:
+                logger.warning(f"[Amazon] Library sync failed: {stderr.decode()}")
+                return False
+
+        except Exception as e:
+            logger.error(f"[Amazon] Error syncing library: {e}")
+            return False
+
+    async def get_library(self) -> List[Game]:
+        """Get Amazon Games library via nile"""
+        if not self.nile_bin:
+            logger.warning("[Amazon] Nile CLI not found")
+            return []
+
+        try:
+            # First sync library to get latest
+            await self.sync_library()
+
+            # Read library directly from nile's library.json file
+            nile_config = os.path.expanduser("~/.config/nile")
+            library_file = os.path.join(nile_config, "library.json")
+            
+            if not os.path.exists(library_file):
+                logger.warning("[Amazon] library.json not found")
+                return []
+            
+            with open(library_file, 'r') as f:
+                games_data = json.load(f)
+
+            games = []
+
+            # Get installed games to mark install status
+            installed = await self.get_installed()
+
+            for game_data in games_data:
+                product = game_data.get('product', {})
+                game_id = product.get('id', '')
+                title = product.get('title', 'Unknown')
+                
+                # Get product details for metadata
+                product_detail = product.get('productDetail', {})
+                details = product_detail.get('details', {})
+                
+                game = Game(
+                    id=game_id,
+                    title=title,
+                    store='amazon',
+                    is_installed=game_id in installed
+                )
+                games.append(game)
+
+            logger.info(f"[Amazon] Found {len(games)} games")
+            return games
+
+        except Exception as e:
+            logger.error(f"[Amazon] Error fetching library: {e}", exc_info=True)
+            return []
+
+    async def get_installed(self) -> Dict[str, Any]:
+        """Get list of installed Amazon games from nile config"""
+        nile_config = os.path.expanduser("~/.config/nile")
+        installed_file = os.path.join(nile_config, "installed.json")
+
+        if not os.path.exists(installed_file):
+            return {}
+
+        try:
+            with open(installed_file, 'r') as f:
+                installed_list = json.load(f)
+
+            installed_dict = {}
+            for game in installed_list:
+                game_id = game.get('id', '')
+                installed_dict[game_id] = {
+                    'version': game.get('version', ''),
+                    'path': game.get('path', '')
+                }
+            return installed_dict
+
+        except Exception as e:
+            logger.error(f"[Amazon] Error reading installed.json: {e}")
+            return {}
+
+    def get_installed_game_info(self, game_id: str) -> Optional[Dict[str, Any]]:
+        """Get installed game info synchronously"""
+        nile_config = os.path.expanduser("~/.config/nile")
+        installed_file = os.path.join(nile_config, "installed.json")
+
+        if not os.path.exists(installed_file):
+            return None
+
+        try:
+            with open(installed_file, 'r') as f:
+                installed_list = json.load(f)
+
+            for game in installed_list:
+                if game.get('id') == game_id:
+                    install_path = game.get('path', '')
+                    
+                    # Parse fuel.json for executable
+                    exe_path = self._get_executable_from_fuel(install_path)
+                    
+                    return {
+                        'id': game_id,
+                        'version': game.get('version', ''),
+                        'path': install_path,
+                        'executable': exe_path
+                    }
+            return None
+
+        except Exception as e:
+            logger.error(f"[Amazon] Error getting installed game info: {e}")
+            return None
+
+    def _get_executable_from_fuel(self, install_path: str) -> Optional[str]:
+        """Get executable path from fuel.json"""
+        if not install_path:
+            return None
+
+        fuel_path = os.path.join(install_path, 'fuel.json')
+        if not os.path.exists(fuel_path):
+            logger.warning(f"[Amazon] No fuel.json found at {fuel_path}")
+            return None
+
+        try:
+            # fuel.json might have comments, try json5 style parsing
+            with open(fuel_path, 'r') as f:
+                content = f.read()
+                # Remove single-line comments
+                import re
+                content = re.sub(r'//.*$', '', content, flags=re.MULTILINE)
+                fuel_data = json.loads(content)
+
+            main_cmd = fuel_data.get('Main', {}).get('Command', '')
+            if main_cmd:
+                exe_path = os.path.join(install_path, main_cmd)
+                logger.info(f"[Amazon] Found executable from fuel.json: {exe_path}")
+                return exe_path
+
+        except Exception as e:
+            logger.error(f"[Amazon] Error parsing fuel.json: {e}")
+
+        return None
+
+    async def get_game_size(self, game_id: str) -> Optional[int]:
+        """Get game download size in bytes"""
+        if not self.nile_bin:
+            return None
+
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                self.nile_bin, 'install', game_id, '--info', '--json',
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc.communicate()
+
+            if proc.returncode == 0:
+                output = stdout.decode()
+                # Find the JSON line (skip INFO/log lines)
+                for line in output.strip().split('\n'):
+                    if line.startswith('{'):
+                        try:
+                            info = json.loads(line)
+                            download_size = info.get('download_size', 0)
+                            logger.info(f"[Amazon] Game {game_id} size: {download_size} bytes")
+                            return download_size
+                        except json.JSONDecodeError:
+                            continue
+                
+                logger.warning(f"[Amazon] Could not parse size info for {game_id}")
+                return None
+
+        except Exception as e:
+            logger.error(f"[Amazon] Error getting game size: {e}")
+
+        return None
+
+    async def install_game(self, game_id: str, progress_callback=None) -> Dict[str, Any]:
+        """Install Amazon game using nile CLI"""
+        if not self.nile_bin:
+            return {'success': False, 'error': 'Nile CLI not found'}
+
+        try:
+            base_path = os.path.expanduser("~/Games/Amazon")
+            os.makedirs(base_path, exist_ok=True)
+
+            logger.info(f"[Amazon] Starting installation of {game_id} to {base_path}")
+
+            proc = await asyncio.create_subprocess_exec(
+                self.nile_bin, 'install', game_id,
+                '--base-path', base_path,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT
+            )
+
+            # Parse progress from output
+            while True:
+                line = await proc.stdout.readline()
+                if not line:
+                    break
+                line_str = line.decode().strip()
+                logger.info(f"[Amazon Install] {line_str}")
+
+                # Parse progress: [Installation] [XX%] message
+                if '[Installation]' in line_str and '%' in line_str:
+                    import re
+                    match = re.search(r'\[(\d+)%\]', line_str)
+                    if match and progress_callback:
+                        progress = int(match.group(1))
+                        await progress_callback(progress)
+
+            await proc.wait()
+
+            if proc.returncode == 0:
+                # Get install info
+                info_proc = await asyncio.create_subprocess_exec(
+                    self.nile_bin, 'install', game_id, '--info', '--json',
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, _ = await info_proc.communicate()
+
+                install_path = None
+                exe_path = None
+
+                if info_proc.returncode == 0:
+                    try:
+                        info = json.loads(stdout.decode())
+                        install_path = info.get('game', {}).get('path', '')
+                    except:
+                        pass
+
+                # Fallback: check installed.json
+                if not install_path:
+                    installed = await self.get_installed()
+                    if game_id in installed:
+                        install_path = installed[game_id].get('path', '')
+
+                if install_path:
+                    exe_path = self._get_executable_from_fuel(install_path)
+                    logger.info(f"[Amazon] Successfully installed {game_id} to {install_path}")
+                    return {
+                        'success': True,
+                        'install_path': install_path,
+                        'exe_path': exe_path,
+                        'message': f'Successfully installed {game_id}'
+                    }
+                else:
+                    return {
+                        'success': True,
+                        'install_path': base_path,
+                        'message': f'Successfully installed {game_id} (path uncertain)'
+                    }
+            else:
+                logger.error(f"[Amazon] Installation failed for {game_id}")
+                return {
+                    'success': False,
+                    'error': 'Installation failed - check logs for details'
+                }
+
+        except Exception as e:
+            logger.error(f"[Amazon] Error installing game {game_id}: {e}")
+            return {'success': False, 'error': str(e)}
+
+    async def uninstall_game(self, game_id: str) -> Dict[str, Any]:
+        """Uninstall Amazon game using nile CLI"""
+        if not self.nile_bin:
+            return {'success': False, 'error': 'Nile CLI not found'}
+
+        try:
+            logger.info(f"[Amazon] Starting uninstallation of {game_id}")
+
+            proc = await asyncio.create_subprocess_exec(
+                self.nile_bin, 'uninstall', game_id, '--yes',
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc.communicate()
+
+            if proc.returncode == 0:
+                logger.info(f"[Amazon] Successfully uninstalled {game_id}")
+                return {
+                    'success': True,
+                    'message': f'Successfully uninstalled {game_id}'
+                }
+            else:
+                error_msg = stderr.decode() if stderr else 'Unknown error'
+                logger.error(f"[Amazon] Uninstallation failed: {error_msg}")
+                return {
+                    'success': False,
+                    'error': f'Uninstallation failed: {error_msg}'
+                }
+
+        except Exception as e:
+            logger.error(f"[Amazon] Error uninstalling game {game_id}: {e}")
+            return {'success': False, 'error': str(e)}
 
 
 class GOGAPIClient:
@@ -3580,6 +4090,84 @@ class InstallHandler:
             logger.error(f"Error installing GOG game: {e}", exc_info=True)
             return {'success': False, 'error': str(e)}
 
+    async def get_amazon_game_exe(self, game_id: str, install_dir: str = None) -> Optional[str]:
+        """Find executable for Amazon game using fuel.json"""
+        # If no install_dir provided, try to find from nile config
+        if not install_dir:
+            nile_config = os.path.expanduser("~/.config/nile")
+            installed_file = os.path.join(nile_config, "installed.json")
+            
+            if os.path.exists(installed_file):
+                try:
+                    with open(installed_file, 'r') as f:
+                        installed_list = json.load(f)
+                    
+                    for game in installed_list:
+                        if game.get('id') == game_id:
+                            install_dir = game.get('path', '')
+                            break
+                except Exception as e:
+                    logger.error(f"[Amazon] Error reading installed.json: {e}")
+        
+        if not install_dir:
+            logger.warning(f"[Amazon] Could not find install directory for {game_id}")
+            return None
+        
+        # Parse fuel.json for executable
+        fuel_path = os.path.join(install_dir, 'fuel.json')
+        if not os.path.exists(fuel_path):
+            logger.warning(f"[Amazon] No fuel.json found at {fuel_path}")
+            return None
+        
+        try:
+            import re
+            with open(fuel_path, 'r') as f:
+                content = f.read()
+                # Remove single-line comments (fuel.json may have them)
+                content = re.sub(r'//.*$', '', content, flags=re.MULTILINE)
+                fuel_data = json.loads(content)
+            
+            main_cmd = fuel_data.get('Main', {}).get('Command', '')
+            if main_cmd:
+                exe_path = os.path.join(install_dir, main_cmd)
+                logger.info(f"[Amazon] Found executable from fuel.json: {exe_path}")
+                return exe_path
+        except Exception as e:
+            logger.error(f"[Amazon] Error parsing fuel.json: {e}")
+        
+        return None
+
+    async def install_amazon_game(self, game_id: str, amazon_instance, install_path: Optional[str] = None) -> Dict[str, Any]:
+        """Install Amazon game using nile CLI
+
+        Args:
+            game_id: Amazon game product ID
+            amazon_instance: Instance of AmazonConnector with install methods
+            install_path: Optional custom install path
+
+        Returns:
+            Dict with success status and exe_path
+        """
+        try:
+            # Use the AmazonConnector's install_game method
+            result = await amazon_instance.install_game(game_id)
+
+            if result.get('success'):
+                # Update shortcuts.vdf with the installed game info
+                exe_path = result.get('exe_path')
+                install_dir = result.get('install_path')
+
+                if install_dir:
+                    await self.shortcuts_manager.mark_installed(game_id, 'amazon', install_dir, exe_path)
+                    logger.info(f"Successfully installed Amazon game {game_id}")
+                    return {'success': True, 'exe_path': exe_path, 'install_path': install_dir}
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error installing Amazon game: {e}", exc_info=True)
+            return {'success': False, 'error': str(e)}
+
 
 class BackgroundSyncService:
     """Background service that syncs libraries every 5 minutes"""
@@ -3642,6 +4230,9 @@ class Plugin:
         logger.info("[INIT] Initializing GOGAPIClient")
         self.gog = GOGAPIClient(plugin_instance=self)
 
+        logger.info("[INIT] Initializing AmazonConnector")
+        self.amazon = AmazonConnector(plugin_dir=DECKY_PLUGIN_DIR, plugin_instance=self)
+
         logger.info("[INIT] Initializing InstallHandler")
         self.install_handler = InstallHandler(self.shortcuts_manager, plugin_dir=DECKY_PLUGIN_DIR)
 
@@ -3654,7 +4245,7 @@ class Plugin:
 
         # Initialize background size fetcher (non-blocking, persists across restarts)
         logger.info("[INIT] Initializing BackgroundSizeFetcher")
-        self.size_fetcher = BackgroundSizeFetcher(self.epic, self.gog)
+        self.size_fetcher = BackgroundSizeFetcher(self.epic, self.gog, self.amazon)
         # Auto-start if there are pending games from previous session
         self.size_fetcher.start()
 
@@ -3750,6 +4341,22 @@ class Plugin:
                             logger.warning(f"[DownloadComplete] No executable found for {item.game_title}")
                     else:
                         logger.warning(f"[DownloadComplete] Could not find GOG install folder for {item.game_title}")
+                elif item.store == 'amazon':
+                    # Amazon installs - use nile's installed.json for path info
+                    game_info = self.amazon.get_installed_game_info(item.game_id)
+                    if game_info:
+                        game_install_path = game_info.get('path', '')
+                        exe_path = game_info.get('executable')
+                        
+                        if game_install_path and exe_path:
+                            await self.shortcuts_manager.mark_installed(
+                                item.game_id, item.store, game_install_path, exe_path
+                            )
+                            logger.info(f"[DownloadComplete] Marked {item.game_title} as installed")
+                        else:
+                            logger.warning(f"[DownloadComplete] No executable found for {item.game_title}")
+                    else:
+                        logger.warning(f"[DownloadComplete] Could not find Amazon install info for {item.game_title}")
             except Exception as e:
                 logger.error(f"[DownloadComplete] Error marking game installed: {e}")
         
@@ -3851,6 +4458,7 @@ class Plugin:
                 # Get games from all stores
                 epic_games = await self.epic.get_library()
                 gog_games = await self.gog.get_library()
+                amazon_games = await self.amazon.get_library()
 
                 # Check for cancellation
                 if self._cancel_sync:
@@ -3863,11 +4471,12 @@ class Plugin:
                         'cancelled': True,
                         'epic_count': 0,
                         'gog_count': 0,
+                        'amazon_count': 0,
                         'added_count': 0,
                         'artwork_count': 0
                     }
 
-                all_games = epic_games + gog_games
+                all_games = epic_games + gog_games + amazon_games
                 self.sync_progress.total_games = len(all_games)
                 self.sync_progress.synced_games = 0
 
@@ -3878,6 +4487,7 @@ class Plugin:
                 # Get installed games
                 epic_installed = await self.epic.get_installed()
                 gog_installed = await self.gog.get_installed()
+                amazon_installed = await self.amazon.get_installed()
 
                 # Mark installed status
                 for game in epic_games:
@@ -3920,6 +4530,17 @@ class Plugin:
                             work_dir = os.path.dirname(exe_path)
                             await self.shortcuts_manager._update_game_map('gog', game.id, exe_path, work_dir)
                             logger.debug(f"Updated games.map for GOG game {game.id}")
+
+                for game in amazon_games:
+                    if game.id in amazon_installed:
+                        game.is_installed = True
+                        # Ensure games.map is updated for Amazon games
+                        game_info = self.amazon.get_installed_game_info(game.id)
+                        if game_info and game_info.get('executable'):
+                            exe_path = game_info['executable']
+                            work_dir = os.path.dirname(exe_path)
+                            await self.shortcuts_manager._update_game_map('amazon', game.id, exe_path, work_dir)
+                            logger.debug(f"Updated games.map for Amazon game {game.id}")
 
                 # Get launcher script path (relative to plugin directory)
                 launcher_script = os.path.join(os.path.dirname(__file__), 'bin', 'unifideck-launcher')
@@ -4065,6 +4686,7 @@ class Plugin:
                     'success': True,
                     'epic_count': len(epic_games),
                     'gog_count': len(gog_games),
+                    'amazon_count': len(amazon_games),
                     'added_count': added_count,
                     'artwork_count': artwork_count
                 }
@@ -4116,6 +4738,7 @@ class Plugin:
                 # Get games from all stores
                 epic_games = await self.epic.get_library()
                 gog_games = await self.gog.get_library()
+                amazon_games = await self.amazon.get_library()
 
                 # Check for cancellation
                 if self._cancel_sync:
@@ -4128,12 +4751,13 @@ class Plugin:
                         'cancelled': True,
                         'epic_count': 0,
                         'gog_count': 0,
+                        'amazon_count': 0,
                         'added_count': 0,
                         'updated_count': 0,
                         'artwork_count': 0
                     }
 
-                all_games = epic_games + gog_games
+                all_games = epic_games + gog_games + amazon_games
                 self.sync_progress.total_games = len(all_games)
                 self.sync_progress.synced_games = 0
 
@@ -4144,6 +4768,7 @@ class Plugin:
                 # Get installed games
                 epic_installed = await self.epic.get_installed()
                 gog_installed = await self.gog.get_installed()
+                amazon_installed = await self.amazon.get_installed()
 
                 # Mark installed status and update games.map
                 for game in epic_games:
@@ -4164,6 +4789,16 @@ class Plugin:
                             work_dir = os.path.dirname(exe_path)
                             await self.shortcuts_manager._update_game_map('gog', game.id, exe_path, work_dir)
                             logger.debug(f"Updated games.map for GOG game {game.id}")
+
+                for game in amazon_games:
+                    if game.id in amazon_installed:
+                        game.is_installed = True
+                        game_info = self.amazon.get_installed_game_info(game.id)
+                        if game_info and game_info.get('executable'):
+                            exe_path = game_info['executable']
+                            work_dir = os.path.dirname(exe_path)
+                            await self.shortcuts_manager._update_game_map('amazon', game.id, exe_path, work_dir)
+                            logger.debug(f"Updated games.map for Amazon game {game.id}")
 
                 # Get launcher script path
                 launcher_script = os.path.join(os.path.dirname(__file__), 'bin', 'unifideck-launcher')
@@ -4200,6 +4835,7 @@ class Plugin:
                         'cancelled': True,
                         'epic_count': len(epic_games),
                         'gog_count': len(gog_games),
+                        'amazon_count': len(amazon_games),
                         'added_count': added_count,
                         'updated_count': updated_count,
                         'artwork_count': 0
@@ -4362,11 +4998,12 @@ class Plugin:
                     logger.warning("Please EXIT Steam completely and restart to see changes")
                     logger.warning("=" * 60)
 
-                logger.info(f"Force synced {len(epic_games)} Epic + {len(gog_games)} GOG games ({added_count} added, {updated_count} updated, {artwork_count} artwork)")
+                logger.info(f"Force synced {len(epic_games)} Epic + {len(gog_games)} GOG + {len(amazon_games)} Amazon games ({added_count} added, {updated_count} updated, {artwork_count} artwork)")
                 return {
                     'success': True,
                     'epic_count': len(epic_games),
                     'gog_count': len(gog_games),
+                    'amazon_count': len(amazon_games),
                     'added_count': added_count,
                     'updated_count': updated_count,
                     'artwork_count': artwork_count
@@ -4532,7 +5169,10 @@ class Plugin:
                         elif store == 'gog':
                             installed_ids = await self.gog.get_installed()
                             is_installed = game_id in installed_ids
-                        elif store not in ('epic', 'gog'):
+                        elif store == 'amazon':
+                            installed_ids = await self.amazon.get_installed()
+                            is_installed = game_id in installed_ids
+                        elif store not in ('epic', 'gog', 'amazon'):
                             return {'error': f'Unknown store: {store}'}
 
                     # Get game size - try cache first (instant), fallback to API (slow)
@@ -4549,6 +5189,8 @@ class Plugin:
                                 size_bytes = await self.epic.get_game_size(game_id)
                             elif store == 'gog':
                                 size_bytes = await self.gog.get_game_size(game_id)
+                            elif store == 'amazon':
+                                size_bytes = await self.amazon.get_game_size(game_id)
                             
                             # Cache the result for next time
                             if size_bytes and size_bytes > 0:
@@ -4621,6 +5263,8 @@ class Plugin:
 
             elif store == 'gog':
                 result = await self.gog.install_game(game_id)
+            elif store == 'amazon':
+                result = await self.amazon.install_game(game_id)
             else:
                 return {'success': False, 'error': f'Unknown store: {store}'}
 
@@ -4711,6 +5355,11 @@ class Plugin:
             
             elif store == 'gog':
                 result = await self.gog.uninstall_game(game_id)
+                if not result['success']:
+                    return result
+            
+            elif store == 'amazon':
+                result = await self.amazon.uninstall_game(game_id)
                 if not result['success']:
                     return result
             
@@ -4898,11 +5547,26 @@ class Plugin:
             gog_status = 'Connected' if gog_available else 'Not Connected'
             logger.info(f"[STATUS] GOG: {gog_status}")
 
+            # Check Amazon availability
+            nile_installed = self.amazon.nile_bin is not None
+            logger.info(f"[STATUS] Nile installed: {nile_installed}, path: {self.amazon.nile_bin}")
+
+            if nile_installed:
+                logger.info("[STATUS] Checking Amazon Games availability")
+                amazon_available = await self.amazon.is_available()
+                amazon_status = 'Connected' if amazon_available else 'Not Connected'
+                logger.info(f"[STATUS] Amazon Games: {amazon_status}")
+            else:
+                amazon_status = 'Nile not installed'
+                logger.warning("[STATUS] Amazon Games: Nile CLI not installed")
+
             result = {
                 'success': True,
                 'epic': epic_status,
                 'gog': gog_status,
-                'legendary_installed': legendary_installed
+                'amazon': amazon_status,
+                'legendary_installed': legendary_installed,
+                'nile_installed': nile_installed
             }
             logger.info(f"[STATUS] Check complete: {result}")
             return result
@@ -4913,7 +5577,8 @@ class Plugin:
                 'success': False,
                 'error': str(e),
                 'epic': 'Error',
-                'gog': 'Error'
+                'gog': 'Error',
+                'amazon': 'Error'
             }
 
     async def start_epic_auth(self) -> Dict[str, Any]:
@@ -4975,6 +5640,23 @@ class Plugin:
     async def logout_gog(self) -> Dict[str, Any]:
         """Logout from GOG"""
         return await self.gog.logout()
+
+    async def start_amazon_auth(self) -> Dict[str, Any]:
+        """Start Amazon Games OAuth authentication via nile"""
+        return await self.amazon.start_auth()
+
+    async def complete_amazon_auth(self, auth_code: str) -> Dict[str, Any]:
+        """Complete Amazon Games OAuth with authorization code"""
+        return await self.amazon.complete_auth(auth_code)
+
+    async def logout_amazon(self) -> Dict[str, Any]:
+        """Logout from Amazon Games"""
+        return await self.amazon.logout()
+
+    async def get_amazon_library(self) -> List[Dict[str, Any]]:
+        """Get Amazon Games library"""
+        games = await self.amazon.get_library()
+        return [asdict(game) for game in games]
 
     async def open_browser(self, url: str) -> Dict[str, Any]:
         """Open URL in system browser (fallback for Steam Deck)"""
@@ -5041,6 +5723,7 @@ class Plugin:
             # Get installed game IDs from each store
             epic_installed = set(await self.epic.get_installed())
             gog_installed = set(await self.gog.get_installed())
+            amazon_installed = set(await self.amazon.get_installed())
             
             # Load steam_app_id cache for ProtonDB lookups
             steam_appid_cache = load_steam_appid_cache()
@@ -5065,6 +5748,8 @@ class Plugin:
                     is_installed = game_id in epic_installed
                 elif store == 'gog':
                     is_installed = game_id in gog_installed
+                elif store == 'amazon':
+                    is_installed = game_id in amazon_installed
                 
                 # Get appId
                 app_id = shortcut.get('appid')
@@ -5193,7 +5878,9 @@ class Plugin:
                                         # and is NOT root or home root
                                         safe_keywords = ['/Games/', '/Epic', '/GOG', 'unifideck']
                                         is_safe = any(k in install_dir for k in safe_keywords)
-                                        not_root = install_dir not in ['/', '/home/deck', '/home/deck/Games']
+                                        home_dir = os.path.expanduser("~")
+                                        games_dir = os.path.join(home_dir, "Games")
+                                        not_root = install_dir not in ['/', home_dir, games_dir]
                                         
                                         if is_safe and not_root and os.path.exists(install_dir):
                                             logger.info(f"[Cleanup] Deleting install dir: {install_dir}")

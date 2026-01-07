@@ -2,7 +2,7 @@
  * Unifideck Library Patch
  * 
  * Patches the Steam library to inject custom tabs that include
- * Epic and GOG games alongside Steam games.
+ * Epic, GOG, and Amazon games alongside Steam games.
  * 
  * When TabMaster is detected, custom tabs are NOT injected - instead,
  * users can use [Unifideck] collections via TabMaster.

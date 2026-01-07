@@ -93,14 +93,15 @@ if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]]; then
     log "Windows game detected, using umu-launcher with Proton"
     
     # Parse store and game ID from key
-    STORE="${KEY%%:*}"      # 'epic' or 'gog'
+    STORE="${KEY%%:*}"      # 'epic', 'gog', or 'amazon'
     GAME_ID="${KEY#*:}"     # Game ID after colon
     
     # Map store names to umu store codes
     case "$STORE" in
-        epic) UMU_STORE="egs" ;;
-        gog)  UMU_STORE="gog" ;;
-        *)    UMU_STORE="none" ;;
+        epic)   UMU_STORE="egs" ;;
+        gog)    UMU_STORE="gog" ;;
+        amazon) UMU_STORE="amazon" ;;
+        *)      UMU_STORE="none" ;;
     esac
     
     # Create unique prefix for this game
@@ -184,6 +185,34 @@ for line in sys.stdin:
              log "Obtained args: $APPS_ARGS"
         else
              log "WARNING: legendary binary not found at $LEGENDARY_BIN, launching without args"
+        fi
+    elif [ "$STORE" == "amazon" ]; then
+        # Amazon games may need fuel.json parsing for additional launch parameters
+        log "Amazon game detected, checking for fuel.json..."
+        
+        # Find fuel.json in game directory
+        FUEL_JSON="$WORK_DIR/fuel.json"
+        if [ -f "$FUEL_JSON" ]; then
+            log "Found fuel.json at $FUEL_JSON"
+            
+            # Parse launch args from fuel.json if present
+            APPS_ARGS=$(python3 -c "import json, re, sys
+try:
+    with open('$FUEL_JSON', 'r') as f:
+        content = f.read()
+        # Remove single-line comments (fuel.json may have them)
+        content = re.sub(r'//.*$', '', content, flags=re.MULTILINE)
+        data = json.loads(content)
+        main = data.get('Main', {})
+        args = main.get('Args', [])
+        if args:
+            print(' '.join(f'\"{arg}\"' for arg in args))
+except Exception as e:
+    print('', file=sys.stderr)
+" 2>> "$LOG_FILE" || true)
+            log "Obtained Amazon args: $APPS_ARGS"
+        else
+            log "No fuel.json found, launching without additional args"
         fi
     fi
     
