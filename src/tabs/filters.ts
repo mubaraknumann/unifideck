@@ -103,7 +103,7 @@ export function getStoreForApp(appId: number, appType: number): 'steam' | 'epic'
 /**
  * Gets installed status for a game from our cache
  */
-export function getInstalledStatus(appId: number, appType: number, steamInstalledFlag: boolean): boolean {
+export function getInstalledStatus(appId: number, _appType: number, steamInstalledFlag: boolean): boolean {
     // For Unifideck games, use our cache
     const cached = unifideckGameCache.get(appId);
     if (cached) {

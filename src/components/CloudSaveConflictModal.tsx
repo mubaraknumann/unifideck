@@ -5,14 +5,12 @@
  * which version to use (Steam-like behavior).
  */
 
-import React, { FC, useState } from "react";
+import { FC, useState } from "react";
 import { call, toaster } from "@decky/api";
 import {
     ConfirmModal,
     showModal,
     DialogButton,
-    Field,
-    Toggle,
 } from "@decky/ui";
 import { FaCloud, FaDesktop, FaExclamationTriangle } from "react-icons/fa";
 
@@ -65,7 +63,6 @@ export const CloudSaveConflictModal: FC<CloudSaveConflictModalProps> = ({
     closeModal,
 }) => {
     const [resolving, setResolving] = useState(false);
-    const [alwaysUseNewer, setAlwaysUseNewer] = useState(false);
 
     const handleUseCloud = async () => {
         setResolving(true);

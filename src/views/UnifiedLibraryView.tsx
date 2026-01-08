@@ -1,7 +1,7 @@
 import React, { FC, useMemo, useState } from "react";
 import { useSteamLibrary, useUnifideckGames } from "../hooks/useSteamLibrary";
 import { GameGrid } from "../components/GameGrid";
-import { UnifideckGame, StoreType } from "../types/steam";
+import { StoreType } from "../types/steam";
 
 export type LibraryFilter = "all" | "installed" | "great-on-deck";
 

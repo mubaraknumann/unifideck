@@ -1,13 +1,12 @@
 import { definePlugin, call, toaster, routerHook } from "@decky/api";
 import { PanelSection, PanelSectionRow, ButtonItem, Field, afterPatch, findInReactTree, createReactTreePatcher, appDetailsClasses, appActionButtonClasses, playSectionClasses, appDetailsHeaderClasses, DialogButton, Focusable, ToggleField, showModal, ConfirmModal } from "@decky/ui";
 import React, { FC, useState, useEffect, useRef } from "react";
-import { FaGamepad, FaSync, FaTrash } from "react-icons/fa";
+import { FaGamepad, FaSync } from "react-icons/fa";
 
 // Import views
-import { UnifiedLibraryView } from "./views/UnifiedLibraryView";
 
 // Import tab system
-import { patchLibrary, tabManager } from "./tabs";
+import { patchLibrary } from "./tabs";
 
 import { syncUnifideckCollections } from "./spoofing/CollectionManager";
 
@@ -62,99 +61,6 @@ import { StorageSettings } from "./components/StorageSettings";
 // Global cache for game info (5-second TTL for faster updates after installation)
 const gameInfoCache = new Map<number, { info: any; timestamp: number }>();
 const CACHE_TTL = 5000; // 5 seconds - reduced from 30s for faster button state updates
-
-// Install confirmation using native Decky ConfirmModal
-// No longer needed - replaced with showModal(ConfirmModal) pattern
-
-// Install Button Component - Simple button with self-contained state
-const InstallButton: FC<{ appId: number }> = ({ appId }) => {
-  const [gameInfo, setGameInfo] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState(false);
-
-  // Fetch game info on mount
-  useEffect(() => {
-    const cached = gameInfoCache.get(appId);
-    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
-      setGameInfo(cached.info);
-      setLoading(false);
-      return;
-    }
-
-    call<[number], any>("get_game_info", appId)
-      .then(info => {
-        const processedInfo = info?.error ? null : info;
-        setGameInfo(processedInfo);
-        gameInfoCache.set(appId, { info: processedInfo, timestamp: Date.now() });
-      })
-      .catch(() => setGameInfo(null))
-      .finally(() => setLoading(false));
-  }, [appId]);
-
-  const handleAction = async () => {
-    if (!gameInfo) return;
-
-    setProcessing(true);
-    const isUninstall = gameInfo.is_installed;
-    const actionName = isUninstall ? "Uninstall" : "Install";
-
-    toaster.toast({
-      title: `${actionName}ing Game`,
-      body: isUninstall ? `Removing ${gameInfo.title}...` : `Downloading ${gameInfo.title}...`,
-      duration: 5000,
-    });
-
-    const method = isUninstall ? "uninstall_game_by_appid" : "install_game_by_appid";
-    const result = await call<[number], any>(method, appId);
-
-    if (result.success) {
-      // Toggle installed state locally
-      const newState = !isUninstall;
-      setGameInfo({ ...gameInfo, is_installed: newState });
-      gameInfoCache.delete(appId);
-
-      toaster.toast({
-        title: `${actionName}ation Complete!`,
-        body: `${gameInfo.title} ${isUninstall ? 'uninstalled' : 'installed'}.\n\n⚠️ Restart Steam to update library.`,
-        duration: 20000,
-        critical: true,
-      });
-    } else {
-      toaster.toast({
-        title: `${actionName}ation Failed`,
-        body: result.error || "Unknown error",
-        duration: 10000,
-        critical: true,
-      });
-    }
-    setProcessing(false);
-  };
-
-  // Don't show if not a Unifideck game
-  if (!gameInfo || gameInfo.error) return null;
-
-  // Show different states
-  if (loading) {
-    return (
-      <ButtonItem disabled>
-        <FaSync className="spinning" /> Checking...
-      </ButtonItem>
-    );
-  }
-
-  return (
-    <div style={gameInfo.is_installed ? { backgroundColor: 'rgba(255, 60, 60, 0.2)', borderRadius: '4px' } : undefined}>
-      <ButtonItem
-        onClick={handleAction}
-        disabled={processing}
-      >
-        {processing
-          ? (gameInfo.is_installed ? 'Uninstalling...' : 'Installing...')
-          : (gameInfo.is_installed ? 'Uninstall' : 'Install')}
-      </ButtonItem>
-    </div>
-  );
-};
 
 // ========== END INSTALL BUTTON FEATURE ==========
 
@@ -1067,7 +973,7 @@ const Content: FC = () => {
 
   const startAuth = async (store: 'epic' | 'gog' | 'amazon') => {
     const storeName = store === 'epic' ? 'Epic Games' : store === 'amazon' ? 'Amazon Games' : 'GOG';
-    
+
     try {
       let methodName: string;
       if (store === 'epic') {
@@ -1316,32 +1222,32 @@ const Content: FC = () => {
             {/* Epic button */}
             {storeStatus.epic !== "Checking..." && storeStatus.epic !== "Legendary not installed" && !storeStatus.epic.includes("Error") && (
               <PanelSectionRow>
-                <ButtonItem 
-                  layout="below" 
+                <ButtonItem
+                  layout="below"
                   onClick={() => storeStatus.epic === "Connected" ? handleLogout('epic') : startAuth('epic')}
                 >
                   {storeStatus.epic === "Connected" ? "Logout of Epic Games" : "Authenticate Epic Games"}
                 </ButtonItem>
               </PanelSectionRow>
             )}
-            
+
             {/* GOG button */}
             {storeStatus.gog !== "Checking..." && !storeStatus.gog.includes("Error") && (
               <PanelSectionRow>
-                <ButtonItem 
-                  layout="below" 
+                <ButtonItem
+                  layout="below"
                   onClick={() => storeStatus.gog === "Connected" ? handleLogout('gog') : startAuth('gog')}
                 >
                   {storeStatus.gog === "Connected" ? "Logout of GOG" : "Authenticate GOG"}
                 </ButtonItem>
               </PanelSectionRow>
             )}
-            
+
             {/* Amazon button */}
             {storeStatus.amazon !== "Checking..." && storeStatus.amazon !== "Nile not installed" && !storeStatus.amazon.includes("Error") && (
               <PanelSectionRow>
-                <ButtonItem 
-                  layout="below" 
+                <ButtonItem
+                  layout="below"
                   onClick={() => storeStatus.amazon === "Connected" ? handleLogout('amazon') : startAuth('amazon')}
                 >
                   {storeStatus.amazon === "Connected" ? "Logout of Amazon Games" : "Authenticate Amazon Games"}
