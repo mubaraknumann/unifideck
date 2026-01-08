@@ -62,7 +62,7 @@ declare global {
   }
 }
 
-export type StoreType = 'steam' | 'epic' | 'gog' | 'unknown';
+export type StoreType = 'steam' | 'epic' | 'gog' | 'amazon' | 'unknown';
 
 export interface UnifideckGame {
   appId: number;

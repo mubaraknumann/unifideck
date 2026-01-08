@@ -15,7 +15,7 @@ export interface DownloadItem {
     id: string;                    // Unique ID, e.g., "epic:game123"
     game_id: string;               // Store-specific game identifier
     game_title: string;
-    store: 'epic' | 'gog';
+    store: 'epic' | 'gog' | 'amazon';
     status: DownloadStatus;
     progress_percent: number;      // 0-100
     downloaded_bytes: number;

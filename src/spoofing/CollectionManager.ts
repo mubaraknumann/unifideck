@@ -135,8 +135,16 @@ async function cleanupStaleCollections(): Promise<void> {
     const collectionStore = getCollectionStore();
     if (!collectionStore) return;
 
-    // Safety check: userCollections may not exist on all Steam versions
-    const userCollections = collectionStore.userCollections;
+    // Safety check: userCollections may not exist or may throw if Steam isn't fully initialized
+    // The getter internally calls .values() on a Map which can be undefined during early init
+    let userCollections: Collection[] | null = null;
+    try {
+        userCollections = collectionStore.userCollections;
+    } catch (e) {
+        console.log('[Unifideck Collections] Error accessing userCollections, skipping cleanup:', e);
+        return;
+    }
+
     if (!userCollections || !Array.isArray(userCollections)) {
         console.log('[Unifideck Collections] userCollections not available, skipping cleanup');
         return;

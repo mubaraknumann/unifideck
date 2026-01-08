@@ -8,7 +8,7 @@
  * - Cancel functionality
  */
 
-import React, { VFC, useState, useEffect, useRef } from "react";
+import React, { FC, useState, useEffect, useRef } from "react";
 import { call, toaster } from "@decky/api";
 import {
     PanelSection,
@@ -56,8 +56,8 @@ function formatETA(seconds: number): string {
 /**
  * Store icon based on store type
  */
-const StoreIcon: VFC<{ store: string }> = ({ store }) => {
-    const color = store === "epic" ? "#0078f2" : "#a855f7";
+const StoreIcon: FC<{ store: string }> = ({ store }) => {
+    const color = store === "epic" ? "#0078f2" : store === "amazon" ? "#FF9900" : "#a855f7";
     return (
         <span
             style={{
@@ -75,7 +75,7 @@ const StoreIcon: VFC<{ store: string }> = ({ store }) => {
 /**
  * Single download item display
  */
-const DownloadItemRow: VFC<{
+const DownloadItemRow: FC<{
     item: DownloadItem;
     isCurrent: boolean;
     onCancel: (id: string) => void;
@@ -211,7 +211,7 @@ const DownloadItemRow: VFC<{
 /**
  * Empty state display
  */
-const EmptyState: VFC<{ message: string }> = ({ message }) => (
+const EmptyState: FC<{ message: string }> = ({ message }) => (
     <div
         style={{
             textAlign: "center",
@@ -227,7 +227,7 @@ const EmptyState: VFC<{ message: string }> = ({ message }) => (
 /**
  * Main Downloads Tab Component
  */
-export const DownloadsTab: VFC = () => {
+export const DownloadsTab: FC = () => {
     const [queueInfo, setQueueInfo] = useState<DownloadQueueInfo | null>(null);
     const [loading, setLoading] = useState(true);
     const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);

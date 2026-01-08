@@ -5,7 +5,7 @@
  * Extracted from Content() for tab-based navigation.
  */
 
-import React, { VFC, useState, useEffect } from "react";
+import { FC, useState, useEffect } from "react";
 import { call, toaster } from "@decky/api";
 import {
     PanelSection,
@@ -13,16 +13,15 @@ import {
     Field,
     Dropdown,
     DropdownOption,
-    ButtonItem,
 } from "@decky/ui";
-import { FaSave } from "react-icons/fa";
+
 
 import type { StorageLocationInfo, StorageLocationsResponse } from "../types/downloads";
 
 /**
  * Storage Location Settings Component
  */
-export const StorageSettings: VFC = () => {
+export const StorageSettings: FC = () => {
     const [locations, setLocations] = useState<StorageLocationInfo[]>([]);
     const [defaultStorage, setDefaultStorage] = useState<string>("internal");
     const [saving, setSaving] = useState(false);

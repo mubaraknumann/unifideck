@@ -1,11 +1,57 @@
 #!/usr/bin/env python3
+"""
+Quick Epic Launcher fix script.
+ONLY copies EpicGamesLauncher.exe wrapper and applies registry fix.
+NO winetricks installation (moved to background installer).
+"""
 import os
 import shutil
 import sys
 import logging
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("FixEpic")
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+logger = logging.getLogger("QuickFix")
+
+def copy_wrapper_to_prefix(drive_c: str, bundled_wrapper: str, prefix_label: str) -> bool:
+    """Copy the Epic wrapper to a specific drive_c location. Returns True if any copy was made."""
+    copied = False
+    
+    # Copy to Program Files location
+    target_dir = os.path.join(drive_c, "Program Files (x86)", "Epic Games", "Launcher", "Portal", "Binaries", "Win32")
+    os.makedirs(target_dir, exist_ok=True)
+    target_exe = os.path.join(target_dir, "EpicGamesLauncher.exe")
+    
+    if os.path.exists(bundled_wrapper):
+        # Always overwrite - don't check if exists because Proton/Wine creates a dummy stub
+        # Remove first to handle read-only files
+        if os.path.exists(target_exe):
+            try:
+                os.remove(target_exe)
+            except:
+                pass  # Best effort
+        shutil.copy2(bundled_wrapper, target_exe)
+        logger.info(f"✓ Copied wrapper to Epic dir ({prefix_label})")
+        copied = True
+    
+    # Copy to C:\windows\command\ (THIS is where LEGENDARY_WRAPPER_EXE points!)
+    # CRITICAL: Always overwrite because Proton/Wine creates its own EpicGamesLauncher.exe 
+    # stub in windows/command that opens Notepad instead of the game!
+    win_command_dir = os.path.join(drive_c, "windows", "command")
+    os.makedirs(win_command_dir, exist_ok=True)
+    win_target = os.path.join(win_command_dir, "EpicGamesLauncher.exe")
+    
+    if os.path.exists(bundled_wrapper):
+        # Remove first to handle read-only files created by Proton/Wine
+        if os.path.exists(win_target):
+            try:
+                os.remove(win_target)
+            except:
+                pass  # Best effort
+        shutil.copy2(bundled_wrapper, win_target)
+        logger.info(f"✓ Copied wrapper to windows/command ({prefix_label})")
+        copied = True
+    
+    return copied
 
 def main():
     if len(sys.argv) < 2:
@@ -14,103 +60,47 @@ def main():
 
     prefix_path = sys.argv[1]
     
-    # Handle the 'pfx' subdirectory nuance
-    drive_c = os.path.join(prefix_path, "drive_c")
-    if not os.path.exists(drive_c):
-        # Try 'pfx' subfolder
-        pfx_drive_c = os.path.join(prefix_path, "pfx", "drive_c")
-        if os.path.exists(pfx_drive_c):
-            prefix_path = os.path.join(prefix_path, "pfx")
-            drive_c = pfx_drive_c
-        else:
-            logger.error(f"drive_c not found in {prefix_path}")
-            sys.exit(1)
-
-    logger.info(f"Targeting prefix: {prefix_path}")
-
-    # 1. Create directory structure for Epic Launcher
-    # Standard path checks: C:\Program Files (x86)\Epic Games\Launcher\Portal\Binaries\Win32\EpicGamesLauncher.exe
+    # Get bundled wrapper path
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    bundled_wrapper = os.path.join(script_dir, "EpicGamesLauncher.exe")
     
-    target_dir = os.path.join(drive_c, "Program Files (x86)", "Epic Games", "Launcher", "Portal", "Binaries", "Win32")
-    os.makedirs(target_dir, exist_ok=True)
-    logger.info(f"Created directory: {target_dir}")
+    if not os.path.exists(bundled_wrapper):
+        logger.warning(f"Bundled wrapper not found at {bundled_wrapper}")
+        return
     
-    target_exe = os.path.join(target_dir, "EpicGamesLauncher.exe")
+    # Check for both possible drive_c locations and apply to BOTH if they exist
+    # umu/legendary can use either the root prefix or a 'pfx' subdirectory
+    root_drive_c = os.path.join(prefix_path, "drive_c")
+    pfx_drive_c = os.path.join(prefix_path, "pfx", "drive_c")
     
-    if os.path.exists(target_exe):
-        logger.info(f"EpicGamesLauncher.exe already exists at {target_exe}")
+    found_any = False
+    
+    if os.path.exists(root_drive_c):
+        copy_wrapper_to_prefix(root_drive_c, bundled_wrapper, "root")
+        found_any = True
+    
+    if os.path.exists(pfx_drive_c):
+        copy_wrapper_to_prefix(pfx_drive_c, bundled_wrapper, "pfx")
+        found_any = True
+    
+    if not found_any:
+        logger.info("Prefix not initialized yet, skipping")
+        return
+    
+    # Apply registry fix to the pfx subdirectory if it exists (that's what umu uses)
+    # Otherwise use the root prefix
+    if os.path.exists(pfx_drive_c):
+        registry_prefix = os.path.join(prefix_path, "pfx")
     else:
-        # Use notepad.exe as the dummy executable
-        # It's a valid PE executable, so it satisfies 'file exists' and 'is executable' checks
-        source_exe = os.path.join(drive_c, "windows", "notepad.exe")
-        
-        # Fallback to explorer.exe if notepad is missing for some reason
-        if not os.path.exists(source_exe):
-             source_exe = os.path.join(drive_c, "windows", "explorer.exe")
-             
-        if os.path.exists(source_exe):
-            shutil.copy2(source_exe, target_exe)
-            logger.info(f"Created fake EpicGamesLauncher.exe at {target_exe} (copied from {os.path.basename(source_exe)})")
-        else:
-            logger.error("Could not find source exe (notepad.exe or explorer.exe) to copy")
-         
-    # Optional: Heroic also copies it to C:\windows\command\EpicGamesLauncher.exe
-    # We can do that too just in case
-    win_command_dir = os.path.join(drive_c, "windows", "command")
-    if os.path.exists(win_command_dir):
-        win_target = os.path.join(win_command_dir, "EpicGamesLauncher.exe")
-        if not os.path.exists(win_target) and os.path.exists(target_exe):
-             shutil.copy2(target_exe, win_target)
-             logger.info(f"Also created copy at {win_target}")
-
-    # 2. Add Registry Key (Critical for some games like Fallout NV, Dishonored)
-    # Heroic adds: reg add HKEY_CLASSES_ROOT\com.epicgames.launcher /f
-    logger.info("Applying registry fix...")
-    
-    # We need to run reg.exe inside the prefix
-    # Um, we are in python. We can use os.system with WINEPREFIX set
-    # Or just write a .reg file and import it? "reg add" is simpler if we have wine.
-    
-    # Let's try to find 'wine' or 'proton' to run this.
-    # Since we are essentially "outside" the game launch context, we can try to use 
-    # the system wine if available, or just rely on the fact that if this is Steam Deck,
-    # we might not have 'wine' in path globally easily.
-    
-    # Alternative: Write a .reg file to drive_c and let the user import it? 
-    # No, automation is better.
-    
-    # Let's use the umu-run or just try to find the system 'reg' or 'wine'
-    # Actually, simpler way: edit system.reg directly? No, unsafe.
-    
-    # Let's treat this as a "best effort" using 'wine' command if available.
-    # Note: On Steam Deck, 'wine' might not be in PATH.
-    # But usually 'proton' handles this.
-    
-    # Let's try to construct a command to run 'reg.exe' inside the prefix.
-    # If we are effectively in a script, we can perhaps use the environment variables.
+        registry_prefix = prefix_path
     
     env = os.environ.copy()
-    env["WINEPREFIX"] = prefix_path
+    env["WINEPREFIX"] = registry_prefix
     
-    
-    # Check if registry key already exists to avoid slow reg.exe call every time
-    # This is a simple optimization.
-    registry_check_marker = os.path.join(prefix_path, "unifideck_epic_fix_applied.marker")
-    if os.path.exists(registry_check_marker):
-        # Already applied, skip unless forced?
-        # For robustness, let's trust the marker.
-        return 
-        
-    env = os.environ.copy()
-    env["WINEPREFIX"] = prefix_path
-    
-    # Try to find a wine binary from Proton paths
+    # Find wine binary
     proton_paths = [
         os.path.expanduser("~/.steam/steam/steamapps/common/Proton - Experimental/files/bin/wine"),
         os.path.expanduser("~/.steam/steam/steamapps/common/Proton 10.0/files/bin/wine"),
-        os.path.expanduser("~/.steam/steam/steamapps/common/Proton 9.0 (Beta)/files/bin/wine"),
-        os.path.expanduser("~/.steam/steam/steamapps/common/Proton 8.0/files/bin/wine"),
-        os.path.expanduser("~/.steam/root/steamapps/common/Proton - Experimental/files/bin/wine")
     ]
     
     wine_bin = None
@@ -118,26 +108,22 @@ def main():
         if os.path.exists(path):
             wine_bin = path
             break
-            
-    if not wine_bin and shutil.which("wine"):
-        wine_bin = "wine" # Fallback to system wine if found
-        
+    
     if not wine_bin:
-        logger.warning("No wine binary found. Skipping registry fix.")
-    else:
+        wine_bin = shutil.which("wine")
+    
+    if wine_bin:
         import subprocess
         try:
-           # reg add HKEY_CLASSES_ROOT\com.epicgames.launcher /f
-           cmd = [wine_bin, "reg", "add", "HKEY_CLASSES_ROOT\\com.epicgames.launcher", "/f"]
-           subprocess.run(cmd, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-           # Create marker file
-           with open(registry_check_marker, 'w') as f:
-               f.write("Registry fix applied")
-           logger.info("Universal Epic Launcher fix applied.")
+            cmd = [wine_bin, "reg", "add", "HKEY_CLASSES_ROOT\\\\com.epicgames.launcher", "/f"]
+            subprocess.run(cmd, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
+            logger.info("✓ Applied registry fix")
         except Exception as e:
-           logger.error(f"Failed to apply registry key: {e}")
-
-    logger.info("Epic Launcher workaround applied successfully.")
+            logger.warning(f"Registry fix failed (non-critical): {e}")
+    else:
+        logger.warning("Wine not found, skipping registry fix")
+    
+    logger.info("Quick fix complete")
 
 if __name__ == "__main__":
     main()

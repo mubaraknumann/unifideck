@@ -39,7 +39,7 @@ class StorageLocation(str, Enum):
 
 # Storage paths
 STORAGE_PATHS = {
-    StorageLocation.INTERNAL: "/home/deck/Games",
+    StorageLocation.INTERNAL: os.path.expanduser("~/Games"),
     # SD Card path will be resolved dynamically
     StorageLocation.SDCARD: "/run/media/mmcblk0p1/Games" 
 }
@@ -66,6 +66,9 @@ class DownloadItem:
     start_time: Optional[float] = None
     end_time: Optional[float] = None
     storage_location: str = StorageLocation.INTERNAL
+    # GUARDRAIL: Track if game was previously installed before this download started.
+    # If True, we NEVER delete the directory on cancel - the game was already complete.
+    was_previously_installed: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -217,7 +220,7 @@ class DownloadQueue:
                 return os.path.join(sd_root, "Games")
             # Fallback
             return "/run/media/mmcblk0p1/Games"
-        return "/home/deck/Games"
+        return os.path.expanduser("~/Games")
 
     def _resolve_sd_path(self) -> Optional[str]:
         """Resolve the actual path to the SD card"""
@@ -257,9 +260,18 @@ class DownloadQueue:
         game_id: str,
         game_title: str,
         store: str,
-        storage_location: Optional[str] = None
+        storage_location: Optional[str] = None,
+        was_previously_installed: bool = False
     ) -> Dict[str, Any]:
-        """Add a game to the download queue"""
+        """Add a game to the download queue
+        
+        Args:
+            game_id: Store-specific game identifier
+            game_title: Display name of the game
+            store: 'epic' or 'gog'
+            storage_location: Where to install (internal/sdcard)
+            was_previously_installed: GUARDRAIL - if True, cancel will NOT delete game files
+        """
         download_id = f"{store}:{game_id}"
         
         # Check if already in queue
@@ -268,14 +280,18 @@ class DownloadQueue:
                 logger.warning(f"[DownloadQueue] {download_id} already in queue")
                 return {'success': False, 'error': 'Already in queue'}
         
-        # Create new download item
+        # Create new download item with installation guardrail
         item = DownloadItem(
             id=download_id,
             game_id=game_id,
             game_title=game_title,
             store=store,
-            storage_location=storage_location or self.get_default_storage()
+            storage_location=storage_location or self.get_default_storage(),
+            was_previously_installed=was_previously_installed
         )
+        
+        if was_previously_installed:
+            logger.info(f"[DownloadQueue] GUARDRAIL: {game_title} marked as previously installed - will NOT delete on cancel")
         
         self.queue.append(item)
         self._save()
@@ -335,21 +351,43 @@ class DownloadQueue:
             except Exception as e:
                 logger.error(f"[DownloadQueue] Error terminating process: {e}")
         
-        # Clean up downloaded files
-        try:
-            import shutil
-            install_path = self.get_install_path(current.storage_location)
-            
-            # Sanitize game title to match the folder name created during download
-            safe_title = "".join(c for c in current.game_title if c.isalnum() or c in (' ', '-', '_')).strip()
-            game_dir = os.path.join(install_path, safe_title)
-            
-            if os.path.exists(game_dir) and os.path.isdir(game_dir):
-                logger.info(f"[DownloadQueue] Cleaning up cancelled download: {game_dir}")
-                shutil.rmtree(game_dir, ignore_errors=True)
-                logger.info(f"[DownloadQueue] Deleted partial download directory: {game_dir}")
-        except Exception as e:
-            logger.error(f"[DownloadQueue] Error cleaning up cancelled download: {e}")
+        # Clean up downloaded files - ONLY if this was NOT a reinstall of existing game
+        # GUARDRAIL: Never delete directories for games that were previously installed
+        if current.was_previously_installed:
+            logger.info(f"[DownloadQueue] Skipping cleanup - game was previously installed: {current.game_title}")
+        else:
+            try:
+                import shutil
+                install_path = self.get_install_path(current.storage_location)
+                
+                # Sanitize game title to match the folder name created during download
+                safe_title = "".join(c for c in current.game_title if c.isalnum() or c in (' ', '-', '_')).strip()
+                game_dir = os.path.join(install_path, safe_title)
+                
+                # ADDITIONAL GUARDRAIL: Only delete if path looks like a game install dir
+                # and contains expected partial download indicators
+                is_safe_path = (
+                    os.path.exists(game_dir) and 
+                    os.path.isdir(game_dir) and
+                    '/Games/' in game_dir and
+                    game_dir not in ['/', '/home/deck', '/home/deck/Games']
+                )
+                
+                # Check if this is actually a partial download (no .unifideck-id marker means unfinished)
+                # Completed installs should have a marker file from mark_installed
+                marker_file = os.path.join(game_dir, '.unifideck-id')
+                is_partial_download = not os.path.exists(marker_file)
+                
+                if is_safe_path and is_partial_download:
+                    logger.info(f"[DownloadQueue] Cleaning up cancelled PARTIAL download: {game_dir}")
+                    shutil.rmtree(game_dir, ignore_errors=True)
+                    logger.info(f"[DownloadQueue] Deleted partial download directory: {game_dir}")
+                elif not is_partial_download:
+                    logger.warning(f"[DownloadQueue] NOT deleting - found .unifideck-id marker (completed install): {game_dir}")
+                else:
+                    logger.warning(f"[DownloadQueue] NOT deleting - failed safety checks: {game_dir}")
+            except Exception as e:
+                logger.error(f"[DownloadQueue] Error cleaning up cancelled download: {e}")
         
         # Just set status - let _process_queue handle queue management to avoid race condition
         current.status = DownloadStatus.CANCELLED
@@ -445,7 +483,7 @@ class DownloadQueue:
         logger.info("[DownloadQueue] Queue processing complete")
 
     async def _execute_download(self, item: DownloadItem) -> bool:
-        """Execute the actual download using legendary or gogdl"""
+        """Execute the actual download using legendary, gogdl, or nile"""
         install_path = self.get_install_path(item.storage_location)
         os.makedirs(install_path, exist_ok=True)
         
@@ -453,6 +491,8 @@ class DownloadQueue:
             return await self._download_epic(item, install_path)
         elif item.store == 'gog':
             return await self._download_gog(item, install_path)
+        elif item.store == 'amazon':
+            return await self._download_amazon(item, install_path)
         else:
             logger.error(f"[DownloadQueue] Unknown store: {item.store}")
             return False
@@ -596,6 +636,124 @@ class DownloadQueue:
             logger.error(f"[DownloadQueue] GOG download error: {e}")
             item.error_message = str(e)
             return False
+
+    async def _download_amazon(self, item: DownloadItem, install_path: str) -> bool:
+        """Download Amazon game using nile CLI"""
+        # Use bundled nile from plugin directory
+        nile_bin = None
+        if self.plugin_dir:
+            nile_bin = os.path.join(self.plugin_dir, "bin", "nile")
+            if not os.path.exists(nile_bin):
+                nile_bin = None
+        
+        # Fallback to user-installed nile
+        if not nile_bin:
+            nile_bin = os.path.expanduser("~/.local/bin/nile")
+            if not os.path.exists(nile_bin):
+                item.error_message = "nile binary not found"
+                logger.error(f"[DownloadQueue] nile not found in plugin_dir or ~/.local/bin")
+                return False
+        
+        cmd = [
+            nile_bin,
+            "install",
+            item.game_id,
+            "--base-path", install_path
+        ]
+        
+        logger.info(f"[DownloadQueue] Running: {' '.join(cmd)}")
+        
+        try:
+            self.current_process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT
+            )
+            
+            # Parse progress from output
+            await self._parse_nile_output(item)
+            
+            return_code = await self.current_process.wait()
+            self.current_process = None
+            
+            return return_code == 0
+            
+        except Exception as e:
+            logger.error(f"[DownloadQueue] Amazon download error: {e}")
+            item.error_message = str(e)
+            return False
+
+    async def _parse_nile_output(self, item: DownloadItem) -> None:
+        """Parse nile output for progress updates"""
+        # Nile download progress format (from ProgressBar):
+        # INFO [PROGRESS]:  = Progress: 25.06 137141589/442097801, Running for: 00:00:10, ETA: 00:00:29
+        # INFO [PROGRESS]:  = Downloaded: 130.79 MiB, Written: 130.79 MiB
+        # INFO [PROGRESS]:   + Download    - 25.14 MiB/s
+        
+        progress_re = re.compile(
+            r'= Progress:\s+(\d+\.?\d*)\s+(\d+)/(\d+),.*ETA:\s+(\d+):(\d+):(\d+)'
+        )
+        downloaded_re = re.compile(r'= Downloaded:\s+(\d+\.?\d*)\s+MiB')
+        speed_re = re.compile(r'\+ Download\s+-\s+(\d+\.?\d*)\s+MiB/s')
+        
+        # Installation/verification phase (simpler format)
+        install_re = re.compile(r'\[Installation\]\s*\[(\d+)%\]')
+        
+        buffer = ""
+        
+        while self.current_process and self.current_process.returncode is None:
+            try:
+                chunk = await asyncio.wait_for(
+                    self.current_process.stdout.read(4096),
+                    timeout=1.0
+                )
+                if not chunk:
+                    break
+                    
+                buffer += chunk.decode('utf-8', errors='ignore')
+                lines = buffer.split('\n')
+                buffer = lines[-1]  # Keep incomplete line
+                
+                for line in lines[:-1]:
+                    logger.debug(f"[Nile] {line}")
+                    
+                    # Parse rich download progress (from PROGRESS logger)
+                    if match := progress_re.search(line):
+                        item.progress_percent = float(match.group(1))
+                        item.downloaded_bytes = int(match.group(2))
+                        item.total_bytes = int(match.group(3))
+                        
+                        # Parse ETA (HH:MM:SS format)
+                        hours = int(match.group(4))
+                        minutes = int(match.group(5))
+                        seconds = int(match.group(6))
+                        item.eta_seconds = hours * 3600 + minutes * 60 + seconds
+                        item.is_preparing = False
+                    
+                    # Parse download speed
+                    elif match := speed_re.search(line):
+                        item.speed_mbps = float(match.group(1))
+                    
+                    # Parse installation phase (simpler format - after download)
+                    elif match := install_re.search(line):
+                        item.progress_percent = float(match.group(1))
+                        item.is_preparing = False
+                        logger.info(f"[DownloadQueue] Amazon game {item.game_id} installation at {item.progress_percent}%")
+                    
+                    # Check for verification
+                    elif '[Verification]' in line:
+                        item.is_preparing = False
+                        logger.info(f"[DownloadQueue] Amazon game {item.game_id} verification in progress")
+                    
+                    # Save progress periodically
+                    if int(item.progress_percent) % 5 == 0:
+                        self._save()
+                            
+            except asyncio.TimeoutError:
+                continue
+            except Exception as e:
+                logger.warning(f"[DownloadQueue] Error parsing nile output: {e}")
+                break
 
     def set_gog_install_callback(self, callback: Callable) -> None:
         """Set callback for GOG game installation (uses GOGAPIClient)"""

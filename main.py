@@ -30,6 +30,9 @@ except ImportError:
 # Import Download Manager
 from download_manager import get_download_queue, DownloadQueue
 
+# Import Cloud Save Manager
+from cloud_save_manager import CloudSaveManager
+
 # Use Decky's logger for proper integration
 logger = decky.logger
 
@@ -143,13 +146,6 @@ class CDPOAuthMonitor:
                     if ws_url:
                         logger.info(f"[CDP] Closing page via CDP: {page.get('url', '')[:80]}...")
 
-                        # Add bundled lib directory to path
-                        import sys
-                        import os
-                        plugin_dir = os.path.dirname(os.path.abspath(__file__))
-                        lib_path = os.path.join(plugin_dir, 'lib')
-                        if lib_path not in sys.path:
-                            sys.path.insert(0, lib_path)
                         import websockets
 
                         async with websockets.connect(ws_url, ping_interval=None) as websocket:
@@ -190,12 +186,6 @@ class CDPOAuthMonitor:
                 return False
 
             # Connect and clear cookies
-            import sys
-            import os
-            plugin_dir = os.path.dirname(os.path.abspath(__file__))
-            lib_path = os.path.join(plugin_dir, 'lib')
-            if lib_path not in sys.path:
-                sys.path.insert(0, lib_path)
             import websockets
 
             async with websockets.connect(ws_url, ping_interval=None) as websocket:
@@ -241,13 +231,6 @@ class CDPOAuthMonitor:
             logger.info(f"[CDP] Connecting to page via WebSocket...")
 
             # Connect via WebSocket and get page content
-            # Add bundled lib directory to path
-            import sys
-            import os
-            plugin_dir = os.path.dirname(os.path.abspath(__file__))
-            lib_path = os.path.join(plugin_dir, 'lib')
-            if lib_path not in sys.path:
-                sys.path.insert(0, lib_path)
             import websockets
 
             async with websockets.connect(ws_url, ping_interval=None) as websocket:
@@ -297,6 +280,12 @@ class CDPOAuthMonitor:
             match = re.search(r'authorizationCode=([^&\s]+)', url)
             if match:
                 return match.group(1), 'epic'
+
+        # Amazon style - looks for openid.oa2.authorization_code in URL
+        if 'amazon.com' in url.lower() and 'openid.oa2.authorization_code=' in url:
+            match = re.search(r'openid\.oa2\.authorization_code=([^&\s]+)', url)
+            if match:
+                return match.group(1), 'amazon'
 
         # GOG style
         if 'code=' in url:
@@ -490,9 +479,10 @@ class BackgroundSizeFetcher:
     - Starts automatically on plugin load if pending games exist
     """
     
-    def __init__(self, epic_connector, gog_connector):
+    def __init__(self, epic_connector, gog_connector, amazon_connector=None):
         self.epic = epic_connector
         self.gog = gog_connector
+        self.amazon = amazon_connector
         self._running = False
         self._task = None
         self._pending_games = []  # List of (store, game_id) tuples
@@ -566,6 +556,8 @@ class BackgroundSizeFetcher:
                                 size_bytes = await self.epic.get_game_size(game_id)
                             elif store == 'gog':
                                 size_bytes = await self.gog.get_game_size(game_id, session=session)
+                            elif store == 'amazon' and self.amazon:
+                                size_bytes = await self.amazon.get_game_size(game_id)
                             else:
                                 return (store, game_id, None)
                             
@@ -687,7 +679,6 @@ class ShortcutsManager:
         possible_paths = [
             os.path.expanduser("~/.steam/steam"),
             os.path.expanduser("~/.local/share/Steam"),
-            "/home/deck/.steam/steam",  # Steam Deck default
         ]
 
         for path in possible_paths:
@@ -790,6 +781,270 @@ class ShortcutsManager:
         except Exception as e:
             logger.debug(f"[GameMap] Error checking games.map: {e}")
         return False
+
+    def reconcile_games_map(self) -> Dict[str, Any]:
+        """
+        Reconcile games.map by removing entries pointing to non-existent files.
+        
+        Called on plugin startup to handle games deleted externally (e.g., via file manager).
+        Entries are removed if neither the executable nor work directory exists.
+        
+        Returns:
+            dict: {'removed': int, 'kept': int, 'entries_removed': list}
+        """
+        map_file = os.path.expanduser("~/.local/share/unifideck/games.map")
+        
+        if not os.path.exists(map_file):
+            logger.debug("[Reconcile] games.map not found, nothing to reconcile")
+            return {'removed': 0, 'kept': 0, 'entries_removed': []}
+        
+        removed = 0
+        kept = 0
+        entries_removed = []
+        valid_lines = []
+        
+        try:
+            with open(map_file, 'r') as f:
+                lines = f.readlines()
+            
+            for line in lines:
+                line_stripped = line.strip()
+                if not line_stripped:
+                    continue
+                    
+                parts = line_stripped.split('|')
+                if len(parts) < 3:
+                    logger.warning(f"[Reconcile] Skipping malformed line: {line_stripped}")
+                    continue
+                
+                key = parts[0]  # store:game_id
+                exe_path = parts[1]
+                work_dir = parts[2]
+                
+                # Check if executable exists (primary check)
+                # If exe_path is empty, check work_dir instead
+                path_to_check = exe_path if exe_path else work_dir
+                
+                if path_to_check and os.path.exists(path_to_check):
+                    valid_lines.append(line)
+                    kept += 1
+                else:
+                    removed += 1
+                    entries_removed.append(key)
+                    logger.info(f"[Reconcile] Removing orphaned entry: {key} (path missing: {path_to_check})")
+            
+            # Rewrite games.map with only valid entries
+            if removed > 0:
+                with open(map_file, 'w') as f:
+                    f.writelines(valid_lines)
+                logger.info(f"[Reconcile] Cleaned games.map: {kept} kept, {removed} removed")
+            else:
+                logger.debug(f"[Reconcile] No orphaned entries found: {kept} entries all valid")
+        
+        except Exception as e:
+            logger.error(f"[Reconcile] Error reconciling games.map: {e}")
+            return {'removed': 0, 'kept': kept, 'entries_removed': [], 'error': str(e)}
+        
+        return {'removed': removed, 'kept': kept, 'entries_removed': entries_removed}
+
+    def repair_shortcuts_exe_path(self) -> Dict[str, Any]:
+        """
+        Repair shortcuts pointing to old plugin paths after reinstall.
+        
+        Called on plugin startup to fix shortcuts where the exe path
+        no longer exists (e.g., after Decky reinstall moves the plugin dir).
+        
+        Returns:
+            dict: {'repaired': int, 'checked': int, 'errors': list}
+        """
+        import re
+        
+        repaired = 0
+        checked = 0
+        errors = []
+        
+        # Get the CURRENT launcher path (this plugin's installation)
+        current_launcher = os.path.join(os.path.dirname(__file__), 'bin', 'unifideck-launcher')
+        
+        if not os.path.exists(current_launcher):
+            logger.error(f"[RepairExe] Current launcher not found: {current_launcher}")
+            return {'repaired': 0, 'checked': 0, 'errors': ['Current launcher not found']}
+        
+        logger.info(f"[RepairExe] Current launcher path: {current_launcher}")
+        
+        try:
+            shortcuts_data = load_shortcuts_vdf(self.shortcuts_path)
+            shortcuts = shortcuts_data.get('shortcuts', {})
+            modified = False
+            
+            for idx, shortcut in shortcuts.items():
+                launch_opts = shortcut.get('LaunchOptions', '')
+                
+                # Only check Unifideck shortcuts (store:game_id format)
+                if re.match(r'^(epic|gog|amazon):[a-zA-Z0-9_-]+$', launch_opts):
+                    checked += 1
+                    exe_path = shortcut.get('exe', '')
+                    
+                    # Remove quotes if present
+                    exe_path_clean = exe_path.strip('"')
+                    
+                    # Check if exe points to unifideck-launcher but at a different (old) path
+                    if 'unifideck-launcher' in exe_path_clean and exe_path_clean != current_launcher:
+                        # Check if the current exe doesn't exist (stale path)
+                        if not os.path.exists(exe_path_clean):
+                            logger.info(f"[RepairExe] Repairing shortcut '{shortcut.get('AppName')}': {exe_path_clean} -> {current_launcher}")
+                            shortcut['exe'] = f'"{current_launcher}"'
+                            shortcut['StartDir'] = f'"{os.path.dirname(current_launcher)}"'
+                            repaired += 1
+                            modified = True
+                        else:
+                            logger.debug(f"[RepairExe] Shortcut '{shortcut.get('AppName')}' has valid exe at: {exe_path_clean}")
+            
+            # Write back if modified
+            if modified:
+                success = save_shortcuts_vdf(self.shortcuts_path, shortcuts_data)
+                if success:
+                    logger.info(f"[RepairExe] Updated shortcuts.vdf: {repaired} repairs")
+                else:
+                    errors.append('Failed to write shortcuts.vdf')
+            
+        except Exception as e:
+            logger.error(f"[RepairExe] Error: {e}")
+            errors.append(str(e))
+        
+        return {'repaired': repaired, 'checked': checked, 'errors': errors}
+
+    def reconcile_shortcuts_from_games_map(self) -> Dict[str, Any]:
+        """
+        Ensure shortcuts exist for all installed games in games.map.
+        
+        Called on plugin startup to create missing shortcuts for games
+        that were installed but whose shortcuts were somehow lost.
+        Uses shortcuts_registry.json to recover original appid (preserves artwork!).
+        
+        Returns:
+            dict: {'created': int, 'existing': int, 'errors': list}
+        """
+        map_file = os.path.expanduser("~/.local/share/unifideck/games.map")
+        
+        if not os.path.exists(map_file):
+            logger.debug("[ReconcileShortcuts] games.map not found, nothing to reconcile")
+            return {'created': 0, 'existing': 0, 'errors': []}
+        
+        created = 0
+        existing = 0
+        errors = []
+        
+        # Get current launcher path
+        current_launcher = os.path.join(os.path.dirname(__file__), 'bin', 'unifideck-launcher')
+        
+        try:
+            # Load games.map entries
+            games_map_entries = []
+            with open(map_file, 'r') as f:
+                for line in f:
+                    line_stripped = line.strip()
+                    if not line_stripped:
+                        continue
+                    parts = line_stripped.split('|')
+                    if len(parts) >= 3:
+                        key = parts[0]  # store:game_id
+                        exe_path = parts[1]
+                        work_dir = parts[2]
+                        
+                        # Only include entries where the exe actually exists (installed games)
+                        if exe_path and os.path.exists(exe_path):
+                            games_map_entries.append({
+                                'key': key,
+                                'exe_path': exe_path,
+                                'work_dir': work_dir
+                            })
+            
+            if not games_map_entries:
+                logger.debug("[ReconcileShortcuts] No valid games.map entries found")
+                return {'created': 0, 'existing': 0, 'errors': []}
+            
+            logger.info(f"[ReconcileShortcuts] Found {len(games_map_entries)} installed games in games.map")
+            
+            # Load shortcuts.vdf
+            shortcuts_data = load_shortcuts_vdf(self.shortcuts_path)
+            shortcuts = shortcuts_data.get('shortcuts', {})
+            
+            # Build set of existing LaunchOptions
+            existing_launch_options = {
+                shortcut.get('LaunchOptions')
+                for shortcut in shortcuts.values()
+                if shortcut.get('LaunchOptions')
+            }
+            
+            # Load shortcuts registry for appid recovery
+            shortcuts_registry = load_shortcuts_registry()
+            
+            # Find next available index
+            existing_indices = [int(k) for k in shortcuts.keys() if k.isdigit()]
+            next_index = max(existing_indices, default=-1) + 1
+            
+            modified = False
+            
+            for entry in games_map_entries:
+                key = entry['key']  # store:game_id
+                
+                if key in existing_launch_options:
+                    existing += 1
+                    continue
+                
+                # Parse store and game_id
+                store, game_id = key.split(':', 1)
+                
+                # Try to recover appid from registry (preserves artwork!)
+                registered = shortcuts_registry.get(key, {})
+                appid = registered.get('appid')
+                title = registered.get('title', game_id)  # Fallback to game_id if no title
+                
+                if not appid:
+                    # Generate new appid if not registered
+                    appid = self.generate_app_id(title, current_launcher)
+                    logger.warning(f"[ReconcileShortcuts] No registered appid for {key}, generated new: {appid}")
+                
+                # Create new shortcut
+                logger.info(f"[ReconcileShortcuts] Creating missing shortcut for '{title}' ({key})")
+                
+                shortcuts[str(next_index)] = {
+                    'appid': appid,
+                    'AppName': title,
+                    'exe': f'"{current_launcher}"',
+                    'StartDir': '',
+                    'icon': '',
+                    'ShortcutPath': '',
+                    'LaunchOptions': key,
+                    'IsHidden': 0,
+                    'AllowDesktopConfig': 1,
+                    'OpenVR': 0,
+                    'tags': {
+                        '0': store.title(),
+                        '1': 'Installed'  # It's in games.map, so it's installed
+                    }
+                }
+                
+                next_index += 1
+                created += 1
+                modified = True
+            
+            # Write back if modified
+            if modified:
+                success = save_shortcuts_vdf(self.shortcuts_path, shortcuts_data)
+                if success:
+                    logger.info(f"[ReconcileShortcuts] Created {created} missing shortcuts")
+                else:
+                    errors.append('Failed to write shortcuts.vdf')
+            else:
+                logger.debug(f"[ReconcileShortcuts] All {existing} shortcuts already exist")
+        
+        except Exception as e:
+            logger.error(f"[ReconcileShortcuts] Error: {e}")
+            errors.append(str(e))
+        
+        return {'created': created, 'existing': existing, 'errors': errors}
 
     async def _set_proton_compatibility(self, app_id: int, compat_tool: str = "proton_experimental"):
         """Set Proton compatibility tool for a non-Steam game in config.vdf"""
@@ -1051,7 +1306,7 @@ class ShortcutsManager:
             logger.error(f"Error adding game to shortcuts: {e}")
             return False
 
-    async def add_games_batch(self, games: List[Game], launcher_script: str) -> Dict[str, Any]:
+    async def add_games_batch(self, games: List[Game], launcher_script: str, valid_stores: List[str] = None) -> Dict[str, Any]:
         """
         Add multiple games in a single write operation with smart update logic.
 
@@ -1077,7 +1332,12 @@ class ShortcutsManager:
                 launch = shortcut.get('LaunchOptions', '')
 
                 # Only touch Unifideck shortcuts (epic: or gog:)
-                if launch.startswith('epic:') or launch.startswith('gog:'):
+                if launch.startswith('epic:') or launch.startswith('gog:') or launch.startswith('amazon:'):
+                    # Check if we should manage this store
+                    store_prefix = launch.split(':', 1)[0]
+                    if valid_stores is not None and store_prefix not in valid_stores:
+                        continue
+
                     # If this game no longer exists in current library, it's orphaned
                     if launch not in current_launch_options:
                         logger.debug(f"Removing orphaned shortcut: {shortcut.get('AppName')} ({launch})")
@@ -1197,7 +1457,7 @@ class ShortcutsManager:
             traceback.print_exc()
             return {'added': 0, 'skipped': 0, 'removed': 0, 'reclaimed': 0, 'error': str(e)}
 
-    async def force_update_games_batch(self, games: List[Game], launcher_script: str) -> Dict[str, Any]:
+    async def force_update_games_batch(self, games: List[Game], launcher_script: str, valid_stores: List[str] = None) -> Dict[str, Any]:
         """
         Force update all games - rewrites existing shortcuts with fresh data.
         
@@ -1231,7 +1491,12 @@ class ShortcutsManager:
                 exe_path_current = shortcut.get('Exe', '').strip('"')
 
                 # Only touch Unifideck shortcuts (epic: or gog:)
-                if launch.startswith('epic:') or launch.startswith('gog:'):
+                if launch.startswith('epic:') or launch.startswith('gog:') or launch.startswith('amazon:'):
+                    # Check if we should manage this store
+                    store_prefix = launch.split(':', 1)[0]
+                    if valid_stores is not None and store_prefix not in valid_stores:
+                        continue
+
                     if launch not in current_launch_options:
                         # Orphaned - game no longer in library
                         logger.debug(f"Removing orphaned shortcut: {shortcut.get('AppName')} ({launch})")
@@ -1741,7 +2006,7 @@ class EpicConnector:
 
         except Exception as e:
             logger.error(f"Error fetching Epic library: {e}")
-            return []
+            return None
 
     async def get_installed(self) -> Dict[str, Any]:
         """
@@ -1966,6 +2231,528 @@ class EpicConnector:
                 'success': False,
                 'error': str(e)
             }
+
+
+class AmazonConnector:
+    """Handles Amazon Games via nile CLI"""
+
+    def __init__(self, plugin_dir: Optional[str] = None, plugin_instance=None):
+        self.plugin_dir = plugin_dir
+        self.plugin_instance = plugin_instance  # Reference to parent Plugin for auto-sync
+        self.nile_bin = self._find_nile()
+        self._pending_login_data = None  # Store login data during OAuth flow
+        logger.info(f"Nile binary: {self.nile_bin}")
+
+    def _find_nile(self) -> Optional[str]:
+        """Find nile executable - checks bundled binary first, then system"""
+        import shutil
+
+        # Priority 1: Check bundled nile in plugin bin/ directory
+        if self.plugin_dir:
+            bundled_nile = os.path.join(self.plugin_dir, 'bin', 'nile')
+            if os.path.isfile(bundled_nile) and os.access(bundled_nile, os.X_OK):
+                logger.info(f"[Amazon] Using bundled nile: {bundled_nile}")
+                return bundled_nile
+
+        # Priority 2: Check system PATH
+        nile_path = shutil.which("nile")
+        if nile_path:
+            logger.info(f"[Amazon] Using system nile: {nile_path}")
+            return nile_path
+
+        # Priority 3: Check ~/.local/bin explicitly
+        local_bin_nile = os.path.expanduser("~/.local/bin/nile")
+        if os.path.exists(local_bin_nile):
+            logger.info(f"[Amazon] Using user nile: {local_bin_nile}")
+            return local_bin_nile
+
+        logger.warning("[Amazon] Nile not found - Amazon Games features unavailable")
+        return None
+
+    async def is_available(self) -> bool:
+        """Check if nile is installed and authenticated"""
+        logger.info(f"[Amazon] Checking availability, nile_bin={self.nile_bin}")
+
+        if not self.nile_bin:
+            logger.warning("[Amazon] Nile CLI not found - not installed")
+            return False
+
+        try:
+            # Check for user.json which contains Amazon auth tokens
+            nile_config = os.path.expanduser("~/.config/nile")
+            user_file = os.path.join(nile_config, "user.json")
+
+            if not os.path.exists(user_file):
+                logger.info("[Amazon] No user.json found - not authenticated")
+                return False
+
+            # Verify the file has valid content
+            try:
+                with open(user_file, 'r') as f:
+                    data = json.load(f)
+                    if not data:
+                        logger.info("[Amazon] user.json empty - not authenticated")
+                        return False
+
+                    # Check for customer_info which indicates valid auth
+                    extensions = data.get('extensions', {})
+                    if 'customer_info' not in extensions:
+                        logger.info("[Amazon] user.json missing customer_info - not authenticated")
+                        return False
+
+                    logger.info("[Amazon] Status: Connected (authenticated)")
+                    return True
+
+            except (json.JSONDecodeError, Exception) as e:
+                logger.warning(f"[Amazon] Invalid user.json: {e}")
+                return False
+
+        except Exception as e:
+            logger.error(f"[Amazon] Exception checking status: {e}", exc_info=True)
+            return False
+
+    async def start_auth(self) -> Dict[str, Any]:
+        """Start Amazon OAuth flow via nile (non-interactive mode)"""
+        if not self.nile_bin:
+            return {'success': False, 'error': 'nile not found'}
+
+        try:
+            logger.info("[Amazon] Starting OAuth flow...")
+
+            proc = await asyncio.create_subprocess_exec(
+                self.nile_bin, 'auth', '--login', '--non-interactive',
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc.communicate()
+
+            if proc.returncode == 0:
+                try:
+                    login_data = json.loads(stdout.decode())
+                    # Store login data for completion step
+                    self._pending_login_data = login_data
+                    logger.info(f"[Amazon] Got login URL, waiting for user authorization")
+                    
+                    # Start CDP monitoring in background to auto-capture code
+                    asyncio.create_task(self._monitor_and_complete_auth())
+                    
+                    return {
+                        'success': True,
+                        'url': login_data.get('url', ''),
+                        'message': 'Please login in the browser window'
+                    }
+                except json.JSONDecodeError as e:
+                    logger.error(f"[Amazon] Failed to parse login data: {e}")
+                    return {'success': False, 'error': 'Failed to parse login response'}
+            else:
+                error_msg = stderr.decode() if stderr else 'Unknown error'
+                logger.error(f"[Amazon] Auth failed: {error_msg}")
+                return {'success': False, 'error': error_msg}
+
+        except Exception as e:
+            logger.error(f"[Amazon] Error starting auth: {e}")
+            return {'success': False, 'error': str(e)}
+
+    async def complete_auth(self, auth_code: str) -> Dict[str, Any]:
+        """Complete Amazon OAuth with authorization code from browser"""
+        if not self.nile_bin:
+            return {'success': False, 'error': 'nile not found'}
+
+        if not self._pending_login_data:
+            return {'success': False, 'error': 'No pending login - call start_auth first'}
+
+        try:
+            login_data = self._pending_login_data
+            logger.info(f"[Amazon] Completing auth with code...")
+
+            proc = await asyncio.create_subprocess_exec(
+                self.nile_bin, 'register',
+                '--code', auth_code,
+                '--code-verifier', login_data.get('code_verifier', ''),
+                '--serial', login_data.get('serial', ''),
+                '--client-id', login_data.get('client_id', ''),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc.communicate()
+
+            # Nile prints success message to stderr
+            output = stderr.decode() if stderr else stdout.decode()
+            
+            if 'Succesfully registered' in output or 'Successfully registered' in output:
+                self._pending_login_data = None  # Clear pending data
+                logger.info("[Amazon] Authentication successful!")
+                
+                # Trigger auto-sync if plugin instance available
+                if self.plugin_instance:
+                    logger.info("[Amazon] Triggering library sync after auth")
+                    asyncio.create_task(self.plugin_instance.force_sync_libraries())
+                    
+                return {'success': True, 'message': 'Authenticated successfully'}
+            else:
+                logger.error(f"[Amazon] Registration failed: {output}")
+                return {'success': False, 'error': 'Authentication failed'}
+
+        except Exception as e:
+            logger.error(f"[Amazon] Error completing auth: {e}")
+            return {'success': False, 'error': str(e)}
+
+    async def _monitor_and_complete_auth(self):
+        """Monitor browser for OAuth callback and auto-complete authentication"""
+        try:
+            monitor = CDPOAuthMonitor()
+            logger.info("[Amazon] Starting CDP monitor for auth code...")
+            
+            # Monitor for Amazon OAuth code (5 min timeout)
+            code, store = await monitor.monitor_for_oauth_code(expected_store='amazon', timeout=300)
+            
+            if code and store == 'amazon':
+                logger.info(f"[Amazon] ✓ Auto-captured authorization code via CDP")
+                result = await self.complete_auth(code)
+                if result.get('success'):
+                    logger.info("[Amazon] ✓ Auto-authentication completed successfully")
+                else:
+                    logger.error(f"[Amazon] Auto-auth completion failed: {result.get('error')}")
+            else:
+                logger.warning("[Amazon] CDP monitoring timeout - user may need to manually enter code")
+                
+        except Exception as e:
+            logger.error(f"[Amazon] Error in CDP monitoring: {e}", exc_info=True)
+
+    async def logout(self) -> Dict[str, Any]:
+        """Logout from Amazon Games"""
+        if not self.nile_bin:
+            return {'success': False, 'error': 'nile not found'}
+
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                self.nile_bin, 'auth', '--logout',
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            await proc.communicate()
+
+            logger.info("[Amazon] Logged out successfully")
+            return {'success': True, 'message': 'Logged out successfully'}
+
+        except Exception as e:
+            logger.error(f"[Amazon] Error during logout: {e}")
+            return {'success': False, 'error': str(e)}
+
+    async def sync_library(self) -> bool:
+        """Sync Amazon Games library from server"""
+        if not self.nile_bin:
+            return False
+
+        try:
+            logger.info("[Amazon] Syncing library from server...")
+            proc = await asyncio.create_subprocess_exec(
+                self.nile_bin, 'library', 'sync',
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc.communicate()
+
+            if proc.returncode == 0:
+                logger.info("[Amazon] Library sync complete")
+                return True
+            else:
+                logger.warning(f"[Amazon] Library sync failed: {stderr.decode()}")
+                return False
+
+        except Exception as e:
+            logger.error(f"[Amazon] Error syncing library: {e}")
+            return None
+
+    async def get_library(self) -> List[Game]:
+        """Get Amazon Games library via nile"""
+        if not self.nile_bin:
+            logger.warning("[Amazon] Nile CLI not found")
+            return None
+
+        try:
+            # First sync library to get latest
+            await self.sync_library()
+
+            # Read library directly from nile's library.json file
+            nile_config = os.path.expanduser("~/.config/nile")
+            library_file = os.path.join(nile_config, "library.json")
+            
+            if not os.path.exists(library_file):
+                logger.warning("[Amazon] library.json not found")
+                return []
+            
+            with open(library_file, 'r') as f:
+                games_data = json.load(f)
+
+            games = []
+
+            # Get installed games to mark install status
+            installed = await self.get_installed()
+
+            for game_data in games_data:
+                product = game_data.get('product', {})
+                game_id = product.get('id', '')
+                title = product.get('title', 'Unknown')
+                
+                # Get product details for metadata
+                product_detail = product.get('productDetail', {})
+                details = product_detail.get('details', {})
+                
+                game = Game(
+                    id=game_id,
+                    title=title,
+                    store='amazon',
+                    is_installed=game_id in installed
+                )
+                games.append(game)
+
+            logger.info(f"[Amazon] Found {len(games)} games")
+            return games
+
+        except Exception as e:
+            logger.error(f"[Amazon] Error fetching library: {e}", exc_info=True)
+            return []
+
+    async def get_installed(self) -> Dict[str, Any]:
+        """Get list of installed Amazon games from nile config"""
+        nile_config = os.path.expanduser("~/.config/nile")
+        installed_file = os.path.join(nile_config, "installed.json")
+
+        if not os.path.exists(installed_file):
+            return {}
+
+        try:
+            with open(installed_file, 'r') as f:
+                installed_list = json.load(f)
+
+            installed_dict = {}
+            for game in installed_list:
+                game_id = game.get('id', '')
+                installed_dict[game_id] = {
+                    'version': game.get('version', ''),
+                    'path': game.get('path', '')
+                }
+            return installed_dict
+
+        except Exception as e:
+            logger.error(f"[Amazon] Error reading installed.json: {e}")
+            return {}
+
+    def get_installed_game_info(self, game_id: str) -> Optional[Dict[str, Any]]:
+        """Get installed game info synchronously"""
+        nile_config = os.path.expanduser("~/.config/nile")
+        installed_file = os.path.join(nile_config, "installed.json")
+
+        if not os.path.exists(installed_file):
+            return None
+
+        try:
+            with open(installed_file, 'r') as f:
+                installed_list = json.load(f)
+
+            for game in installed_list:
+                if game.get('id') == game_id:
+                    install_path = game.get('path', '')
+                    
+                    # Parse fuel.json for executable
+                    exe_path = self._get_executable_from_fuel(install_path)
+                    
+                    return {
+                        'id': game_id,
+                        'version': game.get('version', ''),
+                        'path': install_path,
+                        'executable': exe_path
+                    }
+            return None
+
+        except Exception as e:
+            logger.error(f"[Amazon] Error getting installed game info: {e}")
+            return None
+
+    def _get_executable_from_fuel(self, install_path: str) -> Optional[str]:
+        """Get executable path from fuel.json"""
+        if not install_path:
+            return None
+
+        fuel_path = os.path.join(install_path, 'fuel.json')
+        if not os.path.exists(fuel_path):
+            logger.warning(f"[Amazon] No fuel.json found at {fuel_path}")
+            return None
+
+        try:
+            # fuel.json might have comments, try json5 style parsing
+            with open(fuel_path, 'r') as f:
+                content = f.read()
+                # Remove single-line comments
+                import re
+                content = re.sub(r'//.*$', '', content, flags=re.MULTILINE)
+                fuel_data = json.loads(content)
+
+            main_cmd = fuel_data.get('Main', {}).get('Command', '')
+            if main_cmd:
+                exe_path = os.path.join(install_path, main_cmd)
+                logger.info(f"[Amazon] Found executable from fuel.json: {exe_path}")
+                return exe_path
+
+        except Exception as e:
+            logger.error(f"[Amazon] Error parsing fuel.json: {e}")
+
+        return None
+
+    async def get_game_size(self, game_id: str) -> Optional[int]:
+        """Get game download size in bytes"""
+        if not self.nile_bin:
+            return None
+
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                self.nile_bin, 'install', game_id, '--info', '--json',
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc.communicate()
+
+            if proc.returncode == 0:
+                output = stdout.decode()
+                # Find the JSON line (skip INFO/log lines)
+                for line in output.strip().split('\n'):
+                    if line.startswith('{'):
+                        try:
+                            info = json.loads(line)
+                            download_size = info.get('download_size', 0)
+                            logger.info(f"[Amazon] Game {game_id} size: {download_size} bytes")
+                            return download_size
+                        except json.JSONDecodeError:
+                            continue
+                
+                logger.warning(f"[Amazon] Could not parse size info for {game_id}")
+                return None
+
+        except Exception as e:
+            logger.error(f"[Amazon] Error getting game size: {e}")
+
+        return None
+
+    async def install_game(self, game_id: str, progress_callback=None) -> Dict[str, Any]:
+        """Install Amazon game using nile CLI"""
+        if not self.nile_bin:
+            return {'success': False, 'error': 'Nile CLI not found'}
+
+        try:
+            base_path = os.path.expanduser("~/Games/Amazon")
+            os.makedirs(base_path, exist_ok=True)
+
+            logger.info(f"[Amazon] Starting installation of {game_id} to {base_path}")
+
+            proc = await asyncio.create_subprocess_exec(
+                self.nile_bin, 'install', game_id,
+                '--base-path', base_path,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT
+            )
+
+            # Parse progress from output
+            while True:
+                line = await proc.stdout.readline()
+                if not line:
+                    break
+                line_str = line.decode().strip()
+                logger.info(f"[Amazon Install] {line_str}")
+
+                # Parse progress: [Installation] [XX%] message
+                if '[Installation]' in line_str and '%' in line_str:
+                    import re
+                    match = re.search(r'\[(\d+)%\]', line_str)
+                    if match and progress_callback:
+                        progress = int(match.group(1))
+                        await progress_callback(progress)
+
+            await proc.wait()
+
+            if proc.returncode == 0:
+                # Get install info
+                info_proc = await asyncio.create_subprocess_exec(
+                    self.nile_bin, 'install', game_id, '--info', '--json',
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, _ = await info_proc.communicate()
+
+                install_path = None
+                exe_path = None
+
+                if info_proc.returncode == 0:
+                    try:
+                        info = json.loads(stdout.decode())
+                        install_path = info.get('game', {}).get('path', '')
+                    except:
+                        pass
+
+                # Fallback: check installed.json
+                if not install_path:
+                    installed = await self.get_installed()
+                    if game_id in installed:
+                        install_path = installed[game_id].get('path', '')
+
+                if install_path:
+                    exe_path = self._get_executable_from_fuel(install_path)
+                    logger.info(f"[Amazon] Successfully installed {game_id} to {install_path}")
+                    return {
+                        'success': True,
+                        'install_path': install_path,
+                        'exe_path': exe_path,
+                        'message': f'Successfully installed {game_id}'
+                    }
+                else:
+                    return {
+                        'success': True,
+                        'install_path': base_path,
+                        'message': f'Successfully installed {game_id} (path uncertain)'
+                    }
+            else:
+                logger.error(f"[Amazon] Installation failed for {game_id}")
+                return {
+                    'success': False,
+                    'error': 'Installation failed - check logs for details'
+                }
+
+        except Exception as e:
+            logger.error(f"[Amazon] Error installing game {game_id}: {e}")
+            return {'success': False, 'error': str(e)}
+
+    async def uninstall_game(self, game_id: str) -> Dict[str, Any]:
+        """Uninstall Amazon game using nile CLI"""
+        if not self.nile_bin:
+            return {'success': False, 'error': 'Nile CLI not found'}
+
+        try:
+            logger.info(f"[Amazon] Starting uninstallation of {game_id}")
+
+            proc = await asyncio.create_subprocess_exec(
+                self.nile_bin, 'uninstall', game_id, '--yes',
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc.communicate()
+
+            if proc.returncode == 0:
+                logger.info(f"[Amazon] Successfully uninstalled {game_id}")
+                return {
+                    'success': True,
+                    'message': f'Successfully uninstalled {game_id}'
+                }
+            else:
+                error_msg = stderr.decode() if stderr else 'Unknown error'
+                logger.error(f"[Amazon] Uninstallation failed: {error_msg}")
+                return {
+                    'success': False,
+                    'error': f'Uninstallation failed: {error_msg}'
+                }
+
+        except Exception as e:
+            logger.error(f"[Amazon] Error uninstalling game {game_id}: {e}")
+            return {'success': False, 'error': str(e)}
 
 
 class GOGAPIClient:
@@ -2300,7 +3087,7 @@ class GOGAPIClient:
 
         except Exception as e:
             logger.error(f"Error fetching GOG library: {e}")
-            return []
+            return None
 
     async def get_installed(self) -> List[str]:
         """
@@ -2575,9 +3362,23 @@ class GOGAPIClient:
 
             logger.info(f"[GOG] Installing '{game_title}' to {install_path}")
 
-            # 5. Download installer
-            # 5. Download installer parts
+            # 5. Download installer parts with improved multi-part handling
             main_installer_path = None
+            
+            # Pre-calculate total size across all parts for accurate overall progress
+            total_bytes_all_parts = 0
+            part_sizes = []
+            for inst in installers_list:
+                size_str = inst.get('size', '0 MB')
+                size_bytes = self._parse_size_string(size_str)
+                part_sizes.append(size_bytes)
+                total_bytes_all_parts += size_bytes
+            
+            if total_bytes_all_parts > 0:
+                logger.info(f"[GOG] Total download size: {total_bytes_all_parts / (1024**3):.2f} GB across {len(installers_list)} parts")
+            
+            # Track cumulative downloaded bytes for weighted overall progress
+            cumulative_downloaded = 0
             
             for index, installer_data in enumerate(installers_list):
                 installer_url = installer_data.get('manualUrl') or installer_data.get('downloaderUrl')
@@ -2585,10 +3386,11 @@ class GOGAPIClient:
                     logger.warning(f"[GOG] Skipping installer part {index+1}: No URL found")
                     continue
 
-                # Get installer filename
+                # Get installer filename and expected size
                 default_filename = f'installer_part_{index}.{"sh" if installer_platform == "linux" else "exe"}'
                 installer_filename = installer_data.get('name', default_filename)
                 installer_path = os.path.join(install_path, installer_filename)
+                expected_size = part_sizes[index] if index < len(part_sizes) else 0
 
                 # Determine if this is the main installer (executable)
                 # Windows: .exe (not .bin)
@@ -2611,19 +3413,50 @@ class GOGAPIClient:
                 if is_main_part and not main_installer_path:
                     main_installer_path = installer_path
 
-                logger.info(f"[GOG] Downloading part {index+1}/{len(installers_list)}: {installer_filename}")
+                logger.info(f"[GOG] Downloading part {index+1}/{len(installers_list)}: {installer_filename} ({expected_size / (1024**2):.1f} MB)")
                 logger.info(f"[GOG] Download URL: {installer_url}")
                 
-                # Only use progress callback for the main part (usually the largest) to avoid confusing UI
-                # or split progress for each? For now, let's just use it for all but maybe we should weight it.
-                # Simple approach: pass callback for all, UI will jump around but show activity.
-                download_success = await self._download_file(installer_url, installer_path, progress_callback)
+                # Create a wrapper callback that calculates weighted overall progress
+                async def weighted_progress_callback(progress_data, part_idx=index, part_expected=expected_size):
+                    nonlocal cumulative_downloaded
+                    if progress_callback:
+                        # Calculate overall progress: completed parts + current part progress
+                        completed_bytes = sum(part_sizes[:part_idx])  # Bytes from completed parts
+                        current_part_bytes = progress_data.get('downloaded_bytes', 0)
+                        overall_downloaded = completed_bytes + current_part_bytes
+                        
+                        if total_bytes_all_parts > 0:
+                            overall_percent = (overall_downloaded / total_bytes_all_parts) * 100
+                        else:
+                            # Fallback: use per-part progress
+                            overall_percent = progress_data.get('progress_percent', 0)
+                        
+                        await progress_callback({
+                            'progress_percent': overall_percent,
+                            'downloaded_bytes': overall_downloaded,
+                            'total_bytes': total_bytes_all_parts,
+                            'speed_bps': progress_data.get('speed_bps', 0),
+                            'eta_seconds': progress_data.get('eta_seconds', 0),
+                            'current_part': part_idx + 1,
+                            'total_parts': len(installers_list)
+                        })
+                
+                # Download with expected size for skip/resume functionality
+                download_success = await self._download_file(
+                    installer_url, 
+                    installer_path, 
+                    weighted_progress_callback,
+                    expected_size=expected_size
+                )
 
                 if not download_success:
                     return {
                         'success': False,
-                        'error': f'Failed to download installer part: {installer_filename}'
+                        'error': f'Failed to download installer part {index+1}/{len(installers_list)}: {installer_filename}'
                     }
+                
+                # Update cumulative for next iteration
+                cumulative_downloaded += expected_size
 
             # Fallback: if still no main installer identified, use the first downloaded file
             if not main_installer_path and installers_list:
@@ -2915,92 +3748,204 @@ class GOGAPIClient:
 
 
 
-    async def _download_file(self, url: str, dest_path: str, progress_callback=None) -> bool:
-        """Download file from GOG with authentication"""
-        try:
-            import aiohttp
-            import ssl
+    async def _download_file(self, url: str, dest_path: str, progress_callback=None, expected_size: int = 0) -> bool:
+        """Download file from GOG with authentication - wrapper for backwards compatibility"""
+        return await self._download_file_with_resume(url, dest_path, expected_size, progress_callback)
 
-            # Create SSL context
-            ssl_context = ssl.create_default_context()
-            ssl_context.check_hostname = False
-            ssl_context.verify_mode = ssl.CERT_NONE
-
-            connector = aiohttp.TCPConnector(ssl=ssl_context)
-            # Disable total timeout for large downloads, but keep socket timeouts
-            timeout = aiohttp.ClientTimeout(total=None, sock_connect=30, sock_read=30)
-            async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
-                # Handle relative URLs from GOG API
-                if url.startswith('/'):
-                    url = f"https://www.gog.com{url}"
-                    logger.info(f"[GOG] Converted relative URL to: {url}")
-
-                # Add authentication if needed
-                # GOG download URLs may already include auth tokens in the URL
-                # but we'll include the bearer token just in case
+    async def _download_file_with_resume(
+        self, 
+        url: str, 
+        dest_path: str, 
+        expected_size: int = 0,
+        progress_callback=None,
+        max_retries: int = 5,
+        base_timeout: int = 120
+    ) -> bool:
+        """
+        Download file from GOG with authentication, retry, and resume support.
+        
+        Designed for large multi-part GOG installers (Cyberpunk, Witcher, etc.):
+        - Retry with exponential backoff (5 attempts: 2s, 4s, 8s, 16s, 32s delays)
+        - Resume partial downloads via HTTP Range header
+        - Skip already-downloaded files if size matches
+        - 120-second socket timeout for slow CDN servers
+        
+        Args:
+            url: Download URL (can be relative to gog.com)
+            dest_path: Local file path to save to
+            expected_size: Expected file size in bytes (0 = unknown, will use Content-Length)
+            progress_callback: Async function to report progress
+            max_retries: Maximum download attempts (default 5)
+            base_timeout: Socket read timeout in seconds (default 120)
+        
+        Returns:
+            True if download completed successfully, False otherwise
+        """
+        import aiohttp
+        import ssl
+        
+        # Handle relative URLs from GOG API
+        if url.startswith('/'):
+            url = f"https://www.gog.com{url}"
+            logger.info(f"[GOG] Converted relative URL to: {url}")
+        
+        # Check if file already exists with correct size (skip re-downloading)
+        if expected_size > 0 and os.path.exists(dest_path):
+            existing_size = os.path.getsize(dest_path)
+            if existing_size == expected_size:
+                logger.info(f"[GOG] Skipping already downloaded file: {os.path.basename(dest_path)} ({existing_size / (1024*1024):.1f} MB)")
+                # Report 100% progress for this file
+                if progress_callback:
+                    await progress_callback({
+                        'progress_percent': 100.0,
+                        'downloaded_bytes': existing_size,
+                        'total_bytes': existing_size,
+                        'speed_bps': 0,
+                        'eta_seconds': 0
+                    })
+                return True
+            elif existing_size > expected_size:
+                # File is larger than expected - corrupted, delete and re-download
+                logger.warning(f"[GOG] Existing file larger than expected ({existing_size} > {expected_size}), deleting and re-downloading")
+                os.remove(dest_path)
+        
+        # Create SSL context
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        
+        last_error = None
+        
+        for attempt in range(1, max_retries + 1):
+            try:
+                # Check for existing partial download to resume
+                resume_from = 0
+                if os.path.exists(dest_path):
+                    resume_from = os.path.getsize(dest_path)
+                    if resume_from > 0:
+                        logger.info(f"[GOG] Resuming download from byte {resume_from} ({resume_from / (1024*1024):.1f} MB)")
+                
+                # Build headers
                 headers = {}
                 if self.access_token and 'gog.com' in url:
                     headers['Authorization'] = f'Bearer {self.access_token}'
-
-                async with session.get(url, headers=headers) as response:
-                    if response.status != 200:
-                        logger.error(f"[GOG] Download failed: {response.status}")
-                        return False
-
-                    total_size = int(response.headers.get('content-length', 0))
-                    downloaded = 0
-
-                    with open(dest_path, 'wb') as f:
-                        last_logged_percent = -1  # Track last logged percentage
-                        last_callback_time = time.time()
-                        last_downloaded_for_speed = 0
-                        current_speed_bps = 0
+                
+                # Add Range header for resume
+                if resume_from > 0:
+                    headers['Range'] = f'bytes={resume_from}-'
+                
+                # Create session with longer timeout for large files
+                connector = aiohttp.TCPConnector(ssl=ssl_context)
+                timeout = aiohttp.ClientTimeout(total=None, sock_connect=60, sock_read=base_timeout)
+                
+                async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
+                    async with session.get(url, headers=headers) as response:
+                        # Handle response status
+                        if response.status == 200:
+                            # Full download (no resume or server doesn't support Range)
+                            if resume_from > 0:
+                                logger.info(f"[GOG] Server doesn't support resume, starting from beginning")
+                                resume_from = 0
+                            total_size = int(response.headers.get('content-length', 0))
+                            file_mode = 'wb'
+                        elif response.status == 206:
+                            # Partial content - resume successful
+                            content_range = response.headers.get('content-range', '')
+                            # Format: "bytes 12345-67890/12345678" 
+                            if '/' in content_range:
+                                total_size = int(content_range.split('/')[-1])
+                            else:
+                                total_size = resume_from + int(response.headers.get('content-length', 0))
+                            file_mode = 'ab'  # Append mode for resume
+                            logger.info(f"[GOG] Resume accepted, continuing from {resume_from / (1024*1024):.1f} MB")
+                        elif response.status == 416:
+                            # Range not satisfiable - file might be complete
+                            if expected_size > 0 and resume_from >= expected_size:
+                                logger.info(f"[GOG] File already complete: {os.path.basename(dest_path)}")
+                                return True
+                            # Otherwise, delete and restart
+                            logger.warning(f"[GOG] Range not satisfiable, restarting download")
+                            if os.path.exists(dest_path):
+                                os.remove(dest_path)
+                            resume_from = 0
+                            continue  # Retry from beginning
+                        else:
+                            logger.error(f"[GOG] Download failed with status {response.status}")
+                            last_error = f"HTTP {response.status}"
+                            raise aiohttp.ClientError(f"HTTP {response.status}")
                         
-                        async for chunk in response.content.iter_chunked(8192):
-                            f.write(chunk)
-                            downloaded += len(chunk)
-
-                            # Real-time progress logging and callback
-                            if total_size > 0:
-                                progress = (downloaded / total_size) * 100
+                        # Use expected_size if known, otherwise use Content-Length
+                        if expected_size > 0:
+                            total_size = expected_size
+                        
+                        downloaded = resume_from  # Start from resume point
+                        
+                        with open(dest_path, file_mode) as f:
+                            last_logged_percent = -1
+                            last_callback_time = time.time()
+                            last_downloaded_for_speed = downloaded
+                            current_speed_bps = 0
+                            
+                            async for chunk in response.content.iter_chunked(65536):  # 64KB chunks for speed
+                                f.write(chunk)
+                                downloaded += len(chunk)
                                 
-                                # Calculate speed
-                                now = time.time()
-                                elapsed = now - last_callback_time
-                                if elapsed >= 0.5:  # Update speed every 0.5 seconds
-                                    bytes_since_last = downloaded - last_downloaded_for_speed
-                                    current_speed_bps = bytes_since_last / elapsed
-                                    last_downloaded_for_speed = downloaded
-                                    last_callback_time = now
-
-                                # Log every 5% milestone
-                                current_percent = int(progress)
-                                if current_percent % 5 == 0 and current_percent != last_logged_percent:
-                                    mb_downloaded = downloaded / (1024 * 1024)
-                                    mb_total = total_size / (1024 * 1024)
-                                    logger.info(f"[GOG Download] {progress:.1f}% ({mb_downloaded:.1f} MB / {mb_total:.1f} MB)")
-                                    last_logged_percent = current_percent
-
-                                # Call progress callback with full stats
-                                if progress_callback:
-                                    remaining_bytes = total_size - downloaded
-                                    eta_seconds = int(remaining_bytes / current_speed_bps) if current_speed_bps > 0 else 0
+                                # Real-time progress logging and callback
+                                if total_size > 0:
+                                    progress = (downloaded / total_size) * 100
                                     
-                                    await progress_callback({
-                                        'progress_percent': progress,
-                                        'downloaded_bytes': downloaded,
-                                        'total_bytes': total_size,
-                                        'speed_bps': current_speed_bps,
-                                        'eta_seconds': eta_seconds
-                                    })
-
-                    mb_size = downloaded / (1024 * 1024)
-                    logger.info(f"[GOG] Download complete: {mb_size:.1f} MB downloaded to {dest_path}")
-                    return True
-
-        except Exception as e:
-            logger.error(f"[GOG] Error downloading file: {e}", exc_info=True)
-            return False
+                                    # Calculate speed
+                                    now = time.time()
+                                    elapsed = now - last_callback_time
+                                    if elapsed >= 0.5:
+                                        bytes_since_last = downloaded - last_downloaded_for_speed
+                                        current_speed_bps = bytes_since_last / elapsed
+                                        last_downloaded_for_speed = downloaded
+                                        last_callback_time = now
+                                    
+                                    # Log every 5% milestone
+                                    current_percent = int(progress)
+                                    if current_percent % 5 == 0 and current_percent != last_logged_percent:
+                                        mb_downloaded = downloaded / (1024 * 1024)
+                                        mb_total = total_size / (1024 * 1024)
+                                        logger.info(f"[GOG Download] {progress:.1f}% ({mb_downloaded:.1f} MB / {mb_total:.1f} MB)")
+                                        last_logged_percent = current_percent
+                                    
+                                    # Call progress callback with full stats
+                                    if progress_callback:
+                                        remaining_bytes = total_size - downloaded
+                                        eta_seconds = int(remaining_bytes / current_speed_bps) if current_speed_bps > 0 else 0
+                                        
+                                        await progress_callback({
+                                            'progress_percent': progress,
+                                            'downloaded_bytes': downloaded,
+                                            'total_bytes': total_size,
+                                            'speed_bps': current_speed_bps,
+                                            'eta_seconds': eta_seconds
+                                        })
+                        
+                        mb_size = downloaded / (1024 * 1024)
+                        logger.info(f"[GOG] Download complete: {mb_size:.1f} MB downloaded to {dest_path}")
+                        return True
+                        
+            except asyncio.CancelledError:
+                # Don't retry on cancellation
+                logger.info(f"[GOG] Download cancelled: {os.path.basename(dest_path)}")
+                raise
+                
+            except Exception as e:
+                last_error = str(e)
+                logger.warning(f"[GOG] Download attempt {attempt}/{max_retries} failed: {e}")
+                
+                if attempt < max_retries:
+                    # Exponential backoff: 2, 4, 8, 16, 32 seconds
+                    delay = 2 ** attempt
+                    logger.info(f"[GOG] Retrying in {delay} seconds...")
+                    await asyncio.sleep(delay)
+        
+        # All retries exhausted
+        logger.error(f"[GOG] Download failed after {max_retries} attempts: {last_error}")
+        return False
 
     async def _run_post_install(self, install_path: str):
         """
@@ -3443,6 +4388,10 @@ class GOGAPIClient:
             return None
 
 
+
+# CloudSaveManager imported from cloud_save_manager.py
+
+
 class InstallHandler:
     """Handles game installations across stores"""
 
@@ -3580,6 +4529,84 @@ class InstallHandler:
             logger.error(f"Error installing GOG game: {e}", exc_info=True)
             return {'success': False, 'error': str(e)}
 
+    async def get_amazon_game_exe(self, game_id: str, install_dir: str = None) -> Optional[str]:
+        """Find executable for Amazon game using fuel.json"""
+        # If no install_dir provided, try to find from nile config
+        if not install_dir:
+            nile_config = os.path.expanduser("~/.config/nile")
+            installed_file = os.path.join(nile_config, "installed.json")
+            
+            if os.path.exists(installed_file):
+                try:
+                    with open(installed_file, 'r') as f:
+                        installed_list = json.load(f)
+                    
+                    for game in installed_list:
+                        if game.get('id') == game_id:
+                            install_dir = game.get('path', '')
+                            break
+                except Exception as e:
+                    logger.error(f"[Amazon] Error reading installed.json: {e}")
+        
+        if not install_dir:
+            logger.warning(f"[Amazon] Could not find install directory for {game_id}")
+            return None
+        
+        # Parse fuel.json for executable
+        fuel_path = os.path.join(install_dir, 'fuel.json')
+        if not os.path.exists(fuel_path):
+            logger.warning(f"[Amazon] No fuel.json found at {fuel_path}")
+            return None
+        
+        try:
+            import re
+            with open(fuel_path, 'r') as f:
+                content = f.read()
+                # Remove single-line comments (fuel.json may have them)
+                content = re.sub(r'//.*$', '', content, flags=re.MULTILINE)
+                fuel_data = json.loads(content)
+            
+            main_cmd = fuel_data.get('Main', {}).get('Command', '')
+            if main_cmd:
+                exe_path = os.path.join(install_dir, main_cmd)
+                logger.info(f"[Amazon] Found executable from fuel.json: {exe_path}")
+                return exe_path
+        except Exception as e:
+            logger.error(f"[Amazon] Error parsing fuel.json: {e}")
+        
+        return None
+
+    async def install_amazon_game(self, game_id: str, amazon_instance, install_path: Optional[str] = None) -> Dict[str, Any]:
+        """Install Amazon game using nile CLI
+
+        Args:
+            game_id: Amazon game product ID
+            amazon_instance: Instance of AmazonConnector with install methods
+            install_path: Optional custom install path
+
+        Returns:
+            Dict with success status and exe_path
+        """
+        try:
+            # Use the AmazonConnector's install_game method
+            result = await amazon_instance.install_game(game_id)
+
+            if result.get('success'):
+                # Update shortcuts.vdf with the installed game info
+                exe_path = result.get('exe_path')
+                install_dir = result.get('install_path')
+
+                if install_dir:
+                    await self.shortcuts_manager.mark_installed(game_id, 'amazon', install_dir, exe_path)
+                    logger.info(f"Successfully installed Amazon game {game_id}")
+                    return {'success': True, 'exe_path': exe_path, 'install_path': install_dir}
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error installing Amazon game: {e}", exc_info=True)
+            return {'success': False, 'error': str(e)}
+
 
 class BackgroundSyncService:
     """Background service that syncs libraries every 5 minutes"""
@@ -3635,6 +4662,24 @@ class Plugin:
 
         logger.info("[INIT] Initializing ShortcutsManager")
         self.shortcuts_manager = ShortcutsManager()
+        
+        # Reconcile games.map to remove orphaned entries (games deleted externally)
+        logger.info("[INIT] Reconciling games.map for orphaned entries")
+        reconcile_result = self.shortcuts_manager.reconcile_games_map()
+        if reconcile_result.get('removed', 0) > 0:
+            logger.info(f"[INIT] Reconciliation complete: {reconcile_result['removed']} orphaned entries removed")
+
+        # Repair shortcuts pointing to old plugin paths (happens after Decky reinstall)
+        logger.info("[INIT] Repairing shortcuts pointing to old plugin paths")
+        repair_result = self.shortcuts_manager.repair_shortcuts_exe_path()
+        if repair_result.get('repaired', 0) > 0:
+            logger.info(f"[INIT] Repaired {repair_result['repaired']} shortcuts with stale launcher paths")
+
+        # Ensure shortcuts exist for all games in games.map (recreate missing shortcuts)
+        logger.info("[INIT] Reconciling shortcuts from games.map")
+        shortcut_reconcile = self.shortcuts_manager.reconcile_shortcuts_from_games_map()
+        if shortcut_reconcile.get('created', 0) > 0:
+            logger.info(f"[INIT] Created {shortcut_reconcile['created']} missing shortcuts from games.map")
 
         logger.info("[INIT] Initializing EpicConnector")
         self.epic = EpicConnector(plugin_dir=DECKY_PLUGIN_DIR, plugin_instance=self)
@@ -3642,8 +4687,14 @@ class Plugin:
         logger.info("[INIT] Initializing GOGAPIClient")
         self.gog = GOGAPIClient(plugin_instance=self)
 
+        logger.info("[INIT] Initializing AmazonConnector")
+        self.amazon = AmazonConnector(plugin_dir=DECKY_PLUGIN_DIR, plugin_instance=self)
+
         logger.info("[INIT] Initializing InstallHandler")
         self.install_handler = InstallHandler(self.shortcuts_manager, plugin_dir=DECKY_PLUGIN_DIR)
+
+        logger.info("[INIT] Initializing CloudSaveManager")
+        self.cloud_save_manager = CloudSaveManager(plugin_dir=DECKY_PLUGIN_DIR)
 
         # NOTE: Background sync disabled due to method binding issues
         # Users can manually trigger sync via the UI
@@ -3654,7 +4705,7 @@ class Plugin:
 
         # Initialize background size fetcher (non-blocking, persists across restarts)
         logger.info("[INIT] Initializing BackgroundSizeFetcher")
-        self.size_fetcher = BackgroundSizeFetcher(self.epic, self.gog)
+        self.size_fetcher = BackgroundSizeFetcher(self.epic, self.gog, self.amazon)
         # Auto-start if there are pending games from previous session
         self.size_fetcher.start()
 
@@ -3694,6 +4745,18 @@ class Plugin:
                     if exe_path:
                         install_path = self.download_queue.get_install_path(item.storage_location)
                         game_install_path = os.path.join(install_path, item.game_id)
+                        
+                        # Write marker file to identify completed installs (matches GOG behavior)
+                        # This helps protect against accidental deletion on cancel
+                        try:
+                            marker_path = os.path.join(game_install_path, '.unifideck-id')
+                            if os.path.exists(game_install_path):
+                                with open(marker_path, 'w') as f:
+                                    f.write(item.game_id)
+                                logger.info(f"[DownloadComplete] Wrote .unifideck-id marker for Epic game {item.game_id}")
+                        except Exception as e:
+                            logger.warning(f"[DownloadComplete] Failed to write marker file: {e}")
+                        
                         await self.shortcuts_manager.mark_installed(
                             item.game_id, item.store, game_install_path, exe_path
                         )
@@ -3750,6 +4813,22 @@ class Plugin:
                             logger.warning(f"[DownloadComplete] No executable found for {item.game_title}")
                     else:
                         logger.warning(f"[DownloadComplete] Could not find GOG install folder for {item.game_title}")
+                elif item.store == 'amazon':
+                    # Amazon installs - use nile's installed.json for path info
+                    game_info = self.amazon.get_installed_game_info(item.game_id)
+                    if game_info:
+                        game_install_path = game_info.get('path', '')
+                        exe_path = game_info.get('executable')
+                        
+                        if game_install_path and exe_path:
+                            await self.shortcuts_manager.mark_installed(
+                                item.game_id, item.store, game_install_path, exe_path
+                            )
+                            logger.info(f"[DownloadComplete] Marked {item.game_title} as installed")
+                        else:
+                            logger.warning(f"[DownloadComplete] No executable found for {item.game_title}")
+                    else:
+                        logger.warning(f"[DownloadComplete] Could not find Amazon install info for {item.game_title}")
             except Exception as e:
                 logger.error(f"[DownloadComplete] Error marking game installed: {e}")
         
@@ -3791,12 +4870,15 @@ class Plugin:
         """Fetch artwork for a single game with concurrency control"""
         async with semaphore:
             try:
+                # Update status to show we're working on this game (before download)
+                self.sync_progress.current_game = f"Downloading artwork for {game.title}..."
+                
                 # Pass store and store_id for official CDN artwork sources
                 result = await self.steamgriddb.fetch_game_art(
                     game.title, 
                     game.app_id,
-                    store=game.store,      # 'epic' or 'gog'
-                    store_id=game.id       # Store-specific game ID (e.g. GOG product ID, Epic app_name)
+                    store=game.store,      # 'epic', 'gog', or 'amazon'
+                    store_id=game.id       # Store-specific game ID (e.g. GOG product ID, Epic app_name, Amazon game ID)
                 )
                 
                 # Store steam_app_id from search (for ProtonDB lookups)
@@ -3809,7 +4891,7 @@ class Plugin:
                 # Build detailed source log
                 sources = result.get('sources', [])
                 art_count = result.get('artwork_count', 0)
-                sgdb = '+SGDB' if result.get('sgdb_queued') else ''
+                sgdb = '+SGDB' if result.get('sgdb_filled') else ''
                 source_str = ' '.join(sources) if sources else 'NO_SOURCE'
                 
                 # Log format: [progress] STORE: Title [sources] (artwork_count)
@@ -3851,6 +4933,29 @@ class Plugin:
                 # Get games from all stores
                 epic_games = await self.epic.get_library()
                 gog_games = await self.gog.get_library()
+                amazon_games = await self.amazon.get_library()
+
+                # Robustly handle API failures (None returns)
+                valid_stores = []
+                all_games = []
+
+                if epic_games is not None:
+                    valid_stores.append('epic')
+                    all_games.extend(epic_games)
+                else:
+                    epic_games = [] # For iteration below
+
+                if gog_games is not None:
+                     valid_stores.append('gog')
+                     all_games.extend(gog_games)
+                else:
+                     gog_games = []
+
+                if amazon_games is not None:
+                     valid_stores.append('amazon')
+                     all_games.extend(amazon_games)
+                else:
+                     amazon_games = []
 
                 # Check for cancellation
                 if self._cancel_sync:
@@ -3863,11 +4968,11 @@ class Plugin:
                         'cancelled': True,
                         'epic_count': 0,
                         'gog_count': 0,
+                        'amazon_count': 0,
                         'added_count': 0,
+                        'updated_count': 0,
                         'artwork_count': 0
                     }
-
-                all_games = epic_games + gog_games
                 self.sync_progress.total_games = len(all_games)
                 self.sync_progress.synced_games = 0
 
@@ -3878,6 +4983,7 @@ class Plugin:
                 # Get installed games
                 epic_installed = await self.epic.get_installed()
                 gog_installed = await self.gog.get_installed()
+                amazon_installed = await self.amazon.get_installed()
 
                 # Mark installed status
                 for game in epic_games:
@@ -3920,6 +5026,17 @@ class Plugin:
                             work_dir = os.path.dirname(exe_path)
                             await self.shortcuts_manager._update_game_map('gog', game.id, exe_path, work_dir)
                             logger.debug(f"Updated games.map for GOG game {game.id}")
+
+                for game in amazon_games:
+                    if game.id in amazon_installed:
+                        game.is_installed = True
+                        # Ensure games.map is updated for Amazon games
+                        game_info = self.amazon.get_installed_game_info(game.id)
+                        if game_info and game_info.get('executable'):
+                            exe_path = game_info['executable']
+                            work_dir = os.path.dirname(exe_path)
+                            await self.shortcuts_manager._update_game_map('amazon', game.id, exe_path, work_dir)
+                            logger.debug(f"Updated games.map for Amazon game {game.id}")
 
                 # Get launcher script path (relative to plugin directory)
                 launcher_script = os.path.join(os.path.dirname(__file__), 'bin', 'unifideck-launcher')
@@ -4019,12 +5136,13 @@ class Plugin:
                              return {'success': False, 'cancelled': True}
 
                         # Download in parallel - 30 concurrent (10 per source × 3 sources)
+                        logger.info(f"  → Starting parallel download (concurrency: 30, sources: Epic/GOG/Amazon CDN + Steam + SGDB fallback)")
                         semaphore = asyncio.Semaphore(30)
                         tasks = [self.fetch_artwork_with_progress(game, semaphore) for game in games_needing_art]
                         results = await asyncio.gather(*tasks, return_exceptions=True)
                         artwork_count = sum(1 for r in results if r is True)
                         
-                        logger.info(f"Downloaded artwork for {artwork_count} games")
+                        logger.info(f"Artwork download complete: {artwork_count}/{len(games_needing_art)} games successful")
 
                 # --- STEP 2: UPDATE GAME ICONS ---
                 # Check for local icons and update game objects
@@ -4044,7 +5162,8 @@ class Plugin:
                 self.sync_progress.status = "syncing"
                 self.sync_progress.current_game = "Saving shortcuts..."
                 
-                batch_result = await self.shortcuts_manager.add_games_batch(all_games, launcher_script)
+                # Use valid_stores to prevent deleting shortcuts for stores that failed to sync
+                batch_result = await self.shortcuts_manager.add_games_batch(all_games, launcher_script, valid_stores=valid_stores)
                 added_count = batch_result.get('added', 0)
                 
                 if batch_result.get('error'):
@@ -4065,6 +5184,7 @@ class Plugin:
                     'success': True,
                     'epic_count': len(epic_games),
                     'gog_count': len(gog_games),
+                    'amazon_count': len(amazon_games),
                     'added_count': added_count,
                     'artwork_count': artwork_count
                 }
@@ -4116,24 +5236,29 @@ class Plugin:
                 # Get games from all stores
                 epic_games = await self.epic.get_library()
                 gog_games = await self.gog.get_library()
+                amazon_games = await self.amazon.get_library()
 
-                # Check for cancellation
-                if self._cancel_sync:
-                    logger.warning("Force sync cancelled by user after fetching libraries")
-                    self.sync_progress.status = "cancelled"
-                    self.sync_progress.current_game = "Force sync cancelled by user"
-                    return {
-                        'success': False,
-                        'error': 'Sync cancelled by user',
-                        'cancelled': True,
-                        'epic_count': 0,
-                        'gog_count': 0,
-                        'added_count': 0,
-                        'updated_count': 0,
-                        'artwork_count': 0
-                    }
+                # Robustly handle API failures (None returns)
+                valid_stores = []
+                all_games = []
 
-                all_games = epic_games + gog_games
+                if epic_games is not None:
+                    valid_stores.append('epic')
+                    all_games.extend(epic_games)
+                else:
+                    epic_games = []
+
+                if gog_games is not None:
+                    valid_stores.append('gog')
+                    all_games.extend(gog_games)
+                else:
+                    gog_games = []
+
+                if amazon_games is not None:
+                    valid_stores.append('amazon')
+                    all_games.extend(amazon_games)
+                else:
+                    amazon_games = []
                 self.sync_progress.total_games = len(all_games)
                 self.sync_progress.synced_games = 0
 
@@ -4144,6 +5269,7 @@ class Plugin:
                 # Get installed games
                 epic_installed = await self.epic.get_installed()
                 gog_installed = await self.gog.get_installed()
+                amazon_installed = await self.amazon.get_installed()
 
                 # Mark installed status and update games.map
                 for game in epic_games:
@@ -4165,6 +5291,16 @@ class Plugin:
                             await self.shortcuts_manager._update_game_map('gog', game.id, exe_path, work_dir)
                             logger.debug(f"Updated games.map for GOG game {game.id}")
 
+                for game in amazon_games:
+                    if game.id in amazon_installed:
+                        game.is_installed = True
+                        game_info = self.amazon.get_installed_game_info(game.id)
+                        if game_info and game_info.get('executable'):
+                            exe_path = game_info['executable']
+                            work_dir = os.path.dirname(exe_path)
+                            await self.shortcuts_manager._update_game_map('amazon', game.id, exe_path, work_dir)
+                            logger.debug(f"Updated games.map for Amazon game {game.id}")
+
                 # Get launcher script path
                 launcher_script = os.path.join(os.path.dirname(__file__), 'bin', 'unifideck-launcher')
 
@@ -4178,7 +5314,7 @@ class Plugin:
                 self.sync_progress.current_game = "Force sync: Rewriting shortcuts..."
 
                 # Force update all games - rewrite existing shortcuts
-                batch_result = await self.shortcuts_manager.force_update_games_batch(all_games, launcher_script)
+                batch_result = await self.shortcuts_manager.force_update_games_batch(all_games, launcher_script, valid_stores=valid_stores)
                 added_count = batch_result.get('added', 0)
                 updated_count = batch_result.get('updated', 0)
 
@@ -4200,6 +5336,7 @@ class Plugin:
                         'cancelled': True,
                         'epic_count': len(epic_games),
                         'gog_count': len(gog_games),
+                        'amazon_count': len(amazon_games),
                         'added_count': added_count,
                         'updated_count': updated_count,
                         'artwork_count': 0
@@ -4298,12 +5435,13 @@ class Plugin:
                              return {'success': False, 'cancelled': True}
 
                         # Download in parallel - 30 concurrent
+                        logger.info(f"  → Starting parallel download (concurrency: 30, sources: Epic/GOG/Amazon CDN + Steam + SGDB fallback)")
                         semaphore = asyncio.Semaphore(30)
                         tasks = [self.fetch_artwork_with_progress(game, semaphore) for game in games_needing_art]
                         results = await asyncio.gather(*tasks, return_exceptions=True)
                         artwork_count = sum(1 for r in results if r is True)
                         
-                        logger.info(f"Downloaded artwork for {artwork_count} games")
+                        logger.info(f"Artwork download complete: {artwork_count}/{len(games_needing_art)} games successful")
 
                 # --- STEP 2: UPDATE GAME ICONS ---
                 # Check for local icons and update game objects
@@ -4330,25 +5468,26 @@ class Plugin:
                 if force_result.get('error'):
                     raise Exception(force_result['error'])
 
-                # Update Proton compatibility for all installed Windows games
+                # CLEAR Proton compatibility for all Unifideck games
+                # The unifideck-launcher script handles Proton internally via umu-run
+                # We DON'T want Steam to wrap our launcher in Proton (causes Python path issues)
                 self.sync_progress.status = "proton_setup"
-                self.sync_progress.current_game = "Force sync: Updating Proton compatibility..."
-                proton_updated = 0
+                self.sync_progress.current_game = "Force sync: Clearing Proton compatibility (launcher manages internally)..."
+                proton_cleared = 0
                 
                 shortcuts_data = await self.shortcuts_manager.read_shortcuts()
                 for idx, shortcut in shortcuts_data.get('shortcuts', {}).items():
                     launch_opts = shortcut.get('LaunchOptions', '')
-                    exe_path = shortcut.get('Exe', '').strip('"')
                     app_id = shortcut.get('appid')
                     
-                    # Check if this is a Unifideck game with a Windows executable
-                    if (launch_opts.startswith('epic:') or launch_opts.startswith('gog:')) or \
-                       (not launch_opts and exe_path.lower().endswith('.exe')):
-                        if exe_path.lower().endswith('.exe') and app_id:
-                            await self.shortcuts_manager._set_proton_compatibility(app_id, "proton_experimental")
-                            proton_updated += 1
+                    # Check if this is a Unifideck game (has store:game_id format in LaunchOptions)
+                    if ':' in launch_opts and app_id:
+                        store_prefix = launch_opts.split(':')[0]
+                        if store_prefix in ('epic', 'gog', 'amazon'):
+                            await self.shortcuts_manager._clear_proton_compatibility(app_id)
+                            proton_cleared += 1
                 
-                logger.info(f"Updated Proton compatibility for {proton_updated} games")
+                logger.info(f"Cleared Proton compatibility for {proton_cleared} games (launcher manages Proton via umu-run)")
 
                 # Complete
                 self.sync_progress.status = "complete"
@@ -4362,11 +5501,12 @@ class Plugin:
                     logger.warning("Please EXIT Steam completely and restart to see changes")
                     logger.warning("=" * 60)
 
-                logger.info(f"Force synced {len(epic_games)} Epic + {len(gog_games)} GOG games ({added_count} added, {updated_count} updated, {artwork_count} artwork)")
+                logger.info(f"Force synced {len(epic_games)} Epic + {len(gog_games)} GOG + {len(amazon_games)} Amazon games ({added_count} added, {updated_count} updated, {artwork_count} artwork)")
                 return {
                     'success': True,
                     'epic_count': len(epic_games),
                     'gog_count': len(gog_games),
+                    'amazon_count': len(amazon_games),
                     'added_count': added_count,
                     'updated_count': updated_count,
                     'artwork_count': artwork_count
@@ -4480,6 +5620,175 @@ class Plugin:
             logger.error(f"Error installing game: {e}")
             return {'success': False, 'error': str(e)}
 
+
+    async def sync_cloud_saves(self, store: str, game_id: str, direction: str = "download", 
+                               game_name: str = "", save_path: str = "") -> Dict[str, Any]:
+        """
+        Sync cloud saves for a game.
+        
+        Args:
+            store: "epic" or "gog"
+            game_id: Game ID (Epic app_name or GOG client_id)
+            direction: "download" (pull from cloud) or "upload" (push to cloud)
+            game_name: Optional game title for logging
+            save_path: For GOG games, the local save path (required)
+        
+        Returns:
+            {success, message, duration, error?}
+        """
+        logger.info(f"[API] sync_cloud_saves called: store={store}, game_id={game_id}, direction={direction}")
+        
+        try:
+            if store == "epic":
+                return await self.cloud_save_manager.sync_epic(game_id, direction=direction, game_name=game_name)
+            elif store == "gog":
+                return await self.cloud_save_manager.sync_gog(game_id, save_path=save_path, 
+                                                              direction=direction, game_name=game_name)
+            else:
+                error = f"Unknown store: {store}"
+                logger.error(f"[API] {error}")
+                return {"success": False, "error": error}
+        except Exception as e:
+            logger.error(f"[API] sync_cloud_saves error: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+    
+    async def get_cloud_save_status(self, store: str, game_id: str) -> Dict[str, Any]:
+        """
+        Get the last cloud save sync status for a game.
+        
+        Args:
+            store: "epic" or "gog"
+            game_id: Game ID
+        
+        Returns:
+            {last_sync, status, direction, error?} or None if never synced
+        """
+        logger.info(f"[API] get_cloud_save_status called: store={store}, game_id={game_id}")
+        
+        status = self.cloud_save_manager.get_sync_status(store, game_id)
+        if status:
+            return {"success": True, "status": status}
+        return {"success": True, "status": None}
+    
+    async def check_cloud_save_conflict(self, store: str, game_id: str, 
+                                        save_path: str = "") -> Dict[str, Any]:
+        """
+        Check if a game has cloud save conflicts.
+        
+        Args:
+            store: "epic" or "gog"
+            game_id: Game ID
+            save_path: Local save path (for file timestamp comparison)
+        
+        Returns:
+            {has_conflict, is_fresh, local_timestamp, cloud_timestamp, local_newer}
+        """
+        logger.info(f"[API] check_cloud_save_conflict: {store}/{game_id}")
+        
+        try:
+            conflict = await self.cloud_save_manager.check_for_conflicts(store, game_id, save_path)
+            return {"success": True, "conflict": conflict}
+        except Exception as e:
+            logger.error(f"[API] check_cloud_save_conflict error: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+    
+    async def resolve_cloud_save_conflict(self, store: str, game_id: str, 
+                                          use_cloud: bool) -> Dict[str, Any]:
+        """
+        Resolve a cloud save conflict.
+        
+        Args:
+            store: "epic" or "gog"
+            game_id: Game ID
+            use_cloud: True to use cloud saves, False to upload local saves
+        
+        Returns:
+            {action: "download" or "upload"}
+        """
+        logger.info(f"[API] resolve_cloud_save_conflict: {store}/{game_id}, use_cloud={use_cloud}")
+        
+        try:
+            result = self.cloud_save_manager.resolve_conflict(store, game_id, use_cloud)
+            return {"success": True, **result}
+        except Exception as e:
+            logger.error(f"[API] resolve_cloud_save_conflict error: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+    
+    async def start_game_monitor(self, pid: int, store: str, game_id: str,
+                                  game_name: str = "", save_path: str = "") -> Dict[str, Any]:
+        """
+        Start monitoring a game process for cloud save sync on exit.
+        
+        Args:
+            pid: Process ID of the running game
+            store: "epic" or "gog"
+            game_id: Game ID
+            game_name: Game title for logging
+            save_path: Local save path (for GOG)
+        
+        Returns:
+            {success, message}
+        """
+        logger.info(f"[API] start_game_monitor: PID={pid}, {store}/{game_id}")
+        
+        try:
+            success = await self.cloud_save_manager.process_monitor.start_monitoring(
+                pid, store, game_id, game_name, save_path
+            )
+            return {
+                "success": success,
+                "message": f"Monitoring PID {pid}" if success else f"Process {pid} not found"
+            }
+        except Exception as e:
+            logger.error(f"[API] start_game_monitor error: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+    
+    async def get_pending_conflicts(self) -> Dict[str, Any]:
+        """
+        Get all pending cloud save conflicts that need resolution.
+        
+        Returns:
+            {conflicts: {store:game_id: conflict_info}}
+        """
+        logger.info("[API] get_pending_conflicts called")
+        
+        try:
+            conflicts = self.cloud_save_manager.get_pending_conflicts()
+            return {"success": True, "conflicts": conflicts}
+        except Exception as e:
+            logger.error(f"[API] get_pending_conflicts error: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+
+    async def check_game_installation_status(self, store: str, game_id: str) -> bool:
+        """
+        **SINGLE SOURCE OF TRUTH** for checking if a game is installed.
+        
+        Uses priority-based lookup:
+        Priority 1: games.map (fast, authoritative for Unifideck-installed games)
+        Priority 2: Store-specific check (for games installed outside Unifideck)
+        
+        Args:
+            store: 'epic' or 'gog'
+            game_id: Store-specific game identifier
+            
+        Returns:
+            True if game is installed, False otherwise
+        """
+        # Priority 1: Check games.map (authoritative for all Unifideck installs)
+        # This works for any install location (internal, SD card, etc.)
+        is_installed = self.shortcuts_manager._is_in_game_map(store, game_id)
+        
+        # Priority 2: Fall back to store-specific check (for games installed outside Unifideck)
+        if not is_installed:
+            if store == 'epic':
+                installed_games = await self.epic.get_installed()
+                is_installed = game_id in installed_games
+            elif store == 'gog':
+                installed_ids = await self.gog.get_installed()
+                is_installed = game_id in installed_ids
+        
+        return is_installed
+
     async def get_game_info(self, app_id: int) -> Dict[str, Any]:
         """Get game info including installation status and size
 
@@ -4523,7 +5832,7 @@ class Plugin:
                     # Priority 1: Check games.map (fast, authoritative for Unifideck-installed games)
                     # This works for any install location (internal, SD card, etc.)
                     is_installed = self.shortcuts_manager._is_in_game_map(store, game_id)
-                    
+
                     # Priority 2: Fall back to store-specific check (for games installed outside Unifideck)
                     if not is_installed:
                         if store == 'epic':
@@ -4532,7 +5841,10 @@ class Plugin:
                         elif store == 'gog':
                             installed_ids = await self.gog.get_installed()
                             is_installed = game_id in installed_ids
-                        elif store not in ('epic', 'gog'):
+                        elif store == 'amazon':
+                            installed_ids = await self.amazon.get_installed()
+                            is_installed = game_id in installed_ids
+                        elif store not in ('epic', 'gog', 'amazon'):
                             return {'error': f'Unknown store: {store}'}
 
                     # Get game size - try cache first (instant), fallback to API (slow)
@@ -4549,6 +5861,8 @@ class Plugin:
                                 size_bytes = await self.epic.get_game_size(game_id)
                             elif store == 'gog':
                                 size_bytes = await self.gog.get_game_size(game_id)
+                            elif store == 'amazon':
+                                size_bytes = await self.amazon.get_game_size(game_id)
                             
                             # Cache the result for next time
                             if size_bytes and size_bytes > 0:
@@ -4621,6 +5935,8 @@ class Plugin:
 
             elif store == 'gog':
                 result = await self.gog.install_game(game_id)
+            elif store == 'amazon':
+                result = await self.amazon.install_game(game_id)
             else:
                 return {'success': False, 'error': f'Unknown store: {store}'}
 
@@ -4714,6 +6030,11 @@ class Plugin:
                 if not result['success']:
                     return result
             
+            elif store == 'amazon':
+                result = await self.amazon.uninstall_game(game_id)
+                if not result['success']:
+                    return result
+            
             else:
                 return {'success': False, 'error': f"Unsupported store for uninstall: {store}"}
 
@@ -4750,15 +6071,23 @@ class Plugin:
             logger.error(f"[DownloadQueue] Error getting queue info: {e}")
             return {'success': False, 'error': str(e)}
 
-    async def add_to_download_queue(self, game_id: str, game_title: str, store: str) -> Dict[str, Any]:
-        """Add a game to the download queue"""
+    async def add_to_download_queue(self, game_id: str, game_title: str, store: str, was_previously_installed: bool = False) -> Dict[str, Any]:
+        """Add a game to the download queue
+        
+        Args:
+            game_id: Store-specific game identifier
+            game_title: Display name
+            store: 'epic' or 'gog'
+            was_previously_installed: GUARDRAIL - If True, cancel won't delete game files
+        """
         try:
             result = await self.download_queue.add_to_queue(
                 game_id=game_id,
                 game_title=game_title,
-                store=store
+                store=store,
+                was_previously_installed=was_previously_installed
             )
-            logger.info(f"[DownloadQueue] Added {game_title} to queue: {result}")
+            logger.info(f"[DownloadQueue] Added {game_title} to queue (was_installed={was_previously_installed}): {result}")
             return result
         except Exception as e:
             logger.error(f"[DownloadQueue] Error adding to queue: {e}")
@@ -4772,6 +6101,12 @@ class Plugin:
             
             if 'error' in game_info:
                 return {'success': False, 'error': game_info['error']}
+            
+            # GUARDRAIL: Check if game is already installed
+            # If so, we'll tell the download queue to NEVER delete files on cancel
+            was_previously_installed = game_info.get('is_installed', False)
+            if was_previously_installed:
+                logger.info(f"[DownloadQueue] GUARDRAIL: {game_info['title']} is already installed - will protect on cancel")
             
             # Check for multi-part GOG downloads
             is_multipart = False
@@ -4794,7 +6129,8 @@ class Plugin:
             result = await self.add_to_download_queue(
                 game_id=game_info['game_id'],
                 game_title=game_info['title'],
-                store=game_info['store']
+                store=game_info['store'],
+                was_previously_installed=was_previously_installed  # GUARDRAIL
             )
             
             # Add multi-part flag to response
@@ -4898,11 +6234,26 @@ class Plugin:
             gog_status = 'Connected' if gog_available else 'Not Connected'
             logger.info(f"[STATUS] GOG: {gog_status}")
 
+            # Check Amazon availability
+            nile_installed = self.amazon.nile_bin is not None
+            logger.info(f"[STATUS] Nile installed: {nile_installed}, path: {self.amazon.nile_bin}")
+
+            if nile_installed:
+                logger.info("[STATUS] Checking Amazon Games availability")
+                amazon_available = await self.amazon.is_available()
+                amazon_status = 'Connected' if amazon_available else 'Not Connected'
+                logger.info(f"[STATUS] Amazon Games: {amazon_status}")
+            else:
+                amazon_status = 'Nile not installed'
+                logger.warning("[STATUS] Amazon Games: Nile CLI not installed")
+
             result = {
                 'success': True,
                 'epic': epic_status,
                 'gog': gog_status,
-                'legendary_installed': legendary_installed
+                'amazon': amazon_status,
+                'legendary_installed': legendary_installed,
+                'nile_installed': nile_installed
             }
             logger.info(f"[STATUS] Check complete: {result}")
             return result
@@ -4913,7 +6264,8 @@ class Plugin:
                 'success': False,
                 'error': str(e),
                 'epic': 'Error',
-                'gog': 'Error'
+                'gog': 'Error',
+                'amazon': 'Error'
             }
 
     async def start_epic_auth(self) -> Dict[str, Any]:
@@ -4976,6 +6328,23 @@ class Plugin:
         """Logout from GOG"""
         return await self.gog.logout()
 
+    async def start_amazon_auth(self) -> Dict[str, Any]:
+        """Start Amazon Games OAuth authentication via nile"""
+        return await self.amazon.start_auth()
+
+    async def complete_amazon_auth(self, auth_code: str) -> Dict[str, Any]:
+        """Complete Amazon Games OAuth with authorization code"""
+        return await self.amazon.complete_auth(auth_code)
+
+    async def logout_amazon(self) -> Dict[str, Any]:
+        """Logout from Amazon Games"""
+        return await self.amazon.logout()
+
+    async def get_amazon_library(self) -> List[Dict[str, Any]]:
+        """Get Amazon Games library"""
+        games = await self.amazon.get_library()
+        return [asdict(game) for game in games]
+
     async def open_browser(self, url: str) -> Dict[str, Any]:
         """Open URL in system browser (fallback for Steam Deck)"""
         logger.info(f"[BROWSER] Opening URL in system browser: {url[:50]}...")
@@ -5034,6 +6403,8 @@ class Plugin:
         """
         Get all Unifideck games with installation status for frontend tab filtering
         
+        Uses centralized check_game_installation_status() for consistency.
+        
         Returns:
             List of dicts: [{'appId': int, 'store': str, 'isInstalled': bool, 'title': str, 'steamAppId': int|None}]
         """
@@ -5041,7 +6412,8 @@ class Plugin:
             # Get installed game IDs from each store
             epic_installed = set(await self.epic.get_installed())
             gog_installed = set(await self.gog.get_installed())
-            
+            amazon_installed = set(await self.amazon.get_installed())
+
             # Load steam_app_id cache for ProtonDB lookups
             steam_appid_cache = load_steam_appid_cache()
             
@@ -5058,13 +6430,15 @@ class Plugin:
                 parts = launch_options.split(':', 1)
                 store = parts[0]
                 game_id = parts[1] if len(parts) > 1 else ''
-                
+
                 # Check installation status
                 is_installed = False
                 if store == 'epic':
                     is_installed = game_id in epic_installed
                 elif store == 'gog':
                     is_installed = game_id in gog_installed
+                elif store == 'amazon':
+                    is_installed = game_id in amazon_installed
                 
                 # Get appId
                 app_id = shortcut.get('appid')
@@ -5193,7 +6567,9 @@ class Plugin:
                                         # and is NOT root or home root
                                         safe_keywords = ['/Games/', '/Epic', '/GOG', 'unifideck']
                                         is_safe = any(k in install_dir for k in safe_keywords)
-                                        not_root = install_dir not in ['/', '/home/deck', '/home/deck/Games']
+                                        home_dir = os.path.expanduser("~")
+                                        games_dir = os.path.join(home_dir, "Games")
+                                        not_root = install_dir not in ['/', home_dir, games_dir]
                                         
                                         if is_safe and not_root and os.path.exists(install_dir):
                                             logger.info(f"[Cleanup] Deleting install dir: {install_dir}")
@@ -5211,7 +6587,7 @@ class Plugin:
                 
                 for idx, shortcut in shortcuts.get('shortcuts', {}).items():
                     launch_opts = shortcut.get('LaunchOptions', '')
-                    if launch_opts.startswith('epic:') or launch_opts.startswith('gog:'):
+                    if launch_opts.startswith('epic:') or launch_opts.startswith('gog:') or launch_opts.startswith('amazon:'):
                         unifideck_shortcuts[idx] = shortcut
                     else:
                         original_shortcuts[idx] = shortcut
@@ -5261,14 +6637,19 @@ class Plugin:
                     logger.error(f"[Cleanup] Error deleting auth tokens: {e}")
 
                 # 4. DELETE CACHES & INTERNAL DATA
+                # games.map should only be deleted when delete_files=True
+                # It maps installed games to their executables
                 files_to_delete = [
                     "~/.local/share/unifideck/game_sizes.json",
                     "~/.local/share/unifideck/shortcuts_registry.json",
-                    "~/.local/share/unifideck/games.map",
                     "~/.local/share/unifideck/download_queue.json",
                     "~/.local/share/unifideck/download_settings.json",
                     os.path.join(get_steam_appid_cache_path()) # Steam AppID Cache
                 ]
+                
+                # Only delete games.map if we're also deleting game files (destructive mode)
+                if delete_files:
+                    files_to_delete.append("~/.local/share/unifideck/games.map")
 
                 for file_path in files_to_delete:
                     try:

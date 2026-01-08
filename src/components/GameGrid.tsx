@@ -1,4 +1,4 @@
-import React, { VFC } from "react";
+import { FC } from "react";
 import { UnifideckGame } from "../types/steam";
 
 interface GameGridProps {
@@ -11,7 +11,7 @@ interface GameGridProps {
  * Instead of creating custom game cards, we navigate to Steam's library
  * and let Steam handle the rendering using its native components
  */
-export const GameGrid: VFC<GameGridProps> = ({ games, loading }) => {
+export const GameGrid: FC<GameGridProps> = ({ games, loading }) => {
   if (loading) {
     return (
       <div
@@ -103,7 +103,7 @@ export const GameGrid: VFC<GameGridProps> = ({ games, loading }) => {
  * Simple game card component
  * In production, this should be replaced with Steam's native GameTile component
  */
-const GameCard: VFC<{ game: UnifideckGame }> = ({ game }) => {
+const GameCard: FC<{ game: UnifideckGame }> = ({ game }) => {
   const handleClick = () => {
     // Navigate to game details in Steam
     window.location.href = `steam://nav/library/app/${game.appId}`;

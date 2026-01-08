@@ -49,7 +49,6 @@ class SteamGridDBClient:
         possible_paths = [
             os.path.expanduser("~/.steam/steam"),
             os.path.expanduser("~/.local/share/Steam"),
-            "/home/deck/.steam/steam",
         ]
 
         for path in possible_paths:
@@ -352,6 +351,49 @@ class SteamGridDBClient:
             
         return result
 
+    async def get_amazon_metadata(self, amazon_game_id: str) -> Dict[str, Any]:
+        """Fetch Amazon artwork URLs from Nile library cache"""
+        result = {'urls': {}}
+        
+        try:
+            nile_library = Path.home() / ".config" / "nile" / "library.json"
+            
+            if not nile_library.exists():
+                return result
+            
+            with open(nile_library) as f:
+                library = json.load(f)
+            
+            # Find game by ID
+            for entry in library:
+                product = entry.get('product', {})
+                if product.get('id') == amazon_game_id:
+                    detail = product.get('productDetail', {})
+                    details = detail.get('details', {})
+                    
+                    # Grid: Prime Gaming crown image (vertical box art)
+                    if details.get('pgCrownImageUrl'):
+                        result['urls']['grid'] = details['pgCrownImageUrl']
+                    
+                    # Hero: Background image
+                    if details.get('backgroundUrl1'):
+                        result['urls']['hero'] = details['backgroundUrl1']
+                    
+                    # Logo
+                    if details.get('logoUrl'):
+                        result['urls']['logo'] = details['logoUrl']
+                    
+                    # Icon
+                    if detail.get('iconUrl'):
+                        result['urls']['icon'] = detail['iconUrl']
+                    
+                    break
+                    
+        except Exception as e:
+            logger.debug(f"Amazon metadata error: {e}")
+            
+        return result
+
     async def search_steam_appid(self, title: str) -> Optional[int]:
         """
         Search Steam Store for AppID by game title
@@ -409,6 +451,8 @@ class SteamGridDBClient:
                     tasks.append(asyncio.sleep(0, result={'urls': {}})) # Dummy
             elif store == 'epic' and store_id:
                 tasks.append(self.get_epic_metadata(store_id))
+            elif store == 'amazon' and store_id:
+                tasks.append(self.get_amazon_metadata(store_id))
             else:
                 tasks.append(asyncio.sleep(0, result={'urls': {}})) # Dummy to keep parallel structure simple
                 
@@ -444,9 +488,10 @@ class SteamGridDBClient:
                 task = self.download_image(selected_urls['grid'], path)
                 download_tasks.append((task, 'grid'))
                 
-                # Also save vertical copy (for Steam search view)
+                # Also save vertical copy (for Steam search view) - tracked, not fire-and-forget
                 v_path = os.path.join(self.grid_path, f"{unsigned_id}.jpg")
-                asyncio.create_task(self.download_image(selected_urls['grid'], v_path)) # Non-blocking copy
+                v_task = self.download_image(selected_urls['grid'], v_path)
+                download_tasks.append((v_task, 'grid_vertical'))
 
             if 'hero' in selected_urls:
                 path = os.path.join(self.grid_path, f"{unsigned_id}_hero.jpg")
@@ -495,20 +540,35 @@ class SteamGridDBClient:
             final_result['artwork_count'] = len(downloaded)
 
             # === PHASE 4: FALLBACK (SGDB) ===
-            # If significant art is missing (Grid or Hero), queue SGDB
+            # If significant art is missing (Grid or Hero), use SGDB to fill gaps
             needed = {'grid', 'hero', 'logo'}
             missing = needed - downloaded
             
             if missing and self.client:
-                async def sgdb_fill():
-                    try:
-                        gid = await self.search_game(title)
-                        if gid:
-                            await self.get_grid_images(gid, app_id)
-                    except: pass
-                
-                asyncio.create_task(sgdb_fill())
-                final_result['sgdb_queued'] = True
+                try:
+                    gid = await self.search_game(title)
+                    if gid:
+                        sgdb_results = await self.get_grid_images(gid, app_id)
+                        # Track SGDB downloads that succeeded
+                        for art_type, success in sgdb_results.items():
+                            if success and art_type not in downloaded:
+                                downloaded.add(art_type)
+                                source_map[art_type] = 'SGDB'
+                        # Rebuild sources summary with SGDB additions
+                        by_source = {}
+                        for k in downloaded:
+                            src = source_map.get(k, 'UNKNOWN')
+                            if src not in by_source: by_source[src] = []
+                            by_source[src].append(k)
+                        summary_parts = []
+                        for src, types in by_source.items():
+                            summary_parts.append(f"{src}:{'+'.join(sorted(types))}")
+                        final_result['sources'] = summary_parts
+                        final_result['artwork_count'] = len(downloaded)
+                except Exception as e:
+                    logger.debug(f"SGDB fallback failed for {title}: {e}")
+                    
+                final_result['sgdb_filled'] = True
                 
             if downloaded:
                 final_result['success'] = True

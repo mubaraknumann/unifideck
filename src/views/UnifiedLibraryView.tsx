@@ -1,7 +1,7 @@
-import React, { VFC, useMemo, useState } from "react";
+import React, { FC, useMemo, useState } from "react";
 import { useSteamLibrary, useUnifideckGames } from "../hooks/useSteamLibrary";
 import { GameGrid } from "../components/GameGrid";
-import { UnifideckGame, StoreType } from "../types/steam";
+import { StoreType } from "../types/steam";
 
 export type LibraryFilter = "all" | "installed" | "great-on-deck";
 
@@ -51,7 +51,7 @@ class ErrorBoundary extends React.Component<
  * Unified library view that shows games from all stores
  * Replaces Steam's default All Games, Installed, and Great on Deck tabs
  */
-const UnifiedLibraryViewInner: VFC<UnifiedLibraryViewProps> = ({
+const UnifiedLibraryViewInner: FC<UnifiedLibraryViewProps> = ({
   filter,
 }) => {
   console.log(`[Unifideck] Rendering UnifiedLibraryView with filter: ${filter}`);
@@ -191,6 +191,7 @@ const UnifiedLibraryViewInner: VFC<UnifiedLibraryViewProps> = ({
               <option value="steam">Steam</option>
               <option value="epic">Epic Games</option>
               <option value="gog">GOG</option>
+              <option value="amazon">Amazon Games</option>
             </select>
           </div>
 
@@ -223,7 +224,7 @@ const UnifiedLibraryViewInner: VFC<UnifiedLibraryViewProps> = ({
 };
 
 // Wrapped export with error boundary
-export const UnifiedLibraryView: VFC<UnifiedLibraryViewProps> = (props) => {
+export const UnifiedLibraryView: FC<UnifiedLibraryViewProps> = (props) => {
   return (
     <ErrorBoundary>
       <UnifiedLibraryViewInner {...props} />

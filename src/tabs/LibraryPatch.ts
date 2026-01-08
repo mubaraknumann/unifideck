@@ -2,7 +2,7 @@
  * Unifideck Library Patch
  * 
  * Patches the Steam library to inject custom tabs that include
- * Epic and GOG games alongside Steam games.
+ * Epic, GOG, and Amazon games alongside Steam games.
  * 
  * When TabMaster is detected, custom tabs are NOT injected - instead,
  * users can use [Unifideck] collections via TabMaster.
@@ -16,7 +16,7 @@ import {
     Patch
 } from '@decky/ui';
 import { RoutePatch, routerHook } from '@decky/api';
-import { ReactElement, useEffect, useState } from 'react';
+import { ReactElement, useEffect } from 'react';
 import { tabManager, getHiddenDefaultTabs, isTabMasterInstalled } from './TabContainer';
 
 // Cache for tab app grid component
@@ -64,7 +64,6 @@ export function patchLibrary(): RoutePatch {
                 return ret1;
             }
 
-            const [refresh, setRefresh] = useState(false);
             let innerPatch: Patch;
             let memoCache: any;
 
