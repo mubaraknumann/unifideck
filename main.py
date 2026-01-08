@@ -847,6 +847,205 @@ class ShortcutsManager:
         
         return {'removed': removed, 'kept': kept, 'entries_removed': entries_removed}
 
+    def repair_shortcuts_exe_path(self) -> Dict[str, Any]:
+        """
+        Repair shortcuts pointing to old plugin paths after reinstall.
+        
+        Called on plugin startup to fix shortcuts where the exe path
+        no longer exists (e.g., after Decky reinstall moves the plugin dir).
+        
+        Returns:
+            dict: {'repaired': int, 'checked': int, 'errors': list}
+        """
+        import re
+        
+        repaired = 0
+        checked = 0
+        errors = []
+        
+        # Get the CURRENT launcher path (this plugin's installation)
+        current_launcher = os.path.join(os.path.dirname(__file__), 'bin', 'unifideck-launcher')
+        
+        if not os.path.exists(current_launcher):
+            logger.error(f"[RepairExe] Current launcher not found: {current_launcher}")
+            return {'repaired': 0, 'checked': 0, 'errors': ['Current launcher not found']}
+        
+        logger.info(f"[RepairExe] Current launcher path: {current_launcher}")
+        
+        try:
+            shortcuts_data = load_shortcuts_vdf(self.shortcuts_path)
+            shortcuts = shortcuts_data.get('shortcuts', {})
+            modified = False
+            
+            for idx, shortcut in shortcuts.items():
+                launch_opts = shortcut.get('LaunchOptions', '')
+                
+                # Only check Unifideck shortcuts (store:game_id format)
+                if re.match(r'^(epic|gog|amazon):[a-zA-Z0-9_-]+$', launch_opts):
+                    checked += 1
+                    exe_path = shortcut.get('exe', '')
+                    
+                    # Remove quotes if present
+                    exe_path_clean = exe_path.strip('"')
+                    
+                    # Check if exe points to unifideck-launcher but at a different (old) path
+                    if 'unifideck-launcher' in exe_path_clean and exe_path_clean != current_launcher:
+                        # Check if the current exe doesn't exist (stale path)
+                        if not os.path.exists(exe_path_clean):
+                            logger.info(f"[RepairExe] Repairing shortcut '{shortcut.get('AppName')}': {exe_path_clean} -> {current_launcher}")
+                            shortcut['exe'] = f'"{current_launcher}"'
+                            shortcut['StartDir'] = f'"{os.path.dirname(current_launcher)}"'
+                            repaired += 1
+                            modified = True
+                        else:
+                            logger.debug(f"[RepairExe] Shortcut '{shortcut.get('AppName')}' has valid exe at: {exe_path_clean}")
+            
+            # Write back if modified
+            if modified:
+                success = save_shortcuts_vdf(self.shortcuts_path, shortcuts_data)
+                if success:
+                    logger.info(f"[RepairExe] Updated shortcuts.vdf: {repaired} repairs")
+                else:
+                    errors.append('Failed to write shortcuts.vdf')
+            
+        except Exception as e:
+            logger.error(f"[RepairExe] Error: {e}")
+            errors.append(str(e))
+        
+        return {'repaired': repaired, 'checked': checked, 'errors': errors}
+
+    def reconcile_shortcuts_from_games_map(self) -> Dict[str, Any]:
+        """
+        Ensure shortcuts exist for all installed games in games.map.
+        
+        Called on plugin startup to create missing shortcuts for games
+        that were installed but whose shortcuts were somehow lost.
+        Uses shortcuts_registry.json to recover original appid (preserves artwork!).
+        
+        Returns:
+            dict: {'created': int, 'existing': int, 'errors': list}
+        """
+        map_file = os.path.expanduser("~/.local/share/unifideck/games.map")
+        
+        if not os.path.exists(map_file):
+            logger.debug("[ReconcileShortcuts] games.map not found, nothing to reconcile")
+            return {'created': 0, 'existing': 0, 'errors': []}
+        
+        created = 0
+        existing = 0
+        errors = []
+        
+        # Get current launcher path
+        current_launcher = os.path.join(os.path.dirname(__file__), 'bin', 'unifideck-launcher')
+        
+        try:
+            # Load games.map entries
+            games_map_entries = []
+            with open(map_file, 'r') as f:
+                for line in f:
+                    line_stripped = line.strip()
+                    if not line_stripped:
+                        continue
+                    parts = line_stripped.split('|')
+                    if len(parts) >= 3:
+                        key = parts[0]  # store:game_id
+                        exe_path = parts[1]
+                        work_dir = parts[2]
+                        
+                        # Only include entries where the exe actually exists (installed games)
+                        if exe_path and os.path.exists(exe_path):
+                            games_map_entries.append({
+                                'key': key,
+                                'exe_path': exe_path,
+                                'work_dir': work_dir
+                            })
+            
+            if not games_map_entries:
+                logger.debug("[ReconcileShortcuts] No valid games.map entries found")
+                return {'created': 0, 'existing': 0, 'errors': []}
+            
+            logger.info(f"[ReconcileShortcuts] Found {len(games_map_entries)} installed games in games.map")
+            
+            # Load shortcuts.vdf
+            shortcuts_data = load_shortcuts_vdf(self.shortcuts_path)
+            shortcuts = shortcuts_data.get('shortcuts', {})
+            
+            # Build set of existing LaunchOptions
+            existing_launch_options = {
+                shortcut.get('LaunchOptions')
+                for shortcut in shortcuts.values()
+                if shortcut.get('LaunchOptions')
+            }
+            
+            # Load shortcuts registry for appid recovery
+            shortcuts_registry = load_shortcuts_registry()
+            
+            # Find next available index
+            existing_indices = [int(k) for k in shortcuts.keys() if k.isdigit()]
+            next_index = max(existing_indices, default=-1) + 1
+            
+            modified = False
+            
+            for entry in games_map_entries:
+                key = entry['key']  # store:game_id
+                
+                if key in existing_launch_options:
+                    existing += 1
+                    continue
+                
+                # Parse store and game_id
+                store, game_id = key.split(':', 1)
+                
+                # Try to recover appid from registry (preserves artwork!)
+                registered = shortcuts_registry.get(key, {})
+                appid = registered.get('appid')
+                title = registered.get('title', game_id)  # Fallback to game_id if no title
+                
+                if not appid:
+                    # Generate new appid if not registered
+                    appid = self.generate_app_id(title, current_launcher)
+                    logger.warning(f"[ReconcileShortcuts] No registered appid for {key}, generated new: {appid}")
+                
+                # Create new shortcut
+                logger.info(f"[ReconcileShortcuts] Creating missing shortcut for '{title}' ({key})")
+                
+                shortcuts[str(next_index)] = {
+                    'appid': appid,
+                    'AppName': title,
+                    'exe': f'"{current_launcher}"',
+                    'StartDir': '',
+                    'icon': '',
+                    'ShortcutPath': '',
+                    'LaunchOptions': key,
+                    'IsHidden': 0,
+                    'AllowDesktopConfig': 1,
+                    'OpenVR': 0,
+                    'tags': {
+                        '0': store.title(),
+                        '1': 'Installed'  # It's in games.map, so it's installed
+                    }
+                }
+                
+                next_index += 1
+                created += 1
+                modified = True
+            
+            # Write back if modified
+            if modified:
+                success = save_shortcuts_vdf(self.shortcuts_path, shortcuts_data)
+                if success:
+                    logger.info(f"[ReconcileShortcuts] Created {created} missing shortcuts")
+                else:
+                    errors.append('Failed to write shortcuts.vdf')
+            else:
+                logger.debug(f"[ReconcileShortcuts] All {existing} shortcuts already exist")
+        
+        except Exception as e:
+            logger.error(f"[ReconcileShortcuts] Error: {e}")
+            errors.append(str(e))
+        
+        return {'created': created, 'existing': existing, 'errors': errors}
+
     async def _set_proton_compatibility(self, app_id: int, compat_tool: str = "proton_experimental"):
         """Set Proton compatibility tool for a non-Steam game in config.vdf"""
         try:
@@ -4311,6 +4510,18 @@ class Plugin:
         reconcile_result = self.shortcuts_manager.reconcile_games_map()
         if reconcile_result.get('removed', 0) > 0:
             logger.info(f"[INIT] Reconciliation complete: {reconcile_result['removed']} orphaned entries removed")
+
+        # Repair shortcuts pointing to old plugin paths (happens after Decky reinstall)
+        logger.info("[INIT] Repairing shortcuts pointing to old plugin paths")
+        repair_result = self.shortcuts_manager.repair_shortcuts_exe_path()
+        if repair_result.get('repaired', 0) > 0:
+            logger.info(f"[INIT] Repaired {repair_result['repaired']} shortcuts with stale launcher paths")
+
+        # Ensure shortcuts exist for all games in games.map (recreate missing shortcuts)
+        logger.info("[INIT] Reconciling shortcuts from games.map")
+        shortcut_reconcile = self.shortcuts_manager.reconcile_shortcuts_from_games_map()
+        if shortcut_reconcile.get('created', 0) > 0:
+            logger.info(f"[INIT] Created {shortcut_reconcile['created']} missing shortcuts from games.map")
 
         logger.info("[INIT] Initializing EpicConnector")
         self.epic = EpicConnector(plugin_dir=DECKY_PLUGIN_DIR, plugin_instance=self)
