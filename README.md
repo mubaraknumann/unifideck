@@ -20,19 +20,21 @@ A Decky Loader plugin that brings together games from Steam, Epic Games Store, a
 
 ## Features
 
-- **Unified Game Library** - Epic Games and GOG games appear directly in your Steam library
+- **Unified Game Library** - Epic Games, GOG and Amazon games appear directly in your Steam library*
 - **One-Click Installation** - Install Epic and GOG games directly from Steam's interface
 - **Automatic Artwork** - Game covers, banners, and logos fetched automatically from SteamGridDB
 - **In-App Authentication** - Log into Epic and GOG stores without leaving Gaming Mode
-- **No Restart Required** - Installed games are playable immediately without restarting Steam*
+- **No Restart Required** - Installed games are playable immediately without restarting Steam**
 
-*Still needs one time restart after libraries have been synced
+*Yes, other game store integrations are planned but depends on solutions available and our development pipeline
+**Still needs one time restart after libraries have been synced
 
 ## Screenshots
 
 ### Unified Game Library
 
-![20260104022735_1](https://github.com/user-attachments/assets/208a9610-2b4f-4e1d-941f-33a152cc34d8)
+<img width="1920" height="1080" alt="Screenshot_20260109_123258" src="https://github.com/user-attachments/assets/58aafad6-5c54-475d-a309-c44f77895b72" />
+
 
 ### Game Details
 
@@ -58,7 +60,7 @@ That's it! All other tools and dependencies are bundled with the plugin.
 ## Getting Started
 
 1. Open the **Quick Access Menu** and find **Unifideck**
-2. Connect your **Epic Games** and/or **GOG** accounts using the authenticate buttons
+2. Connect your **Epic Games**, **GOG**, **Amazon** accounts using the authenticate buttons
 3. Click **Sync Libraries** and wait for completion. Restart Steam.
 
 Your games will now appear in your Steam library!
@@ -67,12 +69,18 @@ Your games will now appear in your Steam library!
 
 - The plugin creates custom tabs that replace the standard Great on Deck, All Games and Installed tabs so standard filtering and sorting will not work (for now).
 - Some GOG games come as multiple download files - these are handled automatically but may take longer to install
-- A few Epic multiplayer games need extra setup for online features (work in progress)
+- The plugin handles proton/winetricks automatically, so no compatibiltiy config changes possible.
+- Game download paths (local and sd card) are fixed (for now)
 - Not all games have artwork available - some may show default images. Suggest using SteamGrid DB.
-- Cloud Saves do not work
-- Compatibility issues with Tabmaster (WIP)
+- Cloud saves implemented, but may not work for all games
+- Compatibility with Tabmaster - created collections that can be used to create tabs. Does not show custom tabs when this is installed.
 
 ## Troubleshooting
+
+### Epic Store Login Shows Blank Screen or 'Pretty Print' Option
+
+1. Login to Epic via a different browser or device, confirm login works/accept any policies
+2. Try Again
 
 ### Games Don't Appear After Syncing
 
@@ -144,11 +152,12 @@ The following Decky plugins were studied as reference during development:
 - **Valve** - For the Steam Deck platform and Steam OS
 - **SteamDeckHomebrew Community** - For Decky Loader and extensive documentation
 - **derrod** - For legendary and Epic Games integration insights
+- **JSONDerulo** - For Amazon integration and code review
 - All open source contributors whose work makes this project possible
 
 ## Author
 
-Numan Mubarak
+Numan Mubarak (numanmuabrak@protonmail.com)
 
 ## Disclaimer
 
