@@ -995,13 +995,7 @@ const Content: FC = () => {
         const popup = window.open(authUrl, '_blank', 'width=800,height=600,popup=yes');
 
         if (!popup) {
-          toaster.toast({
-            title: "Popup Blocked",
-            body: "Failed to open authentication window",
-            critical: true,
-            duration: 5000,
-          });
-          return;
+          console.log(`[Unifideck] Popup window did not open, continuing with backend auth monitoring...`);
         }
 
         console.log(`[Unifideck] Opened ${store} auth popup. Backend monitoring via CDP...`);
