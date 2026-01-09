@@ -21,7 +21,7 @@ if DECKY_PLUGIN_DIR:
 from vdf_utils import load_shortcuts_vdf, save_shortcuts_vdf
 
 # Import Steam user detection utilities
-from steam_user_utils import get_logged_in_steam_user
+from steam_user_utils import get_logged_in_steam_user, migrate_user0_to_logged_in_user
 
 # Import SteamGridDB client
 try:
@@ -795,17 +795,21 @@ class ShortcutsManager:
                 f.writelines(new_lines)
 
     def _is_in_game_map(self, store: str, game_id: str) -> bool:
-        """Check if game is registered in games.map (fast, authoritative for Unifideck-installed games)
+        """Check if game is registered in games.map AND the executable/directory exists.
         
         This is the primary source of truth for installation status because games.map
         is updated immediately when a game is installed, regardless of install location.
+        
+        IMPORTANT: We also verify the file exists on disk. If the game is in the map
+        but files are missing (e.g., deleted via file manager), we return False
+        so the UI shows the Install button instead of Uninstall.
         
         Args:
             store: Store name ('epic' or 'gog')
             game_id: Game ID
             
         Returns:
-            True if game is in games.map (installed via Unifideck)
+            True if game is in games.map AND files exist on disk
         """
         map_file = os.path.expanduser("~/.local/share/unifideck/games.map")
         if not os.path.exists(map_file):
@@ -816,7 +820,19 @@ class ShortcutsManager:
             with open(map_file, 'r') as f:
                 for line in f:
                     if line.startswith(f"{key}|"):
-                        return True
+                        # Parse the entry to verify files exist
+                        parts = line.strip().split('|')
+                        if len(parts) >= 3:
+                            exe_path = parts[1]
+                            work_dir = parts[2]
+                            # Check if executable or work directory exists
+                            path_to_check = exe_path if exe_path else work_dir
+                            if path_to_check and os.path.exists(path_to_check):
+                                return True
+                            else:
+                                logger.debug(f"[GameMap] Entry {key} exists but path missing: {path_to_check}")
+                                return False
+                        return True  # Malformed entry, assume installed
         except Exception as e:
             logger.debug(f"[GameMap] Error checking games.map: {e}")
         return False
@@ -885,6 +901,114 @@ class ShortcutsManager:
             return {'removed': 0, 'kept': kept, 'entries_removed': [], 'error': str(e)}
         
         return {'removed': removed, 'kept': kept, 'entries_removed': entries_removed}
+
+    def validate_gog_exe_paths(self, gog_client=None) -> Dict[str, Any]:
+        """
+        Validate and auto-correct GOG executable paths that point to installers.
+        
+        If a GOG game's exe_path looks like an installer file (large .sh, contains colon, etc.),
+        this function re-runs the game executable detection and updates games.map.
+        
+        Args:
+            gog_client: Reference to GOGAPIClient for exe detection
+            
+        Returns:
+            dict: {'corrected': int, 'checked': int, 'corrections': list}
+        """
+        map_file = os.path.expanduser("~/.local/share/unifideck/games.map")
+        
+        if not os.path.exists(map_file):
+            return {'corrected': 0, 'checked': 0, 'corrections': []}
+        
+        corrected = 0
+        checked = 0
+        corrections = []
+        modified_lines = []
+        
+        try:
+            with open(map_file, 'r') as f:
+                lines = f.readlines()
+            
+            for line in lines:
+                line_stripped = line.strip()
+                if not line_stripped:
+                    modified_lines.append(line)
+                    continue
+                    
+                parts = line_stripped.split('|')
+                if len(parts) < 3:
+                    modified_lines.append(line)
+                    continue
+                
+                key = parts[0]  # store:game_id
+                exe_path = parts[1]
+                work_dir = parts[2]
+                
+                # Only check GOG games
+                if not key.startswith('gog:'):
+                    modified_lines.append(line)
+                    continue
+                
+                checked += 1
+                
+                # Check if exe_path looks like an installer
+                is_likely_installer = False
+                if exe_path and exe_path.endswith('.sh'):
+                    try:
+                        if os.path.exists(exe_path):
+                            file_size = os.path.getsize(exe_path)
+                            filename = os.path.basename(exe_path)
+                            is_likely_installer = (
+                                file_size > 50 * 1024 * 1024 or  # Over 50MB
+                                filename.startswith('gog_') or
+                                filename.startswith('setup_') or
+                                ':' in filename  # Game title pattern
+                            )
+                    except Exception:
+                        pass
+                
+                if is_likely_installer and gog_client:
+                    logger.info(f"[ValidateGOG] Detected installer path for {key}: {exe_path}")
+                    
+                    # Get the install directory (parent of exe or work_dir)
+                    install_dir = work_dir if work_dir else os.path.dirname(exe_path)
+                    
+                    if install_dir and os.path.exists(install_dir):
+                        # Re-run executable detection
+                        new_exe = gog_client._find_game_executable(install_dir)
+                        
+                        if new_exe and new_exe != exe_path:
+                            logger.info(f"[ValidateGOG] Correcting path: {exe_path} -> {new_exe}")
+                            
+                            # Update the line
+                            new_work_dir = os.path.dirname(new_exe)
+                            parts[1] = new_exe
+                            parts[2] = new_work_dir
+                            corrected_line = '|'.join(parts) + '\n'
+                            modified_lines.append(corrected_line)
+                            
+                            corrections.append({
+                                'game_id': key,
+                                'old_path': exe_path,
+                                'new_path': new_exe
+                            })
+                            corrected += 1
+                            continue
+                
+                # Keep original line if no correction needed
+                modified_lines.append(line)
+            
+            # Write back if corrections were made
+            if corrected > 0:
+                with open(map_file, 'w') as f:
+                    f.writelines(modified_lines)
+                logger.info(f"[ValidateGOG] Corrected {corrected} installer paths in games.map")
+            
+        except Exception as e:
+            logger.error(f"[ValidateGOG] Error: {e}")
+            return {'corrected': 0, 'checked': checked, 'corrections': [], 'error': str(e)}
+        
+        return {'corrected': corrected, 'checked': checked, 'corrections': corrections}
 
     def repair_shortcuts_exe_path(self) -> Dict[str, Any]:
         """
@@ -4484,9 +4608,31 @@ class GOGAPIClient:
                 return exe_path
 
             # Linux game logic - look for shell script launchers
-            common_launchers = ['start.sh', 'launch.sh', 'game.sh', 'gameinfo']
+            # IMPORTANT: Check data/noarch FIRST - this is where extracted games live
+            # The root directory often contains the installer .sh file which we must NOT use
+            
+            common_launchers = ['start.sh', 'launch.sh', 'game.sh', 'gameinfo', 'start', 'launcher']
+            
+            # PRIORITY 1: Look in data/noarch subdirectory (common GOG Linux game structure)
+            data_dir = os.path.join(install_path, 'data', 'noarch')
+            if os.path.exists(data_dir):
+                for launcher in common_launchers:
+                    launcher_path = os.path.join(data_dir, launcher)
+                    if os.path.exists(launcher_path) and os.path.isfile(launcher_path):
+                        os.chmod(launcher_path, 0o755)
+                        logger.info(f"[GOG] Found game launcher in data/noarch: {launcher_path}")
+                        return launcher_path
+                        
+                # Also look for any .sh file in data/noarch
+                for item in os.listdir(data_dir):
+                    if item.endswith('.sh'):
+                        item_path = os.path.join(data_dir, item)
+                        if os.path.isfile(item_path):
+                            os.chmod(item_path, 0o755)
+                            logger.info(f"[GOG] Found .sh script in data/noarch: {item_path}")
+                            return item_path
 
-            # Try common launcher names first
+            # PRIORITY 2: Try common launcher names in root (if not the installer)
             for launcher in common_launchers:
                 launcher_path = os.path.join(install_path, launcher)
                 if os.path.exists(launcher_path) and os.path.isfile(launcher_path):
@@ -4494,24 +4640,26 @@ class GOGAPIClient:
                     logger.info(f"[GOG] Found game launcher: {launcher_path}")
                     return launcher_path
 
-            # Look for any .sh file
+            # PRIORITY 3: Look for other .sh files in root, EXCLUDING installers
+            # GOG installers are typically large (100MB+) and named after the game
             for item in os.listdir(install_path):
                 if item.endswith('.sh'):
                     item_path = os.path.join(install_path, item)
                     if os.path.isfile(item_path):
+                        # Skip files that look like GOG installers
+                        file_size = os.path.getsize(item_path)
+                        is_likely_installer = (
+                            file_size > 50 * 1024 * 1024 or  # Over 50MB = likely installer
+                            item.startswith('gog_') or       # gog_ prefix
+                            item.startswith('setup_') or     # setup_ prefix
+                            ':' in item                      # Contains colon (game title)
+                        )
+                        if is_likely_installer:
+                            logger.debug(f"[GOG] Skipping likely installer: {item} ({file_size // 1024 // 1024}MB)")
+                            continue
                         os.chmod(item_path, 0o755)
                         logger.info(f"[GOG] Found .sh script: {item_path}")
                         return item_path
-
-
-            # Look for "data" subdirectory (common in GOG games)
-            data_dir = os.path.join(install_path, 'data', 'noarch')
-            if os.path.exists(data_dir):
-                for launcher in common_launchers:
-                    launcher_path = os.path.join(data_dir, launcher)
-                    if os.path.exists(launcher_path) and os.path.isfile(launcher_path):
-                        os.chmod(launcher_path, 0o755)
-                        return launcher_path
 
 
 
@@ -4825,6 +4973,12 @@ class Plugin:
         logger.info("[INIT] Initializing ShortcutsManager")
         self.shortcuts_manager = ShortcutsManager()
         
+        # Migrate any data from user 0 to the logged-in user (fixes past user 0 issues)
+        logger.info("[INIT] Checking for user 0 data to migrate")
+        migration_result = migrate_user0_to_logged_in_user()
+        if migration_result.get('shortcuts_migrated', 0) > 0 or migration_result.get('artwork_migrated', 0) > 0:
+            logger.info(f"[INIT] User 0 migration: {migration_result['shortcuts_migrated']} shortcuts, {migration_result['artwork_migrated']} artwork files migrated")
+        
         # Reconcile games.map to remove orphaned entries (games deleted externally)
         logger.info("[INIT] Reconciling games.map for orphaned entries")
         reconcile_result = self.shortcuts_manager.reconcile_games_map()
@@ -4848,6 +5002,12 @@ class Plugin:
 
         logger.info("[INIT] Initializing GOGAPIClient")
         self.gog = GOGAPIClient(plugin_instance=self)
+        
+        # Validate and auto-correct GOG executable paths that point to installers
+        logger.info("[INIT] Validating GOG executable paths")
+        gog_validation = self.shortcuts_manager.validate_gog_exe_paths(self.gog)
+        if gog_validation.get('corrected', 0) > 0:
+            logger.info(f"[INIT] Auto-corrected {gog_validation['corrected']} GOG installer paths")
 
         logger.info("[INIT] Initializing AmazonConnector")
         self.amazon = AmazonConnector(plugin_dir=DECKY_PLUGIN_DIR, plugin_instance=self)
@@ -6185,16 +6345,25 @@ class Plugin:
                 
                 if proc.returncode != 0:
                      logger.error(f"[Epic] Uninstall failed: {stderr_str}")
+                     # Still remove from games.map so UI shows Install button
+                     await self.shortcuts_manager._remove_from_game_map(store, game_id)
+                     logger.info(f"[Uninstall] Removed {store}:{game_id} from games.map despite uninstall failure")
                      return {'success': False, 'error': f"Legendary uninstall failed: {stderr_str}"}
             
             elif store == 'gog':
                 result = await self.gog.uninstall_game(game_id)
                 if not result['success']:
+                    # Still remove from games.map so UI shows Install button
+                    await self.shortcuts_manager._remove_from_game_map(store, game_id)
+                    logger.info(f"[Uninstall] Removed {store}:{game_id} from games.map despite uninstall failure")
                     return result
             
             elif store == 'amazon':
                 result = await self.amazon.uninstall_game(game_id)
                 if not result['success']:
+                    # Still remove from games.map so UI shows Install button
+                    await self.shortcuts_manager._remove_from_game_map(store, game_id)
+                    logger.info(f"[Uninstall] Removed {store}:{game_id} from games.map despite uninstall failure")
                     return result
             
             else:
