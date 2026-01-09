@@ -807,6 +807,9 @@ class ShortcutsManager:
         but files are missing (e.g., deleted via file manager), we return False
         so the UI shows the Install button instead of Uninstall.
         
+        NOTE: If a stale entry is detected (entry exists but path missing), we now
+        auto-cleanup the entry from games.map to prevent confusion.
+        
         Args:
             store: Store name ('epic' or 'gog')
             game_id: Game ID
@@ -833,11 +836,65 @@ class ShortcutsManager:
                             if path_to_check and os.path.exists(path_to_check):
                                 return True
                             else:
-                                logger.debug(f"[GameMap] Entry {key} exists but path missing: {path_to_check}")
+                                # Stale entry detected - auto-cleanup
+                                logger.info(f"[GameMap] Entry {key} exists but path missing: {path_to_check} - removing stale entry")
+                                self._remove_from_game_map_sync(store, game_id)
                                 return False
                         return True  # Malformed entry, assume installed
         except Exception as e:
             logger.debug(f"[GameMap] Error checking games.map: {e}")
+        return False
+
+    def _remove_from_game_map_sync(self, store: str, game_id: str):
+        """Synchronous version of _remove_from_game_map for use in sync contexts.
+        
+        Removes entry from games.map file immediately (no async overhead).
+        """
+        map_file = os.path.expanduser("~/.local/share/unifideck/games.map")
+        if not os.path.exists(map_file):
+            return
+            
+        key = f"{store}:{game_id}"
+        
+        try:
+            with open(map_file, 'r') as f:
+                lines = f.readlines()
+                
+            new_lines = [l for l in lines if not l.startswith(f"{key}|")]
+            
+            if len(new_lines) != len(lines):
+                with open(map_file, 'w') as f:
+                    f.writelines(new_lines)
+                logger.info(f"[GameMap] Removed stale entry: {key}")
+        except Exception as e:
+            logger.error(f"[GameMap] Error removing stale entry {key}: {e}")
+
+    def _has_game_map_entry(self, store: str, game_id: str) -> bool:
+        """Check if game has ANY entry in games.map (regardless of path validity).
+        
+        This is used to distinguish between:
+        - No entry at all (never installed via Unifideck) → use store API fallback
+        - Entry exists but path missing (was installed, files deleted) → don't use store fallback
+        
+        Args:
+            store: Store name ('epic' or 'gog')
+            game_id: Game ID
+            
+        Returns:
+            True if any entry exists in games.map for this game
+        """
+        map_file = os.path.expanduser("~/.local/share/unifideck/games.map")
+        if not os.path.exists(map_file):
+            return False
+        
+        key = f"{store}:{game_id}"
+        try:
+            with open(map_file, 'r') as f:
+                for line in f:
+                    if line.startswith(f"{key}|"):
+                        return True
+        except Exception as e:
+            logger.debug(f"[GameMap] Error checking games.map entry: {e}")
         return False
 
     def reconcile_games_map(self) -> Dict[str, Any]:
@@ -6092,6 +6149,10 @@ class Plugin:
         Priority 1: games.map (fast, authoritative for Unifideck-installed games)
         Priority 2: Store-specific check (for games installed outside Unifideck)
         
+        NOTE: Store API fallback is ONLY used if there's no games.map entry at all.
+        If an entry existed but the path was missing (stale), we skip the fallback
+        because the game was installed via Unifideck but files were deleted.
+        
         Args:
             store: 'epic' or 'gog'
             game_id: Store-specific game identifier
@@ -6099,17 +6160,25 @@ class Plugin:
         Returns:
             True if game is installed, False otherwise
         """
+        # Check if there's ANY entry in games.map before we check validity
+        # This helps us distinguish "never installed" from "was installed, files deleted"
+        had_entry = self.shortcuts_manager._has_game_map_entry(store, game_id)
+        
         # Priority 1: Check games.map (authoritative for all Unifideck installs)
-        # This works for any install location (internal, SD card, etc.)
+        # This also auto-cleans stale entries where path is missing
         is_installed = self.shortcuts_manager._is_in_game_map(store, game_id)
         
         # Priority 2: Fall back to store-specific check (for games installed outside Unifideck)
-        if not is_installed:
+        # ONLY if there was no games.map entry at all (not if entry existed but was stale)
+        if not is_installed and not had_entry:
             if store == 'epic':
                 installed_games = await self.epic.get_installed()
                 is_installed = game_id in installed_games
             elif store == 'gog':
                 installed_ids = await self.gog.get_installed()
+                is_installed = game_id in installed_ids
+            elif store == 'amazon':
+                installed_ids = await self.amazon.get_installed()
                 is_installed = game_id in installed_ids
         
         return is_installed
@@ -6155,12 +6224,17 @@ class Plugin:
                     store, game_id = result
 
                     # Check installation status
+                    # Check if there's ANY entry in games.map before checking validity
+                    # This distinguishes "never installed" from "was installed, files deleted"
+                    had_entry = self.shortcuts_manager._has_game_map_entry(store, game_id)
+                    
                     # Priority 1: Check games.map (fast, authoritative for Unifideck-installed games)
-                    # This works for any install location (internal, SD card, etc.)
+                    # This also auto-cleans stale entries where path is missing
                     is_installed = self.shortcuts_manager._is_in_game_map(store, game_id)
 
                     # Priority 2: Fall back to store-specific check (for games installed outside Unifideck)
-                    if not is_installed:
+                    # ONLY if there was no games.map entry at all (not if entry existed but was stale)
+                    if not is_installed and not had_entry:
                         if store == 'epic':
                             installed_games = await self.epic.get_installed()
                             is_installed = game_id in installed_games
@@ -6738,17 +6812,14 @@ class Plugin:
         """
         Get all Unifideck games with installation status for frontend tab filtering
         
-        Uses centralized check_game_installation_status() for consistency.
+        Uses games.map as the source of truth for installation status.
+        This ensures consistency with get_game_info() and works for all install
+        locations (internal, SD card, ~/GOG Games, etc.)
         
         Returns:
             List of dicts: [{'appId': int, 'store': str, 'isInstalled': bool, 'title': str, 'steamAppId': int|None}]
         """
         try:
-            # Get installed game IDs from each store
-            epic_installed = set(await self.epic.get_installed())
-            gog_installed = set(await self.gog.get_installed())
-            amazon_installed = set(await self.amazon.get_installed())
-
             # Load steam_app_id cache for ProtonDB lookups
             steam_appid_cache = load_steam_appid_cache()
             
@@ -6766,14 +6837,9 @@ class Plugin:
                 store = parts[0]
                 game_id = parts[1] if len(parts) > 1 else ''
 
-                # Check installation status
-                is_installed = False
-                if store == 'epic':
-                    is_installed = game_id in epic_installed
-                elif store == 'gog':
-                    is_installed = game_id in gog_installed
-                elif store == 'amazon':
-                    is_installed = game_id in amazon_installed
+                # Check installation status using games.map (authoritative source)
+                # This works for any install location and auto-cleans stale entries
+                is_installed = self.shortcuts_manager._is_in_game_map(store, game_id)
                 
                 # Get appId
                 app_id = shortcut.get('appid')
