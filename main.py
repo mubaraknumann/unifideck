@@ -4086,8 +4086,10 @@ class GOGAPIClient:
         try:
             # Method 1: MojoSetup silent install (the correct way for GOG installers)
             # GOG installers = Makeself + MojoSetup. The '-- ' passes args to MojoSetup.
+            # Run through /bin/bash explicitly to avoid "command not found" (exit 127) errors
             logger.info(f"[GOG] Running MojoSetup silent install")
             proc = await asyncio.create_subprocess_exec(
+                '/bin/bash',
                 installer_path,
                 '--',  # Pass following args to embedded script (MojoSetup)
                 '--i-agree-to-all-licenses',
@@ -4105,6 +4107,8 @@ class GOGAPIClient:
                 extraction_succeeded = True
             else:
                 logger.warning(f"[GOG] MojoSetup silent install failed (code {proc.returncode})")
+                if stdout:
+                    logger.debug(f"[GOG] stdout: {stdout.decode()[:500]}")
                 if stderr:
                     logger.debug(f"[GOG] stderr: {stderr.decode()[:500]}")
 

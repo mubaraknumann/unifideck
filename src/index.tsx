@@ -1000,24 +1000,32 @@ const Content: FC = () => {
 
         console.log(`[Unifideck] Opened ${store} auth popup. Backend monitoring via CDP...`);
 
-        // Poll for authentication completion (no modal, just background polling)
-        const completed = await pollForAuthCompletion(store);
+        // Poll for authentication completion in background (NON-BLOCKING)
+        // This allows multiple store auths to happen simultaneously
+        pollForAuthCompletion(store).then(async (completed) => {
+          if (completed) {
+            console.log(`[Unifideck] ✓ ${storeName} authentication successful!`);
+            toaster.toast({
+              title: `${storeName} Connected!`,
+              body: `Successfully authenticated with ${storeName}`,
+              duration: 8000,
+              critical: true,
+            });
+            await checkStoreStatus(); // Refresh status
+          } else {
+            console.log(`[Unifideck] ${storeName} authentication timed out`);
+            toaster.toast({
+              title: "Authentication Timeout",
+              body: `${storeName} auth timed out. Please try again.`,
+              critical: true,
+              duration: 5000,
+            });
+          }
+        }).catch((error) => {
+          console.error(`[Unifideck] Error polling ${store} auth:`, error);
+        });
 
-        if (completed) {
-          toaster.toast({
-            title: "Authentication Successful",
-            body: `${storeName} connected successfully`,
-            duration: 5000,
-          });
-          await checkStoreStatus(); // Refresh status
-        } else {
-          toaster.toast({
-            title: "Authentication Timeout",
-            body: "Please check logs or try again",
-            critical: true,
-            duration: 5000,
-          });
-        }
+        // Return immediately - don't block waiting for auth to complete
       } else {
         toaster.toast({
           title: "Authentication Failed",
