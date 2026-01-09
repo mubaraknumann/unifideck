@@ -434,14 +434,40 @@ except Exception as e:
     else
         # GOG games: use direct umu-run (no legendary needed)
         log "Launching GOG game via umu-run..."
-        CMD_STR="$PYTHON_BIN $UMU_RUN \"$EXE_PATH\" $*"
+
+        # Determine Python path - need Python 3.10+ for modern umu-launcher
+        PYTHON_BIN=""
+        for py in /usr/bin/python3.13 /usr/bin/python3.12 /usr/bin/python3.11 /usr/bin/python3.10 /usr/bin/python3; do
+            if [ -x "$py" ]; then
+                PYTHON_BIN="$py"
+                break
+            fi
+        done
+        if [ -z "$PYTHON_BIN" ]; then
+            PYTHON_BIN="python3"
+        fi
+        log "Using Python: $PYTHON_BIN"
+
+        # Get the umu-run path
+        if [ -f "$UMU_RUN" ]; then
+            UMU_WRAPPER="$UMU_RUN"
+            log "Using bundled umu-run: $UMU_WRAPPER"
+        elif command -v umu-run &>/dev/null; then
+            UMU_WRAPPER="umu-run"
+            log "Using system umu-run"
+        else
+            log "ERROR: umu-run not found"
+            exit 1
+        fi
+
+        CMD_STR="$PYTHON_BIN $UMU_WRAPPER \"$EXE_PATH\" $*"
         log "Executing: $CMD_STR"
 
         # === CLOUD SAVE: Download before launch ===
         sync_cloud_saves "gog" "$GAME_ID" "download" "$PREFIX_PATH" ""
 
         # Execute umu-run (wait for exit, don't use exec)
-        "$PYTHON_BIN" "$UMU_RUN" "$EXE_PATH" "$@" 2>>"$LOG_FILE"
+        "$PYTHON_BIN" "$UMU_WRAPPER" "$EXE_PATH" "$@" 2>>"$LOG_FILE"
         GAME_EXIT_CODE=$?
 
         # === CLOUD SAVE: Upload after exit ===
