@@ -21,11 +21,11 @@ A Decky Loader plugin that brings together games from Steam, Epic Games Store, G
 ## Features
 
 - **Unified Game Library** - Epic Games, GOG and Amazon games appear directly in your Steam library*
-- **Great On Deck for All** - Great on Deck tab will show all games in your connected libraries are platinum rated or verified by Steam.
-- **One-Click Installation** - Install Epic and GOG games directly from Steam's interface
+- **Great On Deck for All** - Great on Deck tab will show all games in your connected libraries that are platinum rated or verified by Steam.
+- **One-Click Installation** - Install Third Party games directly from Steam's interface
 - **Cloud Saves** - Currenly available for Epic and GOG. Not all games supported.
 - **Automatic Artwork** - Game covers, banners, and logos fetched automatically from SteamGridDB
-- **In-App Authentication** - Log into Epic and GOG stores without leaving Gaming Mode
+- **In-App Authentication** - Log into supported Third Party stores without leaving Gaming Mode
 - **No Restart Required** - Installed games are playable immediately without restarting Steam**
 
 *Yes, other game store integrations are planned but depends on solutions available and our development pipeline
@@ -73,7 +73,7 @@ Your games will now appear in your Steam library!
 - Some GOG games come as multiple download files - these are handled automatically but may take longer to install
 - The plugin handles proton/winetricks automatically, so no compatibiltiy config changes possible.
 - Game download paths (local and sd card) are fixed (for now)
-- Not all games have artwork available - some may show default images. Suggest using SteamGrid DB.
+- Not all games have artwork available - some may show default images. Suggest using SteamGridDB.
 - Cloud saves implemented, but may not work for all games
 - Compatibility with Tabmaster - created collections that can be used to create tabs. Does not show custom tabs when this is installed.
 
@@ -163,4 +163,4 @@ Numan Mubarak (numanmuabrak@protonmail.com)
 
 ## Disclaimer
 
-This is an unofficial third-party tool. Not affiliated with Valve, Epic Games, or CD Projekt (GOG).
+This is an unofficial third-party tool. Not affiliated with Valve, Epic Games, Amazon, or CD Projekt (GOG).
