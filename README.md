@@ -84,6 +84,12 @@ Your games will now appear in your Steam library!
 1. Login to Epic via a different browser or device, confirm login works/accept any policies
 2. Try Again
 
+**Why this happens**
+Apps and plugins that use the Epic API often get "locked out" when Epic updates its legal agreements. Because the plugin can’t display the full legal window, the login request simply fails until you manually agree to the terms on the official website or desktop app.
+
+### Force Use of Compatibility Tool
+DO NOT select this option for Unifideck games. Proton/Wine compatibiltiy is handled automatically and is not configurable right now.
+
 ### Games Don't Appear After Syncing
 
 1. Restart Steam/Steam Deck
