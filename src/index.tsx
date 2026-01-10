@@ -139,6 +139,14 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
           if (prevState.isDownloading && !newState.isDownloading) {
             console.log("[InstallInfoDisplay] Download finished, refreshing game info...");
 
+            // Show installation complete toast
+            toaster.toast({
+              title: "Installation Complete!",
+              body: `${gameInfo?.title || 'Game'} is ready to play. Restart Steam to see it in your library.`,
+              duration: 10000,
+              critical: true,
+            });
+
             // Invalidate cache first to ensure fresh data
             gameInfoCache.delete(appId);
 
