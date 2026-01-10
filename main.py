@@ -4392,7 +4392,7 @@ class GOGAPIClient:
                             last_downloaded_for_speed = downloaded
                             current_speed_bps = 0
                             
-                            async for chunk in response.content.iter_chunked(65536):  # 64KB chunks for speed
+                            async for chunk in response.content.iter_chunked(262144):  # 64KB chunks for speed
                                 f.write(chunk)
                                 downloaded += len(chunk)
                                 
@@ -4414,7 +4414,14 @@ class GOGAPIClient:
                                     if current_percent % 5 == 0 and current_percent != last_logged_percent:
                                         mb_downloaded = downloaded / (1024 * 1024)
                                         mb_total = total_size / (1024 * 1024)
-                                        logger.info(f"[GOG Download] {progress:.1f}% ({mb_downloaded:.1f} MB / {mb_total:.1f} MB)")
+                                        speed_mbps = current_speed_bps / (1024 * 1024)
+                                        logger.info(f"[GOG Download] {progress:.1f}% ({mb_downloaded:.1f} MB / {mb_total:.1f} MB) @ {speed_mbps:.1f} MB/s")
+                                        
+                                        # Inform users about slow GOG CDN speeds (known limitation)
+                                        if current_percent == 5 and speed_mbps < 2.0 and speed_mbps > 0:
+                                            logger.info(f"[GOG Download] Note: GOG servers are known to have slower download speeds than Steam/Epic.")
+                                            logger.info(f"[GOG Download] This is a GOG CDN limitation, not a plugin issue. A VPN may help improve speeds.")
+                                        
                                         last_logged_percent = current_percent
                                     
                                     # Call progress callback with full stats
@@ -4576,6 +4583,208 @@ class GOGAPIClient:
         except Exception as e:
             logger.warning(f"[GOG] Error fixing permissions: {e}")
 
+    def _patch_missing_libs(self, install_path: str):
+        """
+        Copy commonly missing libraries from Steam Runtime into the game's
+        bundled lib directories. This fixes issues where older GOG Linux games
+        bundle DOSBox/ScummVM without all required dependencies.
+        """
+        import shutil
+        import glob
+        
+        # Steam Runtime library paths
+        steam_runtime_libs = {
+            'x86_64': os.path.expanduser('~/.steam/steam/ubuntu12_32/steam-runtime/usr/lib/x86_64-linux-gnu'),
+            'i386': os.path.expanduser('~/.steam/steam/ubuntu12_32/steam-runtime/usr/lib/i386-linux-gnu'),
+        }
+        
+        # List of commonly missing libraries in GOG DOSBox/ScummVM builds
+        # These are libraries that the bundled binaries need but GOG didn't include
+        missing_libs = [
+            'libFLAC.so.8*',
+            'libogg.so.0*',
+            'libvorbis.so.0*',
+            'libvorbisfile.so.3*',
+            'libtheora.so.0*',
+            'libtheoradec.so.1*',
+        ]
+        
+        # Find game's lib directories (DOSBox/ScummVM typically use these paths)
+        game_lib_patterns = [
+            os.path.join(install_path, 'dosbox', 'libs', 'x86_64'),
+            os.path.join(install_path, 'dosbox', 'libs', 'i386'),
+            os.path.join(install_path, 'scummvm', 'libs', 'x86_64'),
+            os.path.join(install_path, 'scummvm', 'libs', 'i386'),
+            os.path.join(install_path, 'libs', 'x86_64'),
+            os.path.join(install_path, 'libs', 'i386'),
+        ]
+        
+        patched_count = 0
+        
+        for game_lib_dir in game_lib_patterns:
+            if not os.path.isdir(game_lib_dir):
+                continue
+            
+            # Determine architecture from path
+            arch = 'x86_64' if 'x86_64' in game_lib_dir else 'i386'
+            steam_lib_dir = steam_runtime_libs.get(arch)
+            
+            if not steam_lib_dir or not os.path.isdir(steam_lib_dir):
+                continue
+            
+            logger.debug(f"[GOG] Checking for missing libs in {game_lib_dir}")
+            
+            for lib_pattern in missing_libs:
+                # Check if any matching lib already exists in game dir
+                existing = glob.glob(os.path.join(game_lib_dir, lib_pattern))
+                if existing:
+                    continue  # Already has this library
+                
+                # Find matching libs in Steam Runtime
+                steam_libs = glob.glob(os.path.join(steam_lib_dir, lib_pattern))
+                
+                for steam_lib in steam_libs:
+                    lib_name = os.path.basename(steam_lib)
+                    dest_path = os.path.join(game_lib_dir, lib_name)
+                    
+                    try:
+                        if os.path.islink(steam_lib):
+                            # Copy symlink
+                            link_target = os.readlink(steam_lib)
+                            if os.path.lexists(dest_path):
+                                os.remove(dest_path)
+                            os.symlink(link_target, dest_path)
+                            logger.info(f"[GOG] Patched symlink: {lib_name} -> {link_target}")
+                        else:
+                            # Copy actual file
+                            shutil.copy2(steam_lib, dest_path)
+                            logger.info(f"[GOG] Patched library: {lib_name}")
+                        patched_count += 1
+                    except Exception as e:
+                        logger.warning(f"[GOG] Failed to copy {lib_name}: {e}")
+        
+        if patched_count > 0:
+            logger.info(f"[GOG] Patched {patched_count} missing libraries from Steam Runtime")
+        else:
+            logger.debug(f"[GOG] No missing libraries needed patching")
+
+        # Also patch gog_com.shlib to fix LD_LIBRARY_PATH issue in run_dosbox/run_scummvm
+        gog_shlib = os.path.join(install_path, 'support', 'gog_com.shlib')
+        if os.path.exists(gog_shlib):
+            try:
+                with open(gog_shlib, 'r') as f:
+                    content = f.read()
+                
+                patched = False
+                
+                # Check if run_dosbox needs patching (no LD_LIBRARY_PATH export)
+                if 'run_dosbox()' in content and 'PATCHED BY UNIFIDECK' not in content:
+                    logger.info(f"[GOG] Patching gog_com.shlib to fix LD_LIBRARY_PATH in run_dosbox")
+                    
+                    # Find run_dosbox function and replace it entirely
+                    # We look for 'run_dosbox() {' and find the matching closing brace
+                    dosbox_patch = '''run_dosbox() {
+  local conf_1="${1}"
+  local conf_2="${2}"
+  
+  # PATCHED BY UNIFIDECK: Export library path
+  local arch=$(uname -m)
+  if [ "$arch" == "x86_64" ]; then
+      export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$(pwd)/dosbox/libs/x86_64"
+  else
+      export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$(pwd)/dosbox/libs/i386"
+  fi
+  
+ ./dosbox/dosbox -conf "${conf_1}" -conf "${conf_2}" -no-console -c exit 
+}'''
+                    
+                    # Use a function to find and replace the shell function
+                    def replace_shell_function(content, func_name, replacement):
+                        """Replace a shell function definition in content."""
+                        import re
+                        # Match function_name() { ... } where ... might contain nested braces
+                        # We find the start and then count braces to find the end
+                        pattern = re.escape(func_name) + r'\s*\(\)\s*\{'
+                        match = re.search(pattern, content)
+                        if not match:
+                            return content
+                        
+                        start = match.start()
+                        brace_start = match.end() - 1  # Position of opening {
+                        
+                        # Count braces to find matching }
+                        depth = 1
+                        pos = brace_start + 1
+                        while pos < len(content) and depth > 0:
+                            if content[pos] == '{':
+                                depth += 1
+                            elif content[pos] == '}':
+                                depth -= 1
+                            pos += 1
+                        
+                        if depth == 0:
+                            # Replace from start to pos (which is after closing })
+                            return content[:start] + replacement + content[pos:]
+                        return content
+                    
+                    content = replace_shell_function(content, 'run_dosbox', dosbox_patch)
+                    patched = True
+                
+                # Also patch run_scummvm if present
+                if 'run_scummvm()' in content and 'PATCHED BY UNIFIDECK' not in content.split('run_scummvm')[1][:200]:
+                    logger.info(f"[GOG] Patching gog_com.shlib to fix LD_LIBRARY_PATH in run_scummvm")
+                    
+                    scummvm_patch = '''run_scummvm() {
+  local conf="${1}"
+  
+  # PATCHED BY UNIFIDECK: Export library path
+  local arch=$(uname -m)
+  if [ "$arch" == "x86_64" ]; then
+      export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$(pwd)/scummvm/libs/x86_64"
+  else
+      export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$(pwd)/scummvm/libs/i386"
+  fi
+  
+ ./scummvm/scummvm -c "${conf}" --themepath=scummvm
+}'''
+                    
+                    def replace_shell_function(content, func_name, replacement):
+                        """Replace a shell function definition in content."""
+                        import re
+                        pattern = re.escape(func_name) + r'\s*\(\)\s*\{'
+                        match = re.search(pattern, content)
+                        if not match:
+                            return content
+                        
+                        start = match.start()
+                        brace_start = match.end() - 1
+                        
+                        depth = 1
+                        pos = brace_start + 1
+                        while pos < len(content) and depth > 0:
+                            if content[pos] == '{':
+                                depth += 1
+                            elif content[pos] == '}':
+                                depth -= 1
+                            pos += 1
+                        
+                        if depth == 0:
+                            return content[:start] + replacement + content[pos:]
+                        return content
+                    
+                    content = replace_shell_function(content, 'run_scummvm', scummvm_patch)
+                    patched = True
+                
+                if patched:
+                    with open(gog_shlib, 'w') as f:
+                        f.write(content)
+                    logger.info(f"[GOG] gog_com.shlib patched successfully")
+                    
+            except Exception as e:
+                logger.warning(f"[GOG] Failed to patch gog_com.shlib: {e}")
+
+
+
     async def _extract_installer(self, installer_path: str, install_path: str, progress_callback=None) -> bool:
         """Extract GOG Linux installer using pure Python (gogextract algorithm).
         
@@ -4678,11 +4887,58 @@ class GOGAPIClient:
                 
                 def extract_zip_sync():
                     """Synchronous extraction to run in thread pool."""
+                    def _has_symlinks(zf):
+                        """Check if zip contains any symbolic links."""
+                        for info in zf.infolist():
+                            # Symlinks have file mode bits set to 0xA (symlink) in upper 4 bits
+                            # external_attr format: Unix file attributes in upper 16 bits
+                            attr = info.external_attr >> 16
+                            file_type = (attr & 0xF000) >> 12
+                            if file_type == 0xA:  # S_IFLNK
+                                return True
+                        return False
+                    
                     with zipfile.ZipFile(temp_zip_path, 'r') as zf:
                         file_count = len(zf.namelist())
                         logger.info(f"[GOG] Unpacking {file_count} files...")
-                        zf.extractall(install_path)
+                        
+                        # Check if zip contains symlinks
+                        has_symlinks = _has_symlinks(zf)
+                        
+                        if has_symlinks:
+                            logger.info(f"[GOG] Detected symlinks in archive - using symlink-aware extraction")
+                            # Custom extraction preserving symlinks
+                            for info in zf.infolist():
+                                target_path = os.path.join(install_path, info.filename)
+                                
+                                # Check if this is a symlink
+                                attr = info.external_attr >> 16
+                                file_type = (attr & 0xF000) >> 12
+                                
+                                if file_type == 0xA:  # Symlink
+                                    # Read symlink target
+                                    link_target = zf.read(info.filename).decode('utf-8')
+                                    
+                                    # Ensure parent directory exists
+                                    os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                                    
+                                    # Remove if exists (could be broken symlink or file)
+                                    if os.path.lexists(target_path):
+                                        os.remove(target_path)
+                                    
+                                    # Create symlink
+                                    os.symlink(link_target, target_path)
+                                    logger.debug(f"[GOG] Created symlink: {info.filename} -> {link_target}")
+                                else:
+                                    # Regular file or directory
+                                    zf.extract(info, install_path)
+                        else:
+                            # Fast path for normal games without symlinks
+                            logger.info(f"[GOG] No symlinks detected - using fast extraction")
+                            zf.extractall(install_path)
+                        
                         return file_count
+
                 
                 # Run extraction in thread to prevent blocking event loop
                 file_count = await asyncio.to_thread(extract_zip_sync)
@@ -4705,19 +4961,61 @@ class GOGAPIClient:
                     logger.info("[GOG] Moving files from data/noarch to root...")
                     
                     def move_files_sync():
+                        # Check if data/noarch contains a nested 'data' directory
+                        # This is the game data that DOSBox mounts - we need to preserve it
+                        nested_data_src = os.path.join(data_noarch, 'data')
+                        has_nested_data = os.path.exists(nested_data_src) and os.path.isdir(nested_data_src)
+                        
                         for item in os.listdir(data_noarch):
                             src = os.path.join(data_noarch, item)
                             dst = os.path.join(install_path, item)
+                            
+                            # Special handling for 'data' directory - it's the game content
+                            if item == 'data':
+                                # If destination doesn't exist, just move it
+                                if not os.path.exists(dst):
+                                    shutil.move(src, dst)
+                                    logger.debug(f"[GOG] Moved game data: {item}")
+                                else:
+                                    # Merge contents if dst exists
+                                    for sub_item in os.listdir(src):
+                                        sub_src = os.path.join(src, sub_item)
+                                        sub_dst = os.path.join(dst, sub_item)
+                                        if not os.path.exists(sub_dst):
+                                            shutil.move(sub_src, sub_dst)
+                                    shutil.rmtree(src, ignore_errors=True)
+                                continue
+                            
                             if not os.path.exists(dst):
                                 shutil.move(src, dst)
                                 logger.debug(f"[GOG] Moved: {item}")
-                        # Cleanup data directory
-                        shutil.rmtree(os.path.join(install_path, 'data'), ignore_errors=True)
+                        
+                        # Only remove data/noarch now that contents are moved
+                        # But DO NOT remove data/ itself if it contains game files
+                        shutil.rmtree(data_noarch, ignore_errors=True)
+                        
+                        # Check if data dir is now empty (only contained noarch)
+                        data_dir = os.path.join(install_path, 'data')
+                        # This handles the wrapper structure where data only had noarch
+                        # After moving noarch contents, if data is empty, remove it
+                        if os.path.exists(data_dir) and os.path.isdir(data_dir):
+                            try:
+                                remaining = os.listdir(data_dir)
+                                # Only 'noarch' would be gone, check if empty
+                                if not remaining:
+                                    os.rmdir(data_dir)
+                                    logger.debug("[GOG] Removed empty data wrapper directory")
+                            except Exception:
+                                pass
                     
                     await asyncio.to_thread(move_files_sync)
+
                 
                 # Fix permissions
                 self._fix_permissions(install_path)
+                
+                # Patch missing libraries from Steam Runtime
+                self._patch_missing_libs(install_path)
                 
                 # Run post-install script
                 await self._run_post_install(install_path)
@@ -4761,11 +5059,32 @@ class GOGAPIClient:
                 for item in os.listdir(data_noarch):
                     src = os.path.join(data_noarch, item)
                     dst = os.path.join(install_path, item)
+                    
+                    # Special handling for 'data' directory - it's the game content
+                    if item == 'data':
+                        if not os.path.exists(dst):
+                            shutil.move(src, dst)
+                        else:
+                            # Merge contents
+                            for sub_item in os.listdir(src):
+                                sub_src = os.path.join(src, sub_item)
+                                sub_dst = os.path.join(dst, sub_item)
+                                if not os.path.exists(sub_dst):
+                                    shutil.move(sub_src, sub_dst)
+                            shutil.rmtree(src, ignore_errors=True)
+                        continue
+                    
                     if not os.path.exists(dst):
                         shutil.move(src, dst)
-                shutil.rmtree(os.path.join(install_path, 'data'), ignore_errors=True)
+                
+                # Remove data/noarch but not data/ if it has game content
+                shutil.rmtree(data_noarch, ignore_errors=True)
+                data_dir = os.path.join(install_path, 'data')
+                if os.path.exists(data_dir) and not os.listdir(data_dir):
+                    os.rmdir(data_dir)
             
             self._fix_permissions(install_path)
+            self._patch_missing_libs(install_path)
             await self._run_post_install(install_path)
             return True
         
