@@ -20,6 +20,9 @@ if DECKY_PLUGIN_DIR:
 # Import VDF utilities
 from vdf_utils import load_shortcuts_vdf, save_shortcuts_vdf
 
+# Import Steam user detection utilities
+from steam_user_utils import get_logged_in_steam_user, migrate_user0_to_logged_in_user
+
 # Import SteamGridDB client
 try:
     from steamgriddb_client import SteamGridDBClient
@@ -32,6 +35,9 @@ from download_manager import get_download_queue, DownloadQueue
 
 # Import Cloud Save Manager
 from cloud_save_manager import CloudSaveManager
+
+# Import resilient launch options parser
+from launch_options_parser import extract_store_id, is_unifideck_shortcut, get_full_id, get_store_prefix
 
 # Use Decky's logger for proper integration
 logger = decky.logger
@@ -723,7 +729,11 @@ class ShortcutsManager:
         return None
 
     def _find_shortcuts_vdf(self) -> Optional[str]:
-        """Find shortcuts.vdf file - use most recently active user"""
+        """Find shortcuts.vdf file for the logged-in Steam user.
+        
+        Uses loginusers.vdf to find the user with MostRecent=1, falling
+        back to mtime-based detection while explicitly excluding user 0.
+        """
         if not self.steam_path:
             return None
 
@@ -731,23 +741,20 @@ class ShortcutsManager:
         if not os.path.exists(userdata_path):
             return None
 
-        # Find user directories (sorted by most recent activity)
-        user_dirs = []
-        for d in os.listdir(userdata_path):
-            if d.isdigit():
-                dir_path = os.path.join(userdata_path, d)
-                mtime = os.path.getmtime(dir_path)
-                user_dirs.append((d, mtime))
-
-        if not user_dirs:
+        # Use the new robust user detection utility
+        active_user = get_logged_in_steam_user(self.steam_path)
+        
+        if not active_user:
+            logger.error("[ShortcutsManager] Could not determine logged-in Steam user")
+            return None
+        
+        # Safety check: never use user 0
+        if active_user == '0':
+            logger.error("[ShortcutsManager] User 0 detected - this is a meta-directory, not a real user!")
             return None
 
-        # Use most recently active user (highest mtime)
-        user_dirs.sort(key=lambda x: x[1], reverse=True)
-        active_user = user_dirs[0][0]
-
         shortcuts_path = os.path.join(userdata_path, active_user, "config", "shortcuts.vdf")
-        logger.info(f"Using shortcuts.vdf for user {active_user}: {shortcuts_path}")
+        logger.info(f"[ShortcutsManager] Using shortcuts.vdf for user {active_user}: {shortcuts_path}")
 
         return shortcuts_path
 
@@ -791,17 +798,90 @@ class ShortcutsManager:
                 f.writelines(new_lines)
 
     def _is_in_game_map(self, store: str, game_id: str) -> bool:
-        """Check if game is registered in games.map (fast, authoritative for Unifideck-installed games)
+        """Check if game is registered in games.map AND the executable/directory exists.
         
         This is the primary source of truth for installation status because games.map
         is updated immediately when a game is installed, regardless of install location.
+        
+        IMPORTANT: We also verify the file exists on disk. If the game is in the map
+        but files are missing (e.g., deleted via file manager), we return False
+        so the UI shows the Install button instead of Uninstall.
+        
+        NOTE: If a stale entry is detected (entry exists but path missing), we now
+        auto-cleanup the entry from games.map to prevent confusion.
         
         Args:
             store: Store name ('epic' or 'gog')
             game_id: Game ID
             
         Returns:
-            True if game is in games.map (installed via Unifideck)
+            True if game is in games.map AND files exist on disk
+        """
+        map_file = os.path.expanduser("~/.local/share/unifideck/games.map")
+        if not os.path.exists(map_file):
+            return False
+        
+        key = f"{store}:{game_id}"
+        try:
+            with open(map_file, 'r') as f:
+                for line in f:
+                    if line.startswith(f"{key}|"):
+                        # Parse the entry to verify files exist
+                        parts = line.strip().split('|')
+                        if len(parts) >= 3:
+                            exe_path = parts[1]
+                            work_dir = parts[2]
+                            # Check if executable or work directory exists
+                            path_to_check = exe_path if exe_path else work_dir
+                            if path_to_check and os.path.exists(path_to_check):
+                                return True
+                            else:
+                                # Stale entry detected - auto-cleanup
+                                logger.info(f"[GameMap] Entry {key} exists but path missing: {path_to_check} - removing stale entry")
+                                self._remove_from_game_map_sync(store, game_id)
+                                return False
+                        return True  # Malformed entry, assume installed
+        except Exception as e:
+            logger.debug(f"[GameMap] Error checking games.map: {e}")
+        return False
+
+    def _remove_from_game_map_sync(self, store: str, game_id: str):
+        """Synchronous version of _remove_from_game_map for use in sync contexts.
+        
+        Removes entry from games.map file immediately (no async overhead).
+        """
+        map_file = os.path.expanduser("~/.local/share/unifideck/games.map")
+        if not os.path.exists(map_file):
+            return
+            
+        key = f"{store}:{game_id}"
+        
+        try:
+            with open(map_file, 'r') as f:
+                lines = f.readlines()
+                
+            new_lines = [l for l in lines if not l.startswith(f"{key}|")]
+            
+            if len(new_lines) != len(lines):
+                with open(map_file, 'w') as f:
+                    f.writelines(new_lines)
+                logger.info(f"[GameMap] Removed stale entry: {key}")
+        except Exception as e:
+            logger.error(f"[GameMap] Error removing stale entry {key}: {e}")
+
+    def _has_game_map_entry(self, store: str, game_id: str) -> bool:
+        """Check if game has ANY entry in games.map (regardless of path validity).
+        
+        This is used to distinguish between:
+        - No entry at all (never installed via Unifideck) → use store API fallback
+        - Entry exists but path missing (was installed, files deleted) → don't use store fallback
+        
+        Args:
+            store: Store name ('epic' or 'gog')
+            game_id: Game ID
+            
+        Returns:
+            True if any entry exists in games.map for this game
         """
         map_file = os.path.expanduser("~/.local/share/unifideck/games.map")
         if not os.path.exists(map_file):
@@ -814,7 +894,7 @@ class ShortcutsManager:
                     if line.startswith(f"{key}|"):
                         return True
         except Exception as e:
-            logger.debug(f"[GameMap] Error checking games.map: {e}")
+            logger.debug(f"[GameMap] Error checking games.map entry: {e}")
         return False
 
     def reconcile_games_map(self) -> Dict[str, Any]:
@@ -882,6 +962,272 @@ class ShortcutsManager:
         
         return {'removed': removed, 'kept': kept, 'entries_removed': entries_removed}
 
+    async def reconcile_games_map_from_installed(self, epic_client=None, gog_client=None, amazon_client=None) -> Dict[str, Any]:
+        """
+        Repair games.map for Unifideck shortcuts that are missing entries.
+        
+        This ONLY processes shortcuts that Unifideck created (LaunchOptions = store:game_id).
+        It does NOT touch Heroic, Lutris, or other tool shortcuts.
+        
+        For each Unifideck shortcut missing from games.map:
+        1. Check if game is installed via store API
+        2. If yes, get install path and add to games.map
+        
+        Called during Force Sync to repair existing installations.
+        
+        Args:
+            epic_client: EpicConnector instance for getting Epic install info
+            gog_client: GOGAPIClient instance for getting GOG install info
+            amazon_client: AmazonGamesClient instance for getting Amazon install info
+            
+        Returns:
+            dict: {'added': int, 'already_mapped': int, 'skipped': int, 'errors': list}
+        """
+        added = 0
+        already_mapped = 0
+        skipped = 0
+        errors = []
+        
+        logger.info("[ReconcileMap] Starting games.map reconciliation for Unifideck shortcuts")
+        
+        try:
+            # Load current games.map entries
+            map_file = os.path.expanduser("~/.local/share/unifideck/games.map")
+            existing_entries = set()
+            
+            if os.path.exists(map_file):
+                with open(map_file, 'r') as f:
+                    for line in f:
+                        parts = line.strip().split('|')
+                        if parts:
+                            existing_entries.add(parts[0])  # store:game_id
+            
+            # Load shortcuts and find Unifideck shortcuts missing from games.map
+            shortcuts_data = await self.read_shortcuts()
+            shortcuts = shortcuts_data.get('shortcuts', {})
+            
+            # Pre-fetch installed games from stores (for efficiency)
+            epic_installed = {}
+            gog_installed = {}
+            amazon_installed = {}
+            
+            if epic_client and epic_client.legendary_bin:
+                try:
+                    epic_installed = await epic_client.get_installed()
+                except Exception as e:
+                    errors.append(f"Epic fetch: {e}")
+            
+            if gog_client:
+                try:
+                    gog_list = await gog_client.get_installed()
+                    # GOG returns list of IDs, convert to dict with info
+                    for gid in gog_list:
+                        info = gog_client.get_installed_game_info(gid)
+                        if info:
+                            gog_installed[gid] = info
+                except Exception as e:
+                    errors.append(f"GOG fetch: {e}")
+            
+            if amazon_client:
+                try:
+                    amazon_installed = await amazon_client.get_installed()
+                except Exception as e:
+                    errors.append(f"Amazon fetch: {e}")
+            
+            # Iterate over shortcuts and find Unifideck ones missing from games.map
+            for idx, shortcut in shortcuts.items():
+                launch_options = shortcut.get('LaunchOptions', '')
+                
+                # Check if this is a Unifideck shortcut (store:game_id format)
+                # Skip if it's a Heroic/Lutris/other shortcut
+                if ':' not in launch_options:
+                    continue
+                
+                parts = launch_options.split(':', 1)
+                store = parts[0]
+                game_id = parts[1] if len(parts) > 1 else ''
+                
+                # Only process known stores
+                if store not in ('epic', 'gog', 'amazon'):
+                    continue
+                
+                key = f"{store}:{game_id}"
+                
+                # Check if already in games.map
+                if key in existing_entries:
+                    already_mapped += 1
+                    continue
+                
+                # Not in games.map - check if installed and get path
+                game_title = shortcut.get('AppName', game_id)
+                
+                try:
+                    if store == 'epic' and game_id in epic_installed:
+                        game_data = epic_installed[game_id]
+                        install_info = game_data.get('install', {})
+                        install_path = install_info.get('install_path', '')
+                        executable = game_data.get('manifest', {}).get('launch_exe', '')
+                        
+                        if install_path and os.path.exists(install_path):
+                            exe_path = os.path.join(install_path, executable) if executable else ''
+                            await self._update_game_map('epic', game_id, exe_path, install_path)
+                            added += 1
+                            logger.info(f"[ReconcileMap] Added Epic '{game_title}' to games.map")
+                        else:
+                            skipped += 1
+                            logger.debug(f"[ReconcileMap] Epic '{game_title}' not installed or path missing")
+                    
+                    elif store == 'gog' and game_id in gog_installed:
+                        game_info = gog_installed[game_id]
+                        install_path = game_info.get('install_path', '')
+                        exe_path = game_info.get('executable', '')
+                        
+                        if install_path and os.path.exists(install_path):
+                            await self._update_game_map('gog', game_id, exe_path or '', install_path)
+                            added += 1
+                            logger.info(f"[ReconcileMap] Added GOG '{game_title}' to games.map")
+                        else:
+                            skipped += 1
+                            logger.debug(f"[ReconcileMap] GOG '{game_title}' not installed or path missing")
+                    
+                    elif store == 'amazon' and game_id in amazon_installed:
+                        game_data = amazon_installed[game_id]
+                        install_path = game_data.get('path', '')
+                        executable = game_data.get('executable', '')
+                        
+                        if install_path and os.path.exists(install_path):
+                            await self._update_game_map('amazon', game_id, executable or '', install_path)
+                            added += 1
+                            logger.info(f"[ReconcileMap] Added Amazon '{game_title}' to games.map")
+                        else:
+                            skipped += 1
+                            logger.debug(f"[ReconcileMap] Amazon '{game_title}' not installed or path missing")
+                    else:
+                        skipped += 1
+                        
+                except Exception as e:
+                    errors.append(f"{game_title}: {e}")
+                    logger.error(f"[ReconcileMap] Error processing {game_title}: {e}")
+            
+            if added > 0:
+                logger.info(f"[ReconcileMap] Added {added} missing entries to games.map")
+            else:
+                logger.debug(f"[ReconcileMap] No missing entries ({already_mapped} already mapped, {skipped} skipped)")
+                
+        except Exception as e:
+            logger.error(f"[ReconcileMap] Error: {e}")
+            errors.append(str(e))
+        
+        return {'added': added, 'already_mapped': already_mapped, 'skipped': skipped, 'errors': errors}
+
+    def validate_gog_exe_paths(self, gog_client=None) -> Dict[str, Any]:
+        """
+        Validate and auto-correct GOG executable paths that point to installers.
+        
+        If a GOG game's exe_path looks like an installer file (large .sh, contains colon, etc.),
+        this function re-runs the game executable detection and updates games.map.
+        
+        Args:
+            gog_client: Reference to GOGAPIClient for exe detection
+            
+        Returns:
+            dict: {'corrected': int, 'checked': int, 'corrections': list}
+        """
+        map_file = os.path.expanduser("~/.local/share/unifideck/games.map")
+        
+        if not os.path.exists(map_file):
+            return {'corrected': 0, 'checked': 0, 'corrections': []}
+        
+        corrected = 0
+        checked = 0
+        corrections = []
+        modified_lines = []
+        
+        try:
+            with open(map_file, 'r') as f:
+                lines = f.readlines()
+            
+            for line in lines:
+                line_stripped = line.strip()
+                if not line_stripped:
+                    modified_lines.append(line)
+                    continue
+                    
+                parts = line_stripped.split('|')
+                if len(parts) < 3:
+                    modified_lines.append(line)
+                    continue
+                
+                key = parts[0]  # store:game_id
+                exe_path = parts[1]
+                work_dir = parts[2]
+                
+                # Only check GOG games
+                if not key.startswith('gog:'):
+                    modified_lines.append(line)
+                    continue
+                
+                checked += 1
+                
+                # Check if exe_path looks like an installer
+                is_likely_installer = False
+                if exe_path and exe_path.endswith('.sh'):
+                    try:
+                        if os.path.exists(exe_path):
+                            file_size = os.path.getsize(exe_path)
+                            filename = os.path.basename(exe_path)
+                            is_likely_installer = (
+                                file_size > 50 * 1024 * 1024 or  # Over 50MB
+                                filename.startswith('gog_') or
+                                filename.startswith('setup_') or
+                                ':' in filename  # Game title pattern
+                            )
+                    except Exception:
+                        pass
+                
+                if is_likely_installer and gog_client:
+                    logger.info(f"[ValidateGOG] Detected installer path for {key}: {exe_path}")
+                    
+                    # Get the install directory (parent of exe or work_dir)
+                    install_dir = work_dir if work_dir else os.path.dirname(exe_path)
+                    
+                    if install_dir and os.path.exists(install_dir):
+                        # Re-run executable detection
+                        new_exe = gog_client._find_game_executable(install_dir)
+                        
+                        if new_exe and new_exe != exe_path:
+                            logger.info(f"[ValidateGOG] Correcting path: {exe_path} -> {new_exe}")
+                            
+                            # Update the line
+                            new_work_dir = os.path.dirname(new_exe)
+                            parts[1] = new_exe
+                            parts[2] = new_work_dir
+                            corrected_line = '|'.join(parts) + '\n'
+                            modified_lines.append(corrected_line)
+                            
+                            corrections.append({
+                                'game_id': key,
+                                'old_path': exe_path,
+                                'new_path': new_exe
+                            })
+                            corrected += 1
+                            continue
+                
+                # Keep original line if no correction needed
+                modified_lines.append(line)
+            
+            # Write back if corrections were made
+            if corrected > 0:
+                with open(map_file, 'w') as f:
+                    f.writelines(modified_lines)
+                logger.info(f"[ValidateGOG] Corrected {corrected} installer paths in games.map")
+            
+        except Exception as e:
+            logger.error(f"[ValidateGOG] Error: {e}")
+            return {'corrected': 0, 'checked': checked, 'corrections': [], 'error': str(e)}
+        
+        return {'corrected': corrected, 'checked': checked, 'corrections': corrections}
+
     def repair_shortcuts_exe_path(self) -> Dict[str, Any]:
         """
         Repair shortcuts pointing to old plugin paths after reinstall.
@@ -948,6 +1294,7 @@ class ShortcutsManager:
             errors.append(str(e))
         
         return {'repaired': repaired, 'checked': checked, 'errors': errors}
+
 
     def reconcile_shortcuts_from_games_map(self) -> Dict[str, Any]:
         """
@@ -1194,15 +1541,24 @@ class ShortcutsManager:
 
     # ... existing read/write methods ...
 
-    async def mark_installed(self, game_id: str, store: str, install_path: str, exe_path: str = None) -> bool:
-        """Mark a game as installed in shortcuts.vdf (Dynamic Launch)"""
+    async def mark_installed(self, game_id: str, store: str, install_path: str, exe_path: str = None, work_dir: str = None) -> bool:
+        """Mark a game as installed in shortcuts.vdf (Dynamic Launch)
+        
+        Args:
+            game_id: Game identifier
+            store: Store name (epic, gog, amazon)
+            install_path: Path where game is installed
+            exe_path: Path to game executable
+            work_dir: Working directory for game execution (from goggame-*.info or fallback to exe dir)
+        """
         try:
             logger.info(f"Marking {game_id} ({store}) as installed")
-            logger.info(f"[MarkInstalled] Received: exe_path='{exe_path}', install_path='{install_path}'")
+            logger.info(f"[MarkInstalled] Received: exe_path='{exe_path}', install_path='{install_path}', work_dir='{work_dir}'")
             
             # 1. Update dynamic map file (No Steam restart needed)
-            work_dir = os.path.dirname(exe_path) if exe_path else install_path
-            await self._update_game_map(store, game_id, exe_path or "", work_dir)
+            # Use provided work_dir, otherwise fallback to exe directory, otherwise install path
+            effective_work_dir = work_dir or (os.path.dirname(exe_path) if exe_path else install_path)
+            await self._update_game_map(store, game_id, exe_path or "", effective_work_dir)
 
             # 2. Update shortcut to point to dynamic launcher
             shortcuts_data = await self.read_shortcuts()
@@ -1214,7 +1570,7 @@ class ShortcutsManager:
             
             for s in shortcuts.values():
                 opts = s.get('LaunchOptions', '')
-                if target_launch_options in opts:
+                if get_full_id(opts) == target_launch_options:
                     target_shortcut = s
                     break
             
@@ -1298,7 +1654,7 @@ class ShortcutsManager:
             # Check if game already exists (duplicate detection)
             target_launch_options = f'{game.store}:{game.id}'
             for idx, shortcut in shortcuts.get("shortcuts", {}).items():
-                if shortcut.get('LaunchOptions') == target_launch_options:
+                if get_full_id(shortcut.get('LaunchOptions', '')) == target_launch_options:
                     logger.info(f"Game {game.title} already in shortcuts, skipping")
                     return True  # Already exists, not an error
 
@@ -1367,14 +1723,15 @@ class ShortcutsManager:
                 launch = shortcut.get('LaunchOptions', '')
 
                 # Only touch Unifideck shortcuts (epic: or gog:)
-                if launch.startswith('epic:') or launch.startswith('gog:') or launch.startswith('amazon:'):
+                if is_unifideck_shortcut(launch):
                     # Check if we should manage this store
-                    store_prefix = launch.split(':', 1)[0]
+                    store_prefix = get_store_prefix(launch)
                     if valid_stores is not None and store_prefix not in valid_stores:
                         continue
 
                     # If this game no longer exists in current library, it's orphaned
-                    if launch not in current_launch_options:
+                    full_id = get_full_id(launch)
+                    if full_id not in current_launch_options:
                         logger.debug(f"Removing orphaned shortcut: {shortcut.get('AppName')} ({launch})")
                         del shortcuts["shortcuts"][idx]
                         removed_count += 1
@@ -1526,25 +1883,26 @@ class ShortcutsManager:
                 exe_path_current = shortcut.get('Exe', '').strip('"')
 
                 # Only touch Unifideck shortcuts (epic: or gog:)
-                if launch.startswith('epic:') or launch.startswith('gog:') or launch.startswith('amazon:'):
+                if is_unifideck_shortcut(launch):
                     # Check if we should manage this store
-                    store_prefix = launch.split(':', 1)[0]
+                    store_prefix = get_store_prefix(launch)
                     if valid_stores is not None and store_prefix not in valid_stores:
                         continue
 
-                    if launch not in current_launch_options:
+                    full_id = get_full_id(launch)
+                    if full_id not in current_launch_options:
                         # Orphaned - game no longer in library
                         logger.debug(f"Removing orphaned shortcut: {shortcut.get('AppName')} ({launch})")
                         to_remove.append(idx)
                         removed_count += 1
                     else:
                         # Existing game - update it with current data
-                        game = games_by_launch_opts.get(launch)
+                        game = games_by_launch_opts.get(full_id)
                         if game:
                             # Update shortcut fields
                             shortcut['AppName'] = game.title
                             shortcut['exe'] = launcher_script
-                            shortcut['LaunchOptions'] = launch
+                            shortcut['LaunchOptions'] = full_id  # Normalize to canonical form
                             
                             # Update tags
                             store_tag = game.store.title()
@@ -1684,7 +2042,7 @@ class ShortcutsManager:
             # Find shortcut by LaunchOptions (reliable) or AppName (fallback)
             target_shortcut = None
             for idx, s in shortcuts.get("shortcuts", {}).items():
-                if target_launch_options in s.get('LaunchOptions', ''):
+                if get_full_id(s.get('LaunchOptions', '')) == target_launch_options:
                     target_shortcut = s
                     break
             
@@ -1788,7 +2146,7 @@ class ShortcutsManager:
 
             target_launch_options = f'{store}:{game_id}'
             for idx, shortcut in list(shortcuts.get("shortcuts", {}).items()):
-                if shortcut.get('LaunchOptions') == target_launch_options:
+                if get_full_id(shortcut.get('LaunchOptions', '')) == target_launch_options:
                     del shortcuts["shortcuts"][idx]
                     logger.info(f"Removed {game_id} from shortcuts")
                     return await self.write_shortcuts(shortcuts)
@@ -3452,9 +3810,18 @@ class GOGAPIClient:
                 logger.info(f"[GOG] Download URL: {installer_url}")
                 
                 # Create a wrapper callback that calculates weighted overall progress
+                # Track last callback time to throttle updates and reduce ETA jitter
+                last_weighted_callback_time = [0.0]  # Use list for nonlocal access
+                
                 async def weighted_progress_callback(progress_data, part_idx=index, part_expected=expected_size):
                     nonlocal cumulative_downloaded
                     if progress_callback:
+                        # Throttle callbacks to max once per second
+                        now = time.time()
+                        if now - last_weighted_callback_time[0] < 1.0:
+                            return  # Skip this update
+                        last_weighted_callback_time[0] = now
+                        
                         # Calculate overall progress: completed parts + current part progress
                         completed_bytes = sum(part_sizes[:part_idx])  # Bytes from completed parts
                         current_part_bytes = progress_data.get('downloaded_bytes', 0)
@@ -3466,12 +3833,20 @@ class GOGAPIClient:
                             # Fallback: use per-part progress
                             overall_percent = progress_data.get('progress_percent', 0)
                         
+                        # Calculate ETA based on TOTAL remaining bytes, not just current part
+                        speed_bps = progress_data.get('speed_bps', 0)
+                        total_remaining = total_bytes_all_parts - overall_downloaded
+                        if speed_bps > 0:
+                            total_eta_seconds = int(total_remaining / speed_bps)
+                        else:
+                            total_eta_seconds = 0
+                        
                         await progress_callback({
                             'progress_percent': overall_percent,
                             'downloaded_bytes': overall_downloaded,
                             'total_bytes': total_bytes_all_parts,
-                            'speed_bps': progress_data.get('speed_bps', 0),
-                            'eta_seconds': progress_data.get('eta_seconds', 0),
+                            'speed_bps': speed_bps,
+                            'eta_seconds': total_eta_seconds,  # Now based on total remaining
                             'current_part': part_idx + 1,
                             'total_parts': len(installers_list)
                         })
@@ -3510,6 +3885,13 @@ class GOGAPIClient:
             # Detect if it's a shell script by content, not just extension
             is_linux_installer = installer_platform == 'linux'
             
+            # ** PHASE UPDATE: Notify that extraction is starting **
+            if progress_callback:
+                await progress_callback({
+                    'phase': 'extracting',
+                    'phase_message': 'Extracting game files... This may take several minutes.'
+                })
+            
             # If platform is "linux" but file might not have .sh extension, verify by content
             if is_linux_installer or self._is_shell_script(main_installer_path):
                 os.chmod(main_installer_path, 0o755)
@@ -3533,10 +3915,26 @@ class GOGAPIClient:
                     'install_path': install_path
                 }
 
-            # 7. Find game executable (only if extraction succeeded)
-            game_exe = self._find_game_executable(install_path)
+            # 7. Run post-install script (Native Linux games often need this to generate start.sh)
+            if is_linux_installer:
+                logger.info(f"[GOG] Checking for post-install script...")
+                await self._run_post_install(install_path)
+
+            # ** PHASE UPDATE: Notify that verification is starting **
+            if progress_callback:
+                await progress_callback({
+                    'phase': 'verifying',
+                    'phase_message': 'Verifying installation...'
+                })
+
+            # 8. Find game executable and working directory
+            exe_result = self._find_game_executable_with_workdir(install_path)
+            game_exe = exe_result[0] if exe_result else None
+            work_dir = exe_result[1] if exe_result else install_path
+            
             if game_exe:
                 logger.info(f"[GOG] Found game executable: {game_exe}")
+                logger.info(f"[GOG] Working directory: {work_dir}")
                 
                 # Write marker file to ensure detection works even if extraction was messy
                 try:
@@ -3546,11 +3944,19 @@ class GOGAPIClient:
                 except Exception as e:
                     logger.warning(f"[GOG] Failed to write marker file: {e}")
 
+                # ** PHASE UPDATE: Complete **
+                if progress_callback:
+                    await progress_callback({
+                        'phase': 'complete',
+                        'phase_message': 'Installation complete!'
+                    })
+
                 logger.info(f"[GOG] Game installed successfully to {install_path}")
                 return {
                     'success': True,
                     'install_path': install_path,
                     'executable': game_exe,
+                    'work_dir': work_dir,  # NEW: Working directory for shortcut
                     'message': f'Game installed to {install_path}'
                 }
             else:
@@ -3563,11 +3969,19 @@ class GOGAPIClient:
                 except Exception as e:
                     logger.warning(f"[GOG] Failed to write marker file: {e}")
 
+                # ** PHASE UPDATE: Complete (Fallback case) **
+                if progress_callback:
+                    await progress_callback({
+                        'phase': 'complete',
+                        'phase_message': 'Installation complete!'
+                    })
+
                 logger.info(f"[GOG] Game installed successfully to {install_path} (no executable found)")
                 return {
                     'success': True,
                     'install_path': install_path,
                     'executable': None, # Explicitly set to None if not found
+                    'work_dir': work_dir,  # Still return work_dir even without executable
                     'message': f'Game installed to {install_path}, but no executable was automatically found.'
                 }
 
@@ -3740,27 +4154,69 @@ class GOGAPIClient:
     async def uninstall_game(self, game_id: str) -> Dict[str, Any]:
         """Uninstall GOG game by deleting directory"""
         try:
-            # 1. Find install directory
-            # We have to scan because we don't store the path
+            # 1. Find install directory from games.map or by scanning
             install_path = None
-            base_path = os.path.expanduser("~/GOG Games")
             
-            if os.path.exists(base_path):
-                for item in os.listdir(base_path):
-                    item_path = os.path.join(base_path, item)
-                    if os.path.isdir(item_path):
-                        # Check ID in marker file or info file
-                        found_id = self._get_game_id_from_dir(item_path)
-                        if found_id == game_id:
-                            install_path = item_path
-                            break
+            # Try games.map first (most reliable - stores actual install path)
+            games_map_path = os.path.join(os.path.dirname(__file__), 'bin', 'games.map')
+            if os.path.exists(games_map_path):
+                try:
+                    with open(games_map_path, 'r') as f:
+                        games_map = json.load(f)
+                        key = f"gog:{game_id}"
+                        if key in games_map:
+                            entry = games_map[key]
+                            work_dir = entry.get('work_dir', '')
+                            exe_path = entry.get('exe_path', '')
+                            
+                            # Work backwards from exe_path or work_dir to find install root
+                            if work_dir and os.path.exists(work_dir):
+                                # Look for .unifideck-id marker going up the tree
+                                test_path = work_dir
+                                for _ in range(5):  # Max 5 levels up
+                                    marker = os.path.join(test_path, '.unifideck-id')
+                                    if os.path.exists(marker):
+                                        install_path = test_path
+                                        logger.info(f"[GOG] Found install path from games.map: {install_path}")
+                                        break
+                                    parent = os.path.dirname(test_path)
+                                    if parent == test_path:
+                                        break
+                                    test_path = parent
+                except Exception as e:
+                    logger.warning(f"[GOG] Error reading games.map: {e}")
+            
+            # Fallback: Scan known install locations
+            if not install_path:
+                base_paths = [
+                    os.path.expanduser("~/GOG Games"),
+                    os.path.expanduser("~/Games"),
+                    "/run/media/deck/microSTEAMDECK/Games",
+                    "/run/media/mmcblk0p1/Games",
+                ]
+                
+                for base_path in base_paths:
+                    if not os.path.exists(base_path):
+                        continue
+                    for item in os.listdir(base_path):
+                        item_path = os.path.join(base_path, item)
+                        if os.path.isdir(item_path):
+                            # Check ID in marker file or info file
+                            found_id = self._get_game_id_from_dir(item_path)
+                            if found_id == game_id:
+                                install_path = item_path
+                                logger.info(f"[GOG] Found install path by scanning: {install_path}")
+                                break
+                    if install_path:
+                        break
             
             if not install_path:
                 return {'success': False, 'error': 'Game installation directory not found'}
 
             # 2. Safety check - ensure it's a Unifideck game
-            # Additional safety: ensure path contains "GOG Games" and isn't root
-            if "GOG Games" not in install_path or install_path == base_path:
+            # Verify path looks like a game install (not root or system dirs)
+            path_parts = install_path.split(os.sep)
+            if len(path_parts) < 4 or 'Games' not in install_path:
                  return {'success': False, 'error': 'Safety check failed: Invalid uninstall path'}
 
             marker_file = os.path.join(install_path, '.unifideck-id')
@@ -3936,7 +4392,7 @@ class GOGAPIClient:
                             last_downloaded_for_speed = downloaded
                             current_speed_bps = 0
                             
-                            async for chunk in response.content.iter_chunked(65536):  # 64KB chunks for speed
+                            async for chunk in response.content.iter_chunked(262144):  # 64KB chunks for speed
                                 f.write(chunk)
                                 downloaded += len(chunk)
                                 
@@ -3958,7 +4414,14 @@ class GOGAPIClient:
                                     if current_percent % 5 == 0 and current_percent != last_logged_percent:
                                         mb_downloaded = downloaded / (1024 * 1024)
                                         mb_total = total_size / (1024 * 1024)
-                                        logger.info(f"[GOG Download] {progress:.1f}% ({mb_downloaded:.1f} MB / {mb_total:.1f} MB)")
+                                        speed_mbps = current_speed_bps / (1024 * 1024)
+                                        logger.info(f"[GOG Download] {progress:.1f}% ({mb_downloaded:.1f} MB / {mb_total:.1f} MB) @ {speed_mbps:.1f} MB/s")
+                                        
+                                        # Inform users about slow GOG CDN speeds (known limitation)
+                                        if current_percent == 5 and speed_mbps < 2.0 and speed_mbps > 0:
+                                            logger.info(f"[GOG Download] Note: GOG servers are known to have slower download speeds than Steam/Epic.")
+                                            logger.info(f"[GOG Download] This is a GOG CDN limitation, not a plugin issue. A VPN may help improve speeds.")
+                                        
                                         last_logged_percent = current_percent
                                     
                                     # Call progress callback with full stats
@@ -4026,10 +4489,17 @@ class GOGAPIClient:
                     
                     # Using subprocess.run since we are in an async function but might block briefly? 
                     # Better to use asyncio.
+                    # Sanitize environment to prevent library conflicts (e.g. libreadline crash)
+                    env = os.environ.copy()
+                    env.pop('LD_LIBRARY_PATH', None)
+                    env.pop('LD_PRELOAD', None)
+                    
                     process = await asyncio.create_subprocess_exec(
                         script,
                         stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE
+                        stderr=asyncio.subprocess.PIPE,
+                        env=env,
+                        cwd=install_path # Run inside install dir usually desired
                     )
                     stdout, stderr = await process.communicate()
                     
@@ -4038,7 +4508,7 @@ class GOGAPIClient:
                     else:
                         logger.warning(f"[GOG] Post-install script failed (Code {process.returncode}).\nStderr: {stderr.decode().strip()}")
                         
-                    return # Only run the first one found? Usually only one.
+                    return # Only run the first one found
                     
                 except Exception as e:
                     logger.error(f"[GOG] Error running post-install script: {e}")
@@ -4113,175 +4583,513 @@ class GOGAPIClient:
         except Exception as e:
             logger.warning(f"[GOG] Error fixing permissions: {e}")
 
-    async def _extract_installer(self, installer_path: str, install_path: str, progress_callback=None) -> bool:
-        """Extract GOG Linux installer (.sh file)
-
-        GOG Linux installers are Makeself archives containing MojoSetup.
-        We use the MojoSetup silent install command to extract game files.
-        
-        Exit code 127 = "command not found" - typically means PATH is wrong
-        or required binaries (tar, gzip, etc.) aren't accessible.
+    def _patch_missing_libs(self, install_path: str):
         """
-        extraction_succeeded = False
+        Copy commonly missing libraries from Steam Runtime into the game's
+        bundled lib directories. This fixes issues where older GOG Linux games
+        bundle DOSBox/ScummVM without all required dependencies.
+        """
+        import shutil
+        import glob
         
-        # Set up a clean, complete environment for the installer
-        # Makeself archives need: bash, tar, gzip, dd, head, tail, cut, etc.
-        env = os.environ.copy()
+        # Steam Runtime library paths
+        steam_runtime_libs = {
+            'x86_64': os.path.expanduser('~/.steam/steam/ubuntu12_32/steam-runtime/usr/lib/x86_64-linux-gnu'),
+            'i386': os.path.expanduser('~/.steam/steam/ubuntu12_32/steam-runtime/usr/lib/i386-linux-gnu'),
+        }
         
-        # Get plugin directory for bundled tools
-        plugin_dir = os.path.dirname(__file__)
-        busybox_tools = os.path.join(plugin_dir, 'bin', 'busybox-tools')
+        # List of commonly missing libraries in GOG DOSBox/ScummVM builds
+        # These are libraries that the bundled binaries need but GOG didn't include
+        missing_libs = [
+            'libFLAC.so.8*',
+            'libogg.so.0*',
+            'libvorbis.so.0*',
+            'libvorbisfile.so.3*',
+            'libtheora.so.0*',
+            'libtheoradec.so.1*',
+        ]
         
-        # Ensure complete PATH with bundled tools first, then standard locations
-        # This guarantees extraction works even if system tools are missing/broken
-        if os.path.exists(busybox_tools):
-            env['PATH'] = f"{busybox_tools}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-            logger.info(f"[GOG] Using bundled BusyBox tools from: {busybox_tools}")
+        # Find game's lib directories (DOSBox/ScummVM typically use these paths)
+        game_lib_patterns = [
+            os.path.join(install_path, 'dosbox', 'libs', 'x86_64'),
+            os.path.join(install_path, 'dosbox', 'libs', 'i386'),
+            os.path.join(install_path, 'scummvm', 'libs', 'x86_64'),
+            os.path.join(install_path, 'scummvm', 'libs', 'i386'),
+            os.path.join(install_path, 'libs', 'x86_64'),
+            os.path.join(install_path, 'libs', 'i386'),
+        ]
+        
+        patched_count = 0
+        
+        for game_lib_dir in game_lib_patterns:
+            if not os.path.isdir(game_lib_dir):
+                continue
+            
+            # Determine architecture from path
+            arch = 'x86_64' if 'x86_64' in game_lib_dir else 'i386'
+            steam_lib_dir = steam_runtime_libs.get(arch)
+            
+            if not steam_lib_dir or not os.path.isdir(steam_lib_dir):
+                continue
+            
+            logger.debug(f"[GOG] Checking for missing libs in {game_lib_dir}")
+            
+            for lib_pattern in missing_libs:
+                # Check if any matching lib already exists in game dir
+                existing = glob.glob(os.path.join(game_lib_dir, lib_pattern))
+                if existing:
+                    continue  # Already has this library
+                
+                # Find matching libs in Steam Runtime
+                steam_libs = glob.glob(os.path.join(steam_lib_dir, lib_pattern))
+                
+                for steam_lib in steam_libs:
+                    lib_name = os.path.basename(steam_lib)
+                    dest_path = os.path.join(game_lib_dir, lib_name)
+                    
+                    try:
+                        if os.path.islink(steam_lib):
+                            # Copy symlink
+                            link_target = os.readlink(steam_lib)
+                            if os.path.lexists(dest_path):
+                                os.remove(dest_path)
+                            os.symlink(link_target, dest_path)
+                            logger.info(f"[GOG] Patched symlink: {lib_name} -> {link_target}")
+                        else:
+                            # Copy actual file
+                            shutil.copy2(steam_lib, dest_path)
+                            logger.info(f"[GOG] Patched library: {lib_name}")
+                        patched_count += 1
+                    except Exception as e:
+                        logger.warning(f"[GOG] Failed to copy {lib_name}: {e}")
+        
+        if patched_count > 0:
+            logger.info(f"[GOG] Patched {patched_count} missing libraries from Steam Runtime")
         else:
-            env['PATH'] = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
-            logger.warning(f"[GOG] Bundled BusyBox tools not found, using system PATH only")
+            logger.debug(f"[GOG] No missing libraries needed patching")
+
+        # Also patch gog_com.shlib to fix LD_LIBRARY_PATH issue in run_dosbox/run_scummvm
+        gog_shlib = os.path.join(install_path, 'support', 'gog_com.shlib')
+        if os.path.exists(gog_shlib):
+            try:
+                with open(gog_shlib, 'r') as f:
+                    content = f.read()
+                
+                patched = False
+                
+                # Check if run_dosbox needs patching (no LD_LIBRARY_PATH export)
+                if 'run_dosbox()' in content and 'PATCHED BY UNIFIDECK' not in content:
+                    logger.info(f"[GOG] Patching gog_com.shlib to fix LD_LIBRARY_PATH in run_dosbox")
+                    
+                    # Find run_dosbox function and replace it entirely
+                    # We look for 'run_dosbox() {' and find the matching closing brace
+                    dosbox_patch = '''run_dosbox() {
+  local conf_1="${1}"
+  local conf_2="${2}"
+  
+  # PATCHED BY UNIFIDECK: Export library path
+  local arch=$(uname -m)
+  if [ "$arch" == "x86_64" ]; then
+      export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$(pwd)/dosbox/libs/x86_64"
+  else
+      export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$(pwd)/dosbox/libs/i386"
+  fi
+  
+ ./dosbox/dosbox -conf "${conf_1}" -conf "${conf_2}" -no-console -c exit 
+}'''
+                    
+                    # Use a function to find and replace the shell function
+                    def replace_shell_function(content, func_name, replacement):
+                        """Replace a shell function definition in content."""
+                        import re
+                        # Match function_name() { ... } where ... might contain nested braces
+                        # We find the start and then count braces to find the end
+                        pattern = re.escape(func_name) + r'\s*\(\)\s*\{'
+                        match = re.search(pattern, content)
+                        if not match:
+                            return content
+                        
+                        start = match.start()
+                        brace_start = match.end() - 1  # Position of opening {
+                        
+                        # Count braces to find matching }
+                        depth = 1
+                        pos = brace_start + 1
+                        while pos < len(content) and depth > 0:
+                            if content[pos] == '{':
+                                depth += 1
+                            elif content[pos] == '}':
+                                depth -= 1
+                            pos += 1
+                        
+                        if depth == 0:
+                            # Replace from start to pos (which is after closing })
+                            return content[:start] + replacement + content[pos:]
+                        return content
+                    
+                    content = replace_shell_function(content, 'run_dosbox', dosbox_patch)
+                    patched = True
+                
+                # Also patch run_scummvm if present
+                if 'run_scummvm()' in content and 'PATCHED BY UNIFIDECK' not in content.split('run_scummvm')[1][:200]:
+                    logger.info(f"[GOG] Patching gog_com.shlib to fix LD_LIBRARY_PATH in run_scummvm")
+                    
+                    scummvm_patch = '''run_scummvm() {
+  local conf="${1}"
+  
+  # PATCHED BY UNIFIDECK: Export library path
+  local arch=$(uname -m)
+  if [ "$arch" == "x86_64" ]; then
+      export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$(pwd)/scummvm/libs/x86_64"
+  else
+      export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$(pwd)/scummvm/libs/i386"
+  fi
+  
+ ./scummvm/scummvm -c "${conf}" --themepath=scummvm
+}'''
+                    
+                    def replace_shell_function(content, func_name, replacement):
+                        """Replace a shell function definition in content."""
+                        import re
+                        pattern = re.escape(func_name) + r'\s*\(\)\s*\{'
+                        match = re.search(pattern, content)
+                        if not match:
+                            return content
+                        
+                        start = match.start()
+                        brace_start = match.end() - 1
+                        
+                        depth = 1
+                        pos = brace_start + 1
+                        while pos < len(content) and depth > 0:
+                            if content[pos] == '{':
+                                depth += 1
+                            elif content[pos] == '}':
+                                depth -= 1
+                            pos += 1
+                        
+                        if depth == 0:
+                            return content[:start] + replacement + content[pos:]
+                        return content
+                    
+                    content = replace_shell_function(content, 'run_scummvm', scummvm_patch)
+                    patched = True
+                
+                if patched:
+                    with open(gog_shlib, 'w') as f:
+                        f.write(content)
+                    logger.info(f"[GOG] gog_com.shlib patched successfully")
+                    
+            except Exception as e:
+                logger.warning(f"[GOG] Failed to patch gog_com.shlib: {e}")
+
+
+
+    async def _extract_installer(self, installer_path: str, install_path: str, progress_callback=None) -> bool:
+        """Extract GOG Linux installer using pure Python (gogextract algorithm).
         
-        # Set HOME - required by some installers for temp files
-        env['HOME'] = os.path.expanduser('~')
+        GOG Linux installers are Makeself archives with structure:
+        1. Shell script header (contains offset/filesize info)
+        2. MojoSetup tar.gz archive (installer files - we skip this)
+        3. data.zip (actual game files - this is what we extract)
         
-        # Set TERM to avoid ncurses issues
-        env['TERM'] = 'xterm'
+        This approach is based on https://github.com/Yepoleb/gogextract (MIT License)
+        and requires no external binaries - pure Python with stdlib.
+        """
+        import io
+        import re
+        import shutil
+        import zipfile
         
-        # Disable any GUI attempts by MojoSetup
-        env['DISPLAY'] = ''
-        env['WAYLAND_DISPLAY'] = ''
+        FILESIZE_RE = re.compile(r'filesizes="(\d+?)"')
+        OFFSET_RE = re.compile(r'offset=`head -n (\d+?) "\$0"')
         
-        # Set locale to avoid encoding issues
-        env['LANG'] = 'C.UTF-8'
-        env['LC_ALL'] = 'C.UTF-8'
+        logger.info(f"[GOG] Extracting installer using pure Python (gogextract)")
+        logger.info(f"[GOG] Input: {installer_path}")
+        logger.info(f"[GOG] Output: {install_path}")
         
-        # Clear LD_PRELOAD which can interfere (Steam overlay)
-        env.pop('LD_PRELOAD', None)
-        env.pop('LD_LIBRARY_PATH', None)
-        
-        # Verify required binaries exist
-        required_bins = ['bash', 'tar', 'gzip', 'dd', 'head', 'tail', 'cut', 'wc', 'sed']
-        missing_bins = []
-        for bin_name in required_bins:
-            found = False
-            for path_dir in env['PATH'].split(':'):
-                if os.path.exists(os.path.join(path_dir, bin_name)):
-                    found = True
-                    break
-            if not found:
-                missing_bins.append(bin_name)
-        
-        if missing_bins:
-            logger.warning(f"[GOG] Missing binaries in PATH: {missing_bins}")
-        else:
-            logger.info(f"[GOG] All required binaries found in PATH")
-        
-        logger.info(f"[GOG] Extraction environment: PATH={env['PATH']}, HOME={env['HOME']}")
+        os.makedirs(install_path, exist_ok=True)
         
         try:
-            # Method 1: MojoSetup silent install (the correct way for GOG installers)
-            # GOG installers = Makeself + MojoSetup. The '-- ' passes args to MojoSetup.
-            logger.info(f"[GOG] Running MojoSetup silent install")
-            proc = await asyncio.create_subprocess_exec(
-                '/bin/bash',
-                installer_path,
-                '--',  # Pass following args to embedded script (MojoSetup)
-                '--i-agree-to-all-licenses',
-                '--noreadme',
-                '--nooptions',
-                '--noprompt',
-                '--destination', install_path,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=install_path,
-                env=env
-            )
-            stdout, stderr = await proc.communicate()
-            if proc.returncode == 0:
-                logger.info(f"[GOG] MojoSetup silent install successful")
-                extraction_succeeded = True
-            else:
-                logger.warning(f"[GOG] MojoSetup silent install failed (code {proc.returncode})")
-                if stdout:
-                    logger.info(f"[GOG] stdout: {stdout.decode(errors='replace')[:1000]}")
-                if stderr:
-                    logger.info(f"[GOG] stderr: {stderr.decode(errors='replace')[:1000]}")
+            with open(installer_path, "rb") as game_bin:
+                # Read first 10KB to find script offset
+                beginning = game_bin.read(10240).decode("utf-8", errors="ignore")
+                
+                offset_match = OFFSET_RE.search(beginning)
+                if not offset_match:
+                    logger.warning("[GOG] Could not find offset marker - not a standard GOG installer")
+                    # Try fallback methods
+                    return await self._extract_installer_fallback(installer_path, install_path, progress_callback)
+                
+                script_lines = int(offset_match.group(1))
+                logger.info(f"[GOG] Makeself script lines: {script_lines}")
+                
+                # Count bytes for script_lines to get script size
+                game_bin.seek(0, io.SEEK_SET)
+                for _ in range(script_lines):
+                    game_bin.readline()
+                script_size = game_bin.tell()
+                logger.info(f"[GOG] Makeself script size: {script_size} bytes")
+                
+                # Read script to find MojoSetup archive size
+                game_bin.seek(0, io.SEEK_SET)
+                script_bin = game_bin.read(script_size)
+                script = script_bin.decode("utf-8", errors="ignore")
+                
+                filesize_match = FILESIZE_RE.search(script)
+                if not filesize_match:
+                    logger.warning("[GOG] Could not find filesizes in script - trying fallback")
+                    return await self._extract_installer_fallback(installer_path, install_path, progress_callback)
+                
+                mojosetup_size = int(filesize_match.group(1))
+                logger.info(f"[GOG] MojoSetup archive size: {mojosetup_size} bytes")
+                
+                # Calculate data.zip offset
+                data_offset = script_size + mojosetup_size
+                
+                # Get total file size for progress
+                game_bin.seek(0, io.SEEK_END)
+                total_size = game_bin.tell()
+                data_size = total_size - data_offset
+                logger.info(f"[GOG] Game data size: {data_size / (1024*1024):.1f} MB")
+                
+                # Extract data.zip to temp file
+                game_bin.seek(data_offset, io.SEEK_SET)
+                temp_zip_path = os.path.join(install_path, "_temp_data.zip")
+                
+                if progress_callback:
+                    await progress_callback({
+                        'phase': 'extracting',
+                        'phase_message': f'Extracting game data ({data_size / (1024*1024):.0f} MB)... (this may take several minutes)'
+                    })
+                
+                # Copy data section to temp file in thread to avoid blocking
+                def copy_data_sync():
+                    bytes_written = 0
+                    with open(temp_zip_path, "wb") as datafile:
+                        while True:
+                            chunk = game_bin.read(1024 * 1024)  # 1MB chunks for faster copy
+                            if not chunk:
+                                break
+                            datafile.write(chunk)
+                            bytes_written += len(chunk)
+                    return bytes_written
+                
+                bytes_written = await asyncio.to_thread(copy_data_sync)
+                logger.info(f"[GOG] Extracted {bytes_written / (1024*1024):.1f} MB data archive")
+                
+                # Unzip the game files - use extractall() in a thread to avoid blocking
+                if progress_callback:
+                    await progress_callback({
+                        'phase': 'extracting',
+                        'phase_message': 'Unpacking game files... (this may take a few minutes)'
+                    })
+                
+                def extract_zip_sync():
+                    """Synchronous extraction to run in thread pool."""
+                    def _has_symlinks(zf):
+                        """Check if zip contains any symbolic links."""
+                        for info in zf.infolist():
+                            # Symlinks have file mode bits set to 0xA (symlink) in upper 4 bits
+                            # external_attr format: Unix file attributes in upper 16 bits
+                            attr = info.external_attr >> 16
+                            file_type = (attr & 0xF000) >> 12
+                            if file_type == 0xA:  # S_IFLNK
+                                return True
+                        return False
+                    
+                    with zipfile.ZipFile(temp_zip_path, 'r') as zf:
+                        file_count = len(zf.namelist())
+                        logger.info(f"[GOG] Unpacking {file_count} files...")
+                        
+                        # Check if zip contains symlinks
+                        has_symlinks = _has_symlinks(zf)
+                        
+                        if has_symlinks:
+                            logger.info(f"[GOG] Detected symlinks in archive - using symlink-aware extraction")
+                            # Custom extraction preserving symlinks
+                            for info in zf.infolist():
+                                target_path = os.path.join(install_path, info.filename)
+                                
+                                # Check if this is a symlink
+                                attr = info.external_attr >> 16
+                                file_type = (attr & 0xF000) >> 12
+                                
+                                if file_type == 0xA:  # Symlink
+                                    # Read symlink target
+                                    link_target = zf.read(info.filename).decode('utf-8')
+                                    
+                                    # Ensure parent directory exists
+                                    os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                                    
+                                    # Remove if exists (could be broken symlink or file)
+                                    if os.path.lexists(target_path):
+                                        os.remove(target_path)
+                                    
+                                    # Create symlink
+                                    os.symlink(link_target, target_path)
+                                    logger.debug(f"[GOG] Created symlink: {info.filename} -> {link_target}")
+                                else:
+                                    # Regular file or directory
+                                    zf.extract(info, install_path)
+                        else:
+                            # Fast path for normal games without symlinks
+                            logger.info(f"[GOG] No symlinks detected - using fast extraction")
+                            zf.extractall(install_path)
+                        
+                        return file_count
 
-            # Method 2: Try Makeself extraction without running installer
-            # GOG Linux installers are Makeself archives. --noexec prevents running the installer,
-            # --target extracts to specified directory. This works when MojoSetup fails.
-            if not extraction_succeeded:
-                logger.info(f"[GOG] Trying Makeself --noexec --target extraction")
-                proc = await asyncio.create_subprocess_exec(
-                    '/bin/bash',
-                    installer_path,
-                    '--noexec',
-                    '--target', install_path,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    cwd=install_path,
-                    env=env
-                )
-                stdout, stderr = await proc.communicate()
-                if proc.returncode == 0:
-                    logger.info(f"[GOG] Makeself extraction successful")
-                    extraction_succeeded = True
-                else:
-                    logger.warning(f"[GOG] Makeself extraction failed (code {proc.returncode})")
-                    if stdout:
-                        logger.info(f"[GOG] stdout: {stdout.decode(errors='replace')[:1000]}")
-                    if stderr:
-                        logger.info(f"[GOG] stderr: {stderr.decode(errors='replace')[:1000]}")
+                
+                # Run extraction in thread to prevent blocking event loop
+                file_count = await asyncio.to_thread(extract_zip_sync)
+                logger.info(f"[GOG] Finished unpacking {file_count} files")
+                
+                # Final 100% extraction progress
+                if progress_callback:
+                    await progress_callback({
+                        'phase': 'extracting',
+                        'phase_message': 'Extraction complete!'
+                    })
+                
+                # Clean up temp zip
+                os.remove(temp_zip_path)
+                logger.info("[GOG] Cleaned up temp archive")
+                
+                # Move files from data/noarch to root (in thread to prevent blocking)
+                data_noarch = os.path.join(install_path, 'data', 'noarch')
+                if os.path.exists(data_noarch) and os.path.isdir(data_noarch):
+                    logger.info("[GOG] Moving files from data/noarch to root...")
+                    
+                    def move_files_sync():
+                        # Check if data/noarch contains a nested 'data' directory
+                        # This is the game data that DOSBox mounts - we need to preserve it
+                        nested_data_src = os.path.join(data_noarch, 'data')
+                        has_nested_data = os.path.exists(nested_data_src) and os.path.isdir(nested_data_src)
+                        
+                        for item in os.listdir(data_noarch):
+                            src = os.path.join(data_noarch, item)
+                            dst = os.path.join(install_path, item)
+                            
+                            # Special handling for 'data' directory - it's the game content
+                            if item == 'data':
+                                # If destination doesn't exist, just move it
+                                if not os.path.exists(dst):
+                                    shutil.move(src, dst)
+                                    logger.debug(f"[GOG] Moved game data: {item}")
+                                else:
+                                    # Merge contents if dst exists
+                                    for sub_item in os.listdir(src):
+                                        sub_src = os.path.join(src, sub_item)
+                                        sub_dst = os.path.join(dst, sub_item)
+                                        if not os.path.exists(sub_dst):
+                                            shutil.move(sub_src, sub_dst)
+                                    shutil.rmtree(src, ignore_errors=True)
+                                continue
+                            
+                            if not os.path.exists(dst):
+                                shutil.move(src, dst)
+                                logger.debug(f"[GOG] Moved: {item}")
+                        
+                        # Only remove data/noarch now that contents are moved
+                        # But DO NOT remove data/ itself if it contains game files
+                        shutil.rmtree(data_noarch, ignore_errors=True)
+                        
+                        # Check if data dir is now empty (only contained noarch)
+                        data_dir = os.path.join(install_path, 'data')
+                        # This handles the wrapper structure where data only had noarch
+                        # After moving noarch contents, if data is empty, remove it
+                        if os.path.exists(data_dir) and os.path.isdir(data_dir):
+                            try:
+                                remaining = os.listdir(data_dir)
+                                # Only 'noarch' would be gone, check if empty
+                                if not remaining:
+                                    os.rmdir(data_dir)
+                                    logger.debug("[GOG] Removed empty data wrapper directory")
+                            except Exception:
+                                pass
+                    
+                    await asyncio.to_thread(move_files_sync)
 
-            # Method 3: Try Makeself --keep to just extract archive in place
-            if not extraction_succeeded:
-                logger.info(f"[GOG] Trying Makeself --keep extraction")
-                proc = await asyncio.create_subprocess_exec(
-                    '/bin/bash',
-                    installer_path,
-                    '--keep',
-                    '--noexec',
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    cwd=install_path,
-                    env=env
-                )
-                stdout, stderr = await proc.communicate()
-                if proc.returncode == 0:
-                    logger.info(f"[GOG] Makeself --keep extraction successful")
-                    extraction_succeeded = True
-                else:
-                    logger.warning(f"[GOG] Makeself --keep extraction failed (code {proc.returncode})")
-
-            # Method 4: Try unzip (fallback for non-MojoSetup archives, e.g. some very old GOG games)
-            if not extraction_succeeded:
-                logger.info(f"[GOG] Trying unzip extraction")
-                proc = await asyncio.create_subprocess_exec(
-                    'unzip', '-o', installer_path, '-d', install_path,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    env=env
-                )
-                await proc.communicate()
-                if proc.returncode == 0:
-                    logger.info(f"[GOG] Unzip extraction successful")
-                    extraction_succeeded = True
-
-            # ALWAYS fix permissions regardless of extraction success
-            self._fix_permissions(install_path)
-            
-            # Run post-install if extraction worked
-            if extraction_succeeded:
+                
+                # Fix permissions
+                self._fix_permissions(install_path)
+                
+                # Patch missing libraries from Steam Runtime
+                self._patch_missing_libs(install_path)
+                
+                # Run post-install script
                 await self._run_post_install(install_path)
+                
+                logger.info("[GOG] Extraction complete!")
                 return True
-
-            logger.warning(f"[GOG] Could not auto-extract installer, file kept at {installer_path}")
-            return False
-
+                
         except Exception as e:
-            logger.error(f"[GOG] Error extracting installer: {e}", exc_info=True)
+            logger.error(f"[GOG] Extraction error: {e}", exc_info=True)
+            # Try fallback
+            return await self._extract_installer_fallback(installer_path, install_path, progress_callback)
+
+    async def _extract_installer_fallback(self, installer_path: str, install_path: str, progress_callback=None) -> bool:
+        """Fallback extraction using system tools (unzip/7z) if gogextract fails."""
+        import shutil
+        
+        logger.info("[GOG] Trying fallback extraction with system tools...")
+        
+        env = os.environ.copy()
+        env.pop('LD_LIBRARY_PATH', None)
+        env.pop('LD_PRELOAD', None)
+        
+        # Try unzip first (more reliable for GOG's zip format)
+        cmd = f"unzip -o '{installer_path}' -d '{install_path}'"
+        logger.info(f"[GOG] Executing: {cmd}")
+        
+        proc = await asyncio.create_subprocess_shell(
+            cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=env
+        )
+        await proc.communicate()
+        
+        if proc.returncode in [0, 1]:
+            logger.info("[GOG] Unzip fallback successful")
+            
+            # Move files from data/noarch if present
+            data_noarch = os.path.join(install_path, 'data', 'noarch')
+            if os.path.exists(data_noarch):
+                for item in os.listdir(data_noarch):
+                    src = os.path.join(data_noarch, item)
+                    dst = os.path.join(install_path, item)
+                    
+                    # Special handling for 'data' directory - it's the game content
+                    if item == 'data':
+                        if not os.path.exists(dst):
+                            shutil.move(src, dst)
+                        else:
+                            # Merge contents
+                            for sub_item in os.listdir(src):
+                                sub_src = os.path.join(src, sub_item)
+                                sub_dst = os.path.join(dst, sub_item)
+                                if not os.path.exists(sub_dst):
+                                    shutil.move(sub_src, sub_dst)
+                            shutil.rmtree(src, ignore_errors=True)
+                        continue
+                    
+                    if not os.path.exists(dst):
+                        shutil.move(src, dst)
+                
+                # Remove data/noarch but not data/ if it has game content
+                shutil.rmtree(data_noarch, ignore_errors=True)
+                data_dir = os.path.join(install_path, 'data')
+                if os.path.exists(data_dir) and not os.listdir(data_dir):
+                    os.rmdir(data_dir)
+            
             self._fix_permissions(install_path)
-            return False
+            self._patch_missing_libs(install_path)
+            await self._run_post_install(install_path)
+            return True
+        
+        logger.warning("[GOG] All extraction methods failed")
+        return False
 
     async def _rename_gog_slices_for_innoextract(self, main_installer_path: str, install_path: str) -> None:
         """Rename GOG multi-part installer slices to match innoextract expectations.
@@ -4365,24 +5173,49 @@ class GOGAPIClient:
             logger.info(f"[GOG] Using bundled innoextract: {innoextract_bin}")
             logger.info(f"[GOG] Running: innoextract -e -d {install_path} {installer_path}")
 
-            # Extract installer
+            # Extract installer with streaming output for progress logging
             # -e: extract files only (no GUI)
             # -d: output directory
             # -g: extract GOG.com specific archives (bonus content, etc.)
+            # --progress: show progress
             proc = await asyncio.create_subprocess_exec(
                 innoextract_bin,
                 '-e',  # Extract mode
                 '-g',  # Extract GOG.com specific archives
+                '--progress',  # Show progress
                 '-d', install_path,
                 installer_path,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.STDOUT  # Combine stderr into stdout
             )
 
-            stdout, stderr = await proc.communicate()
+            # Stream output and log periodically
+            files_extracted = 0
+            last_log_time = time.time()
+            output_buffer = ""
+            
+            while True:
+                line = await proc.stdout.readline()
+                if not line:
+                    break
+                
+                decoded_line = line.decode(errors='replace').strip()
+                output_buffer += decoded_line + "\n"
+                
+                # Count extracted files (innoextract outputs "Extracting <filename>")
+                if decoded_line.startswith('Extracting ') or 'extracting' in decoded_line.lower():
+                    files_extracted += 1
+                
+                # Log progress every 10 seconds
+                now = time.time()
+                if now - last_log_time >= 10:
+                    logger.info(f"[GOG Extraction] Extracted {files_extracted} files...")
+                    last_log_time = now
+            
+            await proc.wait()
 
             if proc.returncode == 0:
-                logger.info(f"[GOG] Windows installer extraction successful")
+                logger.info(f"[GOG] Windows installer extraction successful: {files_extracted} files extracted")
 
                 # innoextract creates an "app" subdirectory, move contents up
                 app_dir = os.path.join(install_path, 'app')
@@ -4397,8 +5230,10 @@ class GOGAPIClient:
 
                 return True
             else:
-                error_msg = stderr.decode() if stderr else 'Unknown error'
-                logger.error(f"[GOG] innoextract failed: {error_msg}")
+                logger.error(f"[GOG] innoextract failed with code {proc.returncode}")
+                # Log last 500 chars of output for debugging
+                if output_buffer:
+                    logger.error(f"[GOG] innoextract output: {output_buffer[-500:]}")
                 return False
 
         except Exception as e:
@@ -4406,27 +5241,96 @@ class GOGAPIClient:
             return False
 
     def _find_game_executable(self, install_path: str) -> Optional[str]:
-        """Find the game executable in the install directory"""
+        """Find the game executable in the install directory.
+        
+        Returns the executable path only. For working directory info,
+        use _find_game_executable_with_workdir instead.
+        """
+        result = self._find_game_executable_with_workdir(install_path)
+        if result:
+            return result[0]  # Just the exe path
+        return None
+    
+    def _find_game_executable_with_workdir(self, install_path: str) -> Optional[tuple]:
+        """Find game executable and working directory from install path.
+        
+        Returns:
+            tuple(exe_path, work_dir) or None if not found.
+            work_dir is absolute path or None if not specified.
+        """
         try:
             # PRIORITY 1: Check for goggame-*.info file (most reliable)
-            # This file contains the correct executable path from GOG's metadata
-            for item in os.listdir(install_path):
-                if item.startswith('goggame-') and item.endswith('.info'):
-                    info_path = os.path.join(install_path, item)
-                    try:
-                        with open(info_path, 'r') as f:
-                            info_data = json.load(f)
-                            play_tasks = info_data.get('playTasks', [])
-                            for task in play_tasks:
-                                if task.get('isPrimary') and task.get('type') == 'FileTask':
-                                    exe_name = task.get('path')
-                                    if exe_name:
-                                        exe_path = os.path.join(install_path, exe_name)
-                                        if os.path.exists(exe_path):
-                                            logger.info(f"[GOG] Found executable from goggame info: {exe_path}")
-                                            return exe_path
-                    except Exception as e:
-                        logger.warning(f"[GOG] Error reading goggame info file: {e}")
+            # This file contains the correct executable path AND working directory
+            # Search in root AND common subdirectories (game/, support/, etc.)
+            search_dirs = [install_path]
+            for subdir in ['game', 'support', 'data', 'data/noarch']:
+                subpath = os.path.join(install_path, subdir)
+                if os.path.isdir(subpath):
+                    search_dirs.append(subpath)
+            
+            for search_dir in search_dirs:
+                try:
+                    for item in os.listdir(search_dir):
+                        if item.startswith('goggame-') and item.endswith('.info'):
+                            info_path = os.path.join(search_dir, item)
+                            try:
+                                with open(info_path, 'r') as f:
+                                    info_data = json.load(f)
+                                    logger.info(f"[GOG] Found goggame info: {info_path}")
+                                    play_tasks = info_data.get('playTasks', [])
+                                    for task in play_tasks:
+                                        if task.get('isPrimary') and task.get('type') == 'FileTask':
+                                            exe_name = task.get('path')
+                                            work_dir_rel = task.get('workingDir')
+                                            
+                                            logger.info(f"[GOG] goggame-info: path={exe_name}, workingDir={work_dir_rel}")
+                                            
+                                            if exe_name:
+                                                # Path is relative to the info file's directory
+                                                exe_path = os.path.join(search_dir, exe_name)
+                                                if os.path.exists(exe_path):
+                                                    # Calculate absolute working directory
+                                                    work_dir = None
+                                                    if work_dir_rel:
+                                                        work_dir = os.path.join(search_dir, work_dir_rel)
+                                                    else:
+                                                        # Default to exe's directory
+                                                        work_dir = os.path.dirname(exe_path)
+                                                    
+                                                    logger.info(f"[GOG] Found executable from goggame info: {exe_path}")
+                                                    logger.info(f"[GOG] Working directory: {work_dir}")
+                                                    return (exe_path, work_dir)
+                            except Exception as e:
+                                logger.warning(f"[GOG] Error reading goggame info file: {e}")
+                except Exception:
+                    pass
+            
+            # PRIORITY 1.5: Heuristic for games with game/bin/linux-x86 structure (like NWN:EE)
+            # These games REQUIRE running from the bin directory
+            linux_bin_dirs = [
+                'game/bin/linux-x86',
+                'game/bin/linux-x86_64',
+                'game/bin/linux',
+                'bin/linux-x86',
+                'bin/linux-x86_64'
+            ]
+            for bin_dir in linux_bin_dirs:
+                bin_path = os.path.join(install_path, bin_dir)
+                if os.path.isdir(bin_path):
+                    # Look for executable in this directory
+                    for item in os.listdir(bin_path):
+                        item_path = os.path.join(bin_path, item)
+                        if os.path.isfile(item_path) and os.access(item_path, os.X_OK):
+                            # Skip .sh files - prefer native binaries
+                            if not item.endswith('.sh') and not item.startswith('.'):
+                                logger.info(f"[GOG] Found native binary in {bin_dir}: {item}")
+                                # Check if there's a start.sh wrapper
+                                start_sh = os.path.join(install_path, 'start.sh')
+                                if os.path.exists(start_sh):
+                                    # Use start.sh but with bin directory as work_dir
+                                    logger.info(f"[GOG] Using start.sh wrapper with work_dir={bin_path}")
+                                    return (start_sh, bin_path)
+                                return (item_path, bin_path)
             
             # PRIORITY 2: Check for .exe files (Windows games)
             exe_files = []
@@ -4443,7 +5347,7 @@ class GOGAPIClient:
                         if exe.lower() == pattern:
                             exe_path = os.path.join(install_path, exe)
                             logger.info(f"[GOG] Found Windows game executable: {exe_path}")
-                            return exe_path
+                            return (exe_path, install_path)
 
                 # Exclude known non-game executables
                 excluded_patterns = [
@@ -4472,42 +5376,67 @@ class GOGAPIClient:
                     largest_exe = exe_with_sizes[0][0]
                     exe_path = os.path.join(install_path, largest_exe)
                     logger.info(f"[GOG] Found Windows game executable (largest): {exe_path}")
-                    return exe_path
+                    return (exe_path, install_path)
                 
                 # Fallback: return first .exe if all were filtered
                 exe_path = os.path.join(install_path, exe_files[0])
                 logger.info(f"[GOG] Found Windows executable (fallback): {exe_path}")
-                return exe_path
+                return (exe_path, install_path)
 
             # Linux game logic - look for shell script launchers
-            common_launchers = ['start.sh', 'launch.sh', 'game.sh', 'gameinfo']
-
-            # Try common launcher names first
-            for launcher in common_launchers:
-                launcher_path = os.path.join(install_path, launcher)
-                if os.path.exists(launcher_path) and os.path.isfile(launcher_path):
-                    os.chmod(launcher_path, 0o755)  # Ensure executable
-                    logger.info(f"[GOG] Found game launcher: {launcher_path}")
-                    return launcher_path
-
-            # Look for any .sh file
-            for item in os.listdir(install_path):
-                if item.endswith('.sh'):
-                    item_path = os.path.join(install_path, item)
-                    if os.path.isfile(item_path):
-                        os.chmod(item_path, 0o755)
-                        logger.info(f"[GOG] Found .sh script: {item_path}")
-                        return item_path
-
-
-            # Look for "data" subdirectory (common in GOG games)
+            # IMPORTANT: Check data/noarch FIRST - this is where extracted games live
+            # The root directory often contains the installer .sh file which we must NOT use
+            
+            common_launchers = ['start.sh', 'launch.sh', 'game.sh', 'gameinfo', 'start', 'launcher']
+            
+            # PRIORITY 1: Look in data/noarch subdirectory (common GOG Linux game structure)
             data_dir = os.path.join(install_path, 'data', 'noarch')
             if os.path.exists(data_dir):
                 for launcher in common_launchers:
                     launcher_path = os.path.join(data_dir, launcher)
                     if os.path.exists(launcher_path) and os.path.isfile(launcher_path):
                         os.chmod(launcher_path, 0o755)
-                        return launcher_path
+                        logger.info(f"[GOG] Found game launcher in data/noarch: {launcher_path}")
+                        return (launcher_path, data_dir)
+                        
+                # Also look for any .sh file in data/noarch
+                for item in os.listdir(data_dir):
+                    if item.endswith('.sh'):
+                        item_path = os.path.join(data_dir, item)
+                        if os.path.isfile(item_path):
+                            os.chmod(item_path, 0o755)
+                            logger.info(f"[GOG] Found .sh script in data/noarch: {item_path}")
+                            return (item_path, data_dir)
+
+            # PRIORITY 2: Try common launcher names in root (if not the installer)
+            for launcher in common_launchers:
+                launcher_path = os.path.join(install_path, launcher)
+                if os.path.exists(launcher_path) and os.path.isfile(launcher_path):
+                    os.chmod(launcher_path, 0o755)  # Ensure executable
+                    logger.info(f"[GOG] Found game launcher: {launcher_path}")
+                    return (launcher_path, install_path)
+
+            # PRIORITY 3: Look for other .sh files in root, EXCLUDING installers
+            # GOG installers are typically large (100MB+) and named after the game
+            for item in os.listdir(install_path):
+                if item.endswith('.sh'):
+                    item_path = os.path.join(install_path, item)
+                    if os.path.isfile(item_path):
+                        # Skip files that look like GOG installers
+                        file_size = os.path.getsize(item_path)
+                        is_likely_installer = (
+                            file_size > 50 * 1024 * 1024 or  # Over 50MB = likely installer
+                            item.startswith('gog_') or       # gog_ prefix
+                            item.startswith('setup_') or     # setup_ prefix
+                            item == 'startmojo.sh' or        # MojoSetup installer script
+                            ':' in item                      # Contains colon (game title)
+                        )
+                        if is_likely_installer:
+                            logger.debug(f"[GOG] Skipping likely installer: {item} ({file_size // 1024 // 1024}MB)")
+                            continue
+                        os.chmod(item_path, 0o755)
+                        logger.info(f"[GOG] Found .sh script: {item_path}")
+                        return (item_path, install_path)
 
 
 
@@ -4534,7 +5463,7 @@ class GOGAPIClient:
                     try:
                         os.chmod(candidate_path, 0o755)
                         logger.info(f"[GOG] Found heuristic executable (matching dir name): {candidate_path}")
-                        return candidate_path
+                        return (candidate_path, install_path)
                     except Exception as e:
                         logger.warning(f"[GOG] Found candidate {candidate_path} but failed to chmod: {e}")
 
@@ -4675,11 +5604,12 @@ class InstallHandler:
                 # Update shortcuts.vdf with the installed game info
                 exe_path = result.get('executable')
                 install_dir = result.get('install_path')
+                work_dir = result.get('work_dir')  # From goggame-*.info
 
                 if install_dir:
-                    await self.shortcuts_manager.mark_installed(game_id, 'gog', install_dir, exe_path)
-                    logger.info(f"Successfully installed GOG game {game_id}")
-                    return {'success': True, 'exe_path': exe_path, 'install_path': install_dir}
+                    await self.shortcuts_manager.mark_installed(game_id, 'gog', install_dir, exe_path, work_dir)
+                    logger.info(f"Successfully installed GOG game {game_id} with work_dir={work_dir}")
+                    return {'success': True, 'exe_path': exe_path, 'install_path': install_dir, 'work_dir': work_dir}
 
             return result
 
@@ -4821,6 +5751,12 @@ class Plugin:
         logger.info("[INIT] Initializing ShortcutsManager")
         self.shortcuts_manager = ShortcutsManager()
         
+        # Migrate any data from user 0 to the logged-in user (fixes past user 0 issues)
+        logger.info("[INIT] Checking for user 0 data to migrate")
+        migration_result = migrate_user0_to_logged_in_user()
+        if migration_result.get('shortcuts_migrated', 0) > 0 or migration_result.get('artwork_migrated', 0) > 0:
+            logger.info(f"[INIT] User 0 migration: {migration_result['shortcuts_migrated']} shortcuts, {migration_result['artwork_migrated']} artwork files migrated")
+        
         # Reconcile games.map to remove orphaned entries (games deleted externally)
         logger.info("[INIT] Reconciling games.map for orphaned entries")
         reconcile_result = self.shortcuts_manager.reconcile_games_map()
@@ -4844,9 +5780,23 @@ class Plugin:
 
         logger.info("[INIT] Initializing GOGAPIClient")
         self.gog = GOGAPIClient(plugin_instance=self)
+        
+        # Validate and auto-correct GOG executable paths that point to installers
+        logger.info("[INIT] Validating GOG executable paths")
+        gog_validation = self.shortcuts_manager.validate_gog_exe_paths(self.gog)
+        if gog_validation.get('corrected', 0) > 0:
+            logger.info(f"[INIT] Auto-corrected {gog_validation['corrected']} GOG installer paths")
 
         logger.info("[INIT] Initializing AmazonConnector")
         self.amazon = AmazonConnector(plugin_dir=DECKY_PLUGIN_DIR, plugin_instance=self)
+
+        # Repair games.map for Unifideck shortcuts missing entries (fixes "Game location not mapped" errors)
+        logger.info("[INIT] Reconciling games.map from installed games")
+        map_reconcile = await self.shortcuts_manager.reconcile_games_map_from_installed(
+            epic_client=self.epic, gog_client=self.gog, amazon_client=self.amazon
+        )
+        if map_reconcile.get('added', 0) > 0:
+            logger.info(f"[INIT] Added {map_reconcile['added']} missing entries to games.map")
 
         logger.info("[INIT] Initializing InstallHandler")
         self.install_handler = InstallHandler(self.shortcuts_manager, plugin_dir=DECKY_PLUGIN_DIR)
@@ -4961,12 +5911,13 @@ class Plugin:
                                     break
                     
                     if game_install_path:
-                        exe_path = self.gog._find_game_executable(game_install_path)
-                        if exe_path:
+                        exe_result = self.gog._find_game_executable_with_workdir(game_install_path)
+                        if exe_result:
+                            exe_path, work_dir = exe_result
                             await self.shortcuts_manager.mark_installed(
-                                item.game_id, item.store, game_install_path, exe_path
+                                item.game_id, item.store, game_install_path, exe_path, work_dir
                             )
-                            logger.info(f"[DownloadComplete] Marked {item.game_title} as installed")
+                            logger.info(f"[DownloadComplete] Marked {item.game_title} as installed with work_dir={work_dir}")
                         else:
                             logger.warning(f"[DownloadComplete] No executable found for {item.game_title}")
                     else:
@@ -5639,11 +6590,9 @@ class Plugin:
                     app_id = shortcut.get('appid')
                     
                     # Check if this is a Unifideck game (has store:game_id format in LaunchOptions)
-                    if ':' in launch_opts and app_id:
-                        store_prefix = launch_opts.split(':')[0]
-                        if store_prefix in ('epic', 'gog', 'amazon'):
-                            await self.shortcuts_manager._clear_proton_compatibility(app_id)
-                            proton_cleared += 1
+                    if is_unifideck_shortcut(launch_opts) and app_id:
+                        await self.shortcuts_manager._clear_proton_compatibility(app_id)
+                        proton_cleared += 1
                 
                 logger.info(f"Cleared Proton compatibility for {proton_cleared} games (launcher manages Proton via umu-run)")
 
@@ -5925,6 +6874,10 @@ class Plugin:
         Priority 1: games.map (fast, authoritative for Unifideck-installed games)
         Priority 2: Store-specific check (for games installed outside Unifideck)
         
+        NOTE: Store API fallback is ONLY used if there's no games.map entry at all.
+        If an entry existed but the path was missing (stale), we skip the fallback
+        because the game was installed via Unifideck but files were deleted.
+        
         Args:
             store: 'epic' or 'gog'
             game_id: Store-specific game identifier
@@ -5932,17 +6885,25 @@ class Plugin:
         Returns:
             True if game is installed, False otherwise
         """
+        # Check if there's ANY entry in games.map before we check validity
+        # This helps us distinguish "never installed" from "was installed, files deleted"
+        had_entry = self.shortcuts_manager._has_game_map_entry(store, game_id)
+        
         # Priority 1: Check games.map (authoritative for all Unifideck installs)
-        # This works for any install location (internal, SD card, etc.)
+        # This also auto-cleans stale entries where path is missing
         is_installed = self.shortcuts_manager._is_in_game_map(store, game_id)
         
         # Priority 2: Fall back to store-specific check (for games installed outside Unifideck)
-        if not is_installed:
+        # ONLY if there was no games.map entry at all (not if entry existed but was stale)
+        if not is_installed and not had_entry:
             if store == 'epic':
                 installed_games = await self.epic.get_installed()
                 is_installed = game_id in installed_games
             elif store == 'gog':
                 installed_ids = await self.gog.get_installed()
+                is_installed = game_id in installed_ids
+            elif store == 'amazon':
+                installed_ids = await self.amazon.get_installed()
                 is_installed = game_id in installed_ids
         
         return is_installed
@@ -5979,20 +6940,26 @@ class Plugin:
             for idx, shortcut in shortcuts.get("shortcuts", {}).items():
                 shortcut_app_id = shortcut.get('appid')
                 if shortcut_app_id == app_id_signed:
-                    # Parse LaunchOptions to get store and game_id
+                    # Parse LaunchOptions to get store and game_id (resilient to extra params)
                     launch_options = shortcut.get('LaunchOptions', '')
-                    if ':' not in launch_options:
-                        return {'error': 'Invalid launch options format'}
+                    result = extract_store_id(launch_options)
+                    if not result:
+                        return {'error': 'No valid store:game_id found in launch options'}
 
-                    store, game_id = launch_options.split(':', 1)
+                    store, game_id = result
 
                     # Check installation status
+                    # Check if there's ANY entry in games.map before checking validity
+                    # This distinguishes "never installed" from "was installed, files deleted"
+                    had_entry = self.shortcuts_manager._has_game_map_entry(store, game_id)
+                    
                     # Priority 1: Check games.map (fast, authoritative for Unifideck-installed games)
-                    # This works for any install location (internal, SD card, etc.)
+                    # This also auto-cleans stale entries where path is missing
                     is_installed = self.shortcuts_manager._is_in_game_map(store, game_id)
 
                     # Priority 2: Fall back to store-specific check (for games installed outside Unifideck)
-                    if not is_installed:
+                    # ONLY if there was no games.map entry at all (not if entry existed but was stale)
+                    if not is_installed and not had_entry:
                         if store == 'epic':
                             installed_games = await self.epic.get_installed()
                             is_installed = game_id in installed_games
@@ -6181,16 +7148,25 @@ class Plugin:
                 
                 if proc.returncode != 0:
                      logger.error(f"[Epic] Uninstall failed: {stderr_str}")
+                     # Still remove from games.map so UI shows Install button
+                     await self.shortcuts_manager._remove_from_game_map(store, game_id)
+                     logger.info(f"[Uninstall] Removed {store}:{game_id} from games.map despite uninstall failure")
                      return {'success': False, 'error': f"Legendary uninstall failed: {stderr_str}"}
             
             elif store == 'gog':
                 result = await self.gog.uninstall_game(game_id)
                 if not result['success']:
+                    # Still remove from games.map so UI shows Install button
+                    await self.shortcuts_manager._remove_from_game_map(store, game_id)
+                    logger.info(f"[Uninstall] Removed {store}:{game_id} from games.map despite uninstall failure")
                     return result
             
             elif store == 'amazon':
                 result = await self.amazon.uninstall_game(game_id)
                 if not result['success']:
+                    # Still remove from games.map so UI shows Install button
+                    await self.shortcuts_manager._remove_from_game_map(store, game_id)
+                    logger.info(f"[Uninstall] Removed {store}:{game_id} from games.map despite uninstall failure")
                     return result
             
             else:
@@ -6561,17 +7537,14 @@ class Plugin:
         """
         Get all Unifideck games with installation status for frontend tab filtering
         
-        Uses centralized check_game_installation_status() for consistency.
+        Uses games.map as the source of truth for installation status.
+        This ensures consistency with get_game_info() and works for all install
+        locations (internal, SD card, ~/GOG Games, etc.)
         
         Returns:
             List of dicts: [{'appId': int, 'store': str, 'isInstalled': bool, 'title': str, 'steamAppId': int|None}]
         """
         try:
-            # Get installed game IDs from each store
-            epic_installed = set(await self.epic.get_installed())
-            gog_installed = set(await self.gog.get_installed())
-            amazon_installed = set(await self.amazon.get_installed())
-
             # Load steam_app_id cache for ProtonDB lookups
             steam_appid_cache = load_steam_appid_cache()
             
@@ -6589,14 +7562,9 @@ class Plugin:
                 store = parts[0]
                 game_id = parts[1] if len(parts) > 1 else ''
 
-                # Check installation status
-                is_installed = False
-                if store == 'epic':
-                    is_installed = game_id in epic_installed
-                elif store == 'gog':
-                    is_installed = game_id in gog_installed
-                elif store == 'amazon':
-                    is_installed = game_id in amazon_installed
+                # Check installation status using games.map (authoritative source)
+                # This works for any install location and auto-cleans stale entries
+                is_installed = self.shortcuts_manager._is_in_game_map(store, game_id)
                 
                 # Get appId
                 app_id = shortcut.get('appid')
@@ -6745,7 +7713,7 @@ class Plugin:
                 
                 for idx, shortcut in shortcuts.get('shortcuts', {}).items():
                     launch_opts = shortcut.get('LaunchOptions', '')
-                    if launch_opts.startswith('epic:') or launch_opts.startswith('gog:') or launch_opts.startswith('amazon:'):
+                    if is_unifideck_shortcut(launch_opts):
                         unifideck_shortcuts[idx] = shortcut
                     else:
                         original_shortcuts[idx] = shortcut

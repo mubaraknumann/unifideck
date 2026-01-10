@@ -150,14 +150,53 @@ const DownloadItemRow: FC<{
             {/* Progress section (only for downloading) */}
             {item.status === "downloading" && (
                 <>
+                    {/* Show phase-specific messages */}
+                    {item.download_phase === "extracting" && (
+                        <div style={{ fontSize: "12px", color: "#f59e0b", marginBottom: "8px" }}>
+                            📦 {item.phase_message || "Extracting game files..."}
+                        </div>
+                    )}
+                    {item.download_phase === "verifying" && (
+                        <div style={{ fontSize: "12px", color: "#4ade80", marginBottom: "8px" }}>
+                            ✓ {item.phase_message || "Verifying installation..."}
+                        </div>
+                    )}
+
                     {/* Show "Preparing..." when no real progress yet */}
-                    {item.progress_percent === 0 && item.downloaded_bytes === 0 ? (
+                    {item.progress_percent === 0 && item.downloaded_bytes === 0 && item.download_phase === "downloading" ? (
                         <div style={{ fontSize: "12px", color: "#888", fontStyle: "italic" }}>
                             Preparing download...
                         </div>
+                    ) : item.download_phase === "extracting" || item.download_phase === "verifying" ? (
+                        /* Animated indeterminate progress bar for extraction/verification */
+                        <div
+                            style={{
+                                width: "100%",
+                                height: "6px",
+                                backgroundColor: "#333",
+                                borderRadius: "3px",
+                                overflow: "hidden",
+                                marginBottom: "8px",
+                            }}
+                        >
+                            <div
+                                style={{
+                                    width: "30%",
+                                    height: "100%",
+                                    backgroundColor: item.download_phase === "extracting" ? "#f59e0b" : "#4ade80",
+                                    animation: "slide 1.5s ease-in-out infinite",
+                                }}
+                            />
+                            <style>{`
+                                @keyframes slide {
+                                    0% { transform: translateX(-100%); }
+                                    100% { transform: translateX(400%); }
+                                }
+                            `}</style>
+                        </div>
                     ) : (
                         <>
-                            {/* Progress bar */}
+                            {/* Progress bar for downloading */}
                             <div
                                 style={{
                                     width: "100%",

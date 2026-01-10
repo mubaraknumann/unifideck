@@ -12,6 +12,9 @@ import aiohttp
 from typing import Optional, List, Dict, Any
 from pathlib import Path
 
+# Import Steam user detection utility
+from steam_user_utils import get_logged_in_steam_user
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -58,34 +61,30 @@ class SteamGridDBClient:
         return None
 
     def _find_grid_path(self) -> Optional[str]:
-        """Find Steam grid images directory - use most recently active user"""
+        """Find Steam grid images directory for the logged-in user.
+        
+        Uses loginusers.vdf to find the user with MostRecent=1, falling
+        back to mtime-based detection while explicitly excluding user 0.
+        """
         if not self.steam_path:
             return None
 
-        # Find userdata directory
-        userdata_path = os.path.join(self.steam_path, "userdata")
-        if not os.path.exists(userdata_path):
+        # Use the robust user detection utility
+        active_user = get_logged_in_steam_user(self.steam_path)
+        
+        if not active_user:
+            logger.error("[SteamGridDB] Could not determine logged-in Steam user for grid path")
+            return None
+        
+        # Safety check: never use user 0
+        if active_user == '0':
+            logger.error("[SteamGridDB] User 0 detected - this is a meta-directory, not a real user!")
             return None
 
-        # Find user directories (sorted by most recent activity)
-        user_dirs = []
-        for d in os.listdir(userdata_path):
-            if d.isdigit():
-                dir_path = os.path.join(userdata_path, d)
-                mtime = os.path.getmtime(dir_path)
-                user_dirs.append((d, mtime))
-
-        if not user_dirs:
-            return None
-
-        # Use most recently active user (highest mtime)
-        user_dirs.sort(key=lambda x: x[1], reverse=True)
-        active_user = user_dirs[0][0]
-
-        grid_path = os.path.join(userdata_path, active_user, "config", "grid")
+        grid_path = os.path.join(self.steam_path, "userdata", active_user, "config", "grid")
         os.makedirs(grid_path, exist_ok=True)
 
-        logger.info(f"Using grid path for user {active_user}: {grid_path}")
+        logger.info(f"[SteamGridDB] Using grid path for user {active_user}: {grid_path}")
 
         return grid_path
 

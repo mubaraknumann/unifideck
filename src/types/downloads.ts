@@ -27,6 +27,10 @@ export interface DownloadItem {
     start_time?: number;           // Unix timestamp
     end_time?: number;             // Unix timestamp
     storage_location: StorageLocation;
+
+    // Phase tracking for multi-stage installations
+    download_phase?: 'downloading' | 'extracting' | 'verifying' | 'complete';
+    phase_message?: string;        // Human-readable phase status
 }
 
 /**

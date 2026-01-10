@@ -69,6 +69,10 @@ class DownloadItem:
     # GUARDRAIL: Track if game was previously installed before this download started.
     # If True, we NEVER delete the directory on cancel - the game was already complete.
     was_previously_installed: bool = False
+    
+    # Phase tracking for multi-stage installations (download → extract → verify)
+    download_phase: str = "downloading"  # downloading|extracting|verifying|complete
+    phase_message: str = ""              # Human-readable phase status message
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -579,9 +583,26 @@ class DownloadQueue:
                     raise asyncio.CancelledError("Download cancelled by user")
                 
                 if isinstance(progress, dict):
+                    # Handle phase updates (for extraction/verification phases)
+                    if 'phase' in progress:
+                        item.download_phase = progress['phase']
+                        item.phase_message = progress.get('phase_message', '')
+                        logger.info(f"[DownloadQueue] Phase update: {item.download_phase} - {item.phase_message}")
+                        self._save()
+                        return  # Phase-only update, no need to process other fields
+                    
                     item.progress_percent = progress.get('progress_percent', 0)
                     item.downloaded_bytes = int(progress.get('downloaded_bytes', 0))
                     item.total_bytes = int(progress.get('total_bytes', 0))
+                    
+                    # Update phase message during download if provided
+                    if 'phase_message' in progress:
+                        item.phase_message = progress['phase_message']
+                    elif item.download_phase == 'downloading' and item.total_bytes > 0:
+                        # Auto-generate download phase message
+                        mb_down = item.downloaded_bytes / (1024 * 1024)
+                        mb_total = item.total_bytes / (1024 * 1024)
+                        item.phase_message = f"Downloading: {mb_down:.0f} MB / {mb_total:.0f} MB"
                     
                     # Convert speed from bytes/sec to MB/s
                     speed_bps = progress.get('speed_bps', 0)

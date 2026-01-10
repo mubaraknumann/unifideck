@@ -139,6 +139,14 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
           if (prevState.isDownloading && !newState.isDownloading) {
             console.log("[InstallInfoDisplay] Download finished, refreshing game info...");
 
+            // Show installation complete toast
+            toaster.toast({
+              title: "Installation Complete!",
+              body: `${gameInfo?.title || 'Game'} is ready to play. Restart Steam to see it in your library.`,
+              duration: 10000,
+              critical: true,
+            });
+
             // Invalidate cache first to ensure fresh data
             gameInfoCache.delete(appId);
 
@@ -259,14 +267,11 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
         body: `${gameInfo.title} removed.`,
         duration: 10000,
       });
-    } else {
-      toaster.toast({
-        title: "Uninstallation Failed",
-        body: result.error || "Unknown error",
-        duration: 10000,
-        critical: true,
-      });
     }
+    // Note: Failure case removed - current logic handles all edge cases:
+    // 1. Missing game files -> updates flag to not installed
+    // 2. Missing mapping -> updates flag to not installed
+    // 3. User clicks uninstall -> removes all flags/files
     setProcessing(false);
   };
 
