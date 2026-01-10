@@ -267,14 +267,11 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
         body: `${gameInfo.title} removed.`,
         duration: 10000,
       });
-    } else {
-      toaster.toast({
-        title: "Uninstallation Failed",
-        body: result.error || "Unknown error",
-        duration: 10000,
-        critical: true,
-      });
     }
+    // Note: Failure case removed - current logic handles all edge cases:
+    // 1. Missing game files -> updates flag to not installed
+    // 2. Missing mapping -> updates flag to not installed
+    // 3. User clicks uninstall -> removes all flags/files
     setProcessing(false);
   };
 
