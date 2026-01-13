@@ -181,9 +181,9 @@ resolve_proton_path() {
             case "$proton_name" in
                 proton_experimental|"Proton - Experimental"|proton-experimental)
                     [ -d "$base/Proton - Experimental" ] && echo "$base/Proton - Experimental" && return 0 ;;
-                proton_9|proton_90|proton9|"Proton 9"*|"proton-9"*)
+                proton_9|proton_90|proton9|"Proton 9"*|"proton-9"*|"Proton-9"*)
                     [ -d "$base/Proton 9.0 (Beta)" ] && echo "$base/Proton 9.0 (Beta)" && return 0 ;;
-                proton_10|proton10|"Proton 10"*|"proton-10"*)
+                proton_10|proton10|"Proton 10"*|"proton-10"*|"Proton-10"*)
                     [ -d "$base/Proton 10.0" ] && echo "$base/Proton 10.0" && return 0 ;;
             esac
         fi
@@ -236,6 +236,31 @@ select_proton_version() {
             log "[Proton] Resolved PROTON=$PROTON to: $PROTONPATH"
             return 0
         else
+            log "[Proton] PROTON=$PROTON not found locally. Attempting to install..."
+            notify_stage "Installing Proton" "Attempting to install $PROTON..." "normal"
+            
+            INSTALLER_SCRIPT="$PLUGIN_DIR/bin/proton_installer.py"
+            if [ -f "$INSTALLER_SCRIPT" ]; then
+                 # run installer
+                 INSTALL_RESULT=$("$PYTHON_BIN" "$INSTALLER_SCRIPT" "$PROTON" 2>>"$LOG_FILE" | tail -n 1)
+                 
+                 if [ -n "$INSTALL_RESULT" ] && [ -d "$INSTALL_RESULT" ]; then
+                     export PROTONPATH="$INSTALL_RESULT"
+                     log "[Proton] Successfully installed to: $PROTONPATH"
+                     return 0
+                 elif [[ "$INSTALL_RESULT" == *"INSTALLED_VIA_STEAM"* ]]; then
+                     log "[Proton] Steam installation completed. Re-resolving..."
+                     resolved=$(resolve_proton_path "$PROTON")
+                     if [ -n "$resolved" ]; then
+                         export PROTONPATH="$resolved"
+                         log "[Proton] Resolved new Steam Proton: $PROTONPATH"
+                         return 0
+                     fi
+                 else
+                     log "[Proton] Installation check failed or returned invalid path: $INSTALL_RESULT"
+                 fi
+            fi
+            
             log "[Proton] WARNING: Could not resolve PROTON=$PROTON, using default"
         fi
     fi
@@ -269,6 +294,7 @@ select_proton_version() {
     log "[Proton] No Proton found locally, umu will download one"
     return 0
 }
+
 
 # Find Python 3.10+ at startup
 PYTHON_BIN=$(find_python310_plus)

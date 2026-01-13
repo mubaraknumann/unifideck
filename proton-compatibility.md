@@ -7,12 +7,12 @@ Unifideck supports custom Proton versions for Windows games. By default, **Proto
 Add `PROTON=` to your game's launch options:
 
 ```
-PROTON=GE-Proton10-10 epic:gameid
+PROTON=Proton-9.0 epic:gameid
 ```
 
 Or after the game ID:
 ```
-epic:gameid PROTON=GE-Proton10-10
+epic:gameid PROTON=Proton-9.0
 ```
 
 ## Methods
@@ -20,7 +20,7 @@ epic:gameid PROTON=GE-Proton10-10
 ### Method 1: Launch Options (Recommended)
 Add to your game's Steam shortcut launch options:
 ```
-PROTON=GE-Proton10-10 epic:7334aba246154b63857435cb9c7eecd5
+PROTON=Proton-9.0 epic:7334aba246154b63857435cb9c7eecd5
 ```
 
 ### Method 2: Custom Proton Path
@@ -33,7 +33,7 @@ PROTONPATH=/path/to/custom/proton epic:gameid
 
 You can combine Proton selection with other launch options:
 ```
-LSFG=1 PROTON=GE-Proton9-26 MANGOHUD=1 gog:12345
+LSFG=1 PROTON=Proton-9.0 MANGOHUD=1 gog:12345
 ```
 
 ## Priority Order
@@ -44,11 +44,9 @@ LSFG=1 PROTON=GE-Proton9-26 MANGOHUD=1 gog:12345
 
 ## Troubleshooting
 
-If a game crashes with default Proton, try a GE-Proton version:
+If a game crashes with Proton Experimental, try an older stable version:
 ```
 PROTON=GE-Proton10-10 epic:gameid
 ```
 
 If you see a message that says 'Path Not Found', try running the game again. If that doesn't work, delete the prefix and try again.
-
-GE-Proton includes additional patches and fixes not in official Proton.
