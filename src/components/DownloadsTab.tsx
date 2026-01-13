@@ -18,6 +18,8 @@ import {
     ProgressBarWithInfo,
     Focusable,
     DialogButton,
+    showModal,
+    ConfirmModal,
 } from "@decky/ui";
 import { FaTimes, FaDownload, FaCheck, FaExclamationTriangle } from "react-icons/fa";
 
@@ -133,7 +135,18 @@ const DownloadItemRow: FC<{
             {(item.status === "downloading" || item.status === "queued") && (
                 <div style={{ marginBottom: "8px" }}>
                     <DialogButton
-                        onClick={() => onCancel(item.id)}
+                        onClick={() => {
+                            showModal(
+                                <ConfirmModal
+                                    strTitle="Confirm Cancellation"
+                                    strDescription={`Are you sure you want to cancel the download for ${item.game_title}?`}
+                                    strOKButtonText="Yes"
+                                    strCancelButtonText="No"
+                                    bDestructiveWarning={true}
+                                    onOK={() => onCancel(item.id)}
+                                />
+                            );
+                        }}
                         style={{
                             padding: "4px 12px",
                             minWidth: "auto",
@@ -153,7 +166,7 @@ const DownloadItemRow: FC<{
                     {/* Show phase-specific messages */}
                     {item.download_phase === "extracting" && (
                         <div style={{ fontSize: "12px", color: "#f59e0b", marginBottom: "8px" }}>
-                            📦 {item.phase_message || "Extracting game files..."}
+                            {item.phase_message || "Extracting game files..."}
                         </div>
                     )}
                     {item.download_phase === "verifying" && (

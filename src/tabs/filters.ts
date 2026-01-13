@@ -44,6 +44,7 @@ export const unifideckGameCache: Map<number, {
 /**
  * Updates the Unifideck game cache with store info
  * Stores both signed and unsigned versions of appId for reliable lookup
+ * NOTE: This REPLACES the entire cache - use updateSingleGameStatus for individual updates
  */
 export function updateUnifideckCache(games: Array<{
     appId: number;
@@ -71,6 +72,35 @@ export function updateUnifideckCache(games: Array<{
         }
     });
     console.log(`[Unifideck] Cache now has ${unifideckGameCache.size} entries (${games.length} games x2 for signed/unsigned)`);
+}
+
+/**
+ * Updates a SINGLE game's installation status in the cache
+ * Does NOT clear other entries - safe for real-time UI updates
+ */
+export function updateSingleGameStatus(game: {
+    appId: number;
+    store: 'epic' | 'gog' | 'amazon';
+    isInstalled: boolean;
+}) {
+    const signedId = game.appId;
+    const unsignedId = signedId < 0 ? signedId + 0x100000000 : signedId;
+    const altSignedId = signedId >= 0 && signedId > 0x7FFFFFFF ? signedId - 0x100000000 : signedId;
+
+    // Check if entry exists and update it, or create new entry
+    const existingEntry = unifideckGameCache.get(signedId);
+    const entry = {
+        store: game.store,
+        isInstalled: game.isInstalled,
+        steamAppId: existingEntry?.steamAppId
+    };
+
+    unifideckGameCache.set(signedId, entry);
+    unifideckGameCache.set(unsignedId, entry);
+    if (altSignedId !== signedId) {
+        unifideckGameCache.set(altSignedId, entry);
+    }
+    console.log(`[Unifideck] Updated single game status: ${game.store}:${game.appId} installed=${game.isInstalled}`);
 }
 
 /**

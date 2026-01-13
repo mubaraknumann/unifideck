@@ -264,40 +264,69 @@ class SteamGridDBClient:
         return result
 
     async def get_gog_metadata(self, gog_product_id: int) -> Dict[str, Any]:
-        """Fetch GOG artwork URLs"""
+        """Fetch GOG artwork URLs from Galaxy GamesDB API (includes vertical_cover)"""
         result = {'urls': {}}
         
         try:
             connector = aiohttp.TCPConnector(ssl=False)
             async with aiohttp.ClientSession(connector=connector) as session:
-                api_url = f"https://api.gog.com/products/{gog_product_id}?expand=description"
-                async with session.get(api_url) as response:
-                    if response.status != 200:
-                        return result
+                # Use Galaxy GamesDB API which provides vertical_cover (box art)
+                gamesdb_url = f"https://gamesdb.gog.com/platforms/gog/external_releases/{gog_product_id}"
+                
+                async with session.get(gamesdb_url) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        game = data.get('game', {})
+                        
+                        # Grid: Vertical cover (box art) - THIS IS WHAT WE NEED!
+                        vertical_cover = game.get('vertical_cover', {})
+                        if vertical_cover.get('url_format'):
+                            url = vertical_cover['url_format'].replace('{formatter}', '').replace('{ext}', 'jpg')
+                            result['urls']['grid'] = url
+                        
+                        # Hero: Background image
+                        background = game.get('background', {})
+                        if background.get('url_format'):
+                            url = background['url_format'].replace('{formatter}', '').replace('{ext}', 'jpg')
+                            result['urls']['hero'] = url
+                        
+                        # Logo
+                        logo = game.get('logo', {})
+                        if logo.get('url_format'):
+                            url = logo['url_format'].replace('{formatter}', '').replace('{ext}', 'png')
+                            result['urls']['logo'] = url
+                        
+                        # Icon (square_icon preferred, fallback to icon)
+                        icon = game.get('square_icon', {}) or game.get('icon', {})
+                        if icon.get('url_format'):
+                            url = icon['url_format'].replace('{formatter}', '').replace('{ext}', 'jpg')
+                            result['urls']['icon'] = url
                     
-                    data = await response.json()
-                    images = data.get('images', {})
-                    
-                    # Icon
-                    if images.get('icon'):
-                        url = images['icon']
-                        if url.startswith('//'): url = 'https:' + url
-                        result['urls']['icon'] = url
-
-                    # Logo
-                    if images.get('logo2x') or images.get('logo'):
-                        url = images.get('logo2x') or images.get('logo')
-                        if url.startswith('//'): url = 'https:' + url
-                        result['urls']['logo'] = url
-
-                    # Hero (from background)
-                    if images.get('background'):
-                        url = images['background']
-                        if url.startswith('//'): url = 'https:' + url
-                        result['urls']['hero'] = url
+                    # Fallback to basic products API if GamesDB fails
+                    if not result['urls']:
+                        api_url = f"https://api.gog.com/products/{gog_product_id}?expand=description"
+                        async with session.get(api_url) as prod_response:
+                            if prod_response.status == 200:
+                                data = await prod_response.json()
+                                images = data.get('images', {})
+                                
+                                if images.get('icon'):
+                                    url = images['icon']
+                                    if url.startswith('//'): url = 'https:' + url
+                                    result['urls']['icon'] = url
+                                
+                                if images.get('logo2x') or images.get('logo'):
+                                    url = images.get('logo2x') or images.get('logo')
+                                    if url.startswith('//'): url = 'https:' + url
+                                    result['urls']['logo'] = url
+                                
+                                if images.get('background'):
+                                    url = images['background']
+                                    if url.startswith('//'): url = 'https:' + url
+                                    result['urls']['hero'] = url
                         
         except Exception as e:
-            logger.debug(f"GOG API error: {e}")
+            logger.debug(f"GOG GamesDB API error: {e}")
             
         return result
 
@@ -329,9 +358,10 @@ class SteamGridDBClient:
             if not key_images:
                 return result
                 
+            # Priority: Prefer vertical covers first for proper box art display
             type_mapping = {
-                'grid': ['OfferImageTall', 'DieselGameBoxTall', 'DieselGameBox', 'Thumbnail'],
-                'hero': ['OfferImageWide', 'DieselGameBoxWide', 'featuredMedia', 'DieselStoreFrontWide'],
+                'grid': ['DieselGameBoxTall', 'OfferImageTall', 'DieselStoreFrontTall', 'DieselGameBox', 'Thumbnail'],
+                'hero': ['OfferImageWide', 'DieselGameBoxWide', 'DieselStoreFrontWide', 'featuredMedia'],
                 'logo': ['DieselGameBoxLogo', 'ProductLogo'],
             }
             
@@ -351,52 +381,93 @@ class SteamGridDBClient:
         return result
 
     async def get_amazon_metadata(self, amazon_game_id: str) -> Dict[str, Any]:
-        """Fetch Amazon artwork URLs from Nile library cache"""
+        """Fetch Amazon artwork URLs from GOG GamesDB API (same approach as Heroic)
+        
+        Amazon's library.json only has horizontal images (512x288).
+        GOG's GamesDB provides vertical_cover with proper dimensions for Steam's grid.
+        """
         result = {'urls': {}}
         
         try:
-            nile_library = Path.home() / ".config" / "nile" / "library.json"
-            
-            if not nile_library.exists():
-                return result
-            
-            with open(nile_library) as f:
-                library = json.load(f)
-            
-            # Find game by ID
-            for entry in library:
-                product = entry.get('product', {})
-                if product.get('id') == amazon_game_id:
-                    detail = product.get('productDetail', {})
-                    details = detail.get('details', {})
-                    
-                    # Grid: Prime Gaming crown image (vertical box art)
-                    if details.get('pgCrownImageUrl'):
-                        result['urls']['grid'] = details['pgCrownImageUrl']
-                    
-                    # Hero: Background image
-                    if details.get('backgroundUrl1'):
-                        result['urls']['hero'] = details['backgroundUrl1']
-                    
-                    # Logo
-                    if details.get('logoUrl'):
-                        result['urls']['logo'] = details['logoUrl']
-                    
-                    # Icon
-                    if detail.get('iconUrl'):
-                        result['urls']['icon'] = detail['iconUrl']
-                    
-                    break
-                    
+            connector = aiohttp.TCPConnector(ssl=False)
+            async with aiohttp.ClientSession(connector=connector) as session:
+                # Use GOG GamesDB API for Amazon games (same as Heroic!)
+                # This provides vertical_cover with proper dimensions
+                gamesdb_url = f"https://gamesdb.gog.com/platforms/amazon/external_releases/{amazon_game_id}"
+                
+                logger.debug(f"[Amazon] Fetching artwork from GamesDB: {gamesdb_url}")
+                
+                async with session.get(gamesdb_url) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        game = data.get('game', {})
+                        title = data.get('title', {}).get('*', 'Unknown')
+                        
+                        logger.debug(f"[Amazon] GamesDB found: '{title}'")
+                        
+                        # Grid: Vertical cover (proper box art!)
+                        vertical_cover = game.get('vertical_cover', {})
+                        if vertical_cover.get('url_format'):
+                            url = vertical_cover['url_format'].replace('{formatter}', '').replace('{ext}', 'jpg')
+                            result['urls']['grid'] = url
+                            logger.debug(f"[Amazon]   grid (GamesDB): {url[:60]}...")
+                        
+                        # Hero: Background image
+                        background = game.get('background', {})
+                        if background.get('url_format'):
+                            url = background['url_format'].replace('{formatter}', '').replace('{ext}', 'jpg')
+                            result['urls']['hero'] = url
+                        
+                        # Logo
+                        logo = game.get('logo', {})
+                        if logo.get('url_format'):
+                            url = logo['url_format'].replace('{formatter}', '').replace('{ext}', 'png')
+                            result['urls']['logo'] = url
+                        
+                        # Icon (square_icon preferred)
+                        icon = game.get('square_icon', {}) or game.get('icon', {})
+                        if icon.get('url_format'):
+                            url = icon['url_format'].replace('{formatter}', '').replace('{ext}', 'jpg')
+                            result['urls']['icon'] = url
+                    else:
+                        logger.debug(f"[Amazon] GamesDB returned {response.status}, falling back to library.json")
+                
+                # Fallback to Nile library.json for any missing artwork
+                if not result['urls'].get('hero') or not result['urls'].get('logo'):
+                    nile_library = Path.home() / ".config" / "nile" / "library.json"
+                    if nile_library.exists():
+                        with open(nile_library) as f:
+                            library = json.load(f)
+                        
+                        for entry in library:
+                            product = entry.get('product', {})
+                            if product.get('id') == amazon_game_id:
+                                detail = product.get('productDetail', {})
+                                details = detail.get('details', {})
+                                
+                                # Hero fallback
+                                if not result['urls'].get('hero') and details.get('backgroundUrl1'):
+                                    result['urls']['hero'] = details['backgroundUrl1']
+                                
+                                # Logo fallback
+                                if not result['urls'].get('logo') and details.get('logoUrl'):
+                                    result['urls']['logo'] = details['logoUrl']
+                                
+                                # Icon fallback
+                                if not result['urls'].get('icon') and detail.get('iconUrl'):
+                                    result['urls']['icon'] = detail['iconUrl']
+                                
+                                break
+                        
         except Exception as e:
-            logger.debug(f"Amazon metadata error: {e}")
+            logger.debug(f"Amazon GamesDB error: {e}")
             
         return result
 
     async def search_steam_appid(self, title: str) -> Optional[int]:
         """
-        Search Steam Store for AppID by game title
-        Used for Epic/GOG games that also exist on Steam
+        Search Steam Store for AppID by game title.
+        Uses title validation to prevent wrong matches (e.g., "Cars" matching "Brave").
         """
         try:
             import urllib.parse
@@ -412,11 +483,52 @@ class SteamGridDBClient:
                     data = await response.json()
                     items = data.get('items', [])
                     
-                    if items:
-                        # Return first match
-                        steam_id = items[0].get('id')
-                        logger.debug(f"Steam search: '{title}' -> AppID {steam_id}")
-                        return steam_id
+                    # Normalize search title for comparison
+                    search_lower = title.lower().strip()
+                    
+                    for item in items:
+                        steam_name = item.get('name', '').lower().strip()
+                        steam_id = item.get('id')
+                        
+                        if not steam_id:
+                            continue
+                        
+                        # Exact match - best case
+                        if steam_name == search_lower:
+                            logger.debug(f"Steam search: '{title}' -> AppID {steam_id} (exact match)")
+                            return steam_id
+                        
+                        # Check if one contains the other (for editions/subtitles)
+                        # "Ghostrunner 2" should match "Ghostrunner 2" not "Ghostrunner"
+                        # "Batman Season 2" shouldn't match "Batman Season 1"
+                        if search_lower == steam_name:
+                            logger.debug(f"Steam search: '{title}' -> AppID {steam_id} (exact match)")
+                            return steam_id
+                        
+                        # Strict containment: the search title should be found as-is
+                        # "Disney•Pixar Cars" should only match if Steam has that exact title
+                        if steam_name.startswith(search_lower) or search_lower.startswith(steam_name):
+                            # Check it's not a different game in the series
+                            # E.g., "Ghostrunner" shouldn't match "Ghostrunner 2"
+                            # Allow edition suffixes like "GOTY Edition", "Definitive Edition"
+                            remainder = steam_name.replace(search_lower, '').strip()
+                            remainder2 = search_lower.replace(steam_name, '').strip()
+                            
+                            # Allow common suffixes
+                            allowed_suffixes = ['edition', 'goty', 'definitive', 'ultimate', 'complete', 
+                                              'enhanced', 'remastered', 'hd', 'remake']
+                            
+                            is_safe_suffix = any(suf in remainder.lower() for suf in allowed_suffixes) or \
+                                           any(suf in remainder2.lower() for suf in allowed_suffixes) or \
+                                           remainder == '' or remainder2 == ''
+                            
+                            if is_safe_suffix:
+                                logger.debug(f"Steam search: '{title}' -> AppID {steam_id} (prefix match)")
+                                return steam_id
+                    
+                    # No good match found
+                    logger.debug(f"Steam search: '{title}' -> No validated match in {len(items)} results")
+                    return None
                     
         except Exception as e:
             logger.debug(f"Steam search error for '{title}': {e}")
@@ -458,23 +570,27 @@ class SteamGridDBClient:
             # Wait for both
             steam_res, store_res = await asyncio.gather(*tasks)
             
-            # Save Steam ID if found
+            # Save Steam ID if found (for reference, but don't prioritize Steam artwork)
             if steam_res.get('steam_id'):
                 final_result['steam_app_id'] = steam_res['steam_id']
                 
-            # === PHASE 2: SELECTION (Top 1 Logic) ===
-            # Start with Steam URLs
-            selected_urls = steam_res.get('urls', {}).copy()
-            source_map = {k: 'STEAM' for k in selected_urls}
+            # === PHASE 2: SELECTION ===
+            # Priority: Store (authoritative) > SGDB (fallback) > Steam CDN (last resort)
             
-            # Overwrite with Store URLs (Priority!)
+            # Start with STORE URLs as the authoritative source
             store_urls = store_res.get('urls', {})
             store_label = store.upper() if store else 'STORE'
             
+            selected_urls = {}
+            source_map = {}
+            
+            # Add all store URLs first (they are authoritative for this game)
             for k, url in store_urls.items():
-                if url: # If store has this image, it WINS
+                if url:
                     selected_urls[k] = url
                     source_map[k] = store_label
+            
+            logger.debug(f"[Artwork] Store provided: {list(selected_urls.keys())}")
             
             # === PHASE 3: DOWNLOAD (Parallel) ===
             download_tasks = []
@@ -525,10 +641,12 @@ class SteamGridDBClient:
             # e.g. "STEAM:grid+logo GOG:hero+icon"
             summary_parts = []
             
-            # Group by source
+            # Group by source (skip grid_vertical as it's just a copy of grid)
             by_source = {}
             for k in downloaded:
-                src = source_map[k]
+                if k == 'grid_vertical':
+                    continue  # Skip - it's a secondary copy, not a distinct asset type
+                src = source_map.get(k, 'UNKNOWN')
                 if src not in by_source: by_source[src] = []
                 by_source[src].append(k)
                 
@@ -536,7 +654,7 @@ class SteamGridDBClient:
                 summary_parts.append(f"{src}:{'+'.join(sorted(types))}")
                 
             final_result['sources'] = summary_parts
-            final_result['artwork_count'] = len(downloaded)
+            final_result['artwork_count'] = len([k for k in downloaded if k != 'grid_vertical'])
 
             # === PHASE 4: FALLBACK (SGDB) ===
             # If significant art is missing (Grid or Hero), use SGDB to fill gaps
@@ -553,21 +671,56 @@ class SteamGridDBClient:
                             if success and art_type not in downloaded:
                                 downloaded.add(art_type)
                                 source_map[art_type] = 'SGDB'
-                        # Rebuild sources summary with SGDB additions
-                        by_source = {}
-                        for k in downloaded:
-                            src = source_map.get(k, 'UNKNOWN')
-                            if src not in by_source: by_source[src] = []
-                            by_source[src].append(k)
-                        summary_parts = []
-                        for src, types in by_source.items():
-                            summary_parts.append(f"{src}:{'+'.join(sorted(types))}")
-                        final_result['sources'] = summary_parts
-                        final_result['artwork_count'] = len(downloaded)
+                        final_result['sgdb_filled'] = True
                 except Exception as e:
                     logger.debug(f"SGDB fallback failed for {title}: {e}")
-                    
-                final_result['sgdb_filled'] = True
+            
+            # === PHASE 5: STEAM CDN (Last Resort) ===
+            # Only use Steam CDN for remaining gaps after Store and SGDB
+            still_missing = needed - downloaded
+            
+            if still_missing and steam_res.get('urls'):
+                steam_urls = steam_res.get('urls', {})
+                
+                # Only fill gaps, don't overwrite existing art
+                for art_type in still_missing:
+                    if art_type in steam_urls and steam_urls[art_type]:
+                        # Download Steam art for this type
+                        if art_type == 'grid':
+                            path = os.path.join(self.grid_path, f"{unsigned_id}p.jpg")
+                            v_path = os.path.join(self.grid_path, f"{unsigned_id}.jpg")
+                            if await self.download_image(steam_urls['grid'], path):
+                                downloaded.add('grid')
+                                source_map['grid'] = 'STEAM'
+                                await self.download_image(steam_urls['grid'], v_path)
+                        elif art_type == 'hero':
+                            path = os.path.join(self.grid_path, f"{unsigned_id}_hero.jpg")
+                            if await self.download_image(steam_urls['hero'], path):
+                                downloaded.add('hero')
+                                source_map['hero'] = 'STEAM'
+                        elif art_type == 'logo':
+                            path = os.path.join(self.grid_path, f"{unsigned_id}_logo.png")
+                            if await self.download_image(steam_urls['logo'], path):
+                                downloaded.add('logo')
+                                source_map['logo'] = 'STEAM'
+                
+                logger.debug(f"[Artwork] Steam CDN filled gaps: {still_missing & downloaded}")
+            
+            # Rebuild final sources summary
+            by_source = {}
+            for k in downloaded:
+                if k == 'grid_vertical':
+                    continue
+                src = source_map.get(k, 'UNKNOWN')
+                if src not in by_source: by_source[src] = []
+                by_source[src].append(k)
+            
+            summary_parts = []
+            for src, types in by_source.items():
+                summary_parts.append(f"{src}:{'+'.join(sorted(types))}")
+            
+            final_result['sources'] = summary_parts
+            final_result['artwork_count'] = len([k for k in downloaded if k != 'grid_vertical'])
                 
             if downloaded:
                 final_result['success'] = True

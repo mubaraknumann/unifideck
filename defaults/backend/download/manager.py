@@ -423,25 +423,6 @@ class DownloadQueue:
                 return item.to_dict()
         return None
 
-    def get_download_item(self, game_id: str, store: str) -> Optional[Dict[str, Any]]:
-        """
-        Get a download item by game_id and store, checking both active queue and finished list.
-        Useful for checking status of recently finished/cancelled items.
-        """
-        download_id = f"{store}:{game_id}"
-        
-        # Check active queue first
-        for item in self.queue:
-            if item.id == download_id:
-                return item.to_dict()
-                
-        # Check finished list (reversed to get most recent)
-        for item in reversed(self.finished):
-            if item.id == download_id:
-                return item.to_dict()
-                
-        return None
-
     async def _process_queue(self) -> None:
         """Process downloads in the queue sequentially"""
         self.state = "running"

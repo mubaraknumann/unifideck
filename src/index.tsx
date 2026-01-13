@@ -6,7 +6,7 @@ import { FaGamepad, FaSync } from "react-icons/fa";
 // Import views
 
 // Import tab system
-import { patchLibrary, loadCompatCacheFromBackend } from "./tabs";
+import { patchLibrary, loadCompatCacheFromBackend, tabManager, updateSingleGameStatus } from "./tabs";
 
 import { syncUnifideckCollections } from "./spoofing/CollectionManager";
 
@@ -137,28 +137,60 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
 
           // Detect transition from Downloading -> Not Downloading (Completion)
           if (prevState.isDownloading && !newState.isDownloading) {
-            console.log("[InstallInfoDisplay] Download finished, refreshing game info...");
+            console.log("[InstallInfoDisplay] Download stopped, checking status...");
 
-            // Show installation complete toast
-            toaster.toast({
-              title: "Installation Complete!",
-              body: `${gameInfo?.title || 'Game'} is ready to play. Restart Steam to see it in your library.`,
-              duration: 10000,
-              critical: true,
-            });
+            // Check the status from the download info to determine actual completion
+            // result.download_info might be available even if is_downloading is false
+            const finalStatus = result.download_info?.status;
 
-            // Invalidate cache first to ensure fresh data
-            gameInfoCache.delete(appId);
+            if (finalStatus === 'completed') {
+              console.log("[InstallInfoDisplay] Download successfully finished");
 
-            // Refresh game info to update button state (Install -> Play/Uninstall)
-            call<[number], any>("get_game_info", appId)
-              .then(info => {
-                const processedInfo = info?.error ? null : info;
-                setGameInfo(processedInfo);
-                if (processedInfo) {
-                  gameInfoCache.set(appId, { info: processedInfo, timestamp: Date.now() });
+              // Show installation complete toast
+              toaster.toast({
+                title: "Installation Complete!",
+                body: `${gameInfo?.title || 'Game'} is ready to play. Restart Steam to see it in your library.`,
+                duration: 10000,
+                critical: true,
+              });
+
+              // Invalidate cache first to ensure fresh data
+              gameInfoCache.delete(appId);
+
+              // Refresh game info to update button state (Install -> Play/Uninstall)
+              call<[number], any>("get_game_info", appId)
+                .then(info => {
+                  const processedInfo = info?.error ? null : info;
+                  setGameInfo(processedInfo);
+                  if (processedInfo) {
+                    gameInfoCache.set(appId, { info: processedInfo, timestamp: Date.now() });
+                    // Update tab cache immediately so UI reflects change
+                    updateSingleGameStatus({
+                      appId,
+                      store: processedInfo.store,
+                      isInstalled: processedInfo.is_installed
+                    });
+                  }
+                });
+            } else if (finalStatus === 'cancelled') {
+              console.log("[InstallInfoDisplay] Download was cancelled - suppressing success message");
+            } else if (finalStatus === 'error') {
+              console.log("[InstallInfoDisplay] Download failed - suppressing success message");
+            } else {
+              // Fallback: If no status info (legacy behavior or edge case), verify installation again
+              console.log("[InstallInfoDisplay] No final status, verifying installation...");
+              call<[number], any>("get_game_info", appId).then(info => {
+                if (info && info.is_installed) {
+                  // It is installed, likely success
+                  toaster.toast({
+                    title: "Installation Complete!",
+                    body: `${gameInfo?.title || 'Game'} is ready to play.`,
+                    duration: 10000,
+                  });
+                  setGameInfo(info);
                 }
               });
+            }
           }
 
           return newState;
@@ -262,6 +294,12 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
     if (result.success) {
       setGameInfo({ ...gameInfo, is_installed: false });
       gameInfoCache.delete(appId);
+
+      // Update tab cache immediately so UI reflects change without restart
+      if (result.game_update) {
+        updateSingleGameStatus(result.game_update);
+      }
+
       toaster.toast({
         title: "Uninstallation Complete!",
         body: `${gameInfo.title} removed.`,
@@ -1426,7 +1464,7 @@ const Content: FC = () => {
                 <PanelSectionRow>
                   <Field
                     label="⚠️ Warning"
-                    description="This will delete ALL Unifideck games, artwork, auth tokens, and cache. This action is irreversible."
+                    description="Deletes shortcuts, artwork, auth tokens, and cache. Installed games will be preserved and can be re-synced. Enable destructive mode to also delete game files and mappings."
                   />
                 </PanelSectionRow>
 
@@ -1531,8 +1569,37 @@ export default definePlugin(() => {
     console.log("[Unifideck] ✓ CSS injection complete");
   }, 100); // 100ms delay to ensure patches are active
 
+  // Poll for launcher toasts (first-run notifications from unifideck-launcher)
+  // The launcher writes toasts to a JSON file, we read and display them here
+  let launcherToastInterval: NodeJS.Timeout | null = null;
+  launcherToastInterval = setInterval(async () => {
+    try {
+      const toasts = await call<[], Array<{ title: string; body: string; urgency?: string; timestamp?: number }>>(
+        "get_launcher_toasts"
+      );
+
+      if (toasts && toasts.length > 0) {
+        for (const toast of toasts) {
+          toaster.toast({
+            title: `Unifideck: ${toast.title}`,
+            body: toast.body,
+            duration: toast.urgency === "critical" ? 10000 : 5000,
+            critical: toast.urgency === "critical",
+          });
+        }
+        console.log(`[Unifideck] Displayed ${toasts.length} launcher toast(s)`);
+      }
+    } catch (error) {
+      // Silently ignore errors - launcher toasts are non-critical
+    }
+  }, 1500); // Check every 1.5 seconds
+
+  // Store interval ID for cleanup
+  (window as any).__unifideck_toast_interval = launcherToastInterval;
+
   // Background sync disabled - users manually sync via UI when needed
   console.log("[Unifideck] Background sync disabled (use manual sync button)");
+
 
   return {
     name: "UNIFIDECK",
@@ -1541,7 +1608,12 @@ export default definePlugin(() => {
     onDismount() {
       console.log("[Unifideck] Plugin unloading");
 
-
+      // Stop launcher toast polling
+      const toastInterval = (window as any).__unifideck_toast_interval;
+      if (toastInterval) {
+        clearInterval(toastInterval);
+        (window as any).__unifideck_toast_interval = null;
+      }
 
       // Remove CSS injection
       const styleEl = document.getElementById("unifideck-tab-hider");

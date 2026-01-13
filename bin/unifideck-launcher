@@ -34,6 +34,55 @@ log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE"
 }
 
+# Toast notification for setup stages (visible in Game Mode)
+# Usage: notify_stage "Stage Name" "Details..."
+# 
+# Writes to JSON file that the Decky plugin frontend polls.
+# This ensures toasts appear in Steam Gaming Mode (notify-send doesn't work there).
+TOAST_FILE="$HOME/.local/share/unifideck/launcher_toasts.json"
+
+notify_stage() {
+    local stage="$1"
+    local message="$2"
+    local urgency="${3:-normal}"  # low, normal, critical
+    
+    log "[STAGE] $stage: $message"
+    
+    # Write toast to JSON file for Decky frontend to display
+    # The frontend polls this file and shows toasts via Steam's toast API
+    local timestamp
+    timestamp=$(date +%s.%N)
+    
+    # Create directory if needed
+    mkdir -p "$(dirname "$TOAST_FILE")"
+    
+    # Read existing toasts (or start empty array)
+    local existing="[]"
+    if [ -f "$TOAST_FILE" ]; then
+        existing=$(cat "$TOAST_FILE" 2>/dev/null || echo "[]")
+        # Validate JSON is an array
+        if ! echo "$existing" | python3 -c "import json,sys; json.load(sys.stdin)" 2>/dev/null; then
+            existing="[]"
+        fi
+    fi
+    
+    # Append new toast using Python for proper JSON handling
+    python3 -c "
+import json
+import sys
+
+existing = json.loads('''$existing''')
+toast = {
+    'title': '''$stage''',
+    'body': '''$message''',
+    'urgency': '''$urgency''',
+    'timestamp': $timestamp
+}
+existing.append(toast)
+print(json.dumps(existing))
+" > "$TOAST_FILE" 2>/dev/null
+}
+
 # Cloud save sync script (Python - uses legendary/gogdl)
 CLOUD_SAVE_SCRIPT="$PLUGIN_DIR/bin/cloud_save_sync.py"
 
@@ -69,10 +118,204 @@ unset LD_LIBRARY_PATH
 unset STEAM_RUNTIME
 unset STEAM_COMPAT_CLIENT_INSTALL_PATH
 
-# 1. Get the lookup key (store:game_id)
-KEY="$1"
-shift || true
+# ==============================================================================
+# Find Python 3.10+ - CRITICAL: umu-launcher requires Python 3.10+ (match statements)
+# This MUST happen early before any umu-run usage
+# ==============================================================================
+find_python310_plus() {
+    # Search in order of preference - newer versions first
+    for py in \
+        /usr/bin/python3.13 \
+        /usr/bin/python3.12 \
+        /usr/bin/python3.11 \
+        /usr/bin/python3.10 \
+        "$HOME/.local/bin/python3.13" \
+        "$HOME/.local/bin/python3.12" \
+        "$HOME/.local/bin/python3.11" \
+        "$HOME/.local/bin/python3.10"
+    do
+        if [ -x "$py" ]; then
+            # Verify it's actually 3.10+ by checking version
+            version=$("$py" -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null)
+            if [ -n "$version" ]; then
+                major=$(echo "$version" | cut -d. -f1)
+                minor=$(echo "$version" | cut -d. -f2)
+                if [ "$major" -ge 3 ] 2>/dev/null && [ "$minor" -ge 10 ] 2>/dev/null; then
+                    echo "$py"
+                    return 0
+                fi
+            fi
+        fi
+    done
+    
+    # Last resort: check if system python3 is 3.10+
+    if command -v python3 &>/dev/null; then
+        version=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null)
+        if [ -n "$version" ]; then
+            major=$(echo "$version" | cut -d. -f1)
+            minor=$(echo "$version" | cut -d. -f2)
+            if [ "$major" -ge 3 ] 2>/dev/null && [ "$minor" -ge 10 ] 2>/dev/null; then
+                echo "python3"
+                return 0
+            fi
+        fi
+    fi
+    
+    return 1
+}
 
+# ==============================================================================
+# PROTON VERSION SELECTION
+# Priority: 1) PROTONPATH= env  2) PROTON= env  3) Steam compat  4) default
+# ==============================================================================
+
+# Resolve a Proton tool name to its filesystem path
+resolve_proton_path() {
+    local proton_name="$1"
+    
+    # Check Steam common folders
+    for base in "$HOME/.steam/steam/steamapps/common" \
+                "$HOME/.local/share/Steam/steamapps/common" \
+                "$HOME/.steam/root/steamapps/common"; do
+        if [ -d "$base" ]; then
+            case "$proton_name" in
+                proton_experimental|"Proton - Experimental"|proton-experimental)
+                    [ -d "$base/Proton - Experimental" ] && echo "$base/Proton - Experimental" && return 0 ;;
+                proton_9|proton_90|proton9|"Proton 9"*|"proton-9"*)
+                    [ -d "$base/Proton 9.0 (Beta)" ] && echo "$base/Proton 9.0 (Beta)" && return 0 ;;
+                proton_10|proton10|"Proton 10"*|"proton-10"*)
+                    [ -d "$base/Proton 10.0" ] && echo "$base/Proton 10.0" && return 0 ;;
+            esac
+        fi
+    done
+    
+    # Check GE-Proton in compatibilitytools.d
+    for compat_dir in "$HOME/.steam/root/compatibilitytools.d" \
+                      "$HOME/.steam/steam/compatibilitytools.d" \
+                      "$HOME/.local/share/Steam/compatibilitytools.d"; do
+        local ge_path="$compat_dir/$proton_name"
+        [ -d "$ge_path" ] && echo "$ge_path" && return 0
+    done
+    
+    # Not found
+    return 1
+}
+
+# Read Steam's compat tool setting for a given shortcut appID
+get_steam_compat_tool() {
+    local appid="$1"
+    local config_vdf="$HOME/.steam/steam/config/config.vdf"
+    
+    [ ! -f "$config_vdf" ] && return 1
+    [ -z "$appid" ] && return 1
+    
+    # Parse CompatToolMapping for this appid using grep+sed (more reliable than awk for VDF)
+    # Look for the appid in CompatToolMapping section and extract the "name" value
+    grep -A 5 "\"$appid\"" "$config_vdf" 2>/dev/null | \
+        grep '"name"' | head -1 | \
+        sed 's/.*"name"[[:space:]]*"\([^"]*\)".*/\1/'
+}
+
+# Main Proton selection function - called before game launch
+select_proton_version() {
+    local game_id="$1"
+    local shortcut_appid="$2"
+    
+    # Priority 1: PROTONPATH already set in environment
+    if [ -n "$PROTONPATH" ] && [ -d "$PROTONPATH" ]; then
+        log "[Proton] Using PROTONPATH from environment: $PROTONPATH"
+        return 0
+    fi
+    
+    # Priority 2: PROTON= name in environment
+    if [ -n "$PROTON" ]; then
+        local resolved
+        resolved=$(resolve_proton_path "$PROTON")
+        if [ -n "$resolved" ]; then
+            export PROTONPATH="$resolved"
+            log "[Proton] Resolved PROTON=$PROTON to: $PROTONPATH"
+            return 0
+        else
+            log "[Proton] WARNING: Could not resolve PROTON=$PROTON, using default"
+        fi
+    fi
+    
+    # Priority 3: Steam's Compatibility setting
+    if [ -n "$shortcut_appid" ]; then
+        local steam_tool
+        steam_tool=$(get_steam_compat_tool "$shortcut_appid")
+        if [ -n "$steam_tool" ]; then
+            local resolved
+            resolved=$(resolve_proton_path "$steam_tool")
+            if [ -n "$resolved" ]; then
+                export PROTONPATH="$resolved"
+                log "[Proton] Using Steam compat setting ($steam_tool): $PROTONPATH"
+                return 0
+            fi
+        fi
+    fi
+    
+    # Priority 4: Default to Proton Experimental (ALWAYS)
+    for base in "$HOME/.steam/steam/steamapps/common" \
+                "$HOME/.local/share/Steam/steamapps/common" \
+                "$HOME/.steam/root/steamapps/common"; do
+        if [ -d "$base/Proton - Experimental" ]; then
+            export PROTONPATH="$base/Proton - Experimental"
+            log "[Proton] Using default: Proton Experimental"
+            return 0
+        fi
+    done
+    
+    log "[Proton] No Proton found locally, umu will download one"
+    return 0
+}
+
+# Find Python 3.10+ at startup
+PYTHON_BIN=$(find_python310_plus)
+if [ -z "$PYTHON_BIN" ]; then
+    log "ERROR: Python 3.10+ not found! umu-launcher requires Python 3.10+"
+    log "Available Python versions checked but none are 3.10+:"
+    log "  Checked: /usr/bin/python3.1[0-3], ~/.local/bin/python3.1[0-3], python3"
+    # Show user-friendly error using zenity if available
+    if command -v zenity &>/dev/null; then
+        zenity --error --title="Unifideck - Python Required" \
+            --text="Python 3.10 or newer is required.\n\numu-launcher uses features only available in Python 3.10+.\n\nYour system Python version is too old.\n\nPlease install Python 3.10 or newer." \
+            --width=400 2>/dev/null &
+    fi
+    exit 1
+fi
+log "Python 3.10+ found: $PYTHON_BIN"
+
+# ==============================================================================
+# PARSE LAUNCH OPTIONS FROM ANY POSITION
+# Extracts VAR=value patterns (PROTON=, LSFG=, MANGOHUD=, etc.) from arguments
+# and exports them as environment variables, regardless of their position.
+# ==============================================================================
+KEY=""
+EXTRA_ARGS=()
+
+for arg in "$@"; do
+    case "$arg" in
+        # Environment-style options - extract and export
+        PROTON=*|PROTONPATH=*|LSFG=*|MANGOHUD=*|DXVK_*=*|VKD3D_*=*|WINE_*=*|PROTON_*=*)
+            # Extract var name and value
+            var_name="${arg%%=*}"
+            var_value="${arg#*=}"
+            export "$var_name=$var_value"
+            log "[LaunchOptions] Parsed: $var_name=$var_value"
+            ;;
+        # Store:id pattern - this is the game key
+        epic:*|gog:*|amazon:*)
+            KEY="$arg"
+            ;;
+        # Other arguments - pass through
+        *)
+            EXTRA_ARGS+=("$arg")
+            ;;
+    esac
+done
+
+# 1. Validate game key
 if [ -z "$KEY" ]; then
     log "ERROR: No game key provided"
     exit 1
@@ -122,8 +365,10 @@ if [ ! -f "$EXE_PATH" ]; then
     exit 1
 fi
 
-# 5. Check if this is a Windows game (.exe)
-if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]]; then
+# 5. Check if this is a Windows game (.exe, .cmd, .bat)
+if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]] || \
+   [[ "$EXE_PATH" == *.cmd ]] || [[ "$EXE_PATH" == *.CMD ]] || \
+   [[ "$EXE_PATH" == *.bat ]] || [[ "$EXE_PATH" == *.BAT ]]; then
     log "Windows game detected, using umu-launcher with Proton"
     
     # Parse store and game ID from key
@@ -171,30 +416,155 @@ if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]]; then
         export LEGENDARY_WRAPPER_EXE="C:\\windows\\command\\EpicGamesLauncher.exe"
     fi
     
-    # Try to use Steam's Proton (saves download time)
-    for PROTON_DIR in \
-        "$HOME/.steam/steam/steamapps/common/Proton - Experimental" \
-        "$HOME/.local/share/Steam/steamapps/common/Proton - Experimental" \
-        "$HOME/.steam/steam/steamapps/common/Proton 10.0" \
-        "$HOME/.steam/steam/steamapps/common/Proton 9.0 (Beta)" \
-        "$HOME/.steam/root/steamapps/common/Proton - Experimental"
-    do
-        if [ -d "$PROTON_DIR" ]; then
-            export PROTONPATH="$PROTON_DIR"
-            break
-        fi
-    done
+    
+    # Select Proton version (respects PROTONPATH/PROTON env, Steam settings, defaults to Experimental)
+    select_proton_version "$GAME_ID" ""
     
     log "WINEPREFIX: $WINEPREFIX"
     log "GAMEID: $GAMEID"
     log "STORE: $STORE"
     log "PROTONPATH: ${PROTONPATH:-<umu will download>}"
     
+    # ===========================================================================
+    # PROTON VERSION COMPATIBILITY CHECK
+    # Track which Proton version was used to create the prefix. If version changes
+    # significantly, automatically reset the prefix to avoid compatibility issues.
+    # ===========================================================================
+    PREFIX_PFX="$PREFIX_PATH/pfx"
+    PROTON_MARKER="$PREFIX_PATH/.unifideck_proton_version"
+    
+    # Get the current Proton version name (basename of PROTONPATH)
+    if [ -n "$PROTONPATH" ]; then
+        CURRENT_PROTON=$(basename "$PROTONPATH")
+    else
+        CURRENT_PROTON="default"
+    fi
+    
+    # Check if prefix exists and has a different Proton version
+    if [ -f "$PROTON_MARKER" ] && [ -d "$PREFIX_PFX" ]; then
+        PREVIOUS_PROTON=$(cat "$PROTON_MARKER" 2>/dev/null || echo "unknown")
+        
+        if [ "$PREVIOUS_PROTON" != "$CURRENT_PROTON" ]; then
+            log "[Proton] Version change detected: $PREVIOUS_PROTON -> $CURRENT_PROTON"
+            
+            # Check if this is a major version change (experimental <-> GE, or major version number change)
+            NEED_RESET=false
+            
+            # Detect major family change (experimental vs GE-Proton vs Proton 9/10)
+            case "$PREVIOUS_PROTON" in
+                *Experimental*|*experimental*)
+                    PREV_FAMILY="experimental" ;;
+                GE-Proton*)
+                    PREV_FAMILY="ge-proton" ;;
+                *Proton\ 9*|*proton_9*|*proton9*)
+                    PREV_FAMILY="proton9" ;;
+                *Proton\ 10*|*proton_10*|*proton10*)
+                    PREV_FAMILY="proton10" ;;
+                *)
+                    PREV_FAMILY="other" ;;
+            esac
+            
+            case "$CURRENT_PROTON" in
+                *Experimental*|*experimental*)
+                    CURR_FAMILY="experimental" ;;
+                GE-Proton*)
+                    CURR_FAMILY="ge-proton" ;;
+                *Proton\ 9*|*proton_9*|*proton9*)
+                    CURR_FAMILY="proton9" ;;
+                *Proton\ 10*|*proton_10*|*proton10*)
+                    CURR_FAMILY="proton10" ;;
+                *)
+                    CURR_FAMILY="other" ;;
+            esac
+            
+            if [ "$PREV_FAMILY" != "$CURR_FAMILY" ]; then
+                NEED_RESET=true
+                log "[Proton] Major version family change: $PREV_FAMILY -> $CURR_FAMILY"
+            fi
+            
+            if [ "$NEED_RESET" = true ]; then
+                log "[Proton] Resetting prefix for compatibility with new Proton version..."
+                notify_stage "Proton Upgrade" "Resetting prefix for $CURRENT_PROTON..." "normal"
+                
+                # Backup save data if it exists
+                SAVE_BACKUP=""
+                if [ -d "$PREFIX_PFX/drive_c/users" ]; then
+                    SAVE_BACKUP="$PREFIX_PATH/.save_backup_$$"
+                    log "[Proton] Backing up user data..."
+                    cp -r "$PREFIX_PFX/drive_c/users" "$SAVE_BACKUP" 2>/dev/null || true
+                fi
+                
+                # Remove the prefix
+                rm -rf "$PREFIX_PFX" 2>/dev/null || true
+                rm -f "$PREFIX_PATH/unifideck_winetricks_complete.marker" 2>/dev/null || true
+                
+                log "[Proton] Prefix cleared, will be recreated on launch"
+                
+                # Note: save backup is kept at $SAVE_BACKUP if needed
+                # A more sophisticated solution would restore specific save folders
+            else
+                log "[Proton] Minor version change, keeping prefix (Proton will upgrade it)"
+            fi
+        fi
+    fi
+    
+    # Update the proton version marker
+    mkdir -p "$PREFIX_PATH"
+    echo "$CURRENT_PROTON" > "$PROTON_MARKER"
+    
+    # ===========================================================================
+    # SYNCHRONOUS PREFIX INITIALIZATION
+    # Ensure prefix is fully ready before launching game (like Heroic/Steam)
+    # ===========================================================================
+    SYSTEM_REG="$PREFIX_PFX/system.reg"
+
+    
+    if [ ! -f "$SYSTEM_REG" ]; then
+        log "[FirstLaunch] Prefix not initialized (no system.reg), running setup..."
+        notify_stage "First Time Setup" "Initializing Wine prefix..." "normal"
+        
+        # Ensure prefix directory exists
+        mkdir -p "$PREFIX_PATH"
+        
+        # Find umu-run path for createprefix
+        if [ -f "$UMU_RUN" ]; then
+            SETUP_UMU="$UMU_RUN"
+        elif command -v umu-run &>/dev/null; then
+            SETUP_UMU="umu-run"
+        else
+            log "ERROR: umu-run not found for prefix setup"
+            exit 1
+        fi
+        
+        log "[FirstLaunch] Running createprefix with umu-run (this may take 1-2 minutes)..."
+        
+        # Run createprefix SYNCHRONOUSLY - blocks until prefix is ready
+        if "$PYTHON_BIN" "$SETUP_UMU" createprefix 2>>"$LOG_FILE"; then
+            log "[FirstLaunch] Prefix created successfully"
+            notify_stage "Setup Complete" "Wine prefix initialized" "low"
+        else
+            log "[FirstLaunch] createprefix failed, trying wineboot fallback..."
+            notify_stage "Setup" "Fallback initialization..." "normal"
+            # Fallback: run any exe to trigger prefix creation
+            "$PYTHON_BIN" "$SETUP_UMU" wineboot --init 2>>"$LOG_FILE" || true
+        fi
+        
+        # Verify prefix was created
+        if [ ! -f "$SYSTEM_REG" ]; then
+            log "WARNING: system.reg still missing after createprefix, game may fail on first launch"
+        else
+            log "[FirstLaunch] Verified: system.reg exists, prefix is ready"
+        fi
+    else
+        log "[FirstLaunch] Prefix already initialized (system.reg exists)"
+    fi
+    
     # Check for umu-run
     if [ ! -f "$UMU_RUN" ]; then
         log "ERROR: umu-run not found at $UMU_RUN"
         exit 1
     fi
+
     
     # Change to work directory
     if [ -d "$WORK_DIR" ]; then
@@ -287,15 +657,22 @@ if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]]; then
 
         if [ ! -f "$WINETRICKS_MARKER" ] || ! grep -q "complete\|no redistributables" "$WINETRICKS_MARKER" 2>/dev/null; then
             if [ -f "$WINETRICKS_SCRIPT" ]; then
-                log "[Winetricks] Running first-launch redistributables check..."
-                # Run in background so it doesn't block game launch
-                # The game may need these, but many games work without them
-                nohup python3 "$WINETRICKS_SCRIPT" "$GAME_ID" "$PREFIX_PATH" >> "$HOME/.local/share/unifideck/winetricks.log" 2>&1 &
-                log "[Winetricks] Started background installer (PID: $!)"
+                log "[Winetricks] Running first-launch redistributables installation..."
+                notify_stage "Installing Dependencies" "Installing game redistributables..." "normal"
+                
+                # Run SYNCHRONOUSLY - blocks until complete
+                if python3 "$WINETRICKS_SCRIPT" "$GAME_ID" "$PREFIX_PATH" >> "$HOME/.local/share/unifideck/winetricks.log" 2>&1; then
+                    log "[Winetricks] Installation completed successfully"
+                    notify_stage "Dependencies Ready" "Redistributables installed" "low"
+                else
+                    log "[Winetricks] Installation completed (may have warnings)"
+                    notify_stage "Dependencies" "Setup complete (check logs for details)" "low"
+                fi
             fi
         else
             log "[Winetricks] Redistributables already installed, skipping"
         fi
+
 
         # Get the umu-run path
         # PREFER bundled umu-run - Heroic's flatpak uses Python 3.9 which causes
@@ -314,20 +691,8 @@ if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]]; then
              exit 1
         fi
 
-        # Determine Python path - need Python 3.10+ for modern umu-launcher (uses match statements)
-        # Check common system paths first, prefer newer versions
-        PYTHON_BIN=""
-        for py in /usr/bin/python3.13 /usr/bin/python3.12 /usr/bin/python3.11 /usr/bin/python3.10 /usr/bin/python3; do
-            if [ -x "$py" ]; then
-                PYTHON_BIN="$py"
-                break
-            fi
-        done
-        # Fallback to PATH resolution if no system python found
-        if [ -z "$PYTHON_BIN" ]; then
-            PYTHON_BIN="python3"
-        fi
-        log "Using Python: $PYTHON_BIN"
+        # Python path is already set at startup with version verification (PYTHON_BIN)
+        log "Using Python (verified 3.10+): $PYTHON_BIN"
 
         # Choose Legendary Config Path (Critical for Epic Auth)
         # Check standard legendary config location first
@@ -349,8 +714,12 @@ if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]]; then
         # === CLOUD SAVE: Download before launch ===
         sync_cloud_saves "epic" "$GAME_ID" "download" "$PREFIX_PATH"
 
+        # Notify user that game is launching
+        notify_stage "Launching Game" "Starting Epic game..." "low"
+
         # Execute legendary (wait for exit, don't use exec)
         "$LEGENDARY_BIN" launch "$GAME_ID" --no-wine --wrapper "$PYTHON_BIN $UMU_WRAPPER" --language en 2>>"$LOG_FILE"
+
         GAME_EXIT_CODE=$?
 
         # === CLOUD SAVE: Upload after exit ===
@@ -421,6 +790,9 @@ except Exception as e:
         fi
         log "Executing: $CMD_STR"
 
+        # Notify user that game is launching
+        notify_stage "Launching Game" "Starting Amazon game..." "low"
+
         # Execute umu-run for Amazon game
         if [ -n "$AMAZON_ARGS" ]; then
             eval "$PYTHON_BIN" "$UMU_WRAPPER" "\"$EXE_PATH\"" $AMAZON_ARGS "$@" 2>>"$LOG_FILE"
@@ -428,6 +800,7 @@ except Exception as e:
             "$PYTHON_BIN" "$UMU_WRAPPER" "$EXE_PATH" "$@" 2>>"$LOG_FILE"
         fi
         GAME_EXIT_CODE=$?
+
 
         log "Amazon game exited with code: $GAME_EXIT_CODE"
         exit $GAME_EXIT_CODE
@@ -465,6 +838,9 @@ except Exception as e:
 
         # === CLOUD SAVE: Download before launch ===
         sync_cloud_saves "gog" "$GAME_ID" "download" "$PREFIX_PATH" ""
+
+        # Notify user that game is launching
+        notify_stage "Launching Game" "Starting GOG game..." "low"
 
         # Execute umu-run (wait for exit, don't use exec)
         "$PYTHON_BIN" "$UMU_WRAPPER" "$EXE_PATH" "$@" 2>>"$LOG_FILE"
