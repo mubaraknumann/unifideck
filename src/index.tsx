@@ -360,13 +360,31 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
   // Determine button display based on state
   let buttonText: string;
   let buttonAction: () => void;
-  // Dynamic style based on state
-  let buttonStyle: React.CSSProperties = {
-    padding: '8px 12px',
-    minHeight: '42px',
-    boxShadow: 'none',
-    borderBottom: 'none',
+
+  // Base button style - ROBUST AGAINST CSS MODS
+  // Uses explicit colors and high specificity to override any Decky CSS themes
+  const baseButtonStyle: React.CSSProperties = {
+    padding: '10px 16px',
+    minHeight: '44px',
+    minWidth: '180px',
+    fontSize: '14px',
+    fontWeight: 600,
+    borderRadius: '4px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+    // Explicit visibility overrides for CSS mod resistance
+    opacity: 1,
+    visibility: 'visible',
+    // Remove any inherited transparency
+    backdropFilter: 'none',
+    WebkitBackdropFilter: 'none',
   };
+
+  // Dynamic style based on state
+  let buttonStyle: React.CSSProperties;
 
   if (downloadState.isDownloading) {
     // Show "Cancel" button with progress during active download
@@ -376,20 +394,41 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
     buttonAction = showCancelConfirmation;
 
     buttonStyle = {
-      ...buttonStyle,
-      backgroundColor: 'rgba(200, 40, 40, 0.4)', // Red tint for cancel
-      border: '1px solid #ff4444',
+      ...baseButtonStyle,
+      // Solid red background - highly visible
+      backgroundColor: '#dc3545',
+      color: '#ffffff',
+      border: '2px solid #ff6b6b',
+      boxShadow: '0 2px 8px rgba(220, 53, 69, 0.5)',
     };
   } else if (isInstalled) {
     // Show size for installed games if available
     const sizeText = gameInfo.size_formatted ? ` (${gameInfo.size_formatted})` : ' (- GB)';
     buttonText = `Uninstall ${gameInfo.title}${sizeText}`;
     buttonAction = showUninstallConfirmation;
+
+    buttonStyle = {
+      ...baseButtonStyle,
+      // Solid gray/muted blue for uninstall
+      backgroundColor: '#4a5568',
+      color: '#ffffff',
+      border: '2px solid #718096',
+      boxShadow: '0 2px 8px rgba(74, 85, 104, 0.5)',
+    };
   } else {
     // Show size in Install button
     const sizeText = gameInfo.size_formatted ? ` (${gameInfo.size_formatted})` : ' (- GB)';
     buttonText = `⬇ Install ${gameInfo.title}${sizeText}`;
     buttonAction = showInstallConfirmation;
+
+    buttonStyle = {
+      ...baseButtonStyle,
+      // Solid blue background - Steam accent color, highly visible
+      backgroundColor: '#1a9fff',
+      color: '#ffffff',
+      border: '2px solid #47b4ff',
+      boxShadow: '0 2px 8px rgba(26, 159, 255, 0.5)',
+    };
   }
 
   return (
@@ -399,13 +438,20 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
           position: 'absolute',
           top: '40px',  // Aligned with ProtonDB badge row
           right: '35px',
-          zIndex: 1000,
+          zIndex: 9999,  // High z-index to ensure visibility above any overlays
+          // Ensure focusable container is visible
+          opacity: 1,
+          visibility: 'visible',
         }}
+        // Ensure controller navigation works
+        onActivate={buttonAction}
       >
         <DialogButton
           onClick={buttonAction}
           disabled={processing}
           style={buttonStyle}
+          // Add focus visual feedback for controller users
+          focusable={true}
         >
           {processing ? 'Processing...' : buttonText}
         </DialogButton>
