@@ -656,6 +656,15 @@ class GOGAPIClient:
         # 4. Start Download
         # Command: gogdl ... download [id] --platform [plat] --path [path] --skip-dlcs
         
+        # IMPORTANT: Snapshot existing directories BEFORE gogdl runs
+        # This prevents detecting games installed by Heroic or other launchers
+        existing_dirs = set()
+        try:
+            if os.path.exists(base_path):
+                existing_dirs = set(os.listdir(base_path))
+        except Exception as e:
+            logger.warning(f"[GOG] Could not snapshot existing dirs: {e}")
+        
         cmd = [
             self.gogdl_bin,
             '--auth-config-path', self.gogdl_config_path,
@@ -795,21 +804,40 @@ class GOGAPIClient:
                 logger.info(f"[GOG] Found game at predicted path: {found_path}")
         
         # Priority 2: Scan if predicted path failed
+        # ONLY check directories that are NEW (not in pre-download snapshot)
+        # This prevents detecting games installed by Heroic or other launchers
         if not found_path:
-            logger.info("[GOG] Predicted path failed, scanning directory...")
+            logger.info("[GOG] Predicted path failed, scanning for NEW directories...")
             candidates = []
             try:
-                for item in os.listdir(base_path):
+                current_dirs = set(os.listdir(base_path))
+                new_dirs = current_dirs - existing_dirs
+                logger.info(f"[GOG] Pre-existing dirs: {len(existing_dirs)}, New dirs: {list(new_dirs)}")
+                
+                for item in new_dirs:
                     item_path = os.path.join(base_path, item)
                     if os.path.isdir(item_path):
                         candidates.append(item)
-                        # Check for goggame-*.info file (before we write marker)
-                        for f in os.listdir(item_path):
-                            if f.startswith('goggame-') and f.endswith('.info'):
-                                info_id = f.replace('goggame-', '').replace('.info', '')
-                                if info_id == game_id:
-                                    found_path = item_path
-                                    break
+                        # Check for goggame-*.info file in root and game/ subdirectory
+                        # Windows games via gogdl typically have files in game/ subdirectory
+                        search_dirs = [item_path]
+                        game_subdir = os.path.join(item_path, 'game')
+                        if os.path.exists(game_subdir) and os.path.isdir(game_subdir):
+                            search_dirs.append(game_subdir)
+                        
+                        for search_dir in search_dirs:
+                            try:
+                                for f in os.listdir(search_dir):
+                                    if f.startswith('goggame-') and f.endswith('.info'):
+                                        info_id = f.replace('goggame-', '').replace('.info', '')
+                                        if info_id == game_id:
+                                            found_path = item_path
+                                            logger.info(f"[GOG] Found game via goggame info in {search_dir}")
+                                            break
+                            except PermissionError:
+                                continue
+                            if found_path:
+                                break
                         if found_path:
                             break
             except Exception as e:

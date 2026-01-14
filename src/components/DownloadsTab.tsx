@@ -8,15 +8,12 @@
  * - Cancel functionality
  */
 
-import React, { FC, useState, useEffect, useRef } from "react";
+import { FC, useState, useEffect, useRef } from "react";
 import { call, toaster } from "@decky/api";
 import {
     PanelSection,
     PanelSectionRow,
-    ButtonItem,
     Field,
-    ProgressBarWithInfo,
-    Focusable,
     DialogButton,
     showModal,
     ConfirmModal,
@@ -26,8 +23,6 @@ import { FaTimes, FaDownload, FaCheck, FaExclamationTriangle } from "react-icons
 import type {
     DownloadItem,
     DownloadQueueInfo,
-    StorageLocationInfo,
-    StorageLocationsResponse,
 } from "../types/downloads";
 
 /**

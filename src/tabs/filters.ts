@@ -31,7 +31,6 @@ const NON_STEAM_APP_TYPE = 1073741824;
 
 // Steam Deck compatibility categories
 const DECK_VERIFIED = 3;  // steam_deck_compat_category
-const DECK_PLAYABLE = 2;
 
 // Cache for Unifideck game info (store mapping, install status, and Steam appId for ProtonDB)
 // Key is appId - we store BOTH signed and unsigned versions for lookup

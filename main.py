@@ -2906,10 +2906,10 @@ class Plugin:
             finally:
                 self._is_syncing = False
 
-    async def force_sync_libraries(self) -> Dict[str, Any]:
+    async def force_sync_libraries(self, resync_artwork: bool = False) -> Dict[str, Any]:
         """
         Force sync all libraries - rewrites ALL existing Unifideck shortcuts and compatibility data.
-        Does NOT re-download artwork (preserves existing artwork).
+        Optionally re-downloads artwork if resync_artwork=True (overwrites manual changes).
         
         This is useful when:
         - Shortcut exe paths need to be updated
@@ -3146,13 +3146,15 @@ class Plugin:
                     if steam_appid_cache:
                         save_steam_appid_cache(steam_appid_cache)
 
-                    # STEP 3: Force Sync re-downloads ALL artwork (no has_artwork check)
-                    # This ensures artwork is refreshed for all games
+                    # STEP 3: Artwork handling based on user preference
+                    # If resync_artwork=True, re-download ALL artwork (overwrites manual changes)
+                    # If resync_artwork=False, only download for games missing artwork
                     self.sync_progress.status = "checking_artwork"
-                    self.sync_progress.current_game = "Queuing all games for artwork refresh..."
+                    self.sync_progress.current_game = "Checking artwork..." if not resync_artwork else "Queuing all games for artwork refresh..."
                     for game in all_games:
                         if game.app_id in seen_app_ids:
-                            games_needing_art.append(game)
+                            if resync_artwork or not await self.has_artwork(game.app_id):
+                                games_needing_art.append(game)
                             seen_app_ids.discard(game.app_id)  # Only add once per app_id
 
                     if games_needing_art:

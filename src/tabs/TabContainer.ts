@@ -5,7 +5,7 @@
  * Epic, GOG, and Amazon games alongside Steam games.
  */
 
-import { TabFilter, runFilters, updateUnifideckCache, unifideckGameCache } from './filters';
+import { TabFilter, runFilters, updateUnifideckCache } from './filters';
 import { loadCompatCacheFromBackend } from './protondb';
 import { gamepadTabbedPageClasses } from '@decky/ui';
 import { call } from '@decky/api';

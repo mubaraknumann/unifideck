@@ -6,7 +6,7 @@ import { FaGamepad, FaSync } from "react-icons/fa";
 // Import views
 
 // Import tab system
-import { patchLibrary, loadCompatCacheFromBackend, tabManager, updateSingleGameStatus } from "./tabs";
+import { patchLibrary, loadCompatCacheFromBackend, updateSingleGameStatus } from "./tabs";
 
 import { syncUnifideckCollections } from "./spoofing/CollectionManager";
 
@@ -794,7 +794,7 @@ const Content: FC = () => {
     }
   };
 
-  const handleManualSync = async (force: boolean = false) => {
+  const handleManualSync = async (force: boolean = false, resyncArtwork: boolean = false) => {
     // Prevent concurrent syncs
     if (syncing || syncCooldown) {
       console.log("[Unifideck] Sync already in progress or on cooldown");
@@ -892,18 +892,32 @@ const Content: FC = () => {
 
     try {
       // Use force_sync_libraries for force sync (rewrites shortcuts and compatibility data)
-      const methodName = force ? "force_sync_libraries" : "sync_libraries";
-      console.log(`[Unifideck] Starting ${force ? 'force ' : ''}sync...`);
+      console.log(`[Unifideck] Starting ${force ? 'force ' : ''}sync...${force ? ` (resync artwork: ${resyncArtwork})` : ''}`);
 
-      const syncResult = await call<[], {
-        success: boolean;
-        epic_count: number;
-        gog_count: number;
-        amazon_count: number;
-        added_count: number;
-        artwork_count: number;
-        updated_count?: number;
-      }>(methodName);
+      let syncResult;
+      if (force) {
+        // Force sync with resyncArtwork parameter
+        syncResult = await call<[boolean], {
+          success: boolean;
+          epic_count: number;
+          gog_count: number;
+          amazon_count: number;
+          added_count: number;
+          artwork_count: number;
+          updated_count?: number;
+        }>("force_sync_libraries", resyncArtwork);
+      } else {
+        // Regular sync
+        syncResult = await call<[], {
+          success: boolean;
+          epic_count: number;
+          gog_count: number;
+          amazon_count: number;
+          added_count: number;
+          artwork_count: number;
+          updated_count?: number;
+        }>("sync_libraries");
+      }
 
       console.log("[Unifideck] ========== SYNC COMPLETED ==========");
       console.log(`[Unifideck] Epic Games: ${syncResult.epic_count}`);
@@ -1348,7 +1362,27 @@ const Content: FC = () => {
             <PanelSectionRow>
               <ButtonItem
                 layout="below"
-                onClick={() => handleManualSync(true)}
+                onClick={() => {
+                  // Track if modal is ready (prevents onCancel firing on immediate dismiss)
+                  let modalReady = false;
+                  setTimeout(() => { modalReady = true; }, 100);
+
+                  showModal(
+                    <ConfirmModal
+                      strTitle="Force Sync Settings"
+                      strDescription="Would you like to resync all artwork? This will overwrite any manual artwork changes. Select 'Keep Artwork' to only download missing artwork."
+                      strOKButtonText="Resync Artwork"
+                      strCancelButtonText="Keep Artwork"
+                      onOK={() => handleManualSync(true, true)}
+                      onCancel={() => {
+                        // Only trigger if modal was fully shown (user clicked button, not dismissed)
+                        if (modalReady) {
+                          handleManualSync(true, false);
+                        }
+                      }}
+                    />
+                  );
+                }}
                 disabled={syncing || syncCooldown}
               >
                 <div style={{
