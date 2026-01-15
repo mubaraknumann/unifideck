@@ -49,7 +49,6 @@ test_cloud_saves/
 cabextract
 gogdl
 winetricks
-bin/game_fixes.py
 bin/winetricks_installer.py
 bin/prefetch_winetricks.py
 

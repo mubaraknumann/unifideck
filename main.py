@@ -564,9 +564,16 @@ class ShortcutsManager:
         return shortcuts_path
 
     async def _update_game_map(self, store: str, game_id: str, exe_path: str, work_dir: str):
-        """Update the dynamic games map file"""
+        """Update the dynamic games map file atomically
+        
+        FIX 4: Uses tempfile + atomic rename to prevent data corruption
+        if power is lost or multiple processes write simultaneously.
+        """
+        import tempfile
+        
         map_file = os.path.expanduser("~/.local/share/unifideck/games.map")
-        os.makedirs(os.path.dirname(map_file), exist_ok=True)
+        dir_name = os.path.dirname(map_file)
+        os.makedirs(dir_name, exist_ok=True)
         
         key = f"{store}:{game_id}"
         new_entry = f"{key}|{exe_path}|{work_dir}\n"
@@ -582,8 +589,22 @@ class ShortcutsManager:
         lines = [l for l in lines if not l.startswith(f"{key}|")]
         lines.append(new_entry)
         
-        with open(map_file, 'w') as f:
-            f.writelines(lines)
+        # Atomic write: write to temp file, sync to disk, then rename
+        try:
+            with tempfile.NamedTemporaryFile(mode='w', dir=dir_name, delete=False, 
+                                              prefix='.games.map.', suffix='.tmp') as tmp:
+                tmp.writelines(lines)
+                tmp.flush()
+                os.fsync(tmp.fileno())  # Ensure data is on disk
+                tmp_path = tmp.name
+            
+            os.rename(tmp_path, map_file)  # Atomic on POSIX
+            logger.info(f"[GameMap] Atomically updated {key}")
+        except Exception as e:
+            logger.error(f"[GameMap] Atomic write failed, falling back: {e}")
+            # Fallback to direct write if atomic fails
+            with open(map_file, 'w') as f:
+                f.writelines(lines)
             
     async def _remove_from_game_map(self, store: str, game_id: str):
         """Remove entry from games map file"""
@@ -2437,7 +2458,15 @@ class Plugin:
         
         # Set callback for when downloads complete
         async def on_download_complete(item):
-            """Mark game as installed when download completes"""
+            """Mark game as installed when download completes
+            
+            IMPORTANT: This callback must set item.status = DownloadStatus.ERROR
+            if registration fails, otherwise the UI will show 'completed' but 
+            game launch will fail with 'game not found'.
+            """
+            registration_success = False
+            error_message = None
+            
             try:
                 logger.info(f"[DownloadComplete] Processing completed download: {item.game_title}")
                 
@@ -2463,11 +2492,15 @@ class Plugin:
                             item.game_id, item.store, game_install_path, exe_path
                         )
                         logger.info(f"[DownloadComplete] Marked {item.game_title} as installed")
+                        registration_success = True
                         
                         # Invalidate legendary cache to ensure fresh status on next query
                         global _legendary_installed_cache
                         _legendary_installed_cache['data'] = None
                         logger.debug("[DownloadComplete] Invalidated legendary installed cache")
+                    else:
+                        error_message = "Could not find Epic game executable"
+                        logger.error(f"[DownloadComplete] {error_message} for {item.game_title}")
                 elif item.store == 'gog':
                     # GOG installs to <install_path>/<game_title>
                     # We need to find the folder in the install location used for this download
@@ -2512,10 +2545,13 @@ class Plugin:
                                 item.game_id, item.store, game_install_path, exe_path, work_dir
                             )
                             logger.info(f"[DownloadComplete] Marked {item.game_title} as installed with work_dir={work_dir}")
+                            registration_success = True
                         else:
-                            logger.warning(f"[DownloadComplete] No executable found for {item.game_title}")
+                            error_message = "Could not find GOG game executable"
+                            logger.error(f"[DownloadComplete] {error_message} for {item.game_title}")
                     else:
-                        logger.warning(f"[DownloadComplete] Could not find GOG install folder for {item.game_title}")
+                        error_message = "Could not find GOG install folder"
+                        logger.error(f"[DownloadComplete] {error_message} for {item.game_title}")
                 elif item.store == 'amazon':
                     # Amazon installs - use nile's installed.json for path info
                     game_info = self.amazon.get_installed_game_info(item.game_id)
@@ -2528,12 +2564,25 @@ class Plugin:
                                 item.game_id, item.store, game_install_path, exe_path
                             )
                             logger.info(f"[DownloadComplete] Marked {item.game_title} as installed")
+                            registration_success = True
                         else:
-                            logger.warning(f"[DownloadComplete] No executable found for {item.game_title}")
+                            error_message = "Could not find Amazon game executable"
+                            logger.error(f"[DownloadComplete] {error_message} for {item.game_title}")
                     else:
-                        logger.warning(f"[DownloadComplete] Could not find Amazon install info for {item.game_title}")
+                        error_message = "Could not find Amazon install info"
+                        logger.error(f"[DownloadComplete] {error_message} for {item.game_title}")
             except Exception as e:
-                logger.error(f"[DownloadComplete] Error marking game installed: {e}")
+                error_message = str(e)
+                logger.error(f"[DownloadComplete] Exception marking game installed: {e}")
+            
+            # FIX 1: Propagate registration failures to download status
+            # This ensures users see an error in the UI instead of 'completed'
+            if not registration_success:
+                from download_manager import DownloadStatus
+                item.status = DownloadStatus.ERROR
+                item.error_message = error_message or "Failed to register game after download"
+                logger.error(f"[DownloadComplete] REGISTRATION FAILED for {item.game_title}: {item.error_message}")
+
         
         self.download_queue.set_on_complete_callback(on_download_complete)
         

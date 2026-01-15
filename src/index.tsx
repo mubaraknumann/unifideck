@@ -13,6 +13,7 @@ import { syncUnifideckCollections } from "./spoofing/CollectionManager";
 // Import Downloads feature components
 import { DownloadsTab } from "./components/DownloadsTab";
 import { StorageSettings } from "./components/StorageSettings";
+import { ForceSyncModal } from "./components/ForceSyncModal";
 
 // ========== INSTALL BUTTON FEATURE ==========
 //
@@ -1409,23 +1410,10 @@ const Content: FC = () => {
               <ButtonItem
                 layout="below"
                 onClick={() => {
-                  // Track if modal is ready (prevents onCancel firing on immediate dismiss)
-                  let modalReady = false;
-                  setTimeout(() => { modalReady = true; }, 100);
-
                   showModal(
-                    <ConfirmModal
-                      strTitle="Force Sync Settings"
-                      strDescription="Would you like to resync all artwork? This will overwrite any manual artwork changes. Select 'Keep Artwork' to only download missing artwork."
-                      strOKButtonText="Resync Artwork"
-                      strCancelButtonText="Keep Artwork"
-                      onOK={() => handleManualSync(true, true)}
-                      onCancel={() => {
-                        // Only trigger if modal was fully shown (user clicked button, not dismissed)
-                        if (modalReady) {
-                          handleManualSync(true, false);
-                        }
-                      }}
+                    <ForceSyncModal
+                      onResyncArtwork={() => handleManualSync(true, true)}
+                      onKeepArtwork={() => handleManualSync(true, false)}
                     />
                   );
                 }}

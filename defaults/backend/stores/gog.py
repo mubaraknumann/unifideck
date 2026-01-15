@@ -653,8 +653,11 @@ class GOGAPIClient:
             except Exception as e:
                 logger.warning(f"[GOG] Could not parse folder name from info: {e}")
         
-        # 4. Start Download
-        # Command: gogdl ... download [id] --platform [plat] --path [path] --skip-dlcs
+        # 4. Start Download using 'repair' command
+        # IMPORTANT: We use 'repair' instead of 'download' because gogdl V2 has a bug
+        # where 'download' sees an empty manifest and reports "Nothing to do" even when
+        # no files exist. The 'repair' command always verifies and downloads missing files.
+        # Command: gogdl ... repair [id] --platform [plat] --path [path] --skip-dlcs
         
         # IMPORTANT: Snapshot existing directories BEFORE gogdl runs
         # This prevents detecting games installed by Heroic or other launchers
@@ -668,7 +671,7 @@ class GOGAPIClient:
         cmd = [
             self.gogdl_bin,
             '--auth-config-path', self.gogdl_config_path,
-            'download',
+            'repair',  # Use repair instead of download to work around V2 manifest bug
             game_id,
             '--platform', platform,
             '--path', base_path,
@@ -796,8 +799,49 @@ class GOGAPIClient:
         logger.info(f"[GOG] Verifying installation in {base_path}")
         found_path = None
         
+        # Priority 0: Check if gogdl V2 repair extracted files directly to base_path
+        # This happens with the repair command - files go to base_path, not a subfolder
+        goggame_in_base = None
+        for f in os.listdir(base_path):
+            if f.startswith('goggame-') and f.endswith('.info'):
+                info_id = f.replace('goggame-', '').replace('.info', '')
+                if info_id == game_id:
+                    goggame_in_base = f
+                    logger.info(f"[GOG] Found {f} directly in base_path - gogdl V2 repair behavior")
+                    break
+        
+        if goggame_in_base:
+            # Files were extracted directly to base_path - need to move them to subfolder
+            target_folder = folder_name or f"GOG_{game_id}"
+            target_path = os.path.join(base_path, target_folder)
+            
+            logger.info(f"[GOG] Moving extracted files to {target_path}")
+            os.makedirs(target_path, exist_ok=True)
+            
+            # Get current contents and move all NEW files to subfolder
+            try:
+                current_files = set(os.listdir(base_path))
+                new_files = current_files - existing_dirs
+                
+                for item in new_files:
+                    if item == target_folder:
+                        continue  # Skip the target folder itself
+                    src = os.path.join(base_path, item)
+                    dst = os.path.join(target_path, item)
+                    try:
+                        shutil.move(src, dst)
+                    except Exception as e:
+                        logger.warning(f"[GOG] Could not move {item}: {e}")
+                
+                found_path = target_path
+                logger.info(f"[GOG] Organized game files into {found_path}")
+            except Exception as e:
+                logger.error(f"[GOG] Error organizing files: {e}")
+                # Fall back to using base_path as install path
+                found_path = base_path
+        
         # Priority 1: Check predicted folder name (gogdl just created it)
-        if folder_name:
+        if not found_path and folder_name:
             predicted_path = os.path.join(base_path, folder_name)
             if os.path.exists(predicted_path) and os.path.isdir(predicted_path):
                 found_path = predicted_path
@@ -994,6 +1038,14 @@ class GOGAPIClient:
                             full_exe = full_exe.replace('\\', '/')
                             full_work = full_work.replace('\\', '/')
                             
+                            # FIX: Some games (like Shadow of Mordor) have exe in x64/ subdir but data files
+                            # (.arch05) in the install root. If data files exist in root, use root as work_dir
+                            if full_work != install_path:
+                                data_files_in_root = any(f.endswith('.arch05') for f in os.listdir(install_path) if os.path.isfile(os.path.join(install_path, f)))
+                                if data_files_in_root:
+                                    logger.info(f"[GOG] Data files (.arch05) found in install root, using install_path as work_dir")
+                                    full_work = install_path
+                            
                             if os.path.exists(full_exe):
                                 logger.info(f"[GOG] Found EXE via info: {full_exe}")
                                 return (full_exe, full_work)
@@ -1009,13 +1061,39 @@ class GOGAPIClient:
                     logger.info(f"[GOG] Found start.sh: {start_sh}")
                     return (start_sh, d)
                 
-            # PRIORITY 3: Legacy Heuristic (Windows Exe)
+            # PRIORITY 3: Robust fallback - find largest .exe (most likely the game)
+            # Search recursively but skip known non-game executables
+            import glob
+            skip_patterns = ['unins', 'setup', 'install', 'crash', 'redist', 'vcredist', 
+                             'vc_redist', 'dxsetup', 'physx', 'dotnet', 'directx']
+            
             for d in search_dirs:
-                 if not os.path.exists(d): continue
-                 for item in os.listdir(d):
-                    if item.endswith('.exe') and item.lower() not in ['uninstall.exe', 'unins000.exe']:
-                        return (os.path.join(d, item), d)
-
+                if not os.path.exists(d): 
+                    continue
+                
+                exe_candidates = []
+                # Search recursively
+                for pattern in ['*.exe', '**/*.exe']:
+                    for exe_path in glob.glob(os.path.join(d, pattern), recursive=True):
+                        basename = os.path.basename(exe_path).lower()
+                        # Skip known non-game executables
+                        if any(skip in basename for skip in skip_patterns):
+                            continue
+                        try:
+                            size = os.path.getsize(exe_path)
+                            exe_candidates.append((exe_path, size))
+                        except OSError:
+                            continue
+                
+                if exe_candidates:
+                    # Sort by size descending - largest is most likely the game
+                    exe_candidates.sort(key=lambda x: x[1], reverse=True)
+                    best_exe = exe_candidates[0][0]
+                    work_dir = os.path.dirname(best_exe)
+                    logger.info(f"[GOG] Fallback: Found largest exe ({exe_candidates[0][1]/1024/1024:.1f}MB): {best_exe}")
+                    return (best_exe, work_dir)
+            
+            logger.warning(f"[GOG] No executable found in any search path: {search_dirs}")
             return None
 
         except Exception as e:

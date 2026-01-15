@@ -537,6 +537,17 @@ class EpicConnector(Store):
                             logger.info(f"[Epic] Successfully installed {game_id} to {install_path}")
                             logger.info(f"[Epic] Executable: {exe_path}")
                             
+                            # FIX 3: Validate executable exists before returning success
+                            if not os.path.isfile(exe_path):
+                                logger.warning(f"[Epic] Manifest exe not found: {exe_path}, trying fallback")
+                                fallback_exe = self._find_executable_fallback(install_path)
+                                if fallback_exe and os.path.isfile(fallback_exe):
+                                    exe_path = fallback_exe
+                                    executable = os.path.relpath(exe_path, install_path)
+                                    logger.info(f"[Epic] Using fallback exe: {exe_path}")
+                                else:
+                                    logger.error(f"[Epic] No valid executable found for {game_id}")
+                            
                             # Write manifest for recovery after plugin reinstall
                             try:
                                 from ..discovery.startup import write_game_manifest
