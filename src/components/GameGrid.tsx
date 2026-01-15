@@ -1,4 +1,5 @@
 import { FC } from "react";
+import { t } from "../i18n";
 import { UnifideckGame } from "../types/steam";
 
 interface GameGridProps {
@@ -24,7 +25,7 @@ export const GameGrid: FC<GameGridProps> = ({ games, loading }) => {
           opacity: 0.7,
         }}
       >
-        Loading games...
+        {t("gameGrid.loading")}
       </div>
     );
   }
@@ -43,9 +44,9 @@ export const GameGrid: FC<GameGridProps> = ({ games, loading }) => {
           gap: "10px",
         }}
       >
-        <div>No games found</div>
+        <div>{t("gameGrid.noGamesFound")}</div>
         <div style={{ fontSize: "12px" }}>
-          Try syncing your libraries from the Unifideck settings
+          {t("gameGrid.noGamesHint")}
         </div>
       </div>
     );
@@ -64,7 +65,6 @@ export const GameGrid: FC<GameGridProps> = ({ games, loading }) => {
    *
    * This component serves as a filter/organizer rather than a renderer.
    */
-
   return (
     <div
       style={{
@@ -81,7 +81,7 @@ export const GameGrid: FC<GameGridProps> = ({ games, loading }) => {
           marginBottom: "10px",
         }}
       >
-        Showing {games.length} games
+        {t("gameGrid.showingGames", { count: games.length })}
       </div>
 
       <div
@@ -159,7 +159,7 @@ const GameCard: FC<{ game: UnifideckGame }> = ({ game }) => {
               borderRadius: "3px",
             }}
           >
-            Installed
+            {t("gameGrid.installed")}
           </span>
         )}
 
@@ -171,14 +171,15 @@ const GameCard: FC<{ game: UnifideckGame }> = ({ game }) => {
               borderRadius: "3px",
             }}
           >
-            Not Installed
+            {t("gameGrid.notInstalled")}
           </span>
         )}
       </div>
 
       {(game.playtimeMinutes ?? 0) > 0 && (
         <div style={{ marginTop: "8px", fontSize: "11px", opacity: 0.7 }}>
-          {Math.floor((game.playtimeMinutes ?? 0) / 60)}h {(game.playtimeMinutes ?? 0) % 60}m played
+          {Math.floor((game.playtimeMinutes ?? 0) / 60)}h{" "}
+          {(game.playtimeMinutes ?? 0) % 60}m played
         </div>
       )}
     </div>

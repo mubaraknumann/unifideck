@@ -25,6 +25,8 @@ import type {
     DownloadQueueInfo,
 } from "../types/downloads";
 
+import { t } from "../i18n";
+
 /**
  * Format bytes to human-readable size
  */
@@ -133,10 +135,10 @@ const DownloadItemRow: FC<{
                         onClick={() => {
                             showModal(
                                 <ConfirmModal
-                                    strTitle="Confirm Cancellation"
-                                    strDescription={`Are you sure you want to cancel the download for ${item.game_title}?`}
-                                    strOKButtonText="Yes"
-                                    strCancelButtonText="No"
+                                    strTitle={t("downloadsTab.confirmCancelTitle")}
+                                    strDescription={t("downloadsTab.confirmCancelDescription", { game: item.game_title })}
+                                    strOKButtonText={t("downloadsTab.confirmCancelYes")}
+                                    strCancelButtonText={t("downloadsTab.confirmCancelNo")}
                                     bDestructiveWarning={true}
                                     onOK={() => onCancel(item.id)}
                                 />
@@ -150,7 +152,7 @@ const DownloadItemRow: FC<{
                             fontSize: "12px",
                         }}
                     >
-                        <FaTimes size={10} style={{ marginRight: "4px" }} /> Cancel
+                        <FaTimes size={10} style={{ marginRight: "4px" }} /> {t("downloadsTab.confirmCancelNo")}
                     </DialogButton>
                 </div>
             )}
@@ -161,19 +163,19 @@ const DownloadItemRow: FC<{
                     {/* Show phase-specific messages */}
                     {item.download_phase === "extracting" && (
                         <div style={{ fontSize: "12px", color: "#f59e0b", marginBottom: "8px" }}>
-                            {item.phase_message || "Extracting game files..."}
+                            {item.phase_message || t("downloadsTab.phaseExtracting", { game: item.game_title })}
                         </div>
                     )}
                     {item.download_phase === "verifying" && (
                         <div style={{ fontSize: "12px", color: "#4ade80", marginBottom: "8px" }}>
-                            ✓ {item.phase_message || "Verifying installation..."}
+                            ✓ {item.phase_message || t("downloadsTab.phaseVerifying", { game: item.game_title })}
                         </div>
                     )}
 
                     {/* Show "Preparing..." when no real progress yet */}
                     {item.progress_percent === 0 && item.downloaded_bytes === 0 && item.download_phase === "downloading" ? (
                         <div style={{ fontSize: "12px", color: "#888", fontStyle: "italic" }}>
-                            Preparing download...
+                            {t("downloadsTab.preparingDownload")}
                         </div>
                     ) : item.download_phase === "extracting" || item.download_phase === "verifying" ? (
                         /* Animated indeterminate progress bar for extraction/verification */
@@ -245,7 +247,7 @@ const DownloadItemRow: FC<{
                     {item.status === "queued" && <FaDownload size={10} style={{ marginRight: "4px" }} />}
                     {item.status === "completed" && <FaCheck size={10} style={{ marginRight: "4px" }} />}
                     {item.status === "error" && <FaExclamationTriangle size={10} style={{ marginRight: "4px" }} />}
-                    <span style={{ textTransform: "capitalize" }}>{item.status}</span>
+                    <span style={{ textTransform: "capitalize" }}>{t(`downloadsTab.status.${item.status}`)}</span>
                     {item.error_message && (
                         <span style={{ marginLeft: "8px", color: "#888" }}>- {item.error_message}</span>
                     )}
@@ -316,15 +318,15 @@ export const DownloadsTab: FC = () => {
 
             if (result.success) {
                 toaster.toast({
-                    title: "Download Cancelled",
-                    body: "The download has been removed from the queue.",
+                    title: t("downloadsTab.toastDownloadCancelledTitle"),
+                    body: t("downloadsTab.toastDownloadCancelledBody"),
                     duration: 3000,
                 });
                 fetchQueueInfo(); // Refresh immediately
             } else {
                 toaster.toast({
-                    title: "Cancel Failed",
-                    body: result.error || "Unknown error",
+                    title: t("downloadsTab.toastCancelFailedTitle"),
+                    body: t("downloadsTab.toastCancelFailedBody", { error: result.error }),
                     duration: 5000,
                     critical: true,
                 });
@@ -352,10 +354,10 @@ export const DownloadsTab: FC = () => {
 
     if (loading) {
         return (
-            <PanelSection title="DOWNLOADS">
+            <PanelSection title={t("downloadsTab.currentDownload")}>
                 <PanelSectionRow>
-                    <Field label="Loading...">
-                        <span style={{ color: "#888" }}>Fetching download queue...</span>
+                    <Field label={t("downloadsTab.loadingLabel")}>
+                        <span style={{ color: "#888" }}>{t("downloadsTab.loadingMessage")}</span>
                     </Field>
                 </PanelSectionRow>
             </PanelSection>
@@ -370,17 +372,17 @@ export const DownloadsTab: FC = () => {
     return (
         <>
             {/* Current Download Section */}
-            <PanelSection title="CURRENT DOWNLOAD">
+            <PanelSection title={t("downloadsTab.currentDownload")}>
                 {current ? (
                     <DownloadItemRow item={current} isCurrent={true} onCancel={handleCancel} />
                 ) : (
-                    <EmptyState message="No active downloads" />
+                    <EmptyState message={t("downloadsTab.noActiveDownloads")} />
                 )}
             </PanelSection>
 
             {/* Queued Downloads Section */}
             {queued.length > 0 && (
-                <PanelSection title={`QUEUED (${queued.length})`}>
+                <PanelSection title={t("downloadsTab.queuedDownloads", { count: queued.length })}>
                     {queued.map((item) => (
                         <DownloadItemRow
                             key={item.id}
@@ -394,7 +396,7 @@ export const DownloadsTab: FC = () => {
 
             {/* Recently Completed Section */}
             {finished.length > 0 && (
-                <PanelSection title="RECENTLY COMPLETED">
+                <PanelSection title={t("downloadsTab.recentlyCompleted")}>
                     {finished.slice(0, 5).map((item) => (
                         <DownloadItemRow
                             key={item.id}
@@ -410,7 +412,7 @@ export const DownloadsTab: FC = () => {
             {/* Empty state when nothing anywhere */}
             {!hasActiveDownloads && finished.length === 0 && (
                 <PanelSection>
-                    <EmptyState message="No downloads. Install games from your library to see them here." />
+                    <EmptyState message={t("downloadsTab.noDownloads")} />
                 </PanelSection>
             )}
         </>

@@ -14,6 +14,8 @@ import {
 } from "@decky/ui";
 import { FaCloud, FaDesktop, FaExclamationTriangle } from "react-icons/fa";
 
+import { t } from "../i18n";
+
 /**
  * Conflict information from backend
  */
@@ -38,7 +40,7 @@ interface CloudSaveConflictModalProps {
  * Format timestamp to readable date string
  */
 const formatTimestamp = (timestamp: number): string => {
-    if (!timestamp) return "Unknown";
+    if (!timestamp) return t("cloudSave.unknownDate");
     const date = new Date(timestamp * 1000);
     return date.toLocaleString(undefined, {
         month: "short",
@@ -74,8 +76,8 @@ export const CloudSaveConflictModal: FC<CloudSaveConflictModalProps> = ({
                 true // use_cloud = true
             );
             toaster.toast({
-                title: "Using Cloud Saves",
-                body: `Downloading cloud saves for ${gameName}`,
+                title: t("cloudSave.toastUsingCloudTitle"),
+                body: t("cloudSave.toastUsingCloudBody", { game: gameName }),
                 duration: 3000,
             });
             onResolved("download");
@@ -83,8 +85,8 @@ export const CloudSaveConflictModal: FC<CloudSaveConflictModalProps> = ({
         } catch (error) {
             console.error("[CloudSaveConflictModal] Error resolving:", error);
             toaster.toast({
-                title: "Error",
-                body: "Failed to resolve conflict",
+                title: t("cloudSave.toastErrorTitle"),
+                body: t("cloudSave.toastErrorBody"),
                 duration: 5000,
                 critical: true,
             });
@@ -102,8 +104,8 @@ export const CloudSaveConflictModal: FC<CloudSaveConflictModalProps> = ({
                 false // use_cloud = false
             );
             toaster.toast({
-                title: "Using Local Saves",
-                body: `Uploading local saves for ${gameName}`,
+                title: t("cloudSave.toastUsingLocalTitle"),
+                body: t("cloudSave.toastUsingLocalBody", { game: gameName }),
                 duration: 3000,
             });
             onResolved("upload");
@@ -111,8 +113,8 @@ export const CloudSaveConflictModal: FC<CloudSaveConflictModalProps> = ({
         } catch (error) {
             console.error("[CloudSaveConflictModal] Error resolving:", error);
             toaster.toast({
-                title: "Error",
-                body: "Failed to resolve conflict",
+                title: t("cloudSave.toastErrorTitle"),
+                body: t("cloudSave.toastErrorBody"),
                 duration: 5000,
                 critical: true,
             });
@@ -125,7 +127,7 @@ export const CloudSaveConflictModal: FC<CloudSaveConflictModalProps> = ({
 
     return (
         <ConfirmModal
-            strTitle="Cloud Save Conflict"
+            strTitle={t("cloudSave.title")}
             strDescription=""
             onOK={closeModal}
             onCancel={closeModal}
@@ -141,7 +143,7 @@ export const CloudSaveConflictModal: FC<CloudSaveConflictModalProps> = ({
                 }}>
                     <FaExclamationTriangle size={24} />
                     <span style={{ fontSize: "14px" }}>
-                        Your local saves differ from cloud saves for <strong>{gameName}</strong>
+                        {t("cloudSave.description", { game: gameName })}
                     </span>
                 </div>
 
@@ -163,13 +165,13 @@ export const CloudSaveConflictModal: FC<CloudSaveConflictModalProps> = ({
                     }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                             <FaDesktop size={16} />
-                            <span>Local:</span>
+                            <span>{t("cloudSave.local")}</span>
                         </div>
                         <span style={{
                             color: conflict.local_newer ? "#4caf50" : "#888",
                             fontWeight: conflict.local_newer ? "bold" : "normal"
                         }}>
-                            {localTime} {conflict.local_newer && "(newer)"}
+                            {localTime} {conflict.local_newer && t("cloudSave.newer")}
                         </span>
                     </div>
 
@@ -181,13 +183,13 @@ export const CloudSaveConflictModal: FC<CloudSaveConflictModalProps> = ({
                     }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                             <FaCloud size={16} />
-                            <span>Cloud:</span>
+                            <span>{t("cloudSave.cloud")}</span>
                         </div>
                         <span style={{
                             color: !conflict.local_newer ? "#4caf50" : "#888",
                             fontWeight: !conflict.local_newer ? "bold" : "normal"
                         }}>
-                            {cloudTime} {!conflict.local_newer && "(newer)"}
+                            {cloudTime} {!conflict.local_newer && t("cloudSave.newer")}
                         </span>
                     </div>
                 </div>
@@ -210,7 +212,7 @@ export const CloudSaveConflictModal: FC<CloudSaveConflictModalProps> = ({
                             gap: "8px"
                         }}
                     >
-                        <FaCloud /> Use Cloud
+                        <FaCloud /> {t("cloudSave.useCloud")}
                     </DialogButton>
 
                     <DialogButton
@@ -224,7 +226,7 @@ export const CloudSaveConflictModal: FC<CloudSaveConflictModalProps> = ({
                             gap: "8px"
                         }}
                     >
-                        <FaDesktop /> Use Local
+                        <FaDesktop /> {t("cloudSave.useLocal")}
                     </DialogButton>
                 </div>
             </div>
