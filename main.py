@@ -3760,8 +3760,13 @@ class Plugin:
             logger.error(f"Error installing game by app ID {app_id}: {e}")
             return {'success': False, 'error': str(e)}
 
-    async def uninstall_game_by_appid(self, app_id: int) -> Dict[str, Any]:
-        """Uninstall game by Steam shortcut app ID"""
+    async def uninstall_game_by_appid(self, app_id: int, delete_prefix: bool = False) -> Dict[str, Any]:
+        """Uninstall game by Steam shortcut app ID
+        
+        Args:
+            app_id: Steam shortcut app ID
+            delete_prefix: If True, also delete the Wine/Proton prefix directory
+        """
         try:
             # Get game info first
             game_info = await self.get_game_info(app_id)
@@ -3777,7 +3782,7 @@ class Plugin:
             if not game_info.get('is_installed'):
                  return {'success': False, 'error': 'Game is not installed'}
 
-            logger.info(f"[Uninstall] Starting uninstallation: {title} ({store}:{game_id})")
+            logger.info(f"[Uninstall] Starting uninstallation: {title} ({store}:{game_id}), delete_prefix={delete_prefix}")
 
             # Perform store-specific uninstall
             if store == 'epic':
@@ -3854,6 +3859,21 @@ class Plugin:
             else:
                 return {'success': False, 'error': f"Unsupported store for uninstall: {store}"}
 
+            # Delete prefix if requested
+            prefix_deleted = False
+            if delete_prefix:
+                prefix_path = os.path.expanduser(f"~/.local/share/unifideck/prefixes/{game_id}")
+                if os.path.exists(prefix_path):
+                    try:
+                        import shutil
+                        shutil.rmtree(prefix_path)
+                        logger.info(f"[Uninstall] Deleted prefix directory: {prefix_path}")
+                        prefix_deleted = True
+                    except Exception as e:
+                        logger.warning(f"[Uninstall] Failed to delete prefix {prefix_path}: {e}")
+                else:
+                    logger.info(f"[Uninstall] No prefix to delete at: {prefix_path}")
+
             # Update shortcut
             logger.info(f"[Uninstall] Reverting shortcut for {title}...")
             shortcut_updated = await self.shortcuts_manager.mark_uninstalled(title, store, game_id)
@@ -3863,18 +3883,21 @@ class Plugin:
                 return {
                     'success': True, 
                     'message': 'Game uninstalled, but shortcut could not be updated. Restart Steam to fix.',
+                    'prefix_deleted': prefix_deleted,
                     'game_update': {'appId': app_id, 'store': store, 'isInstalled': False}
                 }
 
             return {
                 'success': True,
                 'message': f'{title} uninstalled successfully',
+                'prefix_deleted': prefix_deleted,
                 'game_update': {'appId': app_id, 'store': store, 'isInstalled': False}
             }
 
         except Exception as e:
             logger.error(f"[Uninstall] Error uninstalling game {app_id}: {e}", exc_info=True)
             return {'success': False, 'error': str(e)}
+
 
     # ============== DOWNLOAD QUEUE API METHODS ==============
 
@@ -4282,6 +4305,60 @@ class Plugin:
             
         except Exception as e:
             logger.error(f"Error getting Unifideck games: {e}")
+            return []
+
+    async def get_valid_third_party_shortcuts(self) -> List[int]:
+        """
+        Get appIds of non-Unifideck shortcuts that have valid executables.
+        
+        This is used by the frontend to filter out broken third-party shortcuts
+        (e.g., from Heroic, Lutris, or manual additions) that don't have a valid
+        Exe path and shouldn't appear on the Installed tab.
+        
+        Returns:
+            List of valid third-party shortcut appIds
+        """
+        try:
+            shortcuts = await self.shortcuts_manager.read_shortcuts()
+            valid_appids = []
+            broken_count = 0
+            
+            for idx, shortcut in shortcuts.get("shortcuts", {}).items():
+                launch_options = shortcut.get('LaunchOptions', '')
+                
+                # Skip Unifideck games - they have their own validation via games.map
+                if is_unifideck_shortcut(launch_options):
+                    continue
+                
+                app_id = shortcut.get('appid')
+                if not app_id:
+                    continue
+                
+                # Check if the Exe path exists
+                exe_path = shortcut.get('Exe', '')
+                
+                # Valid if:
+                # 1. Exe path is non-empty AND file exists, OR
+                # 2. It's a URL-based shortcut (steam://, heroic://, etc.)
+                if exe_path:
+                    # Check for URL-based shortcuts
+                    if exe_path.startswith(('steam://', 'heroic://', 'lutris://', 'http://', 'https://')):
+                        valid_appids.append(app_id)
+                    # Check if file exists on disk
+                    elif os.path.exists(exe_path):
+                        valid_appids.append(app_id)
+                    else:
+                        broken_count += 1
+                        logger.debug(f"[ThirdParty] Broken shortcut (exe not found): {shortcut.get('AppName', 'Unknown')} - {exe_path}")
+                else:
+                    broken_count += 1
+                    logger.debug(f"[ThirdParty] Broken shortcut (no exe): {shortcut.get('AppName', 'Unknown')}")
+            
+            logger.info(f"[ThirdParty] Found {len(valid_appids)} valid, {broken_count} broken third-party shortcuts")
+            return valid_appids
+            
+        except Exception as e:
+            logger.error(f"Error getting valid third-party shortcuts: {e}")
             return []
 
     async def get_compat_cache(self) -> Dict[str, Dict]:

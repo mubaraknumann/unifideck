@@ -40,6 +40,11 @@ export const unifideckGameCache: Map<number, {
     steamAppId?: number;  // Real Steam appId for ProtonDB lookups
 }> = new Map();
 
+// Cache for valid third-party shortcuts (non-Unifideck shortcuts with valid executables)
+// Stores appIds of shortcuts that have valid Exe paths
+// Shortcuts NOT in this cache (and not in unifideckGameCache) are considered broken
+export const validThirdPartyCache: Set<number> = new Set();
+
 /**
  * Updates the Unifideck game cache with store info
  * Stores both signed and unsigned versions of appId for reliable lookup
@@ -103,6 +108,28 @@ export function updateSingleGameStatus(game: {
 }
 
 /**
+ * Updates the valid third-party shortcuts cache
+ * Stores both signed and unsigned versions of appIds for reliable lookup
+ */
+export function updateValidThirdPartyCache(appIds: number[]) {
+    console.log(`[Unifideck] Updating valid third-party shortcuts cache with ${appIds.length} shortcuts`);
+    validThirdPartyCache.clear();
+    appIds.forEach(appId => {
+        const signedId = appId;
+        // Convert signed to unsigned and vice versa for reliable lookup
+        const unsignedId = signedId < 0 ? signedId + 0x100000000 : signedId;
+        const altSignedId = signedId >= 0 && signedId > 0x7FFFFFFF ? signedId - 0x100000000 : signedId;
+
+        validThirdPartyCache.add(signedId);
+        validThirdPartyCache.add(unsignedId);
+        if (altSignedId !== signedId) {
+            validThirdPartyCache.add(altSignedId);
+        }
+    });
+    console.log(`[Unifideck] Valid third-party cache now has ${validThirdPartyCache.size} entries`);
+}
+
+/**
  * Check if a game is a Unifideck-managed game
  */
 export function isUnifideckGame(appId: number): boolean {
@@ -161,9 +188,25 @@ export const filterFunctions: {
 
     // Filter by installation status
     // Shows ALL installed games/shortcuts (Steam, Unifideck, and other non-Steam)
+    // Excludes broken third-party shortcuts (no valid Exe path)
     installed: (params, app) => {
         const isInstalled = getInstalledStatus(app.appid, app.app_type, app.installed);
-        return params.installed ? isInstalled : !isInstalled;
+        const matchesFilter = params.installed ? isInstalled : !isInstalled;
+
+        // For "installed" filter, exclude broken third-party shortcuts
+        if (params.installed && app.app_type === NON_STEAM_APP_TYPE) {
+            // If it's a Unifideck game, use our cache (already validated via games.map)
+            if (unifideckGameCache.has(app.appid)) {
+                return matchesFilter;
+            }
+            // For third-party shortcuts, only show if in validThirdPartyCache
+            // If cache is empty (not yet loaded), show all to avoid hiding until loaded
+            if (validThirdPartyCache.size > 0 && !validThirdPartyCache.has(app.appid)) {
+                return false;  // Broken third-party shortcut
+            }
+        }
+
+        return matchesFilter;
     },
 
     // Filter by platform (Steam vs non-Steam)

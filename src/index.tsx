@@ -20,6 +20,7 @@ import { syncUnifideckCollections } from "./spoofing/CollectionManager";
 import { DownloadsTab } from "./components/DownloadsTab";
 import { StorageSettings } from "./components/StorageSettings";
 import { ForceSyncModal } from "./components/ForceSyncModal";
+import { UninstallConfirmModal } from "./components/UninstallConfirmModal";
 
 // ========== INSTALL BUTTON FEATURE ==========
 //
@@ -288,17 +289,17 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
     setProcessing(false);
   };
 
-  const handleUninstall = async () => {
+  const handleUninstall = async (deletePrefix: boolean = false) => {
     if (!gameInfo) return;
     setProcessing(true);
 
     toaster.toast({
       title: t('toasts.uninstalling'),
-      body: t('toasts.uninstallingMessage', { title: gameInfo.title }),
+      body: t('toasts.uninstallingMessage', { title: gameInfo.title }) + (deletePrefix ? ' and Proton files' : ''),
       duration: 5000,
     });
 
-    const result = await call<[number], any>("uninstall_game_by_appid", appId);
+    const result = await call<[number, boolean], any>("uninstall_game_by_appid", appId, deletePrefix);
 
     if (result.success) {
       setGameInfo({ ...gameInfo, is_installed: false });
@@ -311,7 +312,7 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
 
       toaster.toast({
         title: t('toasts.uninstallComplete'),
-        body: t('toasts.uninstallCompleteMessage', { title: gameInfo.title }),
+        body: t('toasts.uninstallCompleteMessage', { title: gameInfo.title }) + (deletePrefix ? ' (including Proton files)' : ''),
         duration: 10000,
       });
     }
@@ -337,13 +338,9 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
 
   const showUninstallConfirmation = () => {
     showModal(
-      <ConfirmModal
-        strTitle={t('confirmModals.uninstallTitle')}
-        strDescription={t('confirmModals.uninstallDescription', { title: gameInfo?.title })}
-        strOKButtonText={t('confirmModals.yes')}
-        strCancelButtonText={t('confirmModals.no')}
-        bDestructiveWarning={true}
-        onOK={() => handleUninstall()}
+      <UninstallConfirmModal
+        gameTitle={gameInfo?.title || 'this game'}
+        onConfirm={(deletePrefix) => handleUninstall(deletePrefix)}
       />
     );
   };
@@ -1591,7 +1588,7 @@ const Content: FC = () => {
 };
 
 export default definePlugin(() => {
-  
+
   console.log("[Unifideck] Plugin loaded");
 
   // Patch the library to add Unifideck tabs (All, Installed, Great on Deck, Steam, Epic, GOG, Amazon)
@@ -1686,7 +1683,7 @@ export default definePlugin(() => {
   return {
     name: "UNIFIDECK",
     icon: <FaGamepad />,
-    content: 
+    content:
       <I18nextProvider i18n={i18n}><Content /></I18nextProvider>,
     onDismount() {
       console.log("[Unifideck] Plugin unloading");

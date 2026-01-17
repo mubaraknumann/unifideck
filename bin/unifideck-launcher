@@ -859,6 +859,24 @@ except Exception as e:
             exit 1
         fi
 
+        # === WINETRICKS: Install redistributables (smart detection) ===
+        # winetricks_gog.py handles marker check and installs only missing deps
+        WINETRICKS_SCRIPT="$PLUGIN_DIR/bin/winetricks_gog.py"
+        
+        if [ -f "$WINETRICKS_SCRIPT" ]; then
+            log "[Winetricks] Checking redistributables for GOG game..."
+            
+            if python3 "$WINETRICKS_SCRIPT" "$GAME_ID" "$PREFIX_PATH" >> "$HOME/.local/share/unifideck/winetricks.log" 2>&1; then
+                log "[Winetricks] Check completed"
+            else
+                log "[Winetricks] Check completed (may have warnings)"
+            fi
+        fi
+
+        # Enable NVAPI for modern Proton (matches Epic path)
+        export PROTON_ENABLE_NVAPI="1"
+        export DXVK_NVAPI_ALLOW_OTHER_DRIVERS="1"
+
         CMD_STR="$PYTHON_BIN $UMU_WRAPPER \"$EXE_PATH\" $*"
         log "Executing: $CMD_STR"
 

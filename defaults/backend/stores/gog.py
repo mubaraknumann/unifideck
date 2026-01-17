@@ -8,6 +8,7 @@ import asyncio
 import glob
 import io
 import json
+import locale
 import logging
 import os
 import re
@@ -42,7 +43,11 @@ class GOGAPIClient:
         self.plugin_dir = plugin_dir  # Plugin root directory for finding bundled binaries
         self.plugin_instance = plugin_instance  # Reference to parent Plugin for auto-sync
         self.token_file = os.path.expanduser("~/.config/unifideck/gog_token.json")
-        self.gogdl_config_path = os.path.expanduser("~/.config/unifideck/gog_credentials.json")
+        
+        # GOGDL configuration directory - completely separate from Heroic
+        # This is where gogdl stores manifests, auth, and support files
+        self.gogdl_config_dir = os.path.expanduser("~/.config/unifideck/gogdl")
+        self.gogdl_config_path = os.path.join(self.gogdl_config_dir, "auth.json")
         self.download_dir = os.path.expanduser("~/GOG Games")
         
         # Locate gogdl binary
@@ -58,7 +63,54 @@ class GOGAPIClient:
         self.access_token = None
         self.refresh_token = None
         self._load_tokens()
+        
+        # Cache for supported GOG languages (subset of what GOG API supports)
+        self._gog_supported_languages = ['en', 'de', 'fr', 'pl', 'ru', 'pt', 'es', 'it', 'zh', 'ko', 'ja']
+        
         logger.info("GOG API client initialized")
+    
+    def _get_system_language(self) -> str:
+        """Get system language code for GOG API (e.g., 'en', 'de', 'fr').
+        
+        Based on Lutris pattern: uses system locale to auto-select matching
+        language installer when available.
+        """
+        try:
+            lang_tuple = locale.getlocale()
+            if lang_tuple and lang_tuple[0]:
+                # Extract 2-letter code: 'en_US' -> 'en', 'de_DE' -> 'de'
+                lang_code = lang_tuple[0].split('_')[0].lower()
+                if lang_code in self._gog_supported_languages:
+                    logger.debug(f"[GOG] Detected system language: {lang_code}")
+                    return lang_code
+        except Exception as e:
+            logger.debug(f"[GOG] Could not detect system locale: {e}")
+        
+        # Default fallback
+        return 'en'
+    
+    def _get_token_age(self) -> float:
+        """Return age of token in seconds based on file modification time.
+        
+        Based on Lutris pattern: proactive token refresh before expiry.
+        """
+        if os.path.exists(self.token_file):
+            try:
+                return time.time() - os.path.getmtime(self.token_file)
+            except OSError:
+                pass
+        return float('inf')
+    
+    async def _ensure_fresh_token(self) -> bool:
+        """Proactively refresh token if older than 43 minutes (before 1hr expiry).
+        
+        This prevents token expiry mid-operation, inspired by Lutris pattern.
+        """
+        token_age = self._get_token_age()
+        if token_age > 2600:  # ~43 minutes
+            logger.info(f"[GOG] Token is old ({token_age:.0f}s), refreshing proactively...")
+            return await self._refresh_access_token()
+        return True
 
     def _load_tokens(self):
         """Load stored OAuth tokens"""
@@ -126,6 +178,16 @@ class GOGAPIClient:
         except Exception as e:
             logger.error(f"[GOG] Failed to sync auth tokens to gogdl config: {e}")
             return False
+
+    def _get_gogdl_env(self) -> dict:
+        """Get environment dict with GOGDL_CONFIG_PATH set.
+        
+        This ensures gogdl uses Unifideck's own configuration directory
+        for manifests, support files, etc. - completely separate from Heroic.
+        """
+        env = os.environ.copy()
+        env['GOGDL_CONFIG_PATH'] = self.gogdl_config_dir
+        return env
 
     async def is_available(self) -> bool:
         """Check if GOG is authenticated"""
@@ -564,7 +626,8 @@ class GOGAPIClient:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.PIPE,
+                env=self._get_gogdl_env()
             )
             stdout, stderr = await proc.communicate()
             
@@ -574,7 +637,8 @@ class GOGAPIClient:
                 proc = await asyncio.create_subprocess_exec(
                     *cmd,
                     stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
+                    stderr=asyncio.subprocess.PIPE,
+                    env=self._get_gogdl_env()
                 )
                 stdout, stderr = await proc.communicate()
             
@@ -596,6 +660,204 @@ class GOGAPIClient:
             logger.error(f"[GOG] Error getting size for {game_id}: {e}")
             return None
 
+    async def _determine_install_mode(self, game_id: str, target_folder: Optional[str], platform: str) -> str:
+        """Determine whether to use 'download' or 'repair' based on folder state.
+        
+        This prevents gogdl from deleting existing game data (which happens when
+        download command sees files it doesn't expect from its manifest).
+        
+        Args:
+            game_id: GOG game ID
+            target_folder: Expected game folder path (may not exist yet)
+            platform: 'windows' or 'linux'
+            
+        Returns:
+            'download' for fresh install, 'repair' for existing installation
+        """
+        # Check 1: Does folder exist?
+        if not target_folder or not os.path.exists(target_folder):
+            logger.info(f"[GOG] Mode selection: folder doesn't exist - using 'download'")
+            return 'download'
+        
+        # Check 2: Folder size - significant data present?
+        folder_size = self._get_folder_size(target_folder)
+        has_significant_data = folder_size > 100_000_000  # > 100MB
+        
+        # Check 3: Actual file count
+        actual_files = self._count_files_in_folder(target_folder)
+        
+        # Check 4: Has goggame info file?
+        has_goggame_info = any(
+            f.startswith(f'goggame-{game_id}') and f.endswith('.info')
+            for f in os.listdir(target_folder) if os.path.isfile(os.path.join(target_folder, f))
+        )
+        
+        logger.info(f"[GOG] Mode selection: folder_size={folder_size/1024/1024:.1f}MB, "
+                    f"files={actual_files}, has_info={has_goggame_info}")
+        
+        # Decision logic (order matters!):
+        # 1. If has goggame.info BUT nearly empty (<100MB): CORRUPT install - clean up and download
+        # 2. If has goggame.info AND substantial data (>100MB): use repair
+        # 3. If no goggame.info but has significant data: use repair (safer)
+        # 4. Otherwise: use download
+        
+        if has_goggame_info:
+            if folder_size < 100_000_000:  # Less than 100MB with manifest = corrupt
+                logger.warning(f"[GOG] Mode selection: has goggame.info but only {folder_size/1024/1024:.1f}MB - corrupt install detected")
+                logger.info(f"[GOG] Cleaning up corrupt install at {target_folder}")
+                try:
+                    shutil.rmtree(target_folder)
+                    logger.info(f"[GOG] Deleted corrupt install folder")
+                except Exception as e:
+                    logger.error(f"[GOG] Failed to clean corrupt install: {e}")
+                
+                # CRITICAL: Also delete gogdl's cached manifest in support_dir
+                # Otherwise gogdl will still think game is installed and say "Nothing to do"
+                support_dir = os.path.join(self.gogdl_config_dir, "gog-support", game_id)
+                if os.path.exists(support_dir):
+                    try:
+                        shutil.rmtree(support_dir)
+                        logger.info(f"[GOG] Deleted cached manifest at {support_dir}")
+                    except Exception as e:
+                        logger.warning(f"[GOG] Could not delete support dir: {e}")
+                
+                return 'download'
+            else:
+                logger.info(f"[GOG] Mode selection: found goggame.info with {folder_size/1024/1024:.0f}MB - using 'repair'")
+                return 'repair'
+        
+        if has_significant_data:
+            logger.info(f"[GOG] Mode selection: significant data present - using 'repair'")
+            return 'repair'
+        
+        if actual_files < 10 and folder_size < 10_000_000:
+            logger.info(f"[GOG] Mode selection: folder nearly empty - using 'download'")
+            return 'download'
+        
+        logger.info(f"[GOG] Mode selection: default - using 'download'")
+        return 'download'
+
+    async def _verify_installation(self, game_id: str, install_path: str, platform: str) -> Dict[str, Any]:
+        """Verify installation completeness after download/repair.
+        
+        Performs a sweep to check:
+        - Folder size vs expected size
+        - Required files present (goggame.info, executable)
+        
+        Args:
+            game_id: GOG game ID
+            install_path: Path where game was installed
+            platform: 'windows' or 'linux'
+            
+        Returns:
+            Dict with 'complete' bool and verification details
+        """
+        try:
+            # Get expected disk size from gogdl info
+            expected_size = await self._get_expected_disk_size(game_id, platform)
+            
+            # Get actual state
+            actual_size = self._get_folder_size(install_path)
+            actual_files = self._count_files_in_folder(install_path)
+            
+            # Check for goggame.info (required)
+            has_info = False
+            try:
+                for f in os.listdir(install_path):
+                    if f.startswith('goggame-') and f.endswith('.info'):
+                        has_info = True
+                        break
+            except Exception:
+                pass
+            
+            # Check for executable
+            exe_result = self._find_game_executable_with_workdir(install_path)
+            has_exe = exe_result is not None
+            
+            # Calculate completeness
+            size_ratio = actual_size / expected_size if expected_size > 0 else 1.0
+            
+            logger.info(f"[GOG] Verification: size={actual_size/1024/1024:.1f}MB ({size_ratio*100:.1f}% of expected), "
+                        f"files={actual_files}, has_info={has_info}, has_exe={has_exe}")
+            
+            # Determine result
+            if expected_size > 0 and size_ratio < 0.8:  # Less than 80% of expected size
+                return {
+                    'complete': False,
+                    'issue': f'Installation may be incomplete: only {size_ratio*100:.0f}% of expected size',
+                    'actual_size': actual_size,
+                    'expected_size': expected_size,
+                    'has_info': has_info,
+                    'has_exe': has_exe
+                }
+            
+            if not has_info:
+                return {
+                    'complete': False,
+                    'issue': 'Missing goggame.info file',
+                    'actual_size': actual_size,
+                    'actual_files': actual_files,
+                    'has_exe': has_exe
+                }
+            
+            if not has_exe:
+                return {
+                    'complete': False,
+                    'issue': 'Could not find game executable',
+                    'actual_size': actual_size,
+                    'actual_files': actual_files,
+                    'has_info': has_info
+                }
+            
+            return {
+                'complete': True,
+                'actual_size': actual_size,
+                'expected_size': expected_size,
+                'actual_files': actual_files,
+                'size_ratio': size_ratio,
+                'has_info': has_info,
+                'has_exe': has_exe
+            }
+            
+        except Exception as e:
+            logger.error(f"[GOG] Verification error: {e}")
+            return {'complete': False, 'issue': f'Verification failed: {str(e)}'}
+
+    async def _get_expected_disk_size(self, game_id: str, platform: str) -> int:
+        """Get expected disk size from gogdl info."""
+        try:
+            cmd = [
+                self.gogdl_bin, '--auth-config-path', self.gogdl_config_path,
+                'info', '--platform', platform, game_id
+            ]
+            proc = await asyncio.create_subprocess_exec(
+                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                env=self._get_gogdl_env()
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
+            
+            for line in stdout.decode().strip().split('\n'):
+                try:
+                    data = json.loads(line)
+                    if 'size' in data:
+                        # Try language-specific size first, then fallback
+                        size_info = data['size']
+                        for lang_key in ['en-US', 'en', '*']:
+                            if lang_key in size_info:
+                                return size_info[lang_key].get('disk_size', 0)
+                        # If no matching language, use first available
+                        if size_info:
+                            first_lang = next(iter(size_info))
+                            return size_info[first_lang].get('disk_size', 0)
+                except json.JSONDecodeError:
+                    continue
+        except asyncio.TimeoutError:
+            logger.warning(f"[GOG] Timeout getting expected disk size")
+        except Exception as e:
+            logger.warning(f"[GOG] Could not get expected disk size: {e}")
+        
+        return 0  # Unknown
+
     async def install_game(self, game_id: str, base_path: str = None, progress_callback=None) -> Dict[str, Any]:
         """Install GOG game using gogdl binary"""
         if not self.gogdl_bin:
@@ -604,10 +866,17 @@ class GOGAPIClient:
         # 1. Ensure Auth (refreshes token if needed)
         if not await self.is_available():
              return {'success': False, 'error': 'Not authenticated with GOG or token expired'}
+        
+        # Proactively refresh token if old (Lutris pattern)
+        await self._ensure_fresh_token()
              
         # Force sync fresh token to gogdl config
         if not self._ensure_auth_config():
              return {'success': False, 'error': 'Failed to configure GOG authentication'}
+        
+        # Get preferred language based on system locale
+        preferred_lang = self._get_system_language()
+        logger.info(f"[GOG] Using language preference: {preferred_lang}")
 
         # 2. Determine Install Path
         if not base_path:
@@ -625,16 +894,19 @@ class GOGAPIClient:
         
         info_cmd = [
             self.gogdl_bin, '--auth-config-path', self.gogdl_config_path,
-            'info', '--platform', 'linux', game_id
+            'info', '--platform', 'linux', '--lang', preferred_lang, game_id
         ]
-        proc = await asyncio.create_subprocess_exec(*info_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        proc = await asyncio.create_subprocess_exec(*info_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=self._get_gogdl_env())
         stdout, stderr = await proc.communicate()
         
         if proc.returncode != 0:
             logger.info(f"[GOG] Linux version not found for {game_id}, trying Windows")
             platform = 'windows'
-            info_cmd[4] = 'windows'
-            proc = await asyncio.create_subprocess_exec(*info_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+            info_cmd = [
+                self.gogdl_bin, '--auth-config-path', self.gogdl_config_path,
+                'info', '--platform', 'windows', '--lang', preferred_lang, game_id
+            ]
+            proc = await asyncio.create_subprocess_exec(*info_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=self._get_gogdl_env())
             stdout, stderr = await proc.communicate()
             
         if proc.returncode == 0:
@@ -668,21 +940,43 @@ class GOGAPIClient:
         except Exception as e:
             logger.warning(f"[GOG] Could not snapshot existing dirs: {e}")
         
+        # Create support directory for gogdl (stores metadata/cache)
+        support_dir = os.path.join(self.gogdl_config_dir, "gog-support", game_id)
+        os.makedirs(support_dir, exist_ok=True)
+        
+        # PHASE 2: Smart mode selection - choose download vs repair based on folder state
+        # This prevents gogdl from deleting existing game data
+        target_folder = os.path.join(base_path, folder_name) if folder_name else None
+        install_mode = await self._determine_install_mode(game_id, target_folder, platform)
+        
+        # Determine the path to pass to gogdl based on mode
+        if install_mode == 'download':
+            # Fresh install: pass base_path, gogdl creates subfolder
+            gogdl_path = base_path
+        else:
+            # Repair: pass the specific game folder
+            gogdl_path = target_folder if target_folder and os.path.exists(target_folder) else base_path
+        
         cmd = [
             self.gogdl_bin,
             '--auth-config-path', self.gogdl_config_path,
-            'repair',  # Use repair instead of download to work around V2 manifest bug
+            install_mode,  # 'download' or 'repair' based on folder state
             game_id,
             '--platform', platform,
-            '--path', base_path,
-            '--skip-dlcs' 
+            '--path', gogdl_path,
+            '--support', support_dir,
+            '--lang', preferred_lang,
+            # NOTE: --skip-dlcs removed to ensure all owned DLCs are downloaded
         ]
+        
+        logger.info(f"[GOG] Using {install_mode} mode with path: {gogdl_path}")
         
         # Redirect stderr to stdout to capture logging output from gogdl
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT
+            stderr=asyncio.subprocess.STDOUT,
+            env=self._get_gogdl_env()
         )
         
         # 5. Monitor Progress
@@ -794,6 +1088,79 @@ class GOGAPIClient:
                     logger.info(f"[GOG] Cleaning up partial install at {partial_path}")
                     shutil.rmtree(partial_path, ignore_errors=True)
             return {'success': False, 'error': f'Installation failed (code {proc.returncode})'}
+        
+        # 5.5. VERIFICATION STEP: Run 'repair' to verify and fix any missing files
+        # This provides reliability for large game downloads that may have issues
+        logger.info(f"[GOG] Running verification (repair) to check for missing files...")
+        if progress_callback:
+            await progress_callback({
+                'progress_percent': 99,
+                'downloaded_bytes': current_progress.get('total_bytes', 0),
+                'total_bytes': current_progress.get('total_bytes', 0),
+                'speed_bps': 0,
+                'eta_seconds': 0,
+                'phase_message': 'Verifying installation...'
+            })
+        
+        # Determine install path for repair command - MUST use game folder, not base_path
+        # Otherwise repair will extract files to base_path root
+        repair_path = None
+        
+        # Try 1: Use predicted folder_name
+        if folder_name:
+            potential_path = os.path.join(base_path, folder_name)
+            if os.path.exists(potential_path):
+                repair_path = potential_path
+                logger.info(f"[GOG] Repair will use predicted folder: {repair_path}")
+        
+        # Try 2: Scan for the goggame info file to find the actual folder
+        if not repair_path:
+            for item in os.listdir(base_path):
+                item_path = os.path.join(base_path, item)
+                if os.path.isdir(item_path):
+                    goggame_file = os.path.join(item_path, f"goggame-{game_id}.info")
+                    if os.path.exists(goggame_file):
+                        repair_path = item_path
+                        logger.info(f"[GOG] Found game folder via goggame.info: {repair_path}")
+                        break
+        
+        # Fallback: use base_path (not ideal but better than failing)
+        if not repair_path:
+            repair_path = base_path
+            logger.warning(f"[GOG] Could not find game folder, using base_path for repair")
+        
+        repair_cmd = [
+            self.gogdl_bin,
+            '--auth-config-path', self.gogdl_config_path,
+            'repair',
+            game_id,
+            '--platform', platform,
+            '--path', repair_path,  # Use game folder path so any downloaded files go there
+            '--lang', preferred_lang,
+        ]
+        
+        repair_proc = await asyncio.create_subprocess_exec(
+            *repair_cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+            env=self._get_gogdl_env()
+        )
+        
+        # Log repair output but don't track progress (it's usually quick)
+        while True:
+            line = await repair_proc.stdout.readline()
+            if not line:
+                break
+            line_str = line.decode().strip()
+            if line_str and not line_str.startswith('[gogdl]'):
+                logger.info(f"[gogdl-verify] {line_str}")
+        
+        await repair_proc.wait()
+        
+        if repair_proc.returncode != 0:
+            logger.warning(f"[GOG] Verification had issues (code {repair_proc.returncode}), but installation may still work")
+        else:
+            logger.info(f"[GOG] Verification passed - installation complete")
             
         # 6. Verify and Locate Game
         logger.info(f"[GOG] Verifying installation in {base_path}")
@@ -926,10 +1293,17 @@ class GOGAPIClient:
                 shutil.rmtree(found_path, ignore_errors=True)
                 return {'success': False, 'error': 'Failed to complete installation'}
             
+            # PHASE 3: Post-install verification sweep
+            verification = await self._verify_installation(game_id, found_path, platform)
+            if not verification['complete']:
+                logger.warning(f"[GOG] Verification issue: {verification.get('issue', 'Unknown')}")
+                # Don't fail the install, but log the warning
+            
             logger.info(f"[GOG] Installation successful at {found_path}")
             return {
                 'success': True,
-                'install_path': found_path
+                'install_path': found_path,
+                'verification': verification
             }
         else:
             logger.warning(f"[GOG] Could not locate game {game_id} in {base_path}. Candidates: {candidates if 'candidates' in locals() else 'unknown'}")
@@ -957,7 +1331,7 @@ class GOGAPIClient:
         return []
 
     async def uninstall_game(self, game_id: str, install_path: Optional[str] = None) -> Dict[str, Any]:
-        """Uninstall game by removing its directory.
+        """Uninstall game with retry loop and fallback cleanup.
         
         Args:
             game_id: GOG game ID
@@ -969,19 +1343,106 @@ class GOGAPIClient:
         else:
             info = self.get_installed_game_info(game_id)
             if not info:
-                return {'success': False, 'error': 'Game not found in installed games'}
+                # Game folder doesn't exist - consider it already uninstalled
+                logger.info(f"[GOG] Game {game_id} not found - already uninstalled")
+                return {'success': True, 'message': 'Game already uninstalled'}
             install_path = info['install_path']
         
+        # Retry loop for uninstall
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            try:
+                if os.path.exists(install_path):
+                    shutil.rmtree(install_path)
+                    
+                # Verify deletion
+                if not os.path.exists(install_path):
+                    logger.info(f"[GOG] Successfully uninstalled {game_id} from {install_path}")
+                    break
+                else:
+                    remaining = self._count_files_in_folder(install_path)
+                    logger.warning(f"[GOG] Attempt {attempt+1}: Folder still exists ({remaining} files remaining)")
+                    
+            except PermissionError as e:
+                logger.warning(f"[GOG] Attempt {attempt+1} permission error: {e}")
+            except Exception as e:
+                logger.warning(f"[GOG] Attempt {attempt+1} failed: {e}")
+            
+            # Fallback on last attempt: file-by-file deletion
+            if attempt == max_attempts - 1 and os.path.exists(install_path):
+                logger.info(f"[GOG] Using fallback file-by-file cleanup")
+                await self._force_cleanup_folder(install_path)
+        
+        # Clean up support/manifest directory
+        support_dir = os.path.join(self.gogdl_config_dir, "gog-support", game_id)
+        if os.path.exists(support_dir):
+            try:
+                shutil.rmtree(support_dir, ignore_errors=True)
+                logger.info(f"[GOG] Cleaned up support directory: {support_dir}")
+            except Exception as e:
+                logger.warning(f"[GOG] Could not clean support dir: {e}")
+        
+        # Final verification
+        if os.path.exists(install_path):
+            remaining = self._count_files_in_folder(install_path)
+            if remaining > 0:
+                logger.error(f"[GOG] Uninstall incomplete: {remaining} files remaining in {install_path}")
+                return {'success': False, 'error': f'Could not delete all files ({remaining} remaining)'}
+        
+        return {'success': True, 'message': f'Uninstalled from {install_path}'}
+    
+    async def _force_cleanup_folder(self, path: str):
+        """Fallback: Delete files one by one, handling locked files."""
+        deleted_count = 0
+        error_count = 0
+        
+        for root, dirs, files in os.walk(path, topdown=False):
+            for name in files:
+                file_path = os.path.join(root, name)
+                try:
+                    os.remove(file_path)
+                    deleted_count += 1
+                except Exception as e:
+                    logger.debug(f"[GOG] Could not delete {file_path}: {e}")
+                    error_count += 1
+            for name in dirs:
+                dir_path = os.path.join(root, name)
+                try:
+                    os.rmdir(dir_path)
+                except Exception:
+                    pass
+        
+        # Try to remove root folder
         try:
-            if os.path.exists(install_path):
-                shutil.rmtree(install_path)
-                logger.info(f"[GOG] Uninstalled {game_id} from {install_path}")
-                return {'success': True, 'message': f'Uninstalled from {install_path}'}
-            else:
-                return {'success': False, 'error': f'Install path does not exist: {install_path}'}
-        except Exception as e:
-            logger.error(f"[GOG] Error uninstalling {game_id}: {e}")
-            return {'success': False, 'error': str(e)}
+            os.rmdir(path)
+        except Exception:
+            pass
+        
+        logger.info(f"[GOG] Force cleanup: deleted {deleted_count} files, {error_count} errors")
+    
+    def _count_files_in_folder(self, path: str) -> int:
+        """Count total files in folder recursively."""
+        count = 0
+        try:
+            for root, dirs, files in os.walk(path):
+                count += len(files)
+        except Exception:
+            pass
+        return count
+    
+    def _get_folder_size(self, path: str) -> int:
+        """Get total size of folder in bytes."""
+        total = 0
+        try:
+            for root, dirs, files in os.walk(path):
+                for f in files:
+                    try:
+                        total += os.path.getsize(os.path.join(root, f))
+                    except OSError:
+                        pass
+        except Exception:
+            pass
+        return total
 
     def _find_game_executable(self, install_path: str) -> Optional[str]:
         """Find the game executable using goggame info or start.sh"""
@@ -1099,3 +1560,177 @@ class GOGAPIClient:
         except Exception as e:
             logger.error(f"[GOG] Error finding game executable: {e}", exc_info=True)
             return None
+
+    async def get_game_dlcs(self, game_id: str) -> List[Dict[str, Any]]:
+        """Return list of available DLCs for a game.
+        
+        Based on Lutris GOGService.get_game_dlcs() pattern.
+        Returns list of DLC products with id, title, and installation info.
+        """
+        await self._ensure_fresh_token()
+        
+        if not self.access_token:
+            logger.warning("[GOG] Cannot fetch DLCs: not authenticated")
+            return []
+        
+        try:
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            
+            connector = aiohttp.TCPConnector(ssl=ssl_context)
+            async with aiohttp.ClientSession(connector=connector) as session:
+                # Get game details to find DLC expand URL
+                url = f'https://api.gog.com/products/{game_id}?expand=downloads&locale=en-US'
+                async with session.get(url, headers={'Authorization': f'Bearer {self.access_token}'}) as response:
+                    if response.status != 200:
+                        logger.error(f"[GOG] Failed to get game details for DLCs: {response.status}")
+                        return []
+                    
+                    data = await response.json()
+                    dlcs_info = data.get('dlcs', {})
+                    
+                    if not dlcs_info:
+                        logger.debug(f"[GOG] No DLCs for game {game_id}")
+                        return []
+                    
+                    # Get expanded DLC list
+                    expanded_url = dlcs_info.get('expanded_all_products_url')
+                    if not expanded_url:
+                        # Basic DLC list without expansion
+                        return dlcs_info.get('products', [])
+                    
+                    async with session.get(expanded_url, headers={'Authorization': f'Bearer {self.access_token}'}) as dlc_response:
+                        if dlc_response.status == 200:
+                            dlc_list = await dlc_response.json()
+                            logger.info(f"[GOG] Found {len(dlc_list)} DLCs for game {game_id}")
+                            return dlc_list
+                        else:
+                            logger.warning(f"[GOG] Failed to fetch expanded DLC list: {dlc_response.status}")
+                            return []
+                            
+        except Exception as e:
+            logger.error(f"[GOG] Error fetching DLCs for {game_id}: {e}")
+            return []
+
+    async def get_available_languages(self, game_id: str) -> List[str]:
+        """Return list of available installer languages for a game.
+        
+        Queries gogdl info to get available language options.
+        """
+        await self._ensure_fresh_token()
+        
+        if not self.gogdl_bin:
+            return ['en']
+        
+        try:
+            self._ensure_auth_config()
+            
+            # Run gogdl info to get available languages
+            cmd = [
+                self.gogdl_bin, '--auth-config-path', self.gogdl_config_path,
+                'info', '--platform', 'windows', game_id
+            ]
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=self._get_gogdl_env()
+            )
+            stdout, _ = await proc.communicate()
+            
+            if proc.returncode == 0:
+                for line in stdout.decode().strip().split('\n'):
+                    try:
+                        data = json.loads(line)
+                        if 'available_languages' in data:
+                            langs = data['available_languages']
+                            logger.info(f"[GOG] Available languages for {game_id}: {langs}")
+                            return langs
+                    except json.JSONDecodeError:
+                        continue
+            
+            return ['en']
+            
+        except Exception as e:
+            logger.error(f"[GOG] Error getting available languages: {e}")
+            return ['en']
+
+    async def install_dlc(self, game_id: str, dlc_id: str, base_path: str = None, progress_callback=None) -> Dict[str, Any]:
+        """Install a DLC for a game using gogdl.
+        
+        DLCs are installed to the same location as the base game.
+        """
+        if not self.gogdl_bin:
+            return {'success': False, 'error': 'gogdl binary not found'}
+        
+        await self._ensure_fresh_token()
+        
+        if not await self.is_available():
+            return {'success': False, 'error': 'Not authenticated with GOG'}
+        
+        self._ensure_auth_config()
+        
+        # Find the base game install path
+        if not base_path:
+            game_info = self.get_installed_game_info(game_id)
+            if game_info:
+                base_path = game_info['install_path']
+            else:
+                base_path = os.path.expanduser("~/GOG Games")
+        
+        logger.info(f"[GOG] Installing DLC {dlc_id} for game {game_id} to {base_path}")
+        
+        # Get preferred language
+        preferred_lang = self._get_system_language()
+        
+        # Determine platform (same as base game)
+        platform = 'windows'  # Default, could be detected from base game
+        
+        cmd = [
+            self.gogdl_bin,
+            '--auth-config-path', self.gogdl_config_path,
+            'repair',
+            dlc_id,
+            '--platform', platform,
+            '--path', base_path,
+            '--lang', preferred_lang
+        ]
+        
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+            env=self._get_gogdl_env()
+        )
+        
+        # Monitor progress (similar to install_game)
+        while True:
+            line = await proc.stdout.readline()
+            if not line:
+                break
+            
+            line_str = line.decode().strip()
+            if line_str and progress_callback and 'Progress:' in line_str:
+                # Parse and report progress
+                try:
+                    part = line_str.split('Progress:')[1].strip()
+                    tokens = part.split()
+                    if tokens:
+                        percent = float(tokens[0])
+                        await progress_callback({
+                            'progress_percent': percent,
+                            'phase_message': f'Installing DLC... {percent:.1f}%'
+                        })
+                except:
+                    pass
+        
+        await proc.wait()
+        
+        if proc.returncode == 0:
+            logger.info(f"[GOG] DLC {dlc_id} installed successfully")
+            return {'success': True, 'dlc_id': dlc_id}
+        else:
+            logger.error(f"[GOG] DLC installation failed with code {proc.returncode}")
+            return {'success': False, 'error': f'Installation failed (code {proc.returncode})'}
+

@@ -238,6 +238,51 @@ class EpicConnector(Store):
             logger.error(f"Error logging out from Epic: {e}")
             return {'success': False, 'error': str(e)}
 
+    def _should_filter_game(self, game_data: dict) -> bool:
+        """Check if a game should be filtered from library.
+        
+        Filters out:
+        - Unreal Engine assets/plugins/projects (namespace='ue' or matching categories)
+        - Mods (category path='mods')
+        - Mobile-only games (all platforms are Android/iOS)
+        
+        Based on Heroic Games Launcher's filtering logic.
+        """
+        metadata = game_data.get('metadata', {})
+        
+        # Filter 1: Unreal Engine namespace
+        if metadata.get('namespace') == 'ue':
+            logger.debug(f"[Epic] Filtered (UE namespace): {game_data.get('app_title')}")
+            return True
+        
+        # Filter 2: UE categories (assets, plugins, projects)
+        ue_categories = ['assets', 'asset-format', 'plugins', 'projects']
+        categories = metadata.get('categories', [])
+        for cat in categories:
+            if cat.get('path') in ue_categories:
+                logger.debug(f"[Epic] Filtered (UE category): {game_data.get('app_title')}")
+                return True
+        
+        # Filter 3: Mods
+        for cat in categories:
+            if cat.get('path') == 'mods':
+                logger.debug(f"[Epic] Filtered (mod): {game_data.get('app_title')}")
+                return True
+        
+        # Filter 4: Mobile-only games
+        release_info = metadata.get('releaseInfo', [])
+        if release_info:
+            all_mobile = all(
+                info.get('platform', []) and
+                all(p in ('Android', 'iOS') for p in info.get('platform', []))
+                for info in release_info
+            )
+            if all_mobile:
+                logger.debug(f"[Epic] Filtered (mobile-only): {game_data.get('app_title')}")
+                return True
+        
+        return False
+
     async def get_library(self) -> List[Game]:
         """Get Epic Games library via legendary"""
         if not self.legendary_bin:
@@ -258,8 +303,14 @@ class EpicConnector(Store):
 
             games_data = json.loads(stdout.decode())
             games = []
+            filtered_count = 0
 
             for game_data in games_data:
+                # Filter out UE assets, plugins, mods, and mobile-only games
+                if self._should_filter_game(game_data):
+                    filtered_count += 1
+                    continue
+                
                 game = Game(
                     id=game_data.get('app_name', ''),
                     title=game_data.get('app_title', ''),
@@ -268,7 +319,7 @@ class EpicConnector(Store):
                 )
                 games.append(game)
 
-            logger.info(f"Found {len(games)} Epic games")
+            logger.info(f"Found {len(games)} Epic games (filtered {filtered_count} UE/plugin/mod items)")
             return games
 
         except Exception as e:
