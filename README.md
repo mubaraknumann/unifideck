@@ -116,6 +116,24 @@ DO NOT select this option for Unifideck games. Proton/Wine compatibiltiy is hand
 2. For GOG games, verify the game folder exists in `~/GOG Games/`
 3. Try reinstalling the game
 
+### Languages
+
+Added support for multiple languages. The following translations are now included:
+
+- Portuguese (Brazil) — pt-BR
+- Russian — ru-RU
+- Japanese — ja-JP
+- German — de-DE
+- Spanish — es-ES
+- Italian — it-IT
+- Simplified Chinese — zh-CN
+- Korean — ko-KR
+- Dutch — nl-NL
+- Polish — pl-PL
+- Turkish — tr-TR
+
+To add a new language, create a JSON file in `src/i18n/locales/` using `en-US.json` as a template and provide translations for each key.
+
 ## License
 
 GNU General Public License v3.0 - see [LICENSE](./LICENSE) file for details
