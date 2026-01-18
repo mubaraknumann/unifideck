@@ -668,8 +668,39 @@ class GOGAPIClient:
                 for line in reversed(output_lines):
                     try:
                         data = json.loads(line)
+                        
+                        # gogdl returns sizes nested by language:
+                        # {"size": {"*": {"download_size": X}, "en-US": {"download_size": Y}, ...}}
+                        # "*" is shared/common files, language keys are language-specific files
+                        if 'size' in data and isinstance(data['size'], dict):
+                            size_data = data['size']
+                            total_size = 0
+                            
+                            # Add shared/common files size
+                            if '*' in size_data and isinstance(size_data['*'], dict):
+                                total_size += size_data['*'].get('download_size', 0)
+                            
+                            # Add the largest language pack (user will download at least one)
+                            # This gives a good estimate for the Install button
+                            lang_sizes = []
+                            for lang_key, lang_data in size_data.items():
+                                if lang_key != '*' and isinstance(lang_data, dict):
+                                    lang_size = lang_data.get('download_size', 0)
+                                    if lang_size > 0:
+                                        lang_sizes.append(lang_size)
+                            
+                            if lang_sizes:
+                                # Use max language size as estimate (typically all similar)
+                                total_size += max(lang_sizes)
+                            
+                            if total_size > 0:
+                                logger.debug(f"[GOG] Game {game_id} size: {total_size} bytes ({total_size/1024/1024:.1f} MB)")
+                                return total_size
+                        
+                        # Legacy fallback: top-level download_size (older gogdl versions)
                         if 'download_size' in data:
                             return data['download_size']
+                            
                     except json.JSONDecodeError:
                         continue
             

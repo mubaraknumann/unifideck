@@ -2592,6 +2592,9 @@ class Plugin:
             return await self.gog.install_game(game_id, install_path, progress_callback)
         
         self.download_queue.set_gog_install_callback(gog_install_callback)
+        
+        # Set size cache callback to update Install button sizes when accurate size is received
+        self.download_queue.set_size_cache_callback(cache_game_size)
 
         logger.info("[INIT] Unifideck plugin initialization complete")
 

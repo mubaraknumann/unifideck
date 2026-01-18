@@ -204,40 +204,49 @@ const DownloadItemRow: FC<{
                                 }
                             `}</style>
                         </div>
-                    ) : (
-                        <>
-                            {/* Progress bar for downloading */}
-                            <div
-                                style={{
-                                    width: "100%",
-                                    height: "6px",
-                                    backgroundColor: "#333",
-                                    borderRadius: "3px",
-                                    overflow: "hidden",
-                                    marginBottom: "8px",
-                                }}
-                            >
+                    ) : (() => {
+                        // Calculate progress from bytes when available (more accurate than chunk-based %)
+                        // Legendary reports chunk-based progress which can differ significantly from byte progress
+                        const byteProgress = item.total_bytes > 0
+                            ? (item.downloaded_bytes / item.total_bytes) * 100
+                            : item.progress_percent;
+                        const displayProgress = Math.min(byteProgress, 100);
+
+                        return (
+                            <>
+                                {/* Progress bar for downloading */}
                                 <div
                                     style={{
-                                        width: `${item.progress_percent}%`,
-                                        height: "100%",
-                                        backgroundColor: "#1a9fff",
-                                        transition: "width 0.3s ease",
+                                        width: "100%",
+                                        height: "6px",
+                                        backgroundColor: "#333",
+                                        borderRadius: "3px",
+                                        overflow: "hidden",
+                                        marginBottom: "8px",
                                     }}
-                                />
-                            </div>
+                                >
+                                    <div
+                                        style={{
+                                            width: `${displayProgress}%`,
+                                            height: "100%",
+                                            backgroundColor: "#1a9fff",
+                                            transition: "width 0.3s ease",
+                                        }}
+                                    />
+                                </div>
 
-                            {/* Stats row */}
-                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#888" }}>
-                                <span>{item.progress_percent.toFixed(1)}%</span>
-                                <span>
-                                    {formatBytes(item.downloaded_bytes)} / {formatBytes(item.total_bytes)}
-                                </span>
-                                <span>{item.speed_mbps.toFixed(1)} MB/s</span>
-                                <span>ETA: {formatETA(item.eta_seconds)}</span>
-                            </div>
-                        </>
-                    )}
+                                {/* Stats row */}
+                                <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "4px 8px", fontSize: "12px", color: "#888" }}>
+                                    <span>{displayProgress.toFixed(1)}%</span>
+                                    <span>
+                                        {formatBytes(item.downloaded_bytes)} / {formatBytes(item.total_bytes)}
+                                    </span>
+                                    <span>{item.speed_mbps.toFixed(1)} MB/s</span>
+                                    <span>ETA: {formatETA(item.eta_seconds)}</span>
+                                </div>
+                            </>
+                        );
+                    })()}
                 </>
             )}
 
