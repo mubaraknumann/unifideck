@@ -80,14 +80,29 @@ class GOGAPIClient:
             if lang_tuple and lang_tuple[0]:
                 # Extract 2-letter code: 'en_US' -> 'en', 'de_DE' -> 'de'
                 lang_code = lang_tuple[0].split('_')[0].lower()
-                if lang_code in self._gog_supported_languages:
-                    logger.debug(f"[GOG] Detected system language: {lang_code}")
-                    return lang_code
+                
+                # Map 2-letter codes to GOG depot full codes (important for depot matching!)
+                lang_map = {
+                    'en': 'en-US',
+                    'fr': 'fr-FR',
+                    'de': 'de-DE',
+                    'es': 'es-ES',
+                    'it': 'it-IT',
+                    'pt': 'pt-BR', # Common for GOG
+                    'ru': 'ru-RU',
+                    'pl': 'pl-PL',
+                    'zh': 'zh-CN'
+                }
+                
+                # Use mapped code if available, otherwise fall back to 2-letter tag
+                final_lang = lang_map.get(lang_code, lang_code)
+                logger.debug(f"[GOG] Detected system language: {lang_code} -> {final_lang}")
+                return final_lang
         except Exception as e:
             logger.debug(f"[GOG] Could not detect system locale: {e}")
         
         # Default fallback
-        return 'en'
+        return 'en-US'
     
     def _get_token_age(self) -> float:
         """Return age of token in seconds based on file modification time.
@@ -184,9 +199,13 @@ class GOGAPIClient:
         
         This ensures gogdl uses Unifideck's own configuration directory
         for manifests, support files, etc. - completely separate from Heroic.
+        
+        IMPORTANT: GOGDL_CONFIG_PATH must point to PARENT directory.
+        gogdl creates 'heroic_gogdl/manifests/' inside this path.
         """
         env = os.environ.copy()
-        env['GOGDL_CONFIG_PATH'] = self.gogdl_config_dir
+        # Point to parent dir - gogdl creates subdirectories inside
+        env['GOGDL_CONFIG_PATH'] = os.path.dirname(self.gogdl_config_dir)
         return env
 
     async def is_available(self) -> bool:
@@ -726,15 +745,30 @@ class GOGAPIClient:
                 logger.info(f"[GOG] Mode selection: found goggame.info with {folder_size/1024/1024:.0f}MB - using 'repair'")
                 return 'repair'
         
-        if has_significant_data:
-            logger.info(f"[GOG] Mode selection: significant data present - using 'repair'")
-            return 'repair'
+        # No goggame.info = incomplete/corrupt install, cannot reliably repair.
+        # Clean up everything and use fresh download.
+        if has_significant_data or actual_files > 0:
+            logger.warning(f"[GOG] Mode selection: no goggame.info with {folder_size/1024/1024:.1f}MB data - cleaning up orphaned install")
+            try:
+                shutil.rmtree(target_folder)
+                logger.info(f"[GOG] Deleted orphaned game folder")
+            except Exception as e:
+                logger.error(f"[GOG] Failed to clean orphaned folder: {e}")
+            
+            # Also clean up stale manifests from both old and new locations
+            manifest_locations = [
+                os.path.join(self.gogdl_config_dir, "heroic_gogdl", "manifests", game_id),
+                os.path.join(os.path.dirname(self.gogdl_config_dir), "heroic_gogdl", "manifests", game_id),
+            ]
+            for manifest_path in manifest_locations:
+                if os.path.exists(manifest_path):
+                    try:
+                        os.remove(manifest_path)
+                        logger.info(f"[GOG] Cleaned stale manifest: {manifest_path}")
+                    except Exception as e:
+                        logger.warning(f"[GOG] Could not clean manifest: {e}")
         
-        if actual_files < 10 and folder_size < 10_000_000:
-            logger.info(f"[GOG] Mode selection: folder nearly empty - using 'download'")
-            return 'download'
-        
-        logger.info(f"[GOG] Mode selection: default - using 'download'")
+        logger.info(f"[GOG] Mode selection: using 'download' mode")
         return 'download'
 
     async def _verify_installation(self, game_id: str, install_path: str, platform: str) -> Dict[str, Any]:
@@ -953,6 +987,23 @@ class GOGAPIClient:
         if install_mode == 'download':
             # Fresh install: pass base_path, gogdl creates subfolder
             gogdl_path = base_path
+            
+            # CRITICAL: Clear stale manifest before fresh download
+            # This prevents gogdl from finding old manifest and saying "Nothing to do"
+            # Check BOTH old location (from buggy versions) and current location
+            manifest_locations = [
+                # Old buggy location: gogdl created heroic_gogdl/ inside gogdl_config_dir
+                os.path.join(self.gogdl_config_dir, "heroic_gogdl", "manifests", game_id),
+                # Current correct location: parent of gogdl_config_dir
+                os.path.join(os.path.dirname(self.gogdl_config_dir), "heroic_gogdl", "manifests", game_id),
+            ]
+            for manifest_path in manifest_locations:
+                if os.path.exists(manifest_path):
+                    try:
+                        os.remove(manifest_path)
+                        logger.info(f"[GOG] Cleared stale manifest: {manifest_path}")
+                    except Exception as e:
+                        logger.warning(f"[GOG] Could not clear stale manifest {manifest_path}: {e}")
         else:
             # Repair: pass the specific game folder
             gogdl_path = target_folder if target_folder and os.path.exists(target_folder) else base_path
@@ -965,8 +1016,7 @@ class GOGAPIClient:
             '--platform', platform,
             '--path', gogdl_path,
             '--support', support_dir,
-            '--lang', preferred_lang,
-            # NOTE: --skip-dlcs removed to ensure all owned DLCs are downloaded
+            '--lang', preferred_lang
         ]
         
         logger.info(f"[GOG] Using {install_mode} mode with path: {gogdl_path}")

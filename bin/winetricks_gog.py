@@ -24,31 +24,36 @@ from datetime import datetime
 LOG_FILE = os.path.expanduser("~/.local/share/unifideck/winetricks.log")
 os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
 
-# Default dependencies - install all common ones since no UI for user selection
-# Comprehensive list based on winetricks best practices for game compatibility
+# Default dependencies - matches what Heroic installs for GOG games
+# Based on analysis of Heroic's Shadow of Mordor prefix (system32 DLLs)
 DEFAULT_DEPS = [
-    # Visual C++ Redistributables (covers 2005-2022)
-    'vcrun2022',      # Latest VC++ runtime
-    'vcrun2019',      # VC++ 2015-2019 runtime (most common)
-    'vcrun2017',      # VC++ 2017 runtime
-    'vcrun2015',      # VC++ 2015 runtime
+    # Visual C++ Redistributables (matches Heroic's prefix)
+    # Note: vcrun2019 includes 2015/2017, vcrun2022 is separate
+    'vcrun2022',      # Latest VC++ runtime (msvcp140 series)
+    'vcrun2019',      # VC++ 2015-2019 runtime (most games need this)
     'vcrun2013',      # VC++ 2013 runtime
-    'vcrun2012',      # VC++ 2012 runtime
-    'vcrun2010',      # VC++ 2010 runtime
+    'vcrun2012',      # VC++ 2012 runtime (vcomp120)
+    'vcrun2010',      # VC++ 2010 runtime (msvcr100, vcomp100)
     'vcrun2008',      # VC++ 2008 runtime (older games)
     
-    # DirectX components
-    'd3dcompiler_47', # DirectX shader compiler (most common)
+    # DirectX components (critical - found in Heroic prefix)
+    'd3dcompiler_47', # DirectX shader compiler (modern games)
     'd3dcompiler_43', # Older shader compiler
-    'd3dx9',          # DirectX 9 extensions (many games)
+    'd3dx9',          # DirectX 9 extensions (d3dx9_24..43.dll)
     'd3dx10',         # DirectX 10 extensions
     'd3dx11_43',      # DirectX 11 extensions
     
-    # Audio
-    'xact',           # Xbox Audio Cross-platform Tool (game audio)
+    # Audio (XACT - found in Heroic prefix)
+    'xact',           # Xbox Audio (xactengine, xaudio2, xapofx, x3daudio)
     'xact_x64',       # 64-bit XACT
     
-    # Fonts (some games require these)
+    # Input (found in Heroic prefix)
+    'xinput',         # XInput for controller support (xinput1_*.dll)
+    
+    # .NET (some GOG games require this)
+    'dotnet40',       # .NET Framework 4.0
+    
+    # Fonts (for UI/text rendering)
     'corefonts',      # Microsoft core fonts
     'tahoma',         # Tahoma font
     
@@ -103,12 +108,31 @@ def fetch_umu_protonfixes(game_id: str) -> dict:
     """
     Fetch game fixes from umu-protonfixes GitHub repository.
     Queries multiple stores (gog, egs, epic) for compatibility.
+    Also checks GAMEID env var which may contain umu_id from API lookup.
     """
-    urls = [
+    urls = []
+    
+    # Check for GAMEID override (set by unifideck-launcher after UMU API lookup)
+    # This is the preferred method - uses the same ID that umu-run will use
+    gameid = os.environ.get('GAMEID', '')
+    if gameid and gameid.startswith('umu-'):
+        # Extract the Steam AppID from umu-XXXXX format
+        steam_id = gameid.replace('umu-', '')
+        logger.info(f"Using GAMEID from launcher: {gameid}")
+        urls.append(f"https://raw.githubusercontent.com/Open-Wine-Components/umu-database/main/umu-{steam_id}.json")
+    
+    # Check for legacy STEAM_APPID override
+    steam_appid = os.environ.get('STEAM_APPID')
+    if steam_appid:
+        logger.info(f"Using STEAM_APPID override: {steam_appid}")
+        urls.append(f"https://raw.githubusercontent.com/Open-Wine-Components/umu-database/main/umu-steam-{steam_appid}.json")
+
+    # Fall back to store-specific lookups
+    urls.extend([
         f"https://raw.githubusercontent.com/Open-Wine-Components/umu-database/main/umu-gog-{game_id}.json",
         f"https://raw.githubusercontent.com/Open-Wine-Components/umu-database/main/umu-egs-{game_id}.json",
         f"https://raw.githubusercontent.com/Open-Wine-Components/umu-database/main/umu-epic-{game_id}.json",
-    ]
+    ])
     
     for url in urls:
         try:
@@ -284,6 +308,12 @@ def install_via_umu(prefix_path: str, packages: list, game_id: str) -> bool:
         try:
             cmd = ["python3", umu_run, "winetricks", pkg]
             result = subprocess.run(cmd, env=env, capture_output=True, timeout=600, text=True)
+            
+            # Log output for debugging "silent failure" or "already installed" detection
+            if result.stdout.strip():
+                logger.info(f"[winetricks stdout] {result.stdout.strip()}")
+            if result.stderr.strip():
+                logger.info(f"[winetricks stderr] {result.stderr.strip()}")
             
             if result.returncode == 0:
                 logger.info(f"✓ {pkg} installed")

@@ -66,17 +66,28 @@ def install_ge_proton(version_tag):
         log("Could not find .tar.gz asset in release")
         return None
 
-    # 2. Download
+    # 2. Download with retry
     temp_tar = COMPAT_TOOLS_DIR / asset_name
     log(f"Downloading {asset_name}...")
-    try:
-        # Simple progress reporter could be added here
-        urllib.request.urlretrieve(tarball_url, temp_tar)
-    except Exception as e:
-        log(f"Download failed: {e}")
-        if temp_tar.exists():
-            temp_tar.unlink()
-        return None
+    
+    max_attempts = 3
+    for attempt in range(1, max_attempts + 1):
+        try:
+            log(f"Download attempt {attempt}/{max_attempts}...")
+            urllib.request.urlretrieve(tarball_url, temp_tar)
+            break  # Success
+        except Exception as e:
+            log(f"Download attempt {attempt} failed: {e}")
+            if temp_tar.exists():
+                temp_tar.unlink()
+            
+            if attempt < max_attempts:
+                wait_time = 5 * (2 ** (attempt - 1))  # 5, 10, 20 seconds
+                log(f"Retrying in {wait_time}s...")
+                time.sleep(wait_time)
+            else:
+                log(f"All {max_attempts} download attempts failed")
+                return None
 
     # 3. Extract
     log(f"Extracting to {COMPAT_TOOLS_DIR}...")
