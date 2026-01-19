@@ -37,7 +37,17 @@
     "toastDownloadCancelledTitle": "下载已取消",
     "toastDownloadCancelledBody": "下载已从队列中删除。",
     "toastCancelFailedTitle": "取消失败",
-    "toastCancelFailedBody": "无法取消下载: {{error}}"
+    "toastCancelFailedBody": "无法取消下载: {{error}}",
+    "status": {
+      "queued": "排队中",
+      "downloading": "下载中",
+      "completed": "已完成",
+      "cancelled": "已取消",
+      "error": "错误"
+    },
+    "preparingDownload": "正在准备下载...",
+    "phaseExtracting": "正在解压 {{game}}...",
+    "phaseVerifying": "正在验证 {{game}}..."
   },
   "cloudSave": {
     "title": "云存档冲突",

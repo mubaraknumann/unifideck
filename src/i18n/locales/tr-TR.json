@@ -37,7 +37,17 @@
     "toastDownloadCancelledTitle": "İndirme İptal Edildi",
     "toastDownloadCancelledBody": "İndirme kuyruktan kaldırıldı.",
     "toastCancelFailedTitle": "İptal Başarısız",
-    "toastCancelFailedBody": "İndirme iptal edilemedi: {{error}}"
+    "toastCancelFailedBody": "İndirme iptal edilemedi: {{error}}",
+    "status": {
+      "queued": "Kuyrukta",
+      "downloading": "İndiriliyor",
+      "completed": "Tamamlandı",
+      "cancelled": "İptal Edildi",
+      "error": "Hata"
+    },
+    "preparingDownload": "İndirme hazırlanıyor...",
+    "phaseExtracting": "{{game}} çıkarılıyor...",
+    "phaseVerifying": "{{game}} doğrulanıyor..."
   },
   "cloudSave": {
     "title": "Bulut Kayıt Çakışması",

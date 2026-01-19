@@ -37,7 +37,17 @@
     "toastDownloadCancelledTitle": "Téléchargement annulé",
     "toastDownloadCancelledBody": "Le téléchargement a été retiré de la file.",
     "toastCancelFailedTitle": "Échec de l'annulation",
-    "toastCancelFailedBody": "Impossible d'annuler le téléchargement : {{error}}"
+    "toastCancelFailedBody": "Impossible d'annuler le téléchargement : {{error}}",
+    "status": {
+      "queued": "En attente",
+      "downloading": "Téléchargement en cours",
+      "completed": "Terminé",
+      "cancelled": "Annulé",
+      "error": "Erreur"
+    },
+    "preparingDownload": "Préparation du téléchargement...",
+    "phaseExtracting": "Extraction de {{game}}...",
+    "phaseVerifying": "Vérification de {{game}}..."
   },
   "cloudSave": {
     "title": "Conflit de sauvegarde cloud",

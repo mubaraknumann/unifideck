@@ -37,7 +37,17 @@
     "toastDownloadCancelledTitle": "Download Cancelado",
     "toastDownloadCancelledBody": "O download foi removido da fila.",
     "toastCancelFailedTitle": "Falha ao Cancelar",
-    "toastCancelFailedBody": "Não foi possível cancelar o download: {{error}}"
+    "toastCancelFailedBody": "Não foi possível cancelar o download: {{error}}",
+    "status": {
+      "queued": "Na fila",
+      "downloading": "Baixando",
+      "completed": "Concluído",
+      "cancelled": "Cancelado",
+      "error": "Erro"
+    },
+    "preparingDownload": "Preparando download...",
+    "phaseExtracting": "Extraindo {{game}}...",
+    "phaseVerifying": "Verificando {{game}}..."
   },
   "cloudSave": {
     "title": "Conflito de Save na Nuvem",

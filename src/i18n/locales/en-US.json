@@ -37,7 +37,17 @@
     "toastDownloadCancelledTitle": "Download Cancelled",
     "toastDownloadCancelledBody": "The download has been removed from the queue.",
     "toastCancelFailedTitle": "Cancel Failed",
-    "toastCancelFailedBody": "Unable to cancel download: {{error}}"
+    "toastCancelFailedBody": "Unable to cancel download: {{error}}",
+    "status": {
+      "queued": "Queued",
+      "downloading": "Downloading",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "error": "Error"
+    },
+    "preparingDownload": "Preparing download...",
+    "phaseExtracting": "Extracting {{game}}...",
+    "phaseVerifying": "Verifying {{game}}..."
   },
   "cloudSave": {
     "title": "Cloud Save Conflict",

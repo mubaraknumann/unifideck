@@ -37,7 +37,17 @@
     "toastDownloadCancelledTitle": "Download Annullato",
     "toastDownloadCancelledBody": "Il download è stato rimosso dalla coda.",
     "toastCancelFailedTitle": "Annullamento Fallito",
-    "toastCancelFailedBody": "Impossibile annullare il download: {{error}}"
+    "toastCancelFailedBody": "Impossibile annullare il download: {{error}}",
+    "status": {
+      "queued": "In coda",
+      "downloading": "Download in corso",
+      "completed": "Completato",
+      "cancelled": "Annullato",
+      "error": "Errore"
+    },
+    "preparingDownload": "Preparazione download...",
+    "phaseExtracting": "Estrazione di {{game}}...",
+    "phaseVerifying": "Verifica di {{game}}..."
   },
   "cloudSave": {
     "title": "Conflitto Salvataggio Cloud",

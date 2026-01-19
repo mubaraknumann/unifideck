@@ -37,7 +37,17 @@
     "toastDownloadCancelledTitle": "Загрузка отменена",
     "toastDownloadCancelledBody": "Загрузка была удалена из очереди.",
     "toastCancelFailedTitle": "Не удалось отменить",
-    "toastCancelFailedBody": "Не удалось отменить загрузку: {{error}}"
+    "toastCancelFailedBody": "Не удалось отменить загрузку: {{error}}",
+    "status": {
+      "queued": "В очереди",
+      "downloading": "Загрузка",
+      "completed": "Завершено",
+      "cancelled": "Отменено",
+      "error": "Ошибка"
+    },
+    "preparingDownload": "Подготовка загрузки...",
+    "phaseExtracting": "Распаковка {{game}}...",
+    "phaseVerifying": "Проверка {{game}}..."
   },
   "cloudSave": {
     "title": "Конфликт облачного сохранения",

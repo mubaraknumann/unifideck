@@ -15,6 +15,7 @@ import {
     PanelSectionRow,
     Field,
     DialogButton,
+    Focusable,
     showModal,
     ConfirmModal,
 } from "@decky/ui";
@@ -109,22 +110,25 @@ const DownloadItemRow: FC<{
 
                 {/* X button to clear finished items */}
                 {(item.status === "completed" || item.status === "error" || item.status === "cancelled") && onClear && (
-                    <DialogButton
-                        onClick={() => onClear(item.id)}
-                        style={{
-                            padding: "0",
-                            width: "20px",
-                            height: "20px",
-                            minWidth: "auto",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            backgroundColor: "transparent",
-                            color: "#666",
-                        }}
-                    >
-                        <FaTimes size={10} />
-                    </DialogButton>
+                    <Focusable onActivate={() => onClear(item.id)}>
+                        <DialogButton
+                            onClick={() => onClear(item.id)}
+                            focusable={true}
+                            style={{
+                                padding: "0",
+                                width: "24px",
+                                height: "24px",
+                                minWidth: "auto",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                backgroundColor: "transparent",
+                                color: "#888",
+                            }}
+                        >
+                            <FaTimes size={12} />
+                        </DialogButton>
+                    </Focusable>
                 )}
             </div>
 

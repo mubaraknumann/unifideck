@@ -37,7 +37,17 @@
     "toastDownloadCancelledTitle": "다운로드 취소됨",
     "toastDownloadCancelledBody": "다운로드가 대기열에서 제거되었습니다.",
     "toastCancelFailedTitle": "취소 실패",
-    "toastCancelFailedBody": "다운로드를 취소할 수 없습니다: {{error}}"
+    "toastCancelFailedBody": "다운로드를 취소할 수 없습니다: {{error}}",
+    "status": {
+      "queued": "대기 중",
+      "downloading": "다운로드 중",
+      "completed": "완료됨",
+      "cancelled": "취소됨",
+      "error": "오류"
+    },
+    "preparingDownload": "다운로드 준비 중...",
+    "phaseExtracting": "{{game}} 압축 해제 중...",
+    "phaseVerifying": "{{game}} 검증 중..."
   },
   "cloudSave": {
     "title": "클라우드 저장 충돌",

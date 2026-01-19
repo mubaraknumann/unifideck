@@ -37,7 +37,17 @@
     "toastDownloadCancelledTitle": "Pobieranie Anulowane",
     "toastDownloadCancelledBody": "Pobieranie zostało usunięte z kolejki.",
     "toastCancelFailedTitle": "Anulowanie Nie Powiodło Się",
-    "toastCancelFailedBody": "Nie można anulować pobierania: {{error}}"
+    "toastCancelFailedBody": "Nie można anulować pobierania: {{error}}",
+    "status": {
+      "queued": "W kolejce",
+      "downloading": "Pobieranie",
+      "completed": "Ukończone",
+      "cancelled": "Anulowane",
+      "error": "Błąd"
+    },
+    "preparingDownload": "Przygotowywanie pobierania...",
+    "phaseExtracting": "Rozpakowywanie {{game}}...",
+    "phaseVerifying": "Weryfikowanie {{game}}..."
   },
   "cloudSave": {
     "title": "Konflikt Zapisu w Chmurze",

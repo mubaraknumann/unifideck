@@ -37,7 +37,17 @@
     "toastDownloadCancelledTitle": "Descarga Cancelada",
     "toastDownloadCancelledBody": "La descarga ha sido eliminada de la cola.",
     "toastCancelFailedTitle": "Error al Cancelar",
-    "toastCancelFailedBody": "No se pudo cancelar la descarga: {{error}}"
+    "toastCancelFailedBody": "No se pudo cancelar la descarga: {{error}}",
+    "status": {
+      "queued": "En cola",
+      "downloading": "Descargando",
+      "completed": "Completado",
+      "cancelled": "Cancelado",
+      "error": "Error"
+    },
+    "preparingDownload": "Preparando descarga...",
+    "phaseExtracting": "Extrayendo {{game}}...",
+    "phaseVerifying": "Verificando {{game}}..."
   },
   "cloudSave": {
     "title": "Conflicto de Guardado en la Nube",

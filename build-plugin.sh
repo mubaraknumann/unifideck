@@ -221,15 +221,18 @@ build_with_cli() {
     
     # Fix permissions so container can read all files
     log_info "Fixing permissions for container access..."
-    chmod -R a+rX "$SCRIPT_DIR" 2>/dev/null || true
+    chmod -R a+rX "$STAGING_PLUGIN" 2>/dev/null || true
     
     mkdir -p "$OUTPUT_DIR"
     
-    "$CLI_LOCATION/decky" plugin build "$SCRIPT_DIR" \
+    "$CLI_LOCATION/decky" plugin build "$STAGING_PLUGIN" \
         --output-path "$OUTPUT_DIR" \
         --engine "$engine" \
         --follow-symlinks \
         --build-as-root
+    
+    # Cleanup staging directory
+    rm -rf "$STAGING_DIR"
     
     # Rename output file to our desired versioned name
     # Decky CLI outputs as {plugin-name}.zip based on plugin.json "name" field

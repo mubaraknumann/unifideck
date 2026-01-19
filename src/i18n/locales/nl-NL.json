@@ -37,7 +37,17 @@
     "toastDownloadCancelledTitle": "Download Geannuleerd",
     "toastDownloadCancelledBody": "De download is uit de wachtrij verwijderd.",
     "toastCancelFailedTitle": "Annuleren Mislukt",
-    "toastCancelFailedBody": "Kan download niet annuleren: {{error}}"
+    "toastCancelFailedBody": "Kan download niet annuleren: {{error}}",
+    "status": {
+      "queued": "In wachtrij",
+      "downloading": "Downloaden",
+      "completed": "Voltooid",
+      "cancelled": "Geannuleerd",
+      "error": "Fout"
+    },
+    "preparingDownload": "Download voorbereiden...",
+    "phaseExtracting": "{{game}} uitpakken...",
+    "phaseVerifying": "{{game}} verifiëren..."
   },
   "cloudSave": {
     "title": "Cloud Save Conflict",

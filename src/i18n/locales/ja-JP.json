@@ -37,7 +37,17 @@
     "toastDownloadCancelledTitle": "ダウンロードがキャンセルされました",
     "toastDownloadCancelledBody": "ダウンロードはキューから削除されました。",
     "toastCancelFailedTitle": "キャンセルに失敗",
-    "toastCancelFailedBody": "ダウンロードをキャンセルできません: {{error}}"
+    "toastCancelFailedBody": "ダウンロードをキャンセルできません: {{error}}",
+    "status": {
+      "queued": "待機中",
+      "downloading": "ダウンロード中",
+      "completed": "完了",
+      "cancelled": "キャンセル済み",
+      "error": "エラー"
+    },
+    "preparingDownload": "ダウンロードを準備中...",
+    "phaseExtracting": "{{game}} を展開中...",
+    "phaseVerifying": "{{game}} を検証中..."
   },
   "cloudSave": {
     "title": "クラウドセーブの競合",

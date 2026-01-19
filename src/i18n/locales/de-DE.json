@@ -37,7 +37,17 @@
     "toastDownloadCancelledTitle": "Download Abgebrochen",
     "toastDownloadCancelledBody": "Der Download wurde aus der Warteschlange entfernt.",
     "toastCancelFailedTitle": "Abbruch Fehlgeschlagen",
-    "toastCancelFailedBody": "Download konnte nicht abgebrochen werden: {{error}}"
+    "toastCancelFailedBody": "Download konnte nicht abgebrochen werden: {{error}}",
+    "status": {
+      "queued": "In Warteschlange",
+      "downloading": "Wird heruntergeladen",
+      "completed": "Abgeschlossen",
+      "cancelled": "Abgebrochen",
+      "error": "Fehler"
+    },
+    "preparingDownload": "Download wird vorbereitet...",
+    "phaseExtracting": "{{game}} wird entpackt...",
+    "phaseVerifying": "{{game}} wird überprüft..."
   },
   "cloudSave": {
     "title": "Cloud-Speicher-Konflikt",
