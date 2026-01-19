@@ -143,5 +143,21 @@
     "cleanupSuccessfulMessage": "{{games}}개 게임, {{artwork}}개 아트워크 세트, {{files}}개 파일 디렉토리가 제거되었습니다. 인증 및 캐시가 지워졌습니다.",
     "deleteFailed": "삭제 실패",
     "unifideck": "Unifideck:"
+  },
+  "uninstallModal": {
+    "title": "제거 확인",
+    "description": "{{title}}을(를) 제거하시겠습니까?",
+    "deleteProtonLabel": "Proton 파일도 삭제",
+    "deleteProtonDescription": "호환성 데이터 및 사용자 파일 제거",
+    "warningTitle": "경고:",
+    "warningBody": "Wine 프리픽스에 저장된 세이브 데이터가 영구적으로 삭제됩니다. 백업을 확인하세요.",
+    "cancel": "취소",
+    "uninstall": "제거"
+  },
+  "languageSettings": {
+    "title": "언어",
+    "label": "표시 언어",
+    "description": "UI 및 게임 다운로드 언어 (지원되는 경우)",
+    "autoDetect": "자동 (시스템)"
   }
 }

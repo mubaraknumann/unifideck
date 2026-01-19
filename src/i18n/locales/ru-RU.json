@@ -143,5 +143,21 @@
     "cleanupSuccessfulMessage": "Удалено {{games}} игр, {{artwork}} артов и {{files}} папок. Аутентификация и кэш очищены.",
     "deleteFailed": "Не удалось удалить",
     "unifideck": "Unifideck:"
+  },
+  "uninstallModal": {
+    "title": "Подтвердите удаление",
+    "description": "Вы уверены, что хотите удалить {{title}}?",
+    "deleteProtonLabel": "Также удалить файлы Proton",
+    "deleteProtonDescription": "Удаляет данные совместимости и пользовательские файлы",
+    "warningTitle": "Предупреждение:",
+    "warningBody": "Это навсегда удалит сохранения в префиксе Wine. Убедитесь, что у вас есть резервная копия.",
+    "cancel": "Отмена",
+    "uninstall": "Удалить"
+  },
+  "languageSettings": {
+    "title": "ЯЗЫК",
+    "label": "Язык интерфейса",
+    "description": "Язык для интерфейса и загрузок игр (где поддерживается)",
+    "autoDetect": "Авто (Системный)"
   }
 }

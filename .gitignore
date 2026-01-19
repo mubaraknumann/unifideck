@@ -1,15 +1,24 @@
-# Node/TypeScript build artifacts
+# ===========================================
+# Node/TypeScript
+# ===========================================
 node_modules/
-dist/*
+dist/
 build/
 .tmp/
 .cache/
 *.log
 npm-debug.log*
 yarn-error.log*
-out/
 
-# Python cache and tooling
+# pnpm store (local cache, not lockfile)
+.pnpm-store/
+
+# NOTE: pnpm-lock.yaml should be COMMITTED for reproducible builds
+# Do NOT add pnpm-lock.yaml here
+
+# ===========================================
+# Python
+# ===========================================
 __pycache__/
 *.py[cod]
 *.pyo
@@ -24,42 +33,68 @@ coverage.xml
 venv/
 env/
 
-# Environment and secrets
+# ===========================================
+# Build Output
+# ===========================================
+out/
+
+# ===========================================
+# Environment and Secrets
+# ===========================================
 .env
 .env.*
 !.env.example
 
-# Editor and OS cruft
+# ===========================================
+# Editor and OS
+# ===========================================
 .idea/
-research/
 .DS_Store
-package-lock.json
-pnpm-lock.yaml
 Thumbs.db
+*.backup
 
-# Test and debug files
+# ===========================================
+# Test and Debug Files
+# ===========================================
 test_*.py
 debug_*.py
 verify_*.py
 read_user_json.py
 test_cloud_saves/
 
-# Binary executables and tools
-*.exe
-cabextract
-gogdl
-winetricks
-bin/winetricks_installer.py
-bin/prefetch_winetricks.py
+# ===========================================
+# Development Tools
+# ===========================================
+# Decky CLI tool (downloaded by setup script)
+cli/
 
-# Backup files
-*.backup
+# Build script - should be tracked for collaboration
+# build-plugin.sh
 
-# Build scripts
-build-plugin.sh
-
-
-dist/index.js
-dist/index.js.map
-pyscripts/toast_ipc_test.py
+# Agent/AI assistant configs
 .agent/
+
+# Research notes
+research/
+
+# ===========================================
+# Large Binaries (downloaded at build time)
+# ===========================================
+# Visual C++ redistributable
+vc_redist.x64.exe
+
+# Downloaded by build-plugin.sh prebuild step
+bin/legendary
+bin/gogdl
+bin/winetricks
+bin/cabextract
+
+# EpicGamesLauncher stub (should be committed if custom)
+# bin/EpicGamesLauncher.exe
+
+# Stubs directory (Galaxy stubs - should be committed)
+# bin/stubs/
+
+# Prefetch/installer scripts (should be committed)
+# bin/prefetch_winetricks.py
+# bin/winetricks_installer.py

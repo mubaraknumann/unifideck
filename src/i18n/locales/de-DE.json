@@ -143,5 +143,21 @@
     "cleanupSuccessfulMessage": "{{games}} Spiele, {{artwork}} Illustrationen und {{files}} Ordner entfernt. Auth & Cache gelöscht.",
     "deleteFailed": "Löschen fehlgeschlagen",
     "unifideck": "Unifideck:"
+  },
+  "uninstallModal": {
+    "title": "Deinstallation bestätigen",
+    "description": "Bist du sicher, dass du {{title}} deinstallieren möchtest?",
+    "deleteProtonLabel": "Auch Proton-Dateien löschen",
+    "deleteProtonDescription": "Entfernt Kompatibilitäts- und Benutzerdaten",
+    "warningTitle": "Warnung:",
+    "warningBody": "Dies löscht dauerhaft im Wine-Prefix gespeicherte Spielstände. Stelle sicher, dass sie gesichert sind.",
+    "cancel": "Abbrechen",
+    "uninstall": "Deinstallieren"
+  },
+  "languageSettings": {
+    "title": "SPRACHE",
+    "label": "Anzeigesprache",
+    "description": "Sprache für UI und Spiele-Downloads (wenn unterstützt)",
+    "autoDetect": "Automatisch (System)"
   }
 }

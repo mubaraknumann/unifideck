@@ -143,5 +143,21 @@
     "cleanupSuccessfulMessage": "Se eliminaron {{games}} juegos, {{artwork}} ilustraciones y {{files}} carpetas. Caché y autenticación limpiados.",
     "deleteFailed": "Error al Eliminar",
     "unifideck": "Unifideck:"
+  },
+  "uninstallModal": {
+    "title": "Confirmar desinstalación",
+    "description": "¿Estás seguro de que quieres desinstalar {{title}}?",
+    "deleteProtonLabel": "También eliminar archivos de Proton",
+    "deleteProtonDescription": "Elimina datos de compatibilidad y archivos de usuario",
+    "warningTitle": "Advertencia:",
+    "warningBody": "Esto eliminará permanentemente los datos guardados en el prefijo Wine. Asegúrate de tener una copia de seguridad.",
+    "cancel": "Cancelar",
+    "uninstall": "Desinstalar"
+  },
+  "languageSettings": {
+    "title": "IDIOMA",
+    "label": "Idioma de visualización",
+    "description": "Idioma para la interfaz y descargas de juegos (donde esté soportado)",
+    "autoDetect": "Automático (Sistema)"
   }
 }

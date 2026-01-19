@@ -4089,6 +4089,69 @@ class Plugin:
 
     # ============== END DOWNLOAD QUEUE API ==============
 
+    # ============== LANGUAGE SETTINGS API ==============
+
+    async def get_language_preference(self) -> Dict[str, Any]:
+        """Get saved language preference from settings file.
+        
+        Returns:
+            Dict with success status and language code (or 'auto' for system detection)
+        """
+        try:
+            settings_path = os.path.expanduser("~/.local/share/unifideck/settings.json")
+            
+            if os.path.exists(settings_path):
+                with open(settings_path, 'r') as f:
+                    settings = json.load(f)
+                    language = settings.get('language', 'auto')
+            else:
+                language = 'auto'  # Default to auto-detect
+            
+            logger.debug(f"[Language] Got language preference: {language}")
+            return {'success': True, 'language': language}
+        except Exception as e:
+            logger.error(f"[Language] Error getting language preference: {e}")
+            return {'success': False, 'error': str(e), 'language': 'auto'}
+
+    async def set_language_preference(self, language: str) -> Dict[str, Any]:
+        """Save language preference to settings file.
+        
+        Args:
+            language: Language code (e.g., 'en-US', 'de-DE') or 'auto' for system detection
+            
+        Returns:
+            Dict with success status
+        """
+        try:
+            settings_path = os.path.expanduser("~/.local/share/unifideck/settings.json")
+            settings_dir = os.path.dirname(settings_path)
+            
+            # Ensure directory exists
+            os.makedirs(settings_dir, exist_ok=True)
+            
+            # Load existing settings or create new
+            if os.path.exists(settings_path):
+                with open(settings_path, 'r') as f:
+                    settings = json.load(f)
+            else:
+                settings = {}
+            
+            # Update language setting
+            settings['language'] = language
+            
+            # Save
+            with open(settings_path, 'w') as f:
+                json.dump(settings, f, indent=2)
+            
+            logger.info(f"[Language] Saved language preference: {language}")
+            return {'success': True}
+        except Exception as e:
+            logger.error(f"[Language] Error saving language preference: {e}")
+            return {'success': False, 'error': str(e)}
+
+    # ============== END LANGUAGE SETTINGS API ==============
+
+
     async def check_store_status(self) -> Dict[str, Any]:
         """Check connectivity status of all stores"""
         logger.info("[STATUS] Checking store connectivity status")

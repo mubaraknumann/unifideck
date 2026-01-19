@@ -69,12 +69,30 @@ class GOGAPIClient:
         
         logger.info("GOG API client initialized")
     
-    def _get_system_language(self) -> str:
-        """Get system language code for GOG API (e.g., 'en', 'de', 'fr').
+    def _get_unifideck_language(self) -> str:
+        """Get language code for GOG API from Unifideck settings.
         
-        Based on Lutris pattern: uses system locale to auto-select matching
-        language installer when available.
+        Unifideck centralizes language preference in ~/.local/share/unifideck/settings.json.
+        If set to 'auto' or not configured, falls back to system locale detection.
         """
+        import json
+        
+        # Try to read from Unifideck settings first
+        settings_path = os.path.expanduser("~/.local/share/unifideck/settings.json")
+        try:
+            if os.path.exists(settings_path):
+                with open(settings_path, 'r') as f:
+                    settings = json.load(f)
+                    saved_lang = settings.get('language', 'auto')
+                    
+                    # If not 'auto', use the saved language directly
+                    if saved_lang and saved_lang != 'auto':
+                        logger.info(f"[GOG] Using Unifideck language preference: {saved_lang}")
+                        return saved_lang
+        except Exception as e:
+            logger.debug(f"[GOG] Could not read Unifideck settings: {e}")
+        
+        # Fallback: detect from system locale
         try:
             lang_tuple = locale.getlocale()
             if lang_tuple and lang_tuple[0]:
@@ -88,10 +106,14 @@ class GOGAPIClient:
                     'de': 'de-DE',
                     'es': 'es-ES',
                     'it': 'it-IT',
-                    'pt': 'pt-BR', # Common for GOG
+                    'pt': 'pt-BR',  # Common for GOG
                     'ru': 'ru-RU',
                     'pl': 'pl-PL',
-                    'zh': 'zh-CN'
+                    'zh': 'zh-CN',
+                    'ja': 'ja-JP',
+                    'ko': 'ko-KR',
+                    'nl': 'nl-NL',
+                    'tr': 'tr-TR'
                 }
                 
                 # Use mapped code if available, otherwise fall back to 2-letter tag
@@ -957,7 +979,7 @@ class GOGAPIClient:
              return {'success': False, 'error': 'Failed to configure GOG authentication'}
         
         # Get preferred language based on system locale
-        preferred_lang = self._get_system_language()
+        preferred_lang = self._get_unifideck_language()
         logger.info(f"[GOG] Using language preference: {preferred_lang}")
 
         # 2. Determine Install Path
@@ -1780,7 +1802,7 @@ class GOGAPIClient:
         logger.info(f"[GOG] Installing DLC {dlc_id} for game {game_id} to {base_path}")
         
         # Get preferred language
-        preferred_lang = self._get_system_language()
+        preferred_lang = self._get_unifideck_language()
         
         # Determine platform (same as base game)
         platform = 'windows'  # Default, could be detected from base game

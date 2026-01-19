@@ -143,5 +143,21 @@
     "cleanupSuccessfulMessage": "Usunięto {{games}} gier, {{artwork}} zestawów grafik i {{files}} katalogów plików. Uwierzytelnianie i pamięć podręczna wyczyszczone.",
     "deleteFailed": "Usuwanie Nie Powiodło Się",
     "unifideck": "Unifideck:"
+  },
+  "uninstallModal": {
+    "title": "Potwierdź odinstalowanie",
+    "description": "Czy na pewno chcesz odinstalować {{title}}?",
+    "deleteProtonLabel": "Usuń również pliki Proton",
+    "deleteProtonDescription": "Usuwa dane kompatybilności i pliki użytkownika",
+    "warningTitle": "Ostrzeżenie:",
+    "warningBody": "To trwale usunie zapisane dane w prefixie Wine. Upewnij się, że masz kopię zapasową.",
+    "cancel": "Anuluj",
+    "uninstall": "Odinstaluj"
+  },
+  "languageSettings": {
+    "title": "JĘZYK",
+    "label": "Język wyświetlania",
+    "description": "Język interfejsu i pobierania gier (jeśli obsługiwane)",
+    "autoDetect": "Automatycznie (System)"
   }
 }

@@ -143,5 +143,21 @@
     "cleanupSuccessfulMessage": "已删除 {{games}} 个游戏、{{artwork}} 个封面集和 {{files}} 个文件目录。认证和缓存已清除。",
     "deleteFailed": "删除失败",
     "unifideck": "Unifideck:"
+  },
+  "uninstallModal": {
+    "title": "确认卸载",
+    "description": "您确定要卸载 {{title}} 吗？",
+    "deleteProtonLabel": "同时删除 Proton 文件",
+    "deleteProtonDescription": "删除兼容性和用户文件数据",
+    "warningTitle": "警告：",
+    "warningBody": "这将永久删除 Wine 前缀中存储的存档数据。请确保已备份。",
+    "cancel": "取消",
+    "uninstall": "卸载"
+  },
+  "languageSettings": {
+    "title": "语言",
+    "label": "显示语言",
+    "description": "界面和游戏下载的语言（如果支持）",
+    "autoDetect": "自动（系统）"
   }
 }

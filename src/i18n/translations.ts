@@ -31,14 +31,37 @@ const resources: Record<string, { translation: object }> = {
   "tr-TR": { translation: trTR },
 };
 
-export const loadTranslations = () => {
+// Native language names for display in dropdown
+export const LANGUAGE_NAMES: Record<string, string> = {
+  "en-US": "English",
+  "de-DE": "Deutsch",
+  "es-ES": "Español",
+  "fr-FR": "Français",
+  "it-IT": "Italiano",
+  "ja-JP": "日本語",
+  "ko-KR": "한국어",
+  "nl-NL": "Nederlands",
+  "pl-PL": "Polski",
+  "pt-BR": "Português",
+  "ru-RU": "Русский",
+  "tr-TR": "Türkçe",
+  "zh-CN": "简体中文",
+};
+
+export const loadTranslations = (savedLanguage?: string) => {
+  // Use saved language if provided, otherwise use browser language
+  const initialLanguage = savedLanguage && savedLanguage !== "auto"
+    ? savedLanguage
+    : navigator.language;
+
   console.log("[Unifideck] i18n browser language:", navigator.language);
+  console.log("[Unifideck] i18n using language:", initialLanguage);
 
   i18n
     .use(initReactI18next)
     .init({
       resources,
-      lng: navigator.language,
+      lng: initialLanguage,
       fallbackLng: {
         pt: ["pt-BR"],
         fr: ["fr-FR"],
@@ -64,3 +87,20 @@ export const loadTranslations = () => {
 };
 
 export const t = i18n.t.bind(i18n);
+
+// Change language at runtime
+export const changeLanguage = async (langCode: string): Promise<void> => {
+  console.log("[Unifideck] Changing language to:", langCode);
+  await i18n.changeLanguage(langCode);
+};
+
+// Get list of supported language codes
+export const getSupportedLanguages = (): string[] => {
+  return Object.keys(resources);
+};
+
+// Get current language
+export const getCurrentLanguage = (): string => {
+  return i18n.language || "en-US";
+};
+

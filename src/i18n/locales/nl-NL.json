@@ -143,5 +143,21 @@
     "cleanupSuccessfulMessage": "{{games}} games, {{artwork}} artwork-sets en {{files}} bestandsmappen verwijderd. Auth & cache gewist.",
     "deleteFailed": "Verwijderen Mislukt",
     "unifideck": "Unifideck:"
+  },
+  "uninstallModal": {
+    "title": "Verwijdering bevestigen",
+    "description": "Weet je zeker dat je {{title}} wilt verwijderen?",
+    "deleteProtonLabel": "Ook Proton-bestanden verwijderen",
+    "deleteProtonDescription": "Verwijdert compatibiliteits- en gebruikersgegevens",
+    "warningTitle": "Waarschuwing:",
+    "warningBody": "Dit verwijdert permanent opgeslagen gegevens in de Wine-prefix. Zorg voor een back-up.",
+    "cancel": "Annuleren",
+    "uninstall": "Verwijderen"
+  },
+  "languageSettings": {
+    "title": "TAAL",
+    "label": "Weergavetaal",
+    "description": "Taal voor UI en game-downloads (indien ondersteund)",
+    "autoDetect": "Automatisch (Systeem)"
   }
 }

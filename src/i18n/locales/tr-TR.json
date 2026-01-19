@@ -143,5 +143,21 @@
     "cleanupSuccessfulMessage": "{{games}} oyun, {{artwork}} kapak seti ve {{files}} dosya dizini kaldırıldı. Kimlik doğrulama ve önbellek temizlendi.",
     "deleteFailed": "Silme Başarısız",
     "unifideck": "Unifideck:"
+  },
+  "uninstallModal": {
+    "title": "Kaldırmayı Onayla",
+    "description": "{{title}} oyununu kaldırmak istediğinizden emin misiniz?",
+    "deleteProtonLabel": "Proton dosyalarını da sil",
+    "deleteProtonDescription": "Uyumluluk ve kullanıcı dosyalarını kaldırır",
+    "warningTitle": "Uyarı:",
+    "warningBody": "Bu, Wine önekindeki kayıt verilerini kalıcı olarak silecektir. Yedeklediğinizden emin olun.",
+    "cancel": "İptal",
+    "uninstall": "Kaldır"
+  },
+  "languageSettings": {
+    "title": "DİL",
+    "label": "Görüntüleme Dili",
+    "description": "Arayüz ve oyun indirmeleri için dil (destekleniyorsa)",
+    "autoDetect": "Otomatik (Sistem)"
   }
 }

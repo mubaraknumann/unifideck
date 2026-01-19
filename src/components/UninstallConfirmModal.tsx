@@ -12,6 +12,7 @@ import {
     ToggleField,
 } from "@decky/ui";
 import { FaTrash, FaExclamationTriangle } from "react-icons/fa";
+import { useTranslation } from "react-i18next";
 
 interface UninstallConfirmModalProps {
     gameTitle: string;
@@ -25,6 +26,7 @@ export const UninstallConfirmModal: FC<UninstallConfirmModalProps> = ({
     closeModal,
 }) => {
     const [deletePrefix, setDeletePrefix] = useState(false);
+    const { t } = useTranslation();
 
     return (
         <>
@@ -34,7 +36,7 @@ export const UninstallConfirmModal: FC<UninstallConfirmModalProps> = ({
                 .DialogFooter { display: none !important; }
             `}</style>
             <ConfirmModal
-                strTitle="Confirm Uninstallation"
+                strTitle={t('uninstallModal.title')}
                 strDescription=""
                 bHideCloseIcon={false}
                 onOK={closeModal}
@@ -48,7 +50,7 @@ export const UninstallConfirmModal: FC<UninstallConfirmModalProps> = ({
                         fontSize: "14px",
                         lineHeight: "1.5"
                     }}>
-                        Are you sure you want to uninstall <strong>{gameTitle}</strong>?
+                        {t('uninstallModal.description', { title: gameTitle })}
                     </div>
 
                     {/* Delete Proton files toggle */}
@@ -59,8 +61,8 @@ export const UninstallConfirmModal: FC<UninstallConfirmModalProps> = ({
                         borderRadius: "8px",
                     }}>
                         <ToggleField
-                            label="Also delete Proton files"
-                            description="Removes Compatibility and User Files data"
+                            label={t('uninstallModal.deleteProtonLabel')}
+                            description={t('uninstallModal.deleteProtonDescription')}
                             checked={deletePrefix}
                             onChange={(checked) => setDeletePrefix(checked)}
                         />
@@ -88,8 +90,7 @@ export const UninstallConfirmModal: FC<UninstallConfirmModalProps> = ({
                                 fontSize: "13px",
                                 lineHeight: "1.4"
                             }}>
-                                <strong>Warning:</strong> This will permanently delete save data
-                                stored in the Wine prefix. Make sure they are backed up.
+                                <strong>{t('uninstallModal.warningTitle')}</strong> {t('uninstallModal.warningBody')}
                             </div>
                         </div>
                     )}
@@ -106,7 +107,7 @@ export const UninstallConfirmModal: FC<UninstallConfirmModalProps> = ({
                                 minWidth: "100px",
                             }}
                         >
-                            Cancel
+                            {t('uninstallModal.cancel')}
                         </DialogButton>
                         <DialogButton
                             onClick={() => {
@@ -122,7 +123,7 @@ export const UninstallConfirmModal: FC<UninstallConfirmModalProps> = ({
                                 gap: "6px",
                             }}
                         >
-                            <FaTrash /> Uninstall
+                            <FaTrash /> {t('uninstallModal.uninstall')}
                         </DialogButton>
                     </div>
                 </div>
@@ -132,3 +133,4 @@ export const UninstallConfirmModal: FC<UninstallConfirmModalProps> = ({
 };
 
 export default UninstallConfirmModal;
+

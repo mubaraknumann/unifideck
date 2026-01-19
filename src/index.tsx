@@ -21,6 +21,7 @@ import { DownloadsTab } from "./components/DownloadsTab";
 import { StorageSettings } from "./components/StorageSettings";
 import { ForceSyncModal } from "./components/ForceSyncModal";
 import { UninstallConfirmModal } from "./components/UninstallConfirmModal";
+import { LanguageSelector } from "./components/LanguageSelector";
 
 // ========== INSTALL BUTTON FEATURE ==========
 //
@@ -1522,6 +1523,9 @@ const Content: FC = () => {
               </PanelSectionRow>
             )}
           </PanelSection>
+
+          {/* Language Settings - centralized language control */}
+          <LanguageSelector />
 
           {/* Cleanup Section */}
           <PanelSection title={t('cleanup.title')}>

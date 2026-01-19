@@ -143,5 +143,21 @@
     "cleanupSuccessfulMessage": "Removed {{games}} games, {{artwork}} artwork sets, and {{files}} file directories. Auth & cache cleared.",
     "deleteFailed": "Delete Failed",
     "unifideck": "Unifideck:"
+  },
+  "uninstallModal": {
+    "title": "Confirm Uninstallation",
+    "description": "Are you sure you want to uninstall {{title}}?",
+    "deleteProtonLabel": "Also delete Proton files",
+    "deleteProtonDescription": "Removes Compatibility and User Files data",
+    "warningTitle": "Warning:",
+    "warningBody": "This will permanently delete save data stored in the Wine prefix. Make sure they are backed up.",
+    "cancel": "Cancel",
+    "uninstall": "Uninstall"
+  },
+  "languageSettings": {
+    "title": "LANGUAGE",
+    "label": "Display Language",
+    "description": "Language for UI and game downloads (where supported)",
+    "autoDetect": "Auto (System)"
   }
 }

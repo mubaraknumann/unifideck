@@ -1,0 +1,46 @@
+# Decky CLI uses .dockerignore to control what goes into the build
+# This file is used when building with podman/docker
+
+# Node/TypeScript build artifacts (handled by build process)
+node_modules/
+src/
+tsconfig.json
+rollup.config.mjs
+pnpm-lock.yaml
+package-lock.json
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Debug and test files
+debug_*.py
+test_*.py
+verify_*.py
+read_user_json.py
+compat_cache.py
+decky.pyi
+tests/
+test_cloud_saves/
+
+# Development tools
+.git/
+.gitignore
+.gitignore.backup
+.agent/
+.claude/
+.vscode/
+cli/
+build-plugin.sh
+
+# Documentation and misc
+docs/
+scripts/
+pyscripts/
+research/
+proton-compatibility.md
+
+# Large binaries not needed in build
+vc_redist.x64.exe
+*.backup

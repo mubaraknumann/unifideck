@@ -143,5 +143,21 @@
     "cleanupSuccessfulMessage": "{{games}} 件のゲーム、{{artwork}} 件のアート、{{files}} 件のフォルダを削除しました。認証とキャッシュをクリアしました。",
     "deleteFailed": "削除失敗",
     "unifideck": "Unifideck:"
+  },
+  "uninstallModal": {
+    "title": "アンインストールの確認",
+    "description": "{{title}}をアンインストールしてもよろしいですか？",
+    "deleteProtonLabel": "Protonファイルも削除",
+    "deleteProtonDescription": "互換性データとユーザーファイルを削除します",
+    "warningTitle": "警告：",
+    "warningBody": "Wineプレフィックス内のセーブデータが完全に削除されます。バックアップを確認してください。",
+    "cancel": "キャンセル",
+    "uninstall": "アンインストール"
+  },
+  "languageSettings": {
+    "title": "言語",
+    "label": "表示言語",
+    "description": "UIとゲームダウンロードの言語（対応している場合）",
+    "autoDetect": "自動（システム）"
   }
 }
