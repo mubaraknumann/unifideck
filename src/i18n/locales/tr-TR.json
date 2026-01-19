@@ -169,5 +169,23 @@
     "label": "Görüntüleme Dili",
     "description": "Arayüz ve oyun indirmeleri için dil (destekleniyorsa)",
     "autoDetect": "Otomatik (Sistem)"
+  },
+  "errors": {
+    "legendaryNotFound": "Epic Games CLI (Legendary) bulunamadı",
+    "gogdlNotFound": "GOG CLI (gogdl) bulunamadı",
+    "nileNotFound": "Amazon Games CLI (Nile) bulunamadı",
+    "authUrlFailed": "Kimlik doğrulama URL'si alınamadı",
+    "authFailed": "Kimlik doğrulama başarısız",
+    "notAuthenticated": "Kimlik doğrulanmadı. Lütfen önce giriş yapın.",
+    "syncInProgress": "Bir senkronizasyon zaten devam ediyor",
+    "syncCancelled": "Senkronizasyon kullanıcı tarafından iptal edildi",
+    "gameNotFound": "Oyun bulunamadı",
+    "gameNotInstalled": "Oyun yüklü değil",
+    "installFailed": "Yükleme başarısız - günlükleri kontrol edin",
+    "installNoDirectory": "Yükleme tamamlandı ancak oyun dizini bulunamadı",
+    "uninstallFailed": "Kaldırma başarısız",
+    "lockConflict": "Kilit çakışması - tekrar deneyin",
+    "unknownStore": "Bilinmeyen mağaza",
+    "shortcutWriteFailed": "Kısayollar yazılamadı"
   }
 }

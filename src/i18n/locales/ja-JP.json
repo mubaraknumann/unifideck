@@ -169,5 +169,23 @@
     "label": "表示言語",
     "description": "UIとゲームダウンロードの言語（対応している場合）",
     "autoDetect": "自動（システム）"
+  },
+  "errors": {
+    "legendaryNotFound": "Epic Games CLI (Legendary) が見つかりません",
+    "gogdlNotFound": "GOG CLI (gogdl) が見つかりません",
+    "nileNotFound": "Amazon Games CLI (Nile) が見つかりません",
+    "authUrlFailed": "認証URLを取得できませんでした",
+    "authFailed": "認証に失敗しました",
+    "notAuthenticated": "未認証です。先にログインしてください。",
+    "syncInProgress": "同期が既に進行中です",
+    "syncCancelled": "同期がユーザーによってキャンセルされました",
+    "gameNotFound": "ゲームが見つかりません",
+    "gameNotInstalled": "ゲームがインストールされていません",
+    "installFailed": "インストールに失敗しました - ログを確認してください",
+    "installNoDirectory": "インストールは完了しましたが、ゲームディレクトリが見つかりません",
+    "uninstallFailed": "アンインストールに失敗しました",
+    "lockConflict": "ロック競合 - 再試行してください",
+    "unknownStore": "不明なストア",
+    "shortcutWriteFailed": "ショートカットの書き込みに失敗しました"
   }
 }

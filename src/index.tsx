@@ -626,9 +626,9 @@ const Content: FC = () => {
   }, []);
 
   const [storeStatus, setStoreStatus] = useState({
-    epic: t('storeConnections.checking'),
-    gog: t('storeConnections.checking'),
-    amazon: t('storeConnections.checking'),
+    epic: 'checking',
+    gog: 'checking',
+    amazon: 'checking',
   });
   const [syncProgress, setSyncProgress] = useState<{
     total_games: number;
@@ -834,17 +834,17 @@ const Content: FC = () => {
       } else {
         console.error("[Unifideck] Status check failed:", result.error);
         setStoreStatus({
-          epic: t('storeConnections.error'),
-          gog: t('storeConnections.error'),
-          amazon: t('storeConnections.error')
+          epic: 'error',
+          gog: 'error',
+          amazon: 'error'
         });
       }
     } catch (error) {
       console.error("[Unifideck] Error checking store status:", error);
       setStoreStatus({
-        epic: t('storeConnections.error'),
-        gog: t('storeConnections.error'),
-        amazon: t('storeConnections.error')
+        epic: 'error',
+        gog: 'error',
+        amazon: 'error'
       });
     }
   };
@@ -1315,27 +1315,27 @@ const Content: FC = () => {
                       width: "8px",
                       height: "8px",
                       borderRadius: "50%",
-                      backgroundColor: storeStatus.epic === t('storeConnections.connected') ? "#4ade80" : "#888"
+                      backgroundColor: storeStatus.epic === 'connected' ? "#4ade80" : "#888"
                     }} />
-                    <span>{t('storeConnections.epicGames')} {storeStatus.epic === t('storeConnections.connected') ? "✓" : ""}</span>
+                    <span>{t('storeConnections.epicGames')} {storeStatus.epic === 'connected' ? "✓" : ""}</span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                     <div style={{
                       width: "8px",
                       height: "8px",
                       borderRadius: "50%",
-                      backgroundColor: storeStatus.gog === t('storeConnections.connected') ? "#4ade80" : "#888"
+                      backgroundColor: storeStatus.gog === 'connected' ? "#4ade80" : "#888"
                     }} />
-                    <span>{t('storeConnections.gog')} {storeStatus.gog === t('storeConnections.connected') ? "✓" : ""}</span>
+                    <span>{t('storeConnections.gog')} {storeStatus.gog === 'connected' ? "✓" : ""}</span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                     <div style={{
                       width: "8px",
                       height: "8px",
                       borderRadius: "50%",
-                      backgroundColor: storeStatus.amazon === t('storeConnections.connected') ? "#4ade80" : "#888"
+                      backgroundColor: storeStatus.amazon === 'connected' ? "#4ade80" : "#888"
                     }} />
-                    <span>{t('storeConnections.amazonGames')} {storeStatus.amazon === t('storeConnections.connected') ? "✓" : ""}</span>
+                    <span>{t('storeConnections.amazonGames')} {storeStatus.amazon === 'connected' ? "✓" : ""}</span>
                   </div>
                 </div>
               } />
@@ -1343,48 +1343,48 @@ const Content: FC = () => {
 
             {/* Action buttons */}
             {/* Epic button */}
-            {storeStatus.epic !== t('storeConnections.checking') && storeStatus.epic !== t('storeConnections.legendaryNotInstalled') && !storeStatus.epic.includes("Error") && (
+            {storeStatus.epic !== 'checking' && storeStatus.epic !== 'legendary_not_installed' && storeStatus.epic !== 'error' && (
               <PanelSectionRow>
                 <ButtonItem
                   layout="below"
-                  onClick={() => storeStatus.epic === t('storeConnections.connected') ? handleLogout('epic') : startAuth('epic')}
+                  onClick={() => storeStatus.epic === 'connected' ? handleLogout('epic') : startAuth('epic')}
                 >
-                  {storeStatus.epic === t('storeConnections.connected') ? t('storeConnections.logout', { store: t('storeConnections.epicGames') }) : t('storeConnections.authenticate', { store: t('storeConnections.epicGames') })}
+                  {storeStatus.epic === 'connected' ? t('storeConnections.logout', { store: t('storeConnections.epicGames') }) : t('storeConnections.authenticate', { store: t('storeConnections.epicGames') })}
                 </ButtonItem>
               </PanelSectionRow>
             )}
 
             {/* GOG button */}
-            {storeStatus.gog !== t('storeConnections.checking') && !storeStatus.gog.includes("Error") && (
+            {storeStatus.gog !== 'checking' && storeStatus.gog !== 'error' && (
               <PanelSectionRow>
                 <ButtonItem
                   layout="below"
-                  onClick={() => storeStatus.gog === t('storeConnections.connected') ? handleLogout('gog') : startAuth('gog')}
+                  onClick={() => storeStatus.gog === 'connected' ? handleLogout('gog') : startAuth('gog')}
                 >
-                  {storeStatus.gog === t('storeConnections.connected') ? t('storeConnections.logout', { store: t('storeConnections.gog') }) : t('storeConnections.authenticate', { store: t('storeConnections.gog') })}
+                  {storeStatus.gog === 'connected' ? t('storeConnections.logout', { store: t('storeConnections.gog') }) : t('storeConnections.authenticate', { store: t('storeConnections.gog') })}
                 </ButtonItem>
               </PanelSectionRow>
             )}
 
             {/* Amazon button */}
-            {storeStatus.amazon !== t('storeConnections.checking') && storeStatus.amazon !== t('storeConnections.nileNotInstalled') && !storeStatus.amazon.includes("Error") && (
+            {storeStatus.amazon !== 'checking' && storeStatus.amazon !== 'nile_not_installed' && storeStatus.amazon !== 'error' && (
               <PanelSectionRow>
                 <ButtonItem
                   layout="below"
-                  onClick={() => storeStatus.amazon === t('storeConnections.connected') ? handleLogout('amazon') : startAuth('amazon')}
+                  onClick={() => storeStatus.amazon === 'connected' ? handleLogout('amazon') : startAuth('amazon')}
                 >
-                  {storeStatus.amazon === t('storeConnections.connected') ? t('storeConnections.logout', { store: t('storeConnections.amazonGames') }) : t('storeConnections.authenticate', { store: t('storeConnections.amazonGames') })}
+                  {storeStatus.amazon === 'connected' ? t('storeConnections.logout', { store: t('storeConnections.amazonGames') }) : t('storeConnections.authenticate', { store: t('storeConnections.amazonGames') })}
                 </ButtonItem>
               </PanelSectionRow>
             )}
 
             {/* Error/warning messages */}
-            {storeStatus.epic === "Legendary not installed" && (
+            {storeStatus.epic === 'legendary_not_installed' && (
               <PanelSectionRow>
                 <Field description={t('storeConnections.legendaryNotInstalled')} />
               </PanelSectionRow>
             )}
-            {storeStatus.amazon === "Nile not installed" && (
+            {storeStatus.amazon === 'nile_not_installed' && (
               <PanelSectionRow>
                 <Field description={t('storeConnections.nileNotInstalled')} />
               </PanelSectionRow>

@@ -169,5 +169,23 @@
     "label": "显示语言",
     "description": "界面和游戏下载的语言（如果支持）",
     "autoDetect": "自动（系统）"
+  },
+  "errors": {
+    "legendaryNotFound": "未找到 Epic Games CLI (Legendary)",
+    "gogdlNotFound": "未找到 GOG CLI (gogdl)",
+    "nileNotFound": "未找到 Amazon Games CLI (Nile)",
+    "authUrlFailed": "无法获取认证 URL",
+    "authFailed": "认证失败",
+    "notAuthenticated": "未认证。请先登录。",
+    "syncInProgress": "同步已在进行中",
+    "syncCancelled": "同步已被用户取消",
+    "gameNotFound": "未找到游戏",
+    "gameNotInstalled": "游戏未安装",
+    "installFailed": "安装失败 - 请检查日志",
+    "installNoDirectory": "安装完成但无法找到游戏目录",
+    "uninstallFailed": "卸载失败",
+    "lockConflict": "锁定冲突 - 请重试",
+    "unknownStore": "未知商店",
+    "shortcutWriteFailed": "写入快捷方式失败"
   }
 }

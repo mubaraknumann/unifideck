@@ -169,5 +169,23 @@
     "label": "Weergavetaal",
     "description": "Taal voor UI en game-downloads (indien ondersteund)",
     "autoDetect": "Automatisch (Systeem)"
+  },
+  "errors": {
+    "legendaryNotFound": "Epic Games CLI (Legendary) niet gevonden",
+    "gogdlNotFound": "GOG CLI (gogdl) niet gevonden",
+    "nileNotFound": "Amazon Games CLI (Nile) niet gevonden",
+    "authUrlFailed": "Kon authenticatie-URL niet ophalen",
+    "authFailed": "Authenticatie mislukt",
+    "notAuthenticated": "Niet geauthenticeerd. Log eerst in.",
+    "syncInProgress": "Er is al een synchronisatie bezig",
+    "syncCancelled": "Synchronisatie geannuleerd door gebruiker",
+    "gameNotFound": "Game niet gevonden",
+    "gameNotInstalled": "Game is niet geïnstalleerd",
+    "installFailed": "Installatie mislukt - controleer de logs",
+    "installNoDirectory": "Installatie voltooid maar gamemap niet gevonden",
+    "uninstallFailed": "Verwijdering mislukt",
+    "lockConflict": "Vergrendelingsconflict - probeer opnieuw",
+    "unknownStore": "Onbekende winkel",
+    "shortcutWriteFailed": "Snelkoppelingen schrijven mislukt"
   }
 }

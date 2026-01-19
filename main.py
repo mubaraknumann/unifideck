@@ -4163,15 +4163,15 @@ class Plugin:
             if legendary_installed:
                 logger.info("[STATUS] Checking Epic Games availability")
                 epic_available = await self.epic.is_available()
-                epic_status = 'Connected' if epic_available else 'Not Connected'
+                epic_status = 'connected' if epic_available else 'not_connected'
                 logger.info(f"[STATUS] Epic Games: {epic_status}")
             else:
-                epic_status = 'Legendary not installed'
+                epic_status = 'legendary_not_installed'
                 logger.warning("[STATUS] Epic Games: Legendary CLI not installed")
 
             logger.info("[STATUS] Checking GOG availability")
             gog_available = await self.gog.is_available()
-            gog_status = 'Connected' if gog_available else 'Not Connected'
+            gog_status = 'connected' if gog_available else 'not_connected'
             logger.info(f"[STATUS] GOG: {gog_status}")
 
             # Check Amazon availability
@@ -4181,10 +4181,10 @@ class Plugin:
             if nile_installed:
                 logger.info("[STATUS] Checking Amazon Games availability")
                 amazon_available = await self.amazon.is_available()
-                amazon_status = 'Connected' if amazon_available else 'Not Connected'
+                amazon_status = 'connected' if amazon_available else 'not_connected'
                 logger.info(f"[STATUS] Amazon Games: {amazon_status}")
             else:
-                amazon_status = 'Nile not installed'
+                amazon_status = 'nile_not_installed'
                 logger.warning("[STATUS] Amazon Games: Nile CLI not installed")
 
             result = {
@@ -4203,9 +4203,9 @@ class Plugin:
             return {
                 'success': False,
                 'error': str(e),
-                'epic': 'Error',
-                'gog': 'Error',
-                'amazon': 'Error'
+                'epic': 'error',
+                'gog': 'error',
+                'amazon': 'error'
             }
 
     async def start_epic_auth(self) -> Dict[str, Any]:

@@ -115,42 +115,47 @@ class EpicConnector(Store):
             from ..auth.browser import CDPOAuthMonitor
             
             # Run legendary auth and capture the authorization URL
+            # Merge stderr into stdout since legendary may output URL to either stream
             proc = await asyncio.create_subprocess_exec(
                 self.legendary_bin, 'auth',
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.STDOUT  # Merge stderr into stdout
             )
 
-            # Read initial output to get the URL
-            stdout_data = []
+            # Read output to get the URL
+            output_lines = []
             while True:
                 line = await proc.stdout.readline()
                 if not line:
                     break
                 line_text = line.decode().strip()
-                stdout_data.append(line_text)
+                output_lines.append(line_text)
+                logger.debug(f"[EPIC] Auth output: {line_text}")
 
-                # Look for URL in the output
+                # Look for Epic auth URL in the output
                 if 'https://' in line_text:
                     # Extract URL from line
                     for word in line_text.split():
                         if word.startswith('https://'):
-                            logger.info(f"[EPIC] Got Epic auth URL: {word}")
+                            # Validate it's an Epic auth URL
+                            if 'epicgames.com' in word or 'epic' in word.lower():
+                                logger.info(f"[EPIC] Got Epic auth URL: {word}")
 
-                            # Start CDP monitoring in background to auto-capture code
-                            asyncio.create_task(self._monitor_and_complete_auth())
+                                # Start CDP monitoring in background to auto-capture code
+                                asyncio.create_task(self._monitor_and_complete_auth())
 
-                            return {
-                                'success': True,
-                                'url': word,
-                                'message': 'Authenticating via browser - code will be captured automatically'
-                            }
+                                return {
+                                    'success': True,
+                                    'url': word,
+                                    'message': 'Authenticating via browser - code will be captured automatically'
+                                }
 
-            # If we didn't find a URL, return error
-            stderr = await proc.stderr.read()
+            # If we didn't find a URL, return error with full output for debugging
+            all_output = "\n".join(output_lines)
+            logger.error(f"[EPIC] No auth URL found in output: {all_output}")
             return {
                 'success': False,
-                'error': f'Could not get auth URL. Output: {" ".join(stdout_data)}, Error: {stderr.decode()}'
+                'error': f'Could not get auth URL. Output: {all_output[:500]}'
             }
 
         except Exception as e:

@@ -169,5 +169,23 @@
     "label": "Display Language",
     "description": "Language for UI and game downloads (where supported)",
     "autoDetect": "Auto (System)"
+  },
+  "errors": {
+    "legendaryNotFound": "Epic Games CLI (Legendary) not found",
+    "gogdlNotFound": "GOG CLI (gogdl) not found",
+    "nileNotFound": "Amazon Games CLI (Nile) not found",
+    "authUrlFailed": "Could not get authentication URL",
+    "authFailed": "Authentication failed",
+    "notAuthenticated": "Not authenticated. Please log in first.",
+    "syncInProgress": "A sync operation is already in progress",
+    "syncCancelled": "Sync cancelled by user",
+    "gameNotFound": "Game not found",
+    "gameNotInstalled": "Game is not installed",
+    "installFailed": "Installation failed - check logs for details",
+    "installNoDirectory": "Installation completed but could not locate game directory",
+    "uninstallFailed": "Uninstallation failed",
+    "lockConflict": "Lock conflict - please try again",
+    "unknownStore": "Unknown store",
+    "shortcutWriteFailed": "Failed to write shortcuts"
   }
 }

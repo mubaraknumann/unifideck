@@ -169,5 +169,23 @@
     "label": "Язык интерфейса",
     "description": "Язык для интерфейса и загрузок игр (где поддерживается)",
     "autoDetect": "Авто (Системный)"
+  },
+  "errors": {
+    "legendaryNotFound": "CLI Epic Games (Legendary) не найден",
+    "gogdlNotFound": "CLI GOG (gogdl) не найден",
+    "nileNotFound": "CLI Amazon Games (Nile) не найден",
+    "authUrlFailed": "Не удалось получить URL аутентификации",
+    "authFailed": "Ошибка аутентификации",
+    "notAuthenticated": "Не авторизован. Сначала войдите в систему.",
+    "syncInProgress": "Синхронизация уже выполняется",
+    "syncCancelled": "Синхронизация отменена пользователем",
+    "gameNotFound": "Игра не найдена",
+    "gameNotInstalled": "Игра не установлена",
+    "installFailed": "Ошибка установки - проверьте логи",
+    "installNoDirectory": "Установка завершена, но не удалось найти папку игры",
+    "uninstallFailed": "Ошибка удаления",
+    "lockConflict": "Конфликт блокировки - попробуйте снова",
+    "unknownStore": "Неизвестный магазин",
+    "shortcutWriteFailed": "Не удалось записать ярлыки"
   }
 }

@@ -169,5 +169,23 @@
     "label": "Langue d'affichage",
     "description": "Langue pour l'interface et les téléchargements (si pris en charge)",
     "autoDetect": "Automatique (Système)"
+  },
+  "errors": {
+    "legendaryNotFound": "CLI Epic Games (Legendary) introuvable",
+    "gogdlNotFound": "CLI GOG (gogdl) introuvable",
+    "nileNotFound": "CLI Amazon Games (Nile) introuvable",
+    "authUrlFailed": "Impossible d'obtenir l'URL d'authentification",
+    "authFailed": "Échec de l'authentification",
+    "notAuthenticated": "Non authentifié. Veuillez vous connecter d'abord.",
+    "syncInProgress": "Une synchronisation est déjà en cours",
+    "syncCancelled": "Synchronisation annulée par l'utilisateur",
+    "gameNotFound": "Jeu introuvable",
+    "gameNotInstalled": "Le jeu n'est pas installé",
+    "installFailed": "Échec de l'installation - consultez les logs",
+    "installNoDirectory": "Installation terminée mais impossible de localiser le dossier du jeu",
+    "uninstallFailed": "Échec de la désinstallation",
+    "lockConflict": "Conflit de verrouillage - veuillez réessayer",
+    "unknownStore": "Boutique inconnue",
+    "shortcutWriteFailed": "Échec de l'écriture des raccourcis"
   }
 }
