@@ -727,7 +727,7 @@ if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]] || \
         WINETRICKS_MARKER="$PREFIX_PATH/unifideck_winetricks_complete.marker"
         WINETRICKS_SCRIPT="$PLUGIN_DIR/bin/winetricks_installer.py"
 
-        if [ ! -f "$WINETRICKS_MARKER" ] || ! grep -q "complete\|no redistributables" "$WINETRICKS_MARKER" 2>/dev/null; then
+        if [ ! -f "$WINETRICKS_MARKER" ] || ! grep -qi "complete\|no redistributables" "$WINETRICKS_MARKER" 2>/dev/null; then
             if [ -f "$WINETRICKS_SCRIPT" ]; then
                 log "[Winetricks] Running first-launch redistributables installation..."
                 notify_stage "Installing Dependencies" "Installing game redistributables..." "normal"

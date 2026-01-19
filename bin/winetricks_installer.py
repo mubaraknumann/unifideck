@@ -116,7 +116,7 @@ def install_redistributables_via_umu(prefix_path: str, packages: list[str], game
     if not packages:
         logger.info(f"No redistributables required for {game_id}")
         with open(marker_file, 'w') as f:
-            f.write("No redistributables needed")
+            f.write("no redistributables needed")
         return
     
     logger.info(f"Installing redistributables for {game_id}: {', '.join(packages)}")

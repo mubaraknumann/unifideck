@@ -269,7 +269,7 @@ def install_via_umu(prefix_path: str, packages: list, game_id: str) -> bool:
     if not packages:
         logger.info(f"No redistributables required for {game_id}")
         with open(marker_file, 'w') as f:
-            f.write("No redistributables needed")
+            f.write("no redistributables needed")
         return True
     
     logger.info(f"Installing redistributables for {game_id}: {', '.join(packages)}")
@@ -366,7 +366,7 @@ def main():
     if os.path.exists(marker_file) and not force:
         with open(marker_file, 'r') as f:
             content = f.read()
-            if 'complete' in content:
+            if 'complete' in content or 'no redistributables' in content.lower():
                 # Parse previously installed deps
                 for line in content.split('\n'):
                     if line.startswith('installed:'):

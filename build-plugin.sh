@@ -219,6 +219,39 @@ build_with_cli() {
             "$engine" run --rm -v "$SCRIPT_DIR":/v -w /v alpine rm -rf dist
     fi
     
+    # Create a clean staging directory with only required files
+    log_info "Creating clean build staging directory..."
+    STAGING_DIR=$(mktemp -d)
+    STAGING_PLUGIN="$STAGING_DIR/unifideck-staging"
+    mkdir -p "$STAGING_PLUGIN"
+    
+    # Copy only required directories
+    cp -r "$SCRIPT_DIR/lib" "$STAGING_PLUGIN/"
+    cp -r "$SCRIPT_DIR/bin" "$STAGING_PLUGIN/"
+    cp -r "$SCRIPT_DIR/defaults" "$STAGING_PLUGIN/"
+    cp -r "$SCRIPT_DIR/py_modules" "$STAGING_PLUGIN/"
+    cp -r "$SCRIPT_DIR/src" "$STAGING_PLUGIN/"
+    cp -r "$SCRIPT_DIR/assets" "$STAGING_PLUGIN/" 2>/dev/null || true
+    
+    # Copy required config files
+    cp "$SCRIPT_DIR/main.py" "$STAGING_PLUGIN/"
+    cp "$SCRIPT_DIR/plugin.json" "$STAGING_PLUGIN/"
+    cp "$SCRIPT_DIR/package.json" "$STAGING_PLUGIN/"
+    cp "$SCRIPT_DIR/pnpm-lock.yaml" "$STAGING_PLUGIN/"
+    cp "$SCRIPT_DIR/tsconfig.json" "$STAGING_PLUGIN/"
+    cp "$SCRIPT_DIR/rollup.config.mjs" "$STAGING_PLUGIN/"
+    cp "$SCRIPT_DIR/vdf_utils.py" "$STAGING_PLUGIN/"
+    cp "$SCRIPT_DIR/steamgriddb_client.py" "$STAGING_PLUGIN/"
+    cp "$SCRIPT_DIR/download_manager.py" "$STAGING_PLUGIN/"
+    cp "$SCRIPT_DIR/cloud_save_manager.py" "$STAGING_PLUGIN/"
+    cp "$SCRIPT_DIR/steam_user_utils.py" "$STAGING_PLUGIN/"
+    cp "$SCRIPT_DIR/launch_options_parser.py" "$STAGING_PLUGIN/"
+    cp "$SCRIPT_DIR/requirements.txt" "$STAGING_PLUGIN/"
+    cp "$SCRIPT_DIR/LICENSE.txt" "$STAGING_PLUGIN/"
+    cp "$SCRIPT_DIR/README.md" "$STAGING_PLUGIN/"
+    
+    log_success "Staged clean build directory (excluding debug/test files)"
+    
     # Fix permissions so container can read all files
     log_info "Fixing permissions for container access..."
     chmod -R a+rX "$STAGING_PLUGIN" 2>/dev/null || true
