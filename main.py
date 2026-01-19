@@ -333,28 +333,50 @@ class BackgroundSizeFetcher:
         self._task = None
         self._pending_games = []  # List of (store, game_id) tuples
         
-    def queue_games(self, games: List):
+    def queue_games(self, games: List, force_refresh: bool = False):
         """Queue games for background size fetching.
         
         Args:
             games: List of Game objects with 'store' and 'id' attributes
+            force_refresh: If True, re-fetch sizes even if already cached
         """
+        logger.info(f"[SizeService] queue_games() called with {len(games)} games, force_refresh={force_refresh}")
+        
+        # If force_refresh, stop any running task first so we can restart
+        if force_refresh and self._running:
+            logger.info("[SizeService] Stopping previous task for force_refresh")
+            self.stop()
+        
         cache = load_game_sizes_cache()
+        
+        # Clear pending list to avoid duplicates from previous runs
+        self._pending_games = []
+        pending_set = set()  # For deduplication within this batch
         
         for game in games:
             cache_key = f"{game.store}:{game.id}"
-            if cache_key not in cache:
-                self._pending_games.append((game.store, game.id))
-                # Mark as pending in cache (null value)
-                cache[cache_key] = None
+            # force_refresh bypasses cache check to re-fetch all sizes
+            if force_refresh or cache_key not in cache:
+                if cache_key not in pending_set:
+                    pending_set.add(cache_key)
+                    self._pending_games.append((game.store, game.id))
+                    # Mark as pending in cache (null value)
+                    cache[cache_key] = None
         
         save_game_sizes_cache(cache)
         logger.info(f"[SizeService] Queued {len(self._pending_games)} games for size fetching")
     
     def start(self):
         """Start background fetching (non-blocking)"""
+        logger.info(f"[SizeService] start() called, _running={self._running}, pending={len(self._pending_games)}")
+        
+        # Reset _running if previous task is done (handles abnormal task completion)
+        if self._running and self._task and self._task.done():
+            logger.info("[SizeService] Previous task finished, resetting _running flag")
+            self._running = False
+        
         if self._running:
-            logger.debug("[SizeService] Already running")
+            logger.info("[SizeService] Already running, skipping start")
             return
         
         # Load pending from cache if not already queued
@@ -364,9 +386,10 @@ class BackgroundSizeFetcher:
                 tuple(k.split(':', 1)) for k, v in cache.items() 
                 if v is None and ':' in k
             ]
+            logger.info(f"[SizeService] Loaded {len(self._pending_games)} pending games from cache")
         
         if not self._pending_games:
-            logger.debug("[SizeService] No pending games, not starting")
+            logger.info("[SizeService] No pending games, not starting")
             return
         
         logger.info(f"[SizeService] Starting background fetch for {len(self._pending_games)} games")
@@ -418,9 +441,11 @@ class BackgroundSizeFetcher:
                                 logger.debug(f"[SizeService] Cached {store}:{game_id} = {size_bytes}")
                                 return (store, game_id, size_bytes)
                             else:
+                                # Log at debug level - GOG legacy games often have no size API
+                                logger.debug(f"[SizeService] No size for {store}:{game_id}")
                                 return (store, game_id, None)
                         except Exception as e:
-                            logger.debug(f"[SizeService] Error fetching {store}:{game_id}: {e}")
+                            logger.warning(f"[SizeService] Error fetching {store}:{game_id}: {e}")
                             return (store, game_id, None)
                 
                 # Fire all at once
@@ -3094,8 +3119,8 @@ class Plugin:
                 launcher_script = os.path.join(os.path.dirname(__file__), 'bin', 'unifideck-launcher')
 
                 # --- QUEUE SIZE FETCHING (background, non-blocking) ---
-                # Sizes are fetched asynchronously in background, don't hold up sync
-                self.size_fetcher.queue_games(all_games)
+                # Force sync re-fetches all sizes to fix any stale/incorrect values
+                self.size_fetcher.queue_games(all_games, force_refresh=True)
                 self.size_fetcher.start()  # Fire-and-forget
 
                 # Update progress: Force syncing

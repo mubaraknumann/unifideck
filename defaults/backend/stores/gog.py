@@ -624,91 +624,108 @@ class GOGAPIClient:
         return None
 
     async def get_game_size(self, game_id: str, session=None) -> Optional[int]:
-        """Get game download size using gogdl"""
-        if not self.gogdl_bin:
-            logger.error("[GOG] gogdl binary not available")
+        """Get game download size using GOG API directly.
+        
+        Uses the GOG products API which returns installer sizes for ALL games,
+        including legacy games that don't support the content system API.
+        
+        Args:
+            game_id: GOG product ID
+            session: Optional aiohttp session for connection reuse
+        
+        Returns:
+            Total size in bytes (installers + bonus content), or None if unavailable
+        """
+        await self._ensure_fresh_token()
+        
+        if not self.access_token:
+            logger.warning(f"[GOG] No access token for size fetch")
             return None
-            
-        # Ensure auth is synced
-        self._ensure_auth_config()
         
         try:
-            # Run: gogdl --auth-config-path ... info --platform linux [id]
-            cmd = [
-                self.gogdl_bin,
-                '--auth-config-path', self.gogdl_config_path,
-                'info',
-                '--platform', 'linux',
-                game_id
-            ]
+            import ssl
+            import aiohttp
             
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env=self._get_gogdl_env()
-            )
-            stdout, stderr = await proc.communicate()
+            # Use provided session or create new one
+            owns_session = session is None
+            if owns_session:
+                ssl_context = ssl.create_default_context()
+                ssl_context.check_hostname = False
+                ssl_context.verify_mode = ssl.CERT_NONE
+                connector = aiohttp.TCPConnector(ssl=ssl_context)
+                session = aiohttp.ClientSession(connector=connector)
             
-            if proc.returncode != 0:
-                # Try Windows platform if Linux fails
-                cmd[4] = 'windows'
-                proc = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    env=self._get_gogdl_env()
-                )
-                stdout, stderr = await proc.communicate()
-            
-            if proc.returncode == 0:
-                # Parse the last line which should be JSON
-                output_lines = stdout.decode().strip().split('\n')
-                # Find the JSON line
-                for line in reversed(output_lines):
-                    try:
-                        data = json.loads(line)
-                        
-                        # gogdl returns sizes nested by language:
-                        # {"size": {"*": {"download_size": X}, "en-US": {"download_size": Y}, ...}}
-                        # "*" is shared/common files, language keys are language-specific files
-                        if 'size' in data and isinstance(data['size'], dict):
-                            size_data = data['size']
-                            total_size = 0
-                            
-                            # Add shared/common files size
-                            if '*' in size_data and isinstance(size_data['*'], dict):
-                                total_size += size_data['*'].get('download_size', 0)
-                            
-                            # Add the largest language pack (user will download at least one)
-                            # This gives a good estimate for the Install button
-                            lang_sizes = []
-                            for lang_key, lang_data in size_data.items():
-                                if lang_key != '*' and isinstance(lang_data, dict):
-                                    lang_size = lang_data.get('download_size', 0)
-                                    if lang_size > 0:
-                                        lang_sizes.append(lang_size)
-                            
-                            if lang_sizes:
-                                # Use max language size as estimate (typically all similar)
-                                total_size += max(lang_sizes)
-                            
-                            if total_size > 0:
-                                logger.debug(f"[GOG] Game {game_id} size: {total_size} bytes ({total_size/1024/1024:.1f} MB)")
-                                return total_size
-                        
-                        # Legacy fallback: top-level download_size (older gogdl versions)
-                        if 'download_size' in data:
-                            return data['download_size']
-                            
-                    except json.JSONDecodeError:
-                        continue
-            
-            return None
-            
+            try:
+                # Query GOG API for product details with downloads expanded
+                url = f'https://api.gog.com/products/{game_id}?expand=downloads&locale=en-US'
+                headers = {'Authorization': f'Bearer {self.access_token}'}
+                
+                async with session.get(url, headers=headers) as response:
+                    if response.status != 200:
+                        logger.warning(f"[GOG] API returned {response.status} for game {game_id}")
+                        return None
+                    
+                    data = await response.json()
+                    
+                    # Calculate total size from all installers
+                    total_size = 0
+                    downloads = data.get('downloads', {})
+                    
+                    # Get installers - prioritize Linux, then Windows
+                    installers = downloads.get('installers', [])
+                    
+                    # Find the best installer (prefer linux, then windows)
+                    linux_installers = [i for i in installers if i.get('os') == 'linux']
+                    windows_installers = [i for i in installers if i.get('os') == 'windows']
+                    
+                    # Use linux if available, else windows
+                    target_installers = linux_installers if linux_installers else windows_installers
+                    
+                    if target_installers:
+                        # Use only the first installer (typically English) to avoid 
+                        # counting multiple language packs - user only downloads one
+                        first_installer = target_installers[0]
+                        for file_info in first_installer.get('files', []):
+                            file_size = file_info.get('size', 0)
+                            if isinstance(file_size, str):
+                                # Convert string like "1.2 GB" to bytes
+                                file_size = self._parse_size_string(file_size)
+                            total_size += file_size
+                    
+                    if total_size > 0:
+                        logger.debug(f"[GOG] Game {game_id} size from API: {total_size} bytes ({total_size/1024/1024:.1f} MB)")
+                        return total_size
+                    else:
+                        logger.debug(f"[GOG] No installer size found in API for {game_id}")
+                        return None
+                    
+            finally:
+                if owns_session:
+                    await session.close()
+                    
         except Exception as e:
             logger.error(f"[GOG] Error getting size for {game_id}: {e}")
             return None
+    
+    def _parse_size_string(self, size_str: str) -> int:
+        """Parse size string like '1.2 GB' or '500 MB' to bytes."""
+        try:
+            parts = size_str.strip().split()
+            if len(parts) != 2:
+                return 0
+            value = float(parts[0])
+            unit = parts[1].upper()
+            
+            if unit == 'GB':
+                return int(value * 1024 * 1024 * 1024)
+            elif unit == 'MB':
+                return int(value * 1024 * 1024)
+            elif unit == 'KB':
+                return int(value * 1024)
+            else:
+                return int(value)
+        except:
+            return 0
 
     async def _determine_install_mode(self, game_id: str, target_folder: Optional[str], platform: str) -> str:
         """Determine whether to use 'download' or 'repair' based on folder state.
