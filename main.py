@@ -207,35 +207,67 @@ def get_registered_appid(launch_options: str) -> Optional[int]:
 # Pre-populated during sync, read during get_game_info
 GAME_SIZES_CACHE_FILE = "game_sizes.json"
 
+# In-memory cache for game sizes (avoids disk I/O on every get_game_info call)
+_game_sizes_mem_cache: Optional[Dict[str, Dict]] = None
+_game_sizes_mem_cache_time: float = 0
+GAME_SIZES_MEM_CACHE_TTL = 60.0  # 60 seconds (sizes change rarely)
+
 
 def get_game_sizes_cache_path() -> Path:
     """Get path to game sizes cache file (in user data, not plugin dir)"""
     return Path.home() / ".local" / "share" / "unifideck" / GAME_SIZES_CACHE_FILE
 
 
+def _invalidate_game_sizes_mem_cache():
+    """Invalidate in-memory game sizes cache"""
+    global _game_sizes_mem_cache, _game_sizes_mem_cache_time
+    _game_sizes_mem_cache = None
+    _game_sizes_mem_cache_time = 0
+
+
 def load_game_sizes_cache() -> Dict[str, Dict]:
-    """Load game sizes cache. Returns {store:game_id: {size_bytes, updated}}"""
+    """Load game sizes cache with in-memory caching. Returns {store:game_id: {size_bytes, updated}}"""
+    global _game_sizes_mem_cache, _game_sizes_mem_cache_time
+    
+    # Check in-memory cache first
+    now = time.time()
+    if _game_sizes_mem_cache is not None and (now - _game_sizes_mem_cache_time) < GAME_SIZES_MEM_CACHE_TTL:
+        return _game_sizes_mem_cache
+    
+    # Cache miss - read from disk
     cache_path = get_game_sizes_cache_path()
+    result = {}
     try:
         if cache_path.exists():
             with open(cache_path, 'r') as f:
-                return json.load(f)
+                result = json.load(f)
     except Exception as e:
         logger.error(f"Error loading game sizes cache: {e}")
-    return {}
+    
+    # Update in-memory cache
+    _game_sizes_mem_cache = result
+    _game_sizes_mem_cache_time = now
+    return result
 
 
 def save_game_sizes_cache(cache: Dict[str, Dict]) -> bool:
-    """Save game sizes cache to file"""
+    """Save game sizes cache to file and update in-memory cache"""
+    global _game_sizes_mem_cache, _game_sizes_mem_cache_time
+    
     cache_path = get_game_sizes_cache_path()
     try:
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         with open(cache_path, 'w') as f:
             json.dump(cache, f, indent=2)
         logger.debug(f"Saved {len(cache)} entries to game sizes cache")
+        
+        # Update in-memory cache immediately
+        _game_sizes_mem_cache = cache
+        _game_sizes_mem_cache_time = time.time()
         return True
     except Exception as e:
         logger.error(f"Error saving game sizes cache: {e}")
+        _invalidate_game_sizes_mem_cache()  # Invalidate on error
         return False
 
 
@@ -252,7 +284,7 @@ def cache_game_size(store: str, game_id: str, size_bytes: int) -> bool:
 
 def get_cached_game_size(store: str, game_id: str) -> Optional[int]:
     """Get cached game size, or None if not cached"""
-    cache = load_game_sizes_cache()
+    cache = load_game_sizes_cache()  # Uses in-memory cache
     cache_key = f"{store}:{game_id}"
     entry = cache.get(cache_key)
     return entry.get('size_bytes') if entry else None
@@ -537,13 +569,63 @@ class SyncProgress:
         }
 
 
+# In-memory cache for games.map (avoids disk I/O on every get_game_info call)
+_games_map_mem_cache: Optional[Dict[str, str]] = None  # key -> full line
+_games_map_mem_cache_time: float = 0
+GAMES_MAP_MEM_CACHE_TTL = 5.0  # 5 seconds
+
+GAMES_MAP_PATH = os.path.expanduser("~/.local/share/unifideck/games.map")
+
+
+def _invalidate_games_map_mem_cache():
+    """Invalidate in-memory games.map cache"""
+    global _games_map_mem_cache, _games_map_mem_cache_time
+    _games_map_mem_cache = None
+    _games_map_mem_cache_time = 0
+    logger.debug("[GameMap] In-memory cache invalidated")
+
+
+def _load_games_map_cached() -> Dict[str, str]:
+    """Load games.map with in-memory caching. Returns {store:game_id: full_line}"""
+    global _games_map_mem_cache, _games_map_mem_cache_time
+    
+    # Check in-memory cache first
+    now = time.time()
+    if _games_map_mem_cache is not None and (now - _games_map_mem_cache_time) < GAMES_MAP_MEM_CACHE_TTL:
+        return _games_map_mem_cache
+    
+    # Cache miss - read from disk
+    result = {}
+    if os.path.exists(GAMES_MAP_PATH):
+        try:
+            with open(GAMES_MAP_PATH, 'r') as f:
+                for line in f:
+                    if '|' in line:
+                        key = line.split('|')[0]
+                        result[key] = line.strip()
+        except Exception as e:
+            logger.error(f"[GameMap] Error reading games.map: {e}")
+    
+    # Update in-memory cache
+    _games_map_mem_cache = result
+    _games_map_mem_cache_time = now
+    return result
+
+
 class ShortcutsManager:
     """Manages Steam's shortcuts.vdf file for non-Steam games"""
+    
+    # Shortcuts VDF in-memory cache TTL
+    SHORTCUTS_CACHE_TTL = 5.0  # 5 seconds
 
     def __init__(self, steam_path: Optional[str] = None):
         self.steam_path = steam_path or self._find_steam_path()
         self.shortcuts_path = self._find_shortcuts_vdf()
         logger.info(f"Shortcuts path: {self.shortcuts_path}")
+        
+        # In-memory cache for shortcuts.vdf
+        self._shortcuts_cache: Optional[Dict[str, Any]] = None
+        self._shortcuts_cache_time: float = 0
 
     def _find_steam_path(self) -> Optional[str]:
         """Find Steam installation directory"""
@@ -630,6 +712,9 @@ class ShortcutsManager:
             # Fallback to direct write if atomic fails
             with open(map_file, 'w') as f:
                 f.writelines(lines)
+        
+        # Invalidate in-memory cache
+        _invalidate_games_map_mem_cache()
             
     async def _remove_from_game_map(self, store: str, game_id: str):
         """Remove entry from games map file"""
@@ -647,19 +732,13 @@ class ShortcutsManager:
         if len(new_lines) != len(lines):
             with open(map_file, 'w') as f:
                 f.writelines(new_lines)
+            # Invalidate in-memory cache
+            _invalidate_games_map_mem_cache()
 
     def _is_in_game_map(self, store: str, game_id: str) -> bool:
         """Check if game is registered in games.map AND the executable/directory exists.
         
-        This is the primary source of truth for installation status because games.map
-        is updated immediately when a game is installed, regardless of install location.
-        
-        IMPORTANT: We also verify the file exists on disk. If the game is in the map
-        but files are missing (e.g., deleted via file manager), we return False
-        so the UI shows the Install button instead of Uninstall.
-        
-        NOTE: If a stale entry is detected (entry exists but path missing), we now
-        auto-cleanup the entry from games.map to prevent confusion.
+        Uses in-memory cache for fast lookups.
         
         Args:
             store: Store name ('epic' or 'gog')
@@ -668,33 +747,27 @@ class ShortcutsManager:
         Returns:
             True if game is in games.map AND files exist on disk
         """
-        map_file = os.path.expanduser("~/.local/share/unifideck/games.map")
-        if not os.path.exists(map_file):
+        key = f"{store}:{game_id}"
+        games_map = _load_games_map_cached()
+        
+        if key not in games_map:
             return False
         
-        key = f"{store}:{game_id}"
-        try:
-            with open(map_file, 'r') as f:
-                for line in f:
-                    if line.startswith(f"{key}|"):
-                        # Parse the entry to verify files exist
-                        parts = line.strip().split('|')
-                        if len(parts) >= 3:
-                            exe_path = parts[1]
-                            work_dir = parts[2]
-                            # Check if executable or work directory exists
-                            path_to_check = exe_path if exe_path else work_dir
-                            if path_to_check and os.path.exists(path_to_check):
-                                return True
-                            else:
-                                # Stale entry detected - auto-cleanup
-                                logger.info(f"[GameMap] Entry {key} exists but path missing: {path_to_check} - removing stale entry")
-                                self._remove_from_game_map_sync(store, game_id)
-                                return False
-                        return True  # Malformed entry, assume installed
-        except Exception as e:
-            logger.debug(f"[GameMap] Error checking games.map: {e}")
-        return False
+        # Parse the cached entry to verify files exist
+        line = games_map[key]
+        parts = line.split('|')
+        if len(parts) >= 3:
+            exe_path = parts[1]
+            work_dir = parts[2]
+            path_to_check = exe_path if exe_path else work_dir
+            if path_to_check and os.path.exists(path_to_check):
+                return True
+            else:
+                # Stale entry detected - auto-cleanup
+                logger.info(f"[GameMap] Entry {key} exists but path missing: {path_to_check} - removing stale entry")
+                self._remove_from_game_map_sync(store, game_id)
+                return False
+        return True  # Malformed entry, assume installed
 
     def _remove_from_game_map_sync(self, store: str, game_id: str):
         """Synchronous version of _remove_from_game_map for use in sync contexts.
@@ -717,15 +790,15 @@ class ShortcutsManager:
                 with open(map_file, 'w') as f:
                     f.writelines(new_lines)
                 logger.info(f"[GameMap] Removed stale entry: {key}")
+                # Invalidate in-memory cache
+                _invalidate_games_map_mem_cache()
         except Exception as e:
             logger.error(f"[GameMap] Error removing stale entry {key}: {e}")
 
     def _has_game_map_entry(self, store: str, game_id: str) -> bool:
         """Check if game has ANY entry in games.map (regardless of path validity).
         
-        This is used to distinguish between:
-        - No entry at all (never installed via Unifideck) → use store API fallback
-        - Entry exists but path missing (was installed, files deleted) → don't use store fallback
+        Uses in-memory cache for fast lookups.
         
         Args:
             store: Store name ('epic' or 'gog')
@@ -734,63 +807,52 @@ class ShortcutsManager:
         Returns:
             True if any entry exists in games.map for this game
         """
-        map_file = os.path.expanduser("~/.local/share/unifideck/games.map")
-        if not os.path.exists(map_file):
-            return False
-        
         key = f"{store}:{game_id}"
-        try:
-            with open(map_file, 'r') as f:
-                for line in f:
-                    if line.startswith(f"{key}|"):
-                        return True
-        except Exception as e:
-            logger.debug(f"[GameMap] Error checking games.map entry: {e}")
-        return False
+        games_map = _load_games_map_cached()
+        return key in games_map
 
     def _get_install_dir_from_game_map(self, store: str, game_id: str) -> Optional[str]:
         """Get install directory from games.map.
         
-        Uses the same data that's used for launching games.
+        Uses in-memory cache for fast lookups.
         Returns the parent directory of the exe_path or work_dir.
         """
-        map_file = os.path.expanduser("~/.local/share/unifideck/games.map")
-        if not os.path.exists(map_file):
+        key = f"{store}:{game_id}"
+        games_map = _load_games_map_cached()
+        
+        if key not in games_map:
             return None
         
-        key = f"{store}:{game_id}"
         try:
-            with open(map_file, 'r') as f:
-                for line in f:
-                    if line.startswith(f"{key}|"):
-                        parts = line.strip().split('|')
-                        if len(parts) >= 2:
-                            exe_path = parts[1] if len(parts) > 1 else None
-                            work_dir = parts[2] if len(parts) > 2 else None
-                            
-                            # Find install dir (parent of executable's parent OR work_dir's parent)
-                            if work_dir and os.path.exists(work_dir):
-                                # work_dir is usually game_root/subdir, so go up to get game root
-                                # But for some games, work_dir IS the game root
-                                # Return the top-level directory containing .unifideck-id or goggame files
-                                path = work_dir
-                                while path and path != '/':
-                                    if (os.path.exists(os.path.join(path, '.unifideck-id')) or 
-                                        any(f.startswith('goggame-') for f in os.listdir(path) if os.path.isfile(os.path.join(path, f)))):
-                                        return path
-                                    path = os.path.dirname(path)
-                                # Fallback: return work_dir's parent
-                                return os.path.dirname(work_dir)
-                            elif exe_path and os.path.exists(exe_path):
-                                # Go up from exe to find game root
-                                path = os.path.dirname(exe_path)
-                                while path and path != '/':
-                                    if (os.path.exists(os.path.join(path, '.unifideck-id')) or 
-                                        any(f.startswith('goggame-') for f in os.listdir(path) if os.path.isfile(os.path.join(path, f)))):
-                                        return path
-                                    path = os.path.dirname(path)
-                                # Fallback: return exe's grandparent
-                                return os.path.dirname(os.path.dirname(exe_path))
+            line = games_map[key]
+            parts = line.split('|')
+            if len(parts) >= 2:
+                exe_path = parts[1] if len(parts) > 1 else None
+                work_dir = parts[2] if len(parts) > 2 else None
+                
+                # Find install dir (parent of executable's parent OR work_dir's parent)
+                if work_dir and os.path.exists(work_dir):
+                    # work_dir is usually game_root/subdir, so go up to get game root
+                    # But for some games, work_dir IS the game root
+                    # Return the top-level directory containing .unifideck-id or goggame files
+                    path = work_dir
+                    while path and path != '/':
+                        if (os.path.exists(os.path.join(path, '.unifideck-id')) or 
+                            any(f.startswith('goggame-') for f in os.listdir(path) if os.path.isfile(os.path.join(path, f)))):
+                            return path
+                        path = os.path.dirname(path)
+                    # Fallback: return work_dir's parent
+                    return os.path.dirname(work_dir)
+                elif exe_path and os.path.exists(exe_path):
+                    # Go up from exe to find game root
+                    path = os.path.dirname(exe_path)
+                    while path and path != '/':
+                        if (os.path.exists(os.path.join(path, '.unifideck-id')) or 
+                            any(f.startswith('goggame-') for f in os.listdir(path) if os.path.isfile(os.path.join(path, f)))):
+                            return path
+                        path = os.path.dirname(path)
+                    # Fallback: return exe's grandparent
+                    return os.path.dirname(os.path.dirname(exe_path))
         except Exception as e:
             logger.error(f"[GameMap] Error getting install dir for {key}: {e}")
         return None
@@ -851,6 +913,8 @@ class ShortcutsManager:
                 with open(map_file, 'w') as f:
                     f.writelines(valid_lines)
                 logger.info(f"[Reconcile] Cleaned games.map: {kept} kept, {removed} removed")
+                # Invalidate in-memory cache
+                _invalidate_games_map_mem_cache()
             else:
                 logger.debug(f"[Reconcile] No orphaned entries found: {kept} entries all valid")
         
@@ -1513,21 +1577,29 @@ class ShortcutsManager:
             return False
 
     async def read_shortcuts(self) -> Dict[str, Any]:
-        """Read shortcuts.vdf file"""
+        """Read shortcuts.vdf file with in-memory caching"""
         if not self.shortcuts_path:
             logger.warning("shortcuts.vdf path not found, returning empty dict")
             return {"shortcuts": {}}
+        
+        # Check in-memory cache first
+        now = time.time()
+        if self._shortcuts_cache is not None and (now - self._shortcuts_cache_time) < self.SHORTCUTS_CACHE_TTL:
+            return self._shortcuts_cache
 
         try:
             data = load_shortcuts_vdf(self.shortcuts_path)
-            logger.info(f"Loaded {len(data.get('shortcuts', {}))} shortcuts")
+            logger.debug(f"Loaded {len(data.get('shortcuts', {}))} shortcuts from disk")
+            # Update cache
+            self._shortcuts_cache = data
+            self._shortcuts_cache_time = now
             return data
         except Exception as e:
             logger.error(f"Error reading shortcuts.vdf: {e}")
             return {"shortcuts": {}}
 
     async def write_shortcuts(self, shortcuts: Dict[str, Any]) -> bool:
-        """Write shortcuts.vdf file"""
+        """Write shortcuts.vdf file and update in-memory cache"""
         if not self.shortcuts_path:
             logger.error("Cannot write shortcuts.vdf: path not found")
             return False
@@ -1539,9 +1611,17 @@ class ShortcutsManager:
             success = save_shortcuts_vdf(self.shortcuts_path, shortcuts)
             if success:
                 logger.info(f"Wrote {len(shortcuts.get('shortcuts', {}))} shortcuts to file")
+                # Update in-memory cache with what we just wrote
+                self._shortcuts_cache = shortcuts
+                self._shortcuts_cache_time = time.time()
+            else:
+                # Invalidate cache on failure so next read gets fresh data
+                self._shortcuts_cache = None
             return success
         except Exception as e:
             logger.error(f"Error writing shortcuts.vdf: {e}")
+            # Invalidate cache on error
+            self._shortcuts_cache = None
             return False
 
     async def add_game(self, game: Game, launcher_script: str) -> bool:
