@@ -131,9 +131,10 @@
     "downloadCancelledMessage": "{{title}} のダウンロードがキャンセルされました。",
     "cancelFailed": "キャンセル失敗",
     "cancelFailedMessage": "ダウンロードをキャンセルできませんでした。",
-    "uninstalling": "ゲームをアンインストール中",
-    "uninstallingMessage": "{{title}} を削除中...",
-    "uninstallComplete": "アンインストール完了！",
+    "uninstalling": "アンインストール中...",
+    "uninstallingMessage": "{{title}}をアンインストール中...",
+    "uninstallingMessageProton": "{{title}}とProtonファイルをアンインストール中...",
+    "uninstallComplete": "アンインストール完了",
     "uninstallCompleteMessage": "{{title}} が削除されました。",
     "installComplete": "インストール完了！",
     "installCompleteMessage": "{{title}} の準備ができました。ライブラリで表示するには Steam を再起動してください。",
@@ -152,7 +153,31 @@
     "cleanupSuccessful": "クリーンアップ成功",
     "cleanupSuccessfulMessage": "{{games}} 件のゲーム、{{artwork}} 件のアート、{{files}} 件のフォルダを削除しました。認証とキャッシュをクリアしました。",
     "deleteFailed": "削除失敗",
-    "unifideck": "Unifideck:"
+    "unifideck": "Unifideck:",
+    "launcher": {
+      "networkError": "ネットワークエラー",
+      "retryingUmu": "{{seconds}}秒後にUMUを再試行します (試行 {{attempt}}/{{max}})...",
+      "protonUpgrade": "Protonアップグレード",
+      "resettingPrefix": "{{version}}用のプレフィックスをリセット中...",
+      "firstTimeSetup": "初回セットアップ",
+      "initializingPrefix": "Wineプレフィックスを初期化中...",
+      "setupCompleteTitle": "セットアップ完了",
+      "prefixInitialized": "Wineプレフィックスが初期化されました",
+      "setupFallback": "セットアップ",
+      "fallbackInitialization": "フォールバック初期化中...",
+      "launchingGame": "ゲームを起動中",
+      "startingEpicGame": "Epicゲームを起動中...",
+      "startingAmazonGame": "Amazonゲームを起動中...",
+      "startingGogGame": "GOGゲームを起動中...",
+      "dependenciesTitle": "依存関係をインストール中",
+      "installingRedistributables": "ゲームの再頒布可能パッケージをインストール中...",
+      "dependenciesReady": "依存関係の準備完了",
+      "redistributablesInstalled": "再頒布可能パッケージがインストールされました",
+      "dependenciesStatus": "依存関係",
+      "checkLogs": "セットアップ完了 (詳細はログを確認)",
+      "installingProton": "Protonをインストール中",
+      "attemptingInstall": "{{version}} のインストールを試行中..."
+    }
   },
   "uninstallModal": {
     "title": "アンインストールの確認",
@@ -186,6 +211,10 @@
     "uninstallFailed": "アンインストールに失敗しました",
     "lockConflict": "ロック競合 - 再試行してください",
     "unknownStore": "不明なストア",
-    "shortcutWriteFailed": "ショートカットの書き込みに失敗しました"
+    "shortcutWriteFailed": "ショートカットの書き込みに失敗しました",
+    "backgroundSyncDisabled": "バックグラウンド同期が無効です",
+    "steamGridDbUnavailable": "SteamGridDBライブラリが利用できません",
+    "deleteSyncInProgress": "同期中は削除できません",
+    "alreadyInQueue": "すでにキューにあります"
   }
 }

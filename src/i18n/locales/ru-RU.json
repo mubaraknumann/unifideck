@@ -131,9 +131,10 @@
     "downloadCancelledMessage": "Загрузка {{title}} отменена.",
     "cancelFailed": "Не удалось отменить",
     "cancelFailedMessage": "Не удалось отменить загрузку.",
-    "uninstalling": "Удаление игры",
+    "uninstalling": "Удаление",
     "uninstallingMessage": "Удаление {{title}}...",
-    "uninstallComplete": "Удаление завершено!",
+    "uninstallingMessageProton": "Удаление {{title}} и файлов Proton...",
+    "uninstallComplete": "Удаление завершено",
     "uninstallCompleteMessage": "{{title}} удален.",
     "installComplete": "Установка завершена!",
     "installCompleteMessage": "{{title}} готов к игре. Перезапустите Steam, чтобы увидеть его в библиотеке.",
@@ -152,7 +153,31 @@
     "cleanupSuccessful": "Очистка выполнена",
     "cleanupSuccessfulMessage": "Удалено {{games}} игр, {{artwork}} артов и {{files}} папок. Аутентификация и кэш очищены.",
     "deleteFailed": "Не удалось удалить",
-    "unifideck": "Unifideck:"
+    "unifideck": "Unifideck:",
+    "launcher": {
+      "networkError": "Ошибка сети",
+      "retryingUmu": "Повтор UMU через {{seconds}}с (попытка {{attempt}}/{{max}})...",
+      "protonUpgrade": "Обновление Proton",
+      "resettingPrefix": "Сброс префикса для {{version}}...",
+      "firstTimeSetup": "Первоначальная настройка",
+      "initializingPrefix": "Инициализация префикса Wine...",
+      "setupCompleteTitle": "Настройка завершена",
+      "prefixInitialized": "Префикс Wine инициализирован",
+      "setupFallback": "Настройка",
+      "fallbackInitialization": "Резервная инициализация...",
+      "launchingGame": "Запуск игры",
+      "startingEpicGame": "Запуск игры Epic...",
+      "startingAmazonGame": "Запуск игры Amazon...",
+      "startingGogGame": "Запуск игры GOG...",
+      "dependenciesTitle": "Установка зависимостей",
+      "installingRedistributables": "Установка библиотек игры...",
+      "dependenciesReady": "Зависимости готовы",
+      "redistributablesInstalled": "Библиотеки установлены",
+      "dependenciesStatus": "Зависимости",
+      "checkLogs": "Настройка завершена (см. логи)",
+      "installingProton": "Установка Proton",
+      "attemptingInstall": "Попытка установки {{version}}..."
+    }
   },
   "uninstallModal": {
     "title": "Подтвердите удаление",
@@ -186,6 +211,10 @@
     "uninstallFailed": "Ошибка удаления",
     "lockConflict": "Конфликт блокировки - попробуйте снова",
     "unknownStore": "Неизвестный магазин",
-    "shortcutWriteFailed": "Не удалось записать ярлыки"
+    "shortcutWriteFailed": "Не удалось записать ярлыки",
+    "backgroundSyncDisabled": "Фоновая синхронизация отключена",
+    "steamGridDbUnavailable": "Библиотека SteamGridDB недоступна",
+    "deleteSyncInProgress": "Невозможно удалить во время синхронизации",
+    "alreadyInQueue": "Уже в очереди"
   }
 }

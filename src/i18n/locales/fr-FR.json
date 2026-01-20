@@ -133,6 +133,7 @@
     "cancelFailedMessage": "Impossible d'annuler le téléchargement.",
     "uninstalling": "Désinstallation du jeu",
     "uninstallingMessage": "Suppression de {{title}}...",
+    "uninstallingMessageProton": "Désinstallation de {{title}} et des fichiers Proton...",
     "uninstallComplete": "Désinstallation terminée !",
     "uninstallCompleteMessage": "{{title}} supprimé.",
     "installComplete": "Installation terminée !",
@@ -152,7 +153,31 @@
     "cleanupSuccessful": "Nettoyage réussi",
     "cleanupSuccessfulMessage": "{{games}} jeux, {{artwork}} ensembles de visuels et {{files}} répertoires de fichiers supprimés. Authentification et cache effacés.",
     "deleteFailed": "Échec de la suppression",
-    "unifideck": "Unifideck :"
+    "unifideck": "Unifideck :",
+    "launcher": {
+      "networkError": "Erreur réseau",
+      "retryingUmu": "Nouvelle tentative UMU dans {{seconds}}s (essai {{attempt}}/{{max}})...",
+      "protonUpgrade": "Mise à niveau Proton",
+      "resettingPrefix": "Réinitialisation du préfixe pour {{version}}...",
+      "firstTimeSetup": "Première configuration",
+      "initializingPrefix": "Initialisation du préfixe Wine...",
+      "setupCompleteTitle": "Configuration terminée",
+      "prefixInitialized": "Préfixe Wine initialisé",
+      "setupFallback": "Configuration",
+      "fallbackInitialization": "Initialisation de secours...",
+      "launchingGame": "Lancement du jeu",
+      "startingEpicGame": "Démarrage du jeu Epic...",
+      "startingAmazonGame": "Démarrage du jeu Amazon...",
+      "startingGogGame": "Démarrage du jeu GOG...",
+      "dependenciesTitle": "Installation des dépendances",
+      "installingRedistributables": "Installation des redistribuables du jeu...",
+      "dependenciesReady": "Dépendances prêtes",
+      "redistributablesInstalled": "Redistribuables installés",
+      "dependenciesStatus": "Dépendances",
+      "checkLogs": "Configuration terminée (voir les journaux pour détails)",
+      "installingProton": "Installation de Proton",
+      "attemptingInstall": "Tentative d'installation de {{version}}..."
+    }
   },
   "uninstallModal": {
     "title": "Confirmer la désinstallation",
@@ -182,10 +207,14 @@
     "gameNotFound": "Jeu introuvable",
     "gameNotInstalled": "Le jeu n'est pas installé",
     "installFailed": "Échec de l'installation - consultez les logs",
-    "installNoDirectory": "Installation terminée mais impossible de localiser le dossier du jeu",
+    "installNoDirectory": "Installation terminée mais impossible de localiser le répertoire du jeu",
     "uninstallFailed": "Échec de la désinstallation",
     "lockConflict": "Conflit de verrouillage - veuillez réessayer",
-    "unknownStore": "Boutique inconnue",
-    "shortcutWriteFailed": "Échec de l'écriture des raccourcis"
+    "unknownStore": "Magasin inconnu",
+    "shortcutWriteFailed": "Échec de l'écriture des raccourcis",
+    "backgroundSyncDisabled": "Synchronisation en arrière-plan désactivée",
+    "steamGridDbUnavailable": "Bibliothèque SteamGridDB indisponible",
+    "deleteSyncInProgress": "Impossible de supprimer pendant la synchronisation",
+    "alreadyInQueue": "Déjà dans la file d'attente"
   }
 }

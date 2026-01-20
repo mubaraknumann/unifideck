@@ -192,7 +192,7 @@ run_umu_with_retry() {
         # If we still have retries left
         if [ $attempt -lt $max_attempts ]; then
             log "[UMU] Failed with exit code $exit_code, retrying in ${wait_time}s..."
-            notify_stage "Network Error" "Retrying UMU in ${wait_time}s (attempt $((attempt+1))/$max_attempts)..." "normal"
+            notify_stage "toasts.launcher.networkError" "toasts.launcher.retryingUmu|seconds=${wait_time}|attempt=$((attempt+1))|max=$max_attempts" "normal"
             
             # Clean up partial Steam Runtime downloads to avoid corruption
             if [ -d "$HOME/.local/share/umu" ]; then
@@ -285,7 +285,7 @@ select_proton_version() {
             return 0
         else
             log "[Proton] PROTON=$PROTON not found locally. Attempting to install..."
-            notify_stage "Installing Proton" "Attempting to install $PROTON..." "normal"
+            notify_stage "toasts.launcher.installingProton" "toasts.launcher.attemptingInstall|version=$PROTON" "normal"
             
             INSTALLER_SCRIPT="$PLUGIN_DIR/bin/proton_installer.py"
             if [ -f "$INSTALLER_SCRIPT" ]; then
@@ -556,7 +556,7 @@ if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]] || \
             
             if [ "$NEED_RESET" = true ]; then
                 log "[Proton] Resetting prefix for compatibility with new Proton version..."
-                notify_stage "Proton Upgrade" "Resetting prefix for $CURRENT_PROTON..." "normal"
+                notify_stage "toasts.launcher.protonUpgrade" "toasts.launcher.resettingPrefix|version=$CURRENT_PROTON" "normal"
                 
                 # Backup save data if it exists
                 SAVE_BACKUP=""
@@ -593,7 +593,7 @@ if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]] || \
     
     if [ ! -f "$SYSTEM_REG" ]; then
         log "[FirstLaunch] Prefix not initialized (no system.reg), running setup..."
-        notify_stage "First Time Setup" "Initializing Wine prefix..." "normal"
+        notify_stage "toasts.launcher.firstTimeSetup" "toasts.launcher.initializingPrefix" "normal"
         
         # Ensure prefix directory exists
         mkdir -p "$PREFIX_PATH"
@@ -613,10 +613,10 @@ if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]] || \
         # Run createprefix with retry wrapper for network resilience
         if run_umu_with_retry "$PYTHON_BIN" "$SETUP_UMU" createprefix; then
             log "[FirstLaunch] Prefix created successfully"
-            notify_stage "Setup Complete" "Wine prefix initialized" "low"
+            notify_stage "toasts.launcher.setupCompleteTitle" "toasts.launcher.prefixInitialized" "low"
         else
             log "[FirstLaunch] createprefix failed, trying wineboot fallback..."
-            notify_stage "Setup" "Fallback initialization..." "normal"
+            notify_stage "toasts.launcher.setupFallback" "toasts.launcher.fallbackInitialization" "normal"
             # Fallback: run any exe to trigger prefix creation (also with retry)
             run_umu_with_retry "$PYTHON_BIN" "$SETUP_UMU" wineboot --init || true
         fi
@@ -730,15 +730,15 @@ if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]] || \
         if [ ! -f "$WINETRICKS_MARKER" ] || ! grep -qi "complete\|no redistributables" "$WINETRICKS_MARKER" 2>/dev/null; then
             if [ -f "$WINETRICKS_SCRIPT" ]; then
                 log "[Winetricks] Running first-launch redistributables installation..."
-                notify_stage "Installing Dependencies" "Installing game redistributables..." "normal"
+                notify_stage "toasts.launcher.dependenciesTitle" "toasts.launcher.installingRedistributables" "normal"
                 
                 # Run SYNCHRONOUSLY - blocks until complete
                 if python3 "$WINETRICKS_SCRIPT" "$GAME_ID" "$PREFIX_PATH" >> "$HOME/.local/share/unifideck/winetricks.log" 2>&1; then
                     log "[Winetricks] Installation completed successfully"
-                    notify_stage "Dependencies Ready" "Redistributables installed" "low"
+                    notify_stage "toasts.launcher.dependenciesReady" "toasts.launcher.redistributablesInstalled" "low"
                 else
                     log "[Winetricks] Installation completed (may have warnings)"
-                    notify_stage "Dependencies" "Setup complete (check logs for details)" "low"
+                    notify_stage "toasts.launcher.dependenciesStatus" "toasts.launcher.checkLogs" "low"
                 fi
             fi
         else
@@ -787,7 +787,7 @@ if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]] || \
         sync_cloud_saves "epic" "$GAME_ID" "download" "$PREFIX_PATH"
 
         # Notify user that game is launching
-        notify_stage "Launching Game" "Starting Epic game..." "low"
+        notify_stage "toasts.launcher.launchingGame" "toasts.launcher.startingEpicGame" "low"
 
         # Execute legendary (wait for exit, don't use exec)
         "$LEGENDARY_BIN" launch "$GAME_ID" --no-wine --wrapper "$PYTHON_BIN $UMU_WRAPPER" --language en 2>>"$LOG_FILE"
@@ -863,7 +863,7 @@ except Exception as e:
         log "Executing: $CMD_STR"
 
         # Notify user that game is launching
-        notify_stage "Launching Game" "Starting Amazon game..." "low"
+        notify_stage "toasts.launcher.launchingGame" "toasts.launcher.startingAmazonGame" "low"
 
         # Execute umu-run for Amazon game (with retry for network failures)
         if [ -n "$AMAZON_ARGS" ]; then
@@ -942,7 +942,7 @@ except Exception as e:
         sync_cloud_saves "gog" "$GAME_ID" "download" "$PREFIX_PATH" ""
 
         # Notify user that game is launching
-        notify_stage "Launching Game" "Starting GOG game..." "low"
+        notify_stage "toasts.launcher.launchingGame" "toasts.launcher.startingGogGame" "low"
 
         # Execute umu-run with retry for network failures
         run_umu_with_retry "$PYTHON_BIN" "$UMU_WRAPPER" "$EXE_PATH" "$@"

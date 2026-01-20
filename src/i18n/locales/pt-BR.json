@@ -131,8 +131,9 @@
     "downloadCancelledMessage": "Download de {{title}} cancelado.",
     "cancelFailed": "Falha ao Cancelar",
     "cancelFailedMessage": "Não foi possível cancelar o download.",
-    "uninstalling": "Desinstalando Jogo",
+    "uninstalling": "Desinstalando",
     "uninstallingMessage": "Removendo {{title}}...",
+    "uninstallingMessageProton": "Desinstalando {{title}} e arquivos Proton...",
     "uninstallComplete": "Desinstalação Concluída!",
     "uninstallCompleteMessage": "{{title}} removido.",
     "installComplete": "Instalação Concluída!",
@@ -152,7 +153,31 @@
     "cleanupSuccessful": "Limpeza Concluída",
     "cleanupSuccessfulMessage": "{{games}} jogos, {{artwork}} artes e {{files}} pastas removidas. Autenticação e cache limpos.",
     "deleteFailed": "Falha ao Excluir",
-    "unifideck": "Unifideck:"
+    "unifideck": "Unifideck:",
+    "launcher": {
+      "networkError": "Erro de Rede",
+      "retryingUmu": "Tentando UMU novamente em {{seconds}}s (tentativa {{attempt}}/{{max}})...",
+      "protonUpgrade": "Atualização do Proton",
+      "resettingPrefix": "Redefinindo prefixo para {{version}}...",
+      "firstTimeSetup": "Configuração Inicial",
+      "initializingPrefix": "Inicializando prefixo Wine...",
+      "setupCompleteTitle": "Configuração Concluída",
+      "prefixInitialized": "Prefixo Wine inicializado",
+      "setupFallback": "Configuração",
+      "fallbackInitialization": "Inicialização de fallback...",
+      "launchingGame": "Iniciando Jogo",
+      "startingEpicGame": "Iniciando jogo da Epic...",
+      "startingAmazonGame": "Iniciando jogo da Amazon...",
+      "startingGogGame": "Iniciando jogo da GOG...",
+      "dependenciesTitle": "Instalando Dependências",
+      "installingRedistributables": "Instalando redistribuíveis do jogo...",
+      "dependenciesReady": "Dependências Prontas",
+      "redistributablesInstalled": "Redistribuíveis instalados",
+      "dependenciesStatus": "Dependências",
+      "checkLogs": "Configuração concluída (verifique os logs)",
+      "installingProton": "Instalando Proton",
+      "attemptingInstall": "Tentando instalar {{version}}..."
+    }
   },
   "uninstallModal": {
     "title": "Confirmar desinstalação",
@@ -182,10 +207,14 @@
     "gameNotFound": "Jogo não encontrado",
     "gameNotInstalled": "O jogo não está instalado",
     "installFailed": "Falha na instalação - verifique os logs",
-    "installNoDirectory": "Instalação concluída mas não foi possível localizar o diretório do jogo",
-    "uninstallFailed": "Falha na desinstalação",
+    "installNoDirectory": "Instalação concluída, mas não foi possível localizar o diretório do jogo",
+    "uninstallFailed": "A desinstalação falhou",
     "lockConflict": "Conflito de bloqueio - tente novamente",
     "unknownStore": "Loja desconhecida",
-    "shortcutWriteFailed": "Falha ao gravar atalhos"
+    "shortcutWriteFailed": "Falha ao gravar atalhos",
+    "backgroundSyncDisabled": "Sincronização em segundo plano desativada",
+    "steamGridDbUnavailable": "Biblioteca SteamGridDB indisponível",
+    "deleteSyncInProgress": "Não é possível excluir enquanto a sincronização está em andamento",
+    "alreadyInQueue": "Já na fila"
   }
 }

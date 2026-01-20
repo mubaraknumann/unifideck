@@ -253,7 +253,7 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
     } else {
       toaster.toast({
         title: t('toasts.downloadFailed'),
-        body: result.error || t('toasts.downloadFailedMessage'),
+        body: result.error ? t(result.error) : t('toasts.downloadFailedMessage'),
         duration: 10000,
         critical: true,
       });
@@ -282,7 +282,7 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
     } else {
       toaster.toast({
         title: t('toasts.cancelFailed'),
-        body: result.error || t('toasts.cancelFailedMessage'),
+        body: result.error ? t(result.error) : t('toasts.cancelFailedMessage'),
         duration: 5000,
         critical: true,
       });
@@ -296,7 +296,9 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
 
     toaster.toast({
       title: t('toasts.uninstalling'),
-      body: t('toasts.uninstallingMessage', { title: gameInfo.title }) + (deletePrefix ? ' and Proton files' : ''),
+      body: deletePrefix
+        ? t('toasts.uninstallingMessageProton', { title: gameInfo.title })
+        : t('toasts.uninstallingMessage', { title: gameInfo.title }),
       duration: 5000,
     });
 
@@ -1147,7 +1149,7 @@ const Content: FC = () => {
       } else {
         toaster.toast({
           title: t('toasts.authFailed'),
-          body: result.error || t('toasts.authFailedMessage'),
+          body: result.error ? t(result.error) : t('toasts.authFailedMessage'),
           critical: true,
           duration: 5000,
         });
@@ -1225,7 +1227,7 @@ const Content: FC = () => {
         console.error(`[Unifideck] Delete failed: ${result.error}`);
         toaster.toast({
           title: t('toasts.deleteFailed'),
-          body: result.error || "Unknown error",
+          body: result.error ? t(result.error) : "Unknown error",
           duration: 5000,
         });
       }
@@ -1258,7 +1260,7 @@ const Content: FC = () => {
         console.log("[Unifideck] Sync cancelled");
         toaster.toast({
           title: t('toasts.syncCancelled').toUpperCase(),
-          body: "",
+          body: t('errors.syncCancelled'),
           duration: 3000,
         });
       } else {
@@ -1663,9 +1665,24 @@ export default definePlugin(() => {
 
       if (toasts && toasts.length > 0) {
         for (const toast of toasts) {
+          // Parse body params (format: "key|param1=val1|param2=val2")
+          let bodyKey = toast.body;
+          let bodyParams: Record<string, any> = {};
+
+          if (bodyKey.includes('|')) {
+            const parts = bodyKey.split('|');
+            bodyKey = parts[0];
+            for (let i = 1; i < parts.length; i++) {
+              const [k, v] = parts[i].split('=');
+              if (k && v) {
+                bodyParams[k] = v;
+              }
+            }
+          }
+
           toaster.toast({
-            title: `${t('toasts.unifideck')} ${toast.title}`,
-            body: toast.body,
+            title: `${t('toasts.unifideck')} ${t(toast.title)}`,
+            body: String(t(bodyKey, bodyParams)),
             duration: toast.urgency === "critical" ? 10000 : 5000,
             critical: toast.urgency === "critical",
           });

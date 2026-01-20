@@ -65,7 +65,7 @@ export const StorageSettings: FC = () => {
             } else {
                 toaster.toast({
                     title: t("storageSettings.toastFailedTitle"),
-                    body: t("storageSettings.toastFailedBody", { error: result.error || "Unknown error" }),
+                    body: t("storageSettings.toastFailedBody", { error: t(result.error || "Unknown error") }),
                     duration: 5000,
                     critical: true,
                 });
@@ -89,35 +89,35 @@ export const StorageSettings: FC = () => {
 
     return (
         <PanelSection title={t("storageSettings.title")}>
-        <PanelSectionRow>
-            <Field
-            label={t("storageSettings.installLocationLabel")}
-            description={t("storageSettings.installLocationDescription")}
-            >
-            {dropdownOptions.length > 0 ? (
-                <Dropdown
-                rgOptions={dropdownOptions}
-                selectedOption={selectedOption?.data}
-                onChange={handleStorageChange}
-                disabled={saving}
-                />
-            ) : (
-                <span style={{ color: "#888", fontSize: "12px" }}>
-                {t("storageSettings.loading")}
-                </span>
-            )}
-            </Field>
-        </PanelSectionRow>
-
-        {locations.length > 0 && (
             <PanelSectionRow>
-            <Field label={t("storageSettings.pathLabel")}>
-                <span style={{ color: "#888", fontSize: "12px" }}>
-                {locations.find((l) => l.id === defaultStorage)?.path || "Unknown"}
-                </span>
-            </Field>
+                <Field
+                    label={t("storageSettings.installLocationLabel")}
+                    description={t("storageSettings.installLocationDescription")}
+                >
+                    {dropdownOptions.length > 0 ? (
+                        <Dropdown
+                            rgOptions={dropdownOptions}
+                            selectedOption={selectedOption?.data}
+                            onChange={handleStorageChange}
+                            disabled={saving}
+                        />
+                    ) : (
+                        <span style={{ color: "#888", fontSize: "12px" }}>
+                            {t("storageSettings.loading")}
+                        </span>
+                    )}
+                </Field>
             </PanelSectionRow>
-        )}
+
+            {locations.length > 0 && (
+                <PanelSectionRow>
+                    <Field label={t("storageSettings.pathLabel")}>
+                        <span style={{ color: "#888", fontSize: "12px" }}>
+                            {locations.find((l) => l.id === defaultStorage)?.path || "Unknown"}
+                        </span>
+                    </Field>
+                </PanelSectionRow>
+            )}
         </PanelSection>
     );
 };

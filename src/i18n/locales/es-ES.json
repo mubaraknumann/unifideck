@@ -133,6 +133,7 @@
     "cancelFailedMessage": "No se pudo cancelar la descarga.",
     "uninstalling": "Desinstalando Juego",
     "uninstallingMessage": "Eliminando {{title}}...",
+    "uninstallingMessageProton": "Desinstalando {{title}} y archivos Proton...",
     "uninstallComplete": "Desinstalación Completa",
     "uninstallCompleteMessage": "{{title}} eliminado.",
     "installComplete": "Instalación Completa",
@@ -152,7 +153,31 @@
     "cleanupSuccessful": "Limpieza Exitosa",
     "cleanupSuccessfulMessage": "Se eliminaron {{games}} juegos, {{artwork}} ilustraciones y {{files}} carpetas. Caché y autenticación limpiados.",
     "deleteFailed": "Error al Eliminar",
-    "unifideck": "Unifideck:"
+    "unifideck": "Unifideck:",
+    "launcher": {
+      "networkError": "Error de red",
+      "retryingUmu": "Reintentando UMU en {{seconds}}s (intento {{attempt}}/{{max}})...",
+      "protonUpgrade": "Actualización de Proton",
+      "resettingPrefix": "Restableciendo prefijo para {{version}}...",
+      "firstTimeSetup": "Configuración inicial",
+      "initializingPrefix": "Inicializando prefijo de Wine...",
+      "setupCompleteTitle": "Configuración completada",
+      "prefixInitialized": "Prefijo de Wine inicializado",
+      "setupFallback": "Configuración",
+      "fallbackInitialization": "Inicialización de respaldo...",
+      "launchingGame": "Iniciando juego",
+      "startingEpicGame": "Iniciando juego de Epic...",
+      "startingAmazonGame": "Iniciando juego de Amazon...",
+      "startingGogGame": "Iniciando juego de GOG...",
+      "dependenciesTitle": "Instalando dependencias",
+      "installingRedistributables": "Instalando redistribuibles del juego...",
+      "dependenciesReady": "Dependencias listas",
+      "redistributablesInstalled": "Redistribuibles instalados",
+      "dependenciesStatus": "Dependencias",
+      "checkLogs": "Configuración completada (ver registros para detalles)",
+      "installingProton": "Instalando Proton",
+      "attemptingInstall": "Intentando instalar {{version}}..."
+    }
   },
   "uninstallModal": {
     "title": "Confirmar desinstalación",
@@ -182,10 +207,14 @@
     "gameNotFound": "Juego no encontrado",
     "gameNotInstalled": "El juego no está instalado",
     "installFailed": "Error en la instalación - revisa los registros",
-    "installNoDirectory": "Instalación completada pero no se encontró el directorio del juego",
+    "installNoDirectory": "Instalación completada pero no se pudo localizar el directorio del juego",
     "uninstallFailed": "Error en la desinstalación",
-    "lockConflict": "Conflicto de bloqueo - intenta de nuevo",
+    "lockConflict": "Conflicto de bloqueo - inténtelo de nuevo",
     "unknownStore": "Tienda desconocida",
-    "shortcutWriteFailed": "Error al escribir los accesos directos"
+    "shortcutWriteFailed": "Error al escribir accesos directos",
+    "backgroundSyncDisabled": "Sincronización en segundo plano desactivada",
+    "steamGridDbUnavailable": "Biblioteca SteamGridDB no disponible",
+    "deleteSyncInProgress": "No se puede eliminar mientras la sincronización está en curso",
+    "alreadyInQueue": "Ya está en la cola"
   }
 }

@@ -1726,7 +1726,7 @@ class ShortcutsManager:
             if added > 0 or removed_count > 0 or reclaimed > 0:
                 success = await self.write_shortcuts(shortcuts)
                 if not success:
-                    return {'added': 0, 'skipped': skipped, 'removed': removed_count, 'reclaimed': 0, 'error': 'Failed to write shortcuts.vdf'}
+                    return {'added': 0, 'skipped': skipped, 'removed': removed_count, 'reclaimed': 0, 'error': 'errors.shortcutWriteFailed'}
 
                 # Log sample of what was written
                 if added > 0:
@@ -1916,7 +1916,7 @@ class ShortcutsManager:
             if added > 0 or updated_count > 0 or removed_count > 0 or reclaimed > 0:
                 success = await self.write_shortcuts(shortcuts)
                 if not success:
-                    return {'added': 0, 'updated': 0, 'removed': 0, 'reclaimed': 0, 'error': 'Failed to write shortcuts.vdf'}
+                    return {'added': 0, 'updated': 0, 'removed': 0, 'reclaimed': 0, 'error': 'errors.shortcutWriteFailed'}
 
             logger.info(f"Force update complete: {added} added, {updated_count} updated, {removed_count} removed, {reclaimed} reclaimed")
             return {'added': added, 'updated': updated_count, 'removed': removed_count, 'reclaimed': reclaimed}
@@ -2691,7 +2691,7 @@ class Plugin:
             logger.warning("Sync already in progress, ignoring request")
             return {
                 'success': False,
-                'error': 'A sync operation is already in progress',
+                'error': 'errors.syncInProgress',
                 'epic_count': 0,
                 'gog_count': 0,
                 'added_count': 0,
@@ -2744,7 +2744,7 @@ class Plugin:
                     self.sync_progress.current_game = "Sync cancelled by user"
                     return {
                         'success': False,
-                        'error': 'Sync cancelled by user',
+                        'error': 'errors.syncCancelled',
                         'cancelled': True,
                         'epic_count': 0,
                         'gog_count': 0,
@@ -2998,7 +2998,7 @@ class Plugin:
             logger.warning("Sync already in progress, ignoring force sync request")
             return {
                 'success': False,
-                'error': 'A sync operation is already in progress',
+                'error': 'errors.syncInProgress',
                 'epic_count': 0,
                 'gog_count': 0,
                 'added_count': 0,
@@ -3341,7 +3341,7 @@ class Plugin:
             await self.background_sync.start()
             return {'success': True}
         else:
-            return {'success': False, 'error': 'Background sync disabled'}
+            return {'success': False, 'error': 'errors.backgroundSyncDisabled'}
 
     async def stop_background_sync(self) -> Dict[str, Any]:
         """Stop background sync service"""
@@ -3349,7 +3349,7 @@ class Plugin:
             await self.background_sync.stop()
             return {'success': True}
         else:
-            return {'success': False, 'error': 'Background sync disabled'}
+            return {'success': False, 'error': 'errors.backgroundSyncDisabled'}
 
     async def get_sync_progress(self) -> Dict[str, Any]:
         """Get current sync progress for frontend polling"""
@@ -3720,7 +3720,7 @@ class Plugin:
                     }
 
             logger.warning(f"[GameInfo] App ID {app_id} not found in shortcuts")
-            return {'error': 'Game not found'}
+            return {'error': 'errors.gameNotFound'}
 
         except Exception as e:
             logger.error(f"Error getting game info for app {app_id}: {e}")
@@ -3808,7 +3808,7 @@ class Plugin:
             
             # Check if actually installed
             if not game_info.get('is_installed'):
-                 return {'success': False, 'error': 'Game is not installed'}
+                 return {'success': False, 'error': 'errors.gameNotInstalled'}
 
             logger.info(f"[Uninstall] Starting uninstallation: {title} ({store}:{game_id}), delete_prefix={delete_prefix}")
 
@@ -3816,7 +3816,7 @@ class Plugin:
             if store == 'epic':
                 # legendary uninstall <id> --yes
                 if not self.epic.legendary_bin:
-                    return {'success': False, 'error': 'Legendary CLI not found'}
+                    return {'success': False, 'error': 'errors.legendaryNotFound'}
                 
                 # Clean up stale legendary lock files (legendary returns 0 even when blocked by lock)
                 lock_dir = os.path.expanduser("~/.config/legendary")
@@ -3852,7 +3852,7 @@ class Plugin:
                 combined_output = stdout_str + stderr_str
                 if 'Failed to acquire installed data lock' in combined_output:
                     logger.error("[Epic] Uninstall failed: Lock acquisition failed")
-                    return {'success': False, 'error': 'Legendary lock conflict - please try again'}
+                    return {'success': False, 'error': 'errors.lockConflict'}
                 
                 if proc.returncode != 0:
                      logger.error(f"[Epic] Uninstall failed: {stderr_str}")
@@ -4517,7 +4517,7 @@ class Plugin:
                 logger.info("SteamGridDB client initialized with new API key")
                 return {'success': True}
             else:
-                return {'success': False, 'error': 'SteamGridDB library not available'}
+                return {'success': False, 'error': 'errors.steamGridDbUnavailable'}
         except Exception as e:
             logger.error(f"Error setting SteamGridDB API key: {e}")
             return {'success': False, 'error': str(e)}
@@ -4574,7 +4574,7 @@ class Plugin:
         if self._is_syncing:
             return {
                 'success': False,
-                'error': 'Cannot delete while sync is in progress'
+                'error': 'errors.deleteSyncInProgress'
             }
 
         async with self._sync_lock:  # Lock to prevent sync during deletion

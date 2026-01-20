@@ -131,9 +131,10 @@
     "downloadCancelledMessage": "{{title}}-Download abgebrochen.",
     "cancelFailed": "Abbruch fehlgeschlagen",
     "cancelFailedMessage": "Download konnte nicht abgebrochen werden.",
-    "uninstalling": "Spiel deinstallieren",
-    "uninstallingMessage": "Entferne {{title}}...",
-    "uninstallComplete": "Deinstallation abgeschlossen!",
+    "uninstalling": "Deinstallieren...",
+    "uninstallingMessage": "Deinstalliere {{title}}...",
+    "uninstallingMessageProton": "{{title}} und Proton-Dateien werden deinstalliert...",
+    "uninstallComplete": "Deinstallation abgeschlossen",
     "uninstallCompleteMessage": "{{title}} entfernt.",
     "installComplete": "Installation abgeschlossen!",
     "installCompleteMessage": "{{title}} ist spielbereit. Starte Steam neu, um es in deiner Bibliothek zu sehen.",
@@ -152,7 +153,31 @@
     "cleanupSuccessful": "Aufräumen erfolgreich",
     "cleanupSuccessfulMessage": "{{games}} Spiele, {{artwork}} Illustrationen und {{files}} Ordner entfernt. Auth & Cache gelöscht.",
     "deleteFailed": "Löschen fehlgeschlagen",
-    "unifideck": "Unifideck:"
+    "unifideck": "Unifideck:",
+    "launcher": {
+      "networkError": "Netzwerkfehler",
+      "retryingUmu": "UMU wird in {{seconds}}s erneut versucht (Versuch {{attempt}}/{{max}})...",
+      "protonUpgrade": "Proton-Upgrade",
+      "resettingPrefix": "Präfix für {{version}} wird zurückgesetzt...",
+      "firstTimeSetup": "Ersteinrichtung",
+      "initializingPrefix": "Wine-Präfix wird initialisiert...",
+      "setupCompleteTitle": "Einrichtung abgeschlossen",
+      "prefixInitialized": "Wine-Präfix initialisiert",
+      "setupFallback": "Einrichtung",
+      "fallbackInitialization": "Fallback-Initialisierung...",
+      "launchingGame": "Spiel wird gestartet",
+      "startingEpicGame": "Epic-Spiel wird gestartet...",
+      "startingAmazonGame": "Amazon-Spiel wird gestartet...",
+      "startingGogGame": "GOG-Spiel wird gestartet...",
+      "dependenciesTitle": "Abhängigkeiten werden installiert",
+      "installingRedistributables": "Spiel-Redistributables werden installiert...",
+      "dependenciesReady": "Abhängigkeiten bereit",
+      "redistributablesInstalled": "Redistributables installiert",
+      "dependenciesStatus": "Abhängigkeiten",
+      "checkLogs": "Einrichtung abgeschlossen (siehe Logs für Details)",
+      "installingProton": "Proton wird installiert",
+      "attemptingInstall": "Versuche {{version}} zu installieren..."
+    }
   },
   "uninstallModal": {
     "title": "Deinstallation bestätigen",
@@ -182,10 +207,14 @@
     "gameNotFound": "Spiel nicht gefunden",
     "gameNotInstalled": "Spiel ist nicht installiert",
     "installFailed": "Installation fehlgeschlagen - Logs überprüfen",
-    "installNoDirectory": "Installation abgeschlossen, aber Spielverzeichnis nicht gefunden",
+    "installNoDirectory": "Installation abgeschlossen, aber Spielverzeichnis konnte nicht gefunden werden",
     "uninstallFailed": "Deinstallation fehlgeschlagen",
     "lockConflict": "Sperrkonflikt - bitte erneut versuchen",
     "unknownStore": "Unbekannter Store",
-    "shortcutWriteFailed": "Verknüpfungen konnten nicht geschrieben werden"
+    "shortcutWriteFailed": "Fehler beim Schreiben der Verknüpfungen",
+    "backgroundSyncDisabled": "Hintergrund-Synchronisierung deaktiviert",
+    "steamGridDbUnavailable": "SteamGridDB-Bibliothek nicht verfügbar",
+    "deleteSyncInProgress": "Löschen während einer Synchronisierung nicht möglich",
+    "alreadyInQueue": "Bereits in Warteschlange"
   }
 }

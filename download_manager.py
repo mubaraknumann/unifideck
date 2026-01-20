@@ -284,7 +284,7 @@ class DownloadQueue:
         for item in self.queue:
             if item.id == download_id:
                 logger.warning(f"[DownloadQueue] {download_id} already in queue")
-                return {'success': False, 'error': 'Already in queue'}
+                return {'success': False, 'error': 'errors.alreadyInQueue'}
         
         # Create new download item with installation guardrail
         item = DownloadItem(

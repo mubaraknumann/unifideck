@@ -131,9 +131,10 @@
     "downloadCancelledMessage": "{{title}} download cancelled.",
     "cancelFailed": "Cancel Failed",
     "cancelFailedMessage": "Could not cancel download.",
-    "uninstalling": "Uninstalling Game",
-    "uninstallingMessage": "Removing {{title}}...",
-    "uninstallComplete": "Uninstallation Complete!",
+    "uninstalling": "Uninstalling...",
+    "uninstallingMessage": "Uninstalling {{title}}...",
+    "uninstallingMessageProton": "Uninstalling {{title}} and Proton files...",
+    "uninstallComplete": "Uninstall Complete",
     "uninstallCompleteMessage": "{{title}} removed.",
     "installComplete": "Installation Complete!",
     "installCompleteMessage": "{{title}} is ready to play. Restart Steam to see it in your library.",
@@ -152,7 +153,31 @@
     "cleanupSuccessful": "Cleanup Successful",
     "cleanupSuccessfulMessage": "Removed {{games}} games, {{artwork}} artwork sets, and {{files}} file directories. Auth & cache cleared.",
     "deleteFailed": "Delete Failed",
-    "unifideck": "Unifideck:"
+    "unifideck": "Unifideck:",
+    "launcher": {
+      "networkError": "Network Error",
+      "retryingUmu": "Retrying UMU in {{seconds}}s (attempt {{attempt}}/{{max}})...",
+      "protonUpgrade": "Proton Upgrade",
+      "resettingPrefix": "Resetting prefix for {{version}}...",
+      "firstTimeSetup": "First Time Setup",
+      "initializingPrefix": "Initializing Wine prefix...",
+      "setupCompleteTitle": "Setup Complete",
+      "prefixInitialized": "Wine prefix initialized",
+      "setupFallback": "Setup",
+      "fallbackInitialization": "Fallback initialization...",
+      "launchingGame": "Launching Game",
+      "startingEpicGame": "Starting Epic game...",
+      "startingAmazonGame": "Starting Amazon game...",
+      "startingGogGame": "Starting GOG game...",
+      "dependenciesTitle": "Installing Dependencies",
+      "installingRedistributables": "Installing game redistributables...",
+      "dependenciesReady": "Dependencies Ready",
+      "redistributablesInstalled": "Redistributables installed",
+      "dependenciesStatus": "Dependencies",
+      "checkLogs": "Setup complete (check logs for details)",
+      "installingProton": "Installing Proton",
+      "attemptingInstall": "Attempting to install {{version}}..."
+    }
   },
   "uninstallModal": {
     "title": "Confirm Uninstallation",
@@ -186,6 +211,10 @@
     "uninstallFailed": "Uninstallation failed",
     "lockConflict": "Lock conflict - please try again",
     "unknownStore": "Unknown store",
-    "shortcutWriteFailed": "Failed to write shortcuts"
+    "shortcutWriteFailed": "Failed to write shortcuts",
+    "backgroundSyncDisabled": "Background sync disabled",
+    "steamGridDbUnavailable": "SteamGridDB library not available",
+    "deleteSyncInProgress": "Cannot delete while sync is in progress",
+    "alreadyInQueue": "Already in queue"
   }
 }

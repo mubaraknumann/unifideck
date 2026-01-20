@@ -1,14 +1,5 @@
-/**
- * Force Sync Options Modal Component
- * 
- * Shows two explicit options for force sync:
- * - Resync All Artwork (overwrites manual changes)
- * - Keep Current Artwork (only downloads missing)
- * 
- * Dismissing the modal (B button, outside click) does nothing.
- */
-
 import { FC } from "react";
+import { useTranslation } from "react-i18next";
 import {
     ConfirmModal,
     DialogButton,
@@ -26,6 +17,8 @@ export const ForceSyncModal: FC<ForceSyncModalProps> = ({
     onKeepArtwork,
     closeModal,
 }) => {
+    const { t } = useTranslation();
+
     return (
         <>
             {/* Hide the default Confirm/Cancel button row */}
@@ -34,7 +27,7 @@ export const ForceSyncModal: FC<ForceSyncModalProps> = ({
                 .DialogFooter { display: none !important; }
             `}</style>
             <ConfirmModal
-                strTitle="Force Sync Options"
+                strTitle={t('confirmModals.forceSyncTitle')}
                 strDescription=""
                 bHideCloseIcon={false}
                 onOK={closeModal}
@@ -48,8 +41,7 @@ export const ForceSyncModal: FC<ForceSyncModalProps> = ({
                         fontSize: "14px",
                         lineHeight: "1.5"
                     }}>
-                        Force Sync will rewrite all shortcuts and compatibility data.
-                        Choose whether to resync all artwork or keep your current artwork.
+                        {t('confirmModals.forceSyncDescription')}
                     </div>
 
                     {/* Action buttons */}
@@ -72,7 +64,7 @@ export const ForceSyncModal: FC<ForceSyncModalProps> = ({
                                 color: "#ef4444",
                             }}
                         >
-                            <FaImage /> Resync All Artwork
+                            <FaImage /> {t('confirmModals.resyncArtwork')}
                         </DialogButton>
 
                         {/* Keep Current Artwork */}
@@ -88,7 +80,7 @@ export const ForceSyncModal: FC<ForceSyncModalProps> = ({
                                 gap: "8px",
                             }}
                         >
-                            <FaSync /> Keep Current Artwork
+                            <FaSync /> {t('confirmModals.keepArtwork')}
                         </DialogButton>
                     </div>
                 </div>

@@ -131,9 +131,10 @@
     "downloadCancelledMessage": "{{title}} download geannuleerd.",
     "cancelFailed": "Annuleren Mislukt",
     "cancelFailedMessage": "Kan download niet annuleren.",
-    "uninstalling": "Game Verwijderen",
+    "uninstalling": "Verwijderen...",
     "uninstallingMessage": "{{title}} verwijderen...",
-    "uninstallComplete": "Verwijdering Voltooid!",
+    "uninstallingMessageProton": "{{title}} en Proton-bestanden verwijderen...",
+    "uninstallComplete": "Verwijderen voltooid",
     "uninstallCompleteMessage": "{{title}} verwijderd.",
     "installComplete": "Installatie Voltooid!",
     "installCompleteMessage": "{{title}} is klaar om te spelen. Herstart Steam om het in je bibliotheek te zien.",
@@ -152,7 +153,31 @@
     "cleanupSuccessful": "Opruimen Geslaagd",
     "cleanupSuccessfulMessage": "{{games}} games, {{artwork}} artwork-sets en {{files}} bestandsmappen verwijderd. Auth & cache gewist.",
     "deleteFailed": "Verwijderen Mislukt",
-    "unifideck": "Unifideck:"
+    "unifideck": "Unifideck:",
+    "launcher": {
+      "networkError": "Netwerkfout",
+      "retryingUmu": "UMU opnieuw proberen over {{seconds}}s (poging {{attempt}}/{{max}})...",
+      "protonUpgrade": "Proton Upgrade",
+      "resettingPrefix": "Prefix resetten voor {{version}}...",
+      "firstTimeSetup": "Eerste keer instellen",
+      "initializingPrefix": "Wine-prefix initialiseren...",
+      "setupCompleteTitle": "Installatie voltooid",
+      "prefixInitialized": "Wine-prefix geïnitialiseerd",
+      "setupFallback": "Installatie",
+      "fallbackInitialization": "Fallback initialisatie...",
+      "launchingGame": "Spel starten",
+      "startingEpicGame": "Epic-spel starten...",
+      "startingAmazonGame": "Amazon-spel starten...",
+      "startingGogGame": "GOG-spel starten...",
+      "dependenciesTitle": "Afhankelijkheden installeren",
+      "installingRedistributables": "Spel-redistributables installeren...",
+      "dependenciesReady": "Afhankelijkheden gereed",
+      "redistributablesInstalled": "Redistributables geïnstalleerd",
+      "dependenciesStatus": "Afhankelijkheden",
+      "checkLogs": "Installatie voltooid (zie logs voor details)",
+      "installingProton": "Proton installeren",
+      "attemptingInstall": "Proberen {{version}} te installeren..."
+    }
   },
   "uninstallModal": {
     "title": "Verwijdering bevestigen",
@@ -182,10 +207,14 @@
     "gameNotFound": "Game niet gevonden",
     "gameNotInstalled": "Game is niet geïnstalleerd",
     "installFailed": "Installatie mislukt - controleer de logs",
-    "installNoDirectory": "Installatie voltooid maar gamemap niet gevonden",
+    "installNoDirectory": "Installatie voltooid maar kon spelmap niet vinden",
     "uninstallFailed": "Verwijdering mislukt",
     "lockConflict": "Vergrendelingsconflict - probeer opnieuw",
     "unknownStore": "Onbekende winkel",
-    "shortcutWriteFailed": "Snelkoppelingen schrijven mislukt"
+    "shortcutWriteFailed": "Snelkoppelingen schrijven mislukt",
+    "backgroundSyncDisabled": "Achtergrondsynchronisatie uitgeschakeld",
+    "steamGridDbUnavailable": "SteamGridDB-bibliotheek niet beschikbaar",
+    "deleteSyncInProgress": "Kan niet verwijderen terwijl synchronisatie bezig is",
+    "alreadyInQueue": "Reeds in wachtrij"
   }
 }

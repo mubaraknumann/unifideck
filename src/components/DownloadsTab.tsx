@@ -262,7 +262,7 @@ const DownloadItemRow: FC<{
                     {item.status === "error" && <FaExclamationTriangle size={10} style={{ marginRight: "4px" }} />}
                     <span style={{ textTransform: "capitalize" }}>{t(`downloadsTab.status.${item.status}`)}</span>
                     {item.error_message && (
-                        <span style={{ marginLeft: "8px", color: "#888" }}>- {item.error_message}</span>
+                        <span style={{ marginLeft: "8px", color: "#888" }}>- {t(item.error_message)}</span>
                     )}
                 </div>
             )}
@@ -339,7 +339,7 @@ export const DownloadsTab: FC = () => {
             } else {
                 toaster.toast({
                     title: t("downloadsTab.toastCancelFailedTitle"),
-                    body: t("downloadsTab.toastCancelFailedBody", { error: result.error }),
+                    body: t("downloadsTab.toastCancelFailedBody", { error: t(result.error || "Unknown error") }),
                     duration: 5000,
                     critical: true,
                 });
