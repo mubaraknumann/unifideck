@@ -15,7 +15,6 @@ import {
     PanelSectionRow,
     Field,
     DialogButton,
-    Focusable,
     showModal,
     ConfirmModal,
 } from "@decky/ui";
@@ -110,25 +109,39 @@ const DownloadItemRow: FC<{
 
                 {/* X button to clear finished items */}
                 {(item.status === "completed" || item.status === "error" || item.status === "cancelled") && onClear && (
-                    <Focusable onActivate={() => onClear(item.id)}>
+                    <>
+                        <style>{`
+                            .unifideck-clear-btn {
+                                padding: 0 !important;
+                                width: 24px !important;
+                                height: 24px !important;
+                                min-width: 24px !important;
+                                display: flex !important;
+                                align-items: center !important;
+                                justify-content: center !important;
+                                background-color: transparent !important;
+                                color: #888 !important;
+                                border-radius: 4px !important;
+                                transition: all 0.15s ease !important;
+                            }
+                            .unifideck-clear-btn:hover,
+                            .unifideck-clear-btn:focus,
+                            .unifideck-clear-btn.gpfocus,
+                            .unifideck-clear-btn.Focusable:focus-within {
+                                background-color: rgba(255, 255, 255, 0.15) !important;
+                                color: #fff !important;
+                                outline: 2px solid #1a9fff !important;
+                                outline-offset: 1px !important;
+                            }
+                        `}</style>
                         <DialogButton
+                            className="unifideck-clear-btn"
                             onClick={() => onClear(item.id)}
-                            focusable={true}
-                            style={{
-                                padding: "0",
-                                width: "24px",
-                                height: "24px",
-                                minWidth: "auto",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                backgroundColor: "transparent",
-                                color: "#888",
-                            }}
+                            onOKButton={() => onClear(item.id)}
                         >
                             <FaTimes size={12} />
                         </DialogButton>
-                    </Focusable>
+                    </>
                 )}
             </div>
 
