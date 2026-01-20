@@ -51,13 +51,15 @@ That's it! All other tools and dependencies are bundled with the plugin.
 
 ## Installation
 
-1. Download the plugin ZIP file: https://github.com/user-attachments/files/24423959/unifideck-plugin-v0.2.0.zip
+1. Download the plugin ZIP file from the Releases section.
 2. Open **Quick Access Menu** (three dots button)
 3. Navigate to **Decky** → **Settings** (gear icon)
 4. Enable **Developer Mode** if not already enabled
 5. Click **Install Plugin from ZIP**
 6. Navigate to the downloaded ZIP file and select it
 7. The plugin will install automatically
+
+https://www.youtube.com/watch?v=lP-90uYd72w
 
 ## Getting Started
 
@@ -113,6 +115,24 @@ DO NOT select this option for Unifideck games. Proton/Wine compatibiltiy is hand
 1. Check the launcher logs at `~/.local/share/unifideck/launcher.log`
 2. For GOG games, verify the game folder exists in `~/GOG Games/`
 3. Try reinstalling the game
+
+### Languages
+
+Added support for multiple languages. The following translations are now included:
+
+- Portuguese (Brazil) — pt-BR
+- Russian — ru-RU
+- Japanese — ja-JP
+- German — de-DE
+- Spanish — es-ES
+- Italian — it-IT
+- Simplified Chinese — zh-CN
+- Korean — ko-KR
+- Dutch — nl-NL
+- Polish — pl-PL
+- Turkish — tr-TR
+
+To add a new language, create a JSON file in `src/i18n/locales/` using `en-US.json` as a template and provide translations for each key.
 
 ## License
 

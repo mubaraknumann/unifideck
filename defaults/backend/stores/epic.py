@@ -115,42 +115,47 @@ class EpicConnector(Store):
             from ..auth.browser import CDPOAuthMonitor
             
             # Run legendary auth and capture the authorization URL
+            # Merge stderr into stdout since legendary may output URL to either stream
             proc = await asyncio.create_subprocess_exec(
                 self.legendary_bin, 'auth',
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.STDOUT  # Merge stderr into stdout
             )
 
-            # Read initial output to get the URL
-            stdout_data = []
+            # Read output to get the URL
+            output_lines = []
             while True:
                 line = await proc.stdout.readline()
                 if not line:
                     break
                 line_text = line.decode().strip()
-                stdout_data.append(line_text)
+                output_lines.append(line_text)
+                logger.debug(f"[EPIC] Auth output: {line_text}")
 
-                # Look for URL in the output
+                # Look for Epic auth URL in the output
                 if 'https://' in line_text:
                     # Extract URL from line
                     for word in line_text.split():
                         if word.startswith('https://'):
-                            logger.info(f"[EPIC] Got Epic auth URL: {word}")
+                            # Validate it's an Epic auth URL
+                            if 'epicgames.com' in word or 'epic' in word.lower():
+                                logger.info(f"[EPIC] Got Epic auth URL: {word}")
 
-                            # Start CDP monitoring in background to auto-capture code
-                            asyncio.create_task(self._monitor_and_complete_auth())
+                                # Start CDP monitoring in background to auto-capture code
+                                asyncio.create_task(self._monitor_and_complete_auth())
 
-                            return {
-                                'success': True,
-                                'url': word,
-                                'message': 'Authenticating via browser - code will be captured automatically'
-                            }
+                                return {
+                                    'success': True,
+                                    'url': word,
+                                    'message': 'Authenticating via browser - code will be captured automatically'
+                                }
 
-            # If we didn't find a URL, return error
-            stderr = await proc.stderr.read()
+            # If we didn't find a URL, return error with full output for debugging
+            all_output = "\n".join(output_lines)
+            logger.error(f"[EPIC] No auth URL found in output: {all_output}")
             return {
                 'success': False,
-                'error': f'Could not get auth URL. Output: {" ".join(stdout_data)}, Error: {stderr.decode()}'
+                'error': f'Could not get auth URL. Output: {all_output[:500]}'
             }
 
         except Exception as e:
@@ -238,6 +243,51 @@ class EpicConnector(Store):
             logger.error(f"Error logging out from Epic: {e}")
             return {'success': False, 'error': str(e)}
 
+    def _should_filter_game(self, game_data: dict) -> bool:
+        """Check if a game should be filtered from library.
+        
+        Filters out:
+        - Unreal Engine assets/plugins/projects (namespace='ue' or matching categories)
+        - Mods (category path='mods')
+        - Mobile-only games (all platforms are Android/iOS)
+        
+        Based on Heroic Games Launcher's filtering logic.
+        """
+        metadata = game_data.get('metadata', {})
+        
+        # Filter 1: Unreal Engine namespace
+        if metadata.get('namespace') == 'ue':
+            logger.debug(f"[Epic] Filtered (UE namespace): {game_data.get('app_title')}")
+            return True
+        
+        # Filter 2: UE categories (assets, plugins, projects)
+        ue_categories = ['assets', 'asset-format', 'plugins', 'projects']
+        categories = metadata.get('categories', [])
+        for cat in categories:
+            if cat.get('path') in ue_categories:
+                logger.debug(f"[Epic] Filtered (UE category): {game_data.get('app_title')}")
+                return True
+        
+        # Filter 3: Mods
+        for cat in categories:
+            if cat.get('path') == 'mods':
+                logger.debug(f"[Epic] Filtered (mod): {game_data.get('app_title')}")
+                return True
+        
+        # Filter 4: Mobile-only games
+        release_info = metadata.get('releaseInfo', [])
+        if release_info:
+            all_mobile = all(
+                info.get('platform', []) and
+                all(p in ('Android', 'iOS') for p in info.get('platform', []))
+                for info in release_info
+            )
+            if all_mobile:
+                logger.debug(f"[Epic] Filtered (mobile-only): {game_data.get('app_title')}")
+                return True
+        
+        return False
+
     async def get_library(self) -> List[Game]:
         """Get Epic Games library via legendary"""
         if not self.legendary_bin:
@@ -258,8 +308,14 @@ class EpicConnector(Store):
 
             games_data = json.loads(stdout.decode())
             games = []
+            filtered_count = 0
 
             for game_data in games_data:
+                # Filter out UE assets, plugins, mods, and mobile-only games
+                if self._should_filter_game(game_data):
+                    filtered_count += 1
+                    continue
+                
                 game = Game(
                     id=game_data.get('app_name', ''),
                     title=game_data.get('app_title', ''),
@@ -268,7 +324,7 @@ class EpicConnector(Store):
                 )
                 games.append(game)
 
-            logger.info(f"Found {len(games)} Epic games")
+            logger.info(f"Found {len(games)} Epic games (filtered {filtered_count} UE/plugin/mod items)")
             return games
 
         except Exception as e:
@@ -536,6 +592,17 @@ class EpicConnector(Store):
                             exe_path = os.path.join(install_path, executable)
                             logger.info(f"[Epic] Successfully installed {game_id} to {install_path}")
                             logger.info(f"[Epic] Executable: {exe_path}")
+                            
+                            # FIX 3: Validate executable exists before returning success
+                            if not os.path.isfile(exe_path):
+                                logger.warning(f"[Epic] Manifest exe not found: {exe_path}, trying fallback")
+                                fallback_exe = self._find_executable_fallback(install_path)
+                                if fallback_exe and os.path.isfile(fallback_exe):
+                                    exe_path = fallback_exe
+                                    executable = os.path.relpath(exe_path, install_path)
+                                    logger.info(f"[Epic] Using fallback exe: {exe_path}")
+                                else:
+                                    logger.error(f"[Epic] No valid executable found for {game_id}")
                             
                             # Write manifest for recovery after plugin reinstall
                             try:

@@ -207,35 +207,67 @@ def get_registered_appid(launch_options: str) -> Optional[int]:
 # Pre-populated during sync, read during get_game_info
 GAME_SIZES_CACHE_FILE = "game_sizes.json"
 
+# In-memory cache for game sizes (avoids disk I/O on every get_game_info call)
+_game_sizes_mem_cache: Optional[Dict[str, Dict]] = None
+_game_sizes_mem_cache_time: float = 0
+GAME_SIZES_MEM_CACHE_TTL = 60.0  # 60 seconds (sizes change rarely)
+
 
 def get_game_sizes_cache_path() -> Path:
     """Get path to game sizes cache file (in user data, not plugin dir)"""
     return Path.home() / ".local" / "share" / "unifideck" / GAME_SIZES_CACHE_FILE
 
 
+def _invalidate_game_sizes_mem_cache():
+    """Invalidate in-memory game sizes cache"""
+    global _game_sizes_mem_cache, _game_sizes_mem_cache_time
+    _game_sizes_mem_cache = None
+    _game_sizes_mem_cache_time = 0
+
+
 def load_game_sizes_cache() -> Dict[str, Dict]:
-    """Load game sizes cache. Returns {store:game_id: {size_bytes, updated}}"""
+    """Load game sizes cache with in-memory caching. Returns {store:game_id: {size_bytes, updated}}"""
+    global _game_sizes_mem_cache, _game_sizes_mem_cache_time
+    
+    # Check in-memory cache first
+    now = time.time()
+    if _game_sizes_mem_cache is not None and (now - _game_sizes_mem_cache_time) < GAME_SIZES_MEM_CACHE_TTL:
+        return _game_sizes_mem_cache
+    
+    # Cache miss - read from disk
     cache_path = get_game_sizes_cache_path()
+    result = {}
     try:
         if cache_path.exists():
             with open(cache_path, 'r') as f:
-                return json.load(f)
+                result = json.load(f)
     except Exception as e:
         logger.error(f"Error loading game sizes cache: {e}")
-    return {}
+    
+    # Update in-memory cache
+    _game_sizes_mem_cache = result
+    _game_sizes_mem_cache_time = now
+    return result
 
 
 def save_game_sizes_cache(cache: Dict[str, Dict]) -> bool:
-    """Save game sizes cache to file"""
+    """Save game sizes cache to file and update in-memory cache"""
+    global _game_sizes_mem_cache, _game_sizes_mem_cache_time
+    
     cache_path = get_game_sizes_cache_path()
     try:
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         with open(cache_path, 'w') as f:
             json.dump(cache, f, indent=2)
         logger.debug(f"Saved {len(cache)} entries to game sizes cache")
+        
+        # Update in-memory cache immediately
+        _game_sizes_mem_cache = cache
+        _game_sizes_mem_cache_time = time.time()
         return True
     except Exception as e:
         logger.error(f"Error saving game sizes cache: {e}")
+        _invalidate_game_sizes_mem_cache()  # Invalidate on error
         return False
 
 
@@ -252,7 +284,7 @@ def cache_game_size(store: str, game_id: str, size_bytes: int) -> bool:
 
 def get_cached_game_size(store: str, game_id: str) -> Optional[int]:
     """Get cached game size, or None if not cached"""
-    cache = load_game_sizes_cache()
+    cache = load_game_sizes_cache()  # Uses in-memory cache
     cache_key = f"{store}:{game_id}"
     entry = cache.get(cache_key)
     return entry.get('size_bytes') if entry else None
@@ -333,28 +365,50 @@ class BackgroundSizeFetcher:
         self._task = None
         self._pending_games = []  # List of (store, game_id) tuples
         
-    def queue_games(self, games: List):
+    def queue_games(self, games: List, force_refresh: bool = False):
         """Queue games for background size fetching.
         
         Args:
             games: List of Game objects with 'store' and 'id' attributes
+            force_refresh: If True, re-fetch sizes even if already cached
         """
+        logger.info(f"[SizeService] queue_games() called with {len(games)} games, force_refresh={force_refresh}")
+        
+        # If force_refresh, stop any running task first so we can restart
+        if force_refresh and self._running:
+            logger.info("[SizeService] Stopping previous task for force_refresh")
+            self.stop()
+        
         cache = load_game_sizes_cache()
+        
+        # Clear pending list to avoid duplicates from previous runs
+        self._pending_games = []
+        pending_set = set()  # For deduplication within this batch
         
         for game in games:
             cache_key = f"{game.store}:{game.id}"
-            if cache_key not in cache:
-                self._pending_games.append((game.store, game.id))
-                # Mark as pending in cache (null value)
-                cache[cache_key] = None
+            # force_refresh bypasses cache check to re-fetch all sizes
+            if force_refresh or cache_key not in cache:
+                if cache_key not in pending_set:
+                    pending_set.add(cache_key)
+                    self._pending_games.append((game.store, game.id))
+                    # Mark as pending in cache (null value)
+                    cache[cache_key] = None
         
         save_game_sizes_cache(cache)
         logger.info(f"[SizeService] Queued {len(self._pending_games)} games for size fetching")
     
     def start(self):
         """Start background fetching (non-blocking)"""
+        logger.info(f"[SizeService] start() called, _running={self._running}, pending={len(self._pending_games)}")
+        
+        # Reset _running if previous task is done (handles abnormal task completion)
+        if self._running and self._task and self._task.done():
+            logger.info("[SizeService] Previous task finished, resetting _running flag")
+            self._running = False
+        
         if self._running:
-            logger.debug("[SizeService] Already running")
+            logger.info("[SizeService] Already running, skipping start")
             return
         
         # Load pending from cache if not already queued
@@ -364,9 +418,10 @@ class BackgroundSizeFetcher:
                 tuple(k.split(':', 1)) for k, v in cache.items() 
                 if v is None and ':' in k
             ]
+            logger.info(f"[SizeService] Loaded {len(self._pending_games)} pending games from cache")
         
         if not self._pending_games:
-            logger.debug("[SizeService] No pending games, not starting")
+            logger.info("[SizeService] No pending games, not starting")
             return
         
         logger.info(f"[SizeService] Starting background fetch for {len(self._pending_games)} games")
@@ -418,9 +473,11 @@ class BackgroundSizeFetcher:
                                 logger.debug(f"[SizeService] Cached {store}:{game_id} = {size_bytes}")
                                 return (store, game_id, size_bytes)
                             else:
+                                # Log at debug level - GOG legacy games often have no size API
+                                logger.debug(f"[SizeService] No size for {store}:{game_id}")
                                 return (store, game_id, None)
                         except Exception as e:
-                            logger.debug(f"[SizeService] Error fetching {store}:{game_id}: {e}")
+                            logger.warning(f"[SizeService] Error fetching {store}:{game_id}: {e}")
                             return (store, game_id, None)
                 
                 # Fire all at once
@@ -512,13 +569,63 @@ class SyncProgress:
         }
 
 
+# In-memory cache for games.map (avoids disk I/O on every get_game_info call)
+_games_map_mem_cache: Optional[Dict[str, str]] = None  # key -> full line
+_games_map_mem_cache_time: float = 0
+GAMES_MAP_MEM_CACHE_TTL = 5.0  # 5 seconds
+
+GAMES_MAP_PATH = os.path.expanduser("~/.local/share/unifideck/games.map")
+
+
+def _invalidate_games_map_mem_cache():
+    """Invalidate in-memory games.map cache"""
+    global _games_map_mem_cache, _games_map_mem_cache_time
+    _games_map_mem_cache = None
+    _games_map_mem_cache_time = 0
+    logger.debug("[GameMap] In-memory cache invalidated")
+
+
+def _load_games_map_cached() -> Dict[str, str]:
+    """Load games.map with in-memory caching. Returns {store:game_id: full_line}"""
+    global _games_map_mem_cache, _games_map_mem_cache_time
+    
+    # Check in-memory cache first
+    now = time.time()
+    if _games_map_mem_cache is not None and (now - _games_map_mem_cache_time) < GAMES_MAP_MEM_CACHE_TTL:
+        return _games_map_mem_cache
+    
+    # Cache miss - read from disk
+    result = {}
+    if os.path.exists(GAMES_MAP_PATH):
+        try:
+            with open(GAMES_MAP_PATH, 'r') as f:
+                for line in f:
+                    if '|' in line:
+                        key = line.split('|')[0]
+                        result[key] = line.strip()
+        except Exception as e:
+            logger.error(f"[GameMap] Error reading games.map: {e}")
+    
+    # Update in-memory cache
+    _games_map_mem_cache = result
+    _games_map_mem_cache_time = now
+    return result
+
+
 class ShortcutsManager:
     """Manages Steam's shortcuts.vdf file for non-Steam games"""
+    
+    # Shortcuts VDF in-memory cache TTL
+    SHORTCUTS_CACHE_TTL = 5.0  # 5 seconds
 
     def __init__(self, steam_path: Optional[str] = None):
         self.steam_path = steam_path or self._find_steam_path()
         self.shortcuts_path = self._find_shortcuts_vdf()
         logger.info(f"Shortcuts path: {self.shortcuts_path}")
+        
+        # In-memory cache for shortcuts.vdf
+        self._shortcuts_cache: Optional[Dict[str, Any]] = None
+        self._shortcuts_cache_time: float = 0
 
     def _find_steam_path(self) -> Optional[str]:
         """Find Steam installation directory"""
@@ -564,9 +671,16 @@ class ShortcutsManager:
         return shortcuts_path
 
     async def _update_game_map(self, store: str, game_id: str, exe_path: str, work_dir: str):
-        """Update the dynamic games map file"""
+        """Update the dynamic games map file atomically
+        
+        FIX 4: Uses tempfile + atomic rename to prevent data corruption
+        if power is lost or multiple processes write simultaneously.
+        """
+        import tempfile
+        
         map_file = os.path.expanduser("~/.local/share/unifideck/games.map")
-        os.makedirs(os.path.dirname(map_file), exist_ok=True)
+        dir_name = os.path.dirname(map_file)
+        os.makedirs(dir_name, exist_ok=True)
         
         key = f"{store}:{game_id}"
         new_entry = f"{key}|{exe_path}|{work_dir}\n"
@@ -582,8 +696,25 @@ class ShortcutsManager:
         lines = [l for l in lines if not l.startswith(f"{key}|")]
         lines.append(new_entry)
         
-        with open(map_file, 'w') as f:
-            f.writelines(lines)
+        # Atomic write: write to temp file, sync to disk, then rename
+        try:
+            with tempfile.NamedTemporaryFile(mode='w', dir=dir_name, delete=False, 
+                                              prefix='.games.map.', suffix='.tmp') as tmp:
+                tmp.writelines(lines)
+                tmp.flush()
+                os.fsync(tmp.fileno())  # Ensure data is on disk
+                tmp_path = tmp.name
+            
+            os.rename(tmp_path, map_file)  # Atomic on POSIX
+            logger.info(f"[GameMap] Atomically updated {key}")
+        except Exception as e:
+            logger.error(f"[GameMap] Atomic write failed, falling back: {e}")
+            # Fallback to direct write if atomic fails
+            with open(map_file, 'w') as f:
+                f.writelines(lines)
+        
+        # Invalidate in-memory cache
+        _invalidate_games_map_mem_cache()
             
     async def _remove_from_game_map(self, store: str, game_id: str):
         """Remove entry from games map file"""
@@ -601,19 +732,13 @@ class ShortcutsManager:
         if len(new_lines) != len(lines):
             with open(map_file, 'w') as f:
                 f.writelines(new_lines)
+            # Invalidate in-memory cache
+            _invalidate_games_map_mem_cache()
 
     def _is_in_game_map(self, store: str, game_id: str) -> bool:
         """Check if game is registered in games.map AND the executable/directory exists.
         
-        This is the primary source of truth for installation status because games.map
-        is updated immediately when a game is installed, regardless of install location.
-        
-        IMPORTANT: We also verify the file exists on disk. If the game is in the map
-        but files are missing (e.g., deleted via file manager), we return False
-        so the UI shows the Install button instead of Uninstall.
-        
-        NOTE: If a stale entry is detected (entry exists but path missing), we now
-        auto-cleanup the entry from games.map to prevent confusion.
+        Uses in-memory cache for fast lookups.
         
         Args:
             store: Store name ('epic' or 'gog')
@@ -622,33 +747,27 @@ class ShortcutsManager:
         Returns:
             True if game is in games.map AND files exist on disk
         """
-        map_file = os.path.expanduser("~/.local/share/unifideck/games.map")
-        if not os.path.exists(map_file):
+        key = f"{store}:{game_id}"
+        games_map = _load_games_map_cached()
+        
+        if key not in games_map:
             return False
         
-        key = f"{store}:{game_id}"
-        try:
-            with open(map_file, 'r') as f:
-                for line in f:
-                    if line.startswith(f"{key}|"):
-                        # Parse the entry to verify files exist
-                        parts = line.strip().split('|')
-                        if len(parts) >= 3:
-                            exe_path = parts[1]
-                            work_dir = parts[2]
-                            # Check if executable or work directory exists
-                            path_to_check = exe_path if exe_path else work_dir
-                            if path_to_check and os.path.exists(path_to_check):
-                                return True
-                            else:
-                                # Stale entry detected - auto-cleanup
-                                logger.info(f"[GameMap] Entry {key} exists but path missing: {path_to_check} - removing stale entry")
-                                self._remove_from_game_map_sync(store, game_id)
-                                return False
-                        return True  # Malformed entry, assume installed
-        except Exception as e:
-            logger.debug(f"[GameMap] Error checking games.map: {e}")
-        return False
+        # Parse the cached entry to verify files exist
+        line = games_map[key]
+        parts = line.split('|')
+        if len(parts) >= 3:
+            exe_path = parts[1]
+            work_dir = parts[2]
+            path_to_check = exe_path if exe_path else work_dir
+            if path_to_check and os.path.exists(path_to_check):
+                return True
+            else:
+                # Stale entry detected - auto-cleanup
+                logger.info(f"[GameMap] Entry {key} exists but path missing: {path_to_check} - removing stale entry")
+                self._remove_from_game_map_sync(store, game_id)
+                return False
+        return True  # Malformed entry, assume installed
 
     def _remove_from_game_map_sync(self, store: str, game_id: str):
         """Synchronous version of _remove_from_game_map for use in sync contexts.
@@ -671,15 +790,15 @@ class ShortcutsManager:
                 with open(map_file, 'w') as f:
                     f.writelines(new_lines)
                 logger.info(f"[GameMap] Removed stale entry: {key}")
+                # Invalidate in-memory cache
+                _invalidate_games_map_mem_cache()
         except Exception as e:
             logger.error(f"[GameMap] Error removing stale entry {key}: {e}")
 
     def _has_game_map_entry(self, store: str, game_id: str) -> bool:
         """Check if game has ANY entry in games.map (regardless of path validity).
         
-        This is used to distinguish between:
-        - No entry at all (never installed via Unifideck) → use store API fallback
-        - Entry exists but path missing (was installed, files deleted) → don't use store fallback
+        Uses in-memory cache for fast lookups.
         
         Args:
             store: Store name ('epic' or 'gog')
@@ -688,63 +807,52 @@ class ShortcutsManager:
         Returns:
             True if any entry exists in games.map for this game
         """
-        map_file = os.path.expanduser("~/.local/share/unifideck/games.map")
-        if not os.path.exists(map_file):
-            return False
-        
         key = f"{store}:{game_id}"
-        try:
-            with open(map_file, 'r') as f:
-                for line in f:
-                    if line.startswith(f"{key}|"):
-                        return True
-        except Exception as e:
-            logger.debug(f"[GameMap] Error checking games.map entry: {e}")
-        return False
+        games_map = _load_games_map_cached()
+        return key in games_map
 
     def _get_install_dir_from_game_map(self, store: str, game_id: str) -> Optional[str]:
         """Get install directory from games.map.
         
-        Uses the same data that's used for launching games.
+        Uses in-memory cache for fast lookups.
         Returns the parent directory of the exe_path or work_dir.
         """
-        map_file = os.path.expanduser("~/.local/share/unifideck/games.map")
-        if not os.path.exists(map_file):
+        key = f"{store}:{game_id}"
+        games_map = _load_games_map_cached()
+        
+        if key not in games_map:
             return None
         
-        key = f"{store}:{game_id}"
         try:
-            with open(map_file, 'r') as f:
-                for line in f:
-                    if line.startswith(f"{key}|"):
-                        parts = line.strip().split('|')
-                        if len(parts) >= 2:
-                            exe_path = parts[1] if len(parts) > 1 else None
-                            work_dir = parts[2] if len(parts) > 2 else None
-                            
-                            # Find install dir (parent of executable's parent OR work_dir's parent)
-                            if work_dir and os.path.exists(work_dir):
-                                # work_dir is usually game_root/subdir, so go up to get game root
-                                # But for some games, work_dir IS the game root
-                                # Return the top-level directory containing .unifideck-id or goggame files
-                                path = work_dir
-                                while path and path != '/':
-                                    if (os.path.exists(os.path.join(path, '.unifideck-id')) or 
-                                        any(f.startswith('goggame-') for f in os.listdir(path) if os.path.isfile(os.path.join(path, f)))):
-                                        return path
-                                    path = os.path.dirname(path)
-                                # Fallback: return work_dir's parent
-                                return os.path.dirname(work_dir)
-                            elif exe_path and os.path.exists(exe_path):
-                                # Go up from exe to find game root
-                                path = os.path.dirname(exe_path)
-                                while path and path != '/':
-                                    if (os.path.exists(os.path.join(path, '.unifideck-id')) or 
-                                        any(f.startswith('goggame-') for f in os.listdir(path) if os.path.isfile(os.path.join(path, f)))):
-                                        return path
-                                    path = os.path.dirname(path)
-                                # Fallback: return exe's grandparent
-                                return os.path.dirname(os.path.dirname(exe_path))
+            line = games_map[key]
+            parts = line.split('|')
+            if len(parts) >= 2:
+                exe_path = parts[1] if len(parts) > 1 else None
+                work_dir = parts[2] if len(parts) > 2 else None
+                
+                # Find install dir (parent of executable's parent OR work_dir's parent)
+                if work_dir and os.path.exists(work_dir):
+                    # work_dir is usually game_root/subdir, so go up to get game root
+                    # But for some games, work_dir IS the game root
+                    # Return the top-level directory containing .unifideck-id or goggame files
+                    path = work_dir
+                    while path and path != '/':
+                        if (os.path.exists(os.path.join(path, '.unifideck-id')) or 
+                            any(f.startswith('goggame-') for f in os.listdir(path) if os.path.isfile(os.path.join(path, f)))):
+                            return path
+                        path = os.path.dirname(path)
+                    # Fallback: return work_dir's parent
+                    return os.path.dirname(work_dir)
+                elif exe_path and os.path.exists(exe_path):
+                    # Go up from exe to find game root
+                    path = os.path.dirname(exe_path)
+                    while path and path != '/':
+                        if (os.path.exists(os.path.join(path, '.unifideck-id')) or 
+                            any(f.startswith('goggame-') for f in os.listdir(path) if os.path.isfile(os.path.join(path, f)))):
+                            return path
+                        path = os.path.dirname(path)
+                    # Fallback: return exe's grandparent
+                    return os.path.dirname(os.path.dirname(exe_path))
         except Exception as e:
             logger.error(f"[GameMap] Error getting install dir for {key}: {e}")
         return None
@@ -805,6 +913,8 @@ class ShortcutsManager:
                 with open(map_file, 'w') as f:
                     f.writelines(valid_lines)
                 logger.info(f"[Reconcile] Cleaned games.map: {kept} kept, {removed} removed")
+                # Invalidate in-memory cache
+                _invalidate_games_map_mem_cache()
             else:
                 logger.debug(f"[Reconcile] No orphaned entries found: {kept} entries all valid")
         
@@ -1467,21 +1577,29 @@ class ShortcutsManager:
             return False
 
     async def read_shortcuts(self) -> Dict[str, Any]:
-        """Read shortcuts.vdf file"""
+        """Read shortcuts.vdf file with in-memory caching"""
         if not self.shortcuts_path:
             logger.warning("shortcuts.vdf path not found, returning empty dict")
             return {"shortcuts": {}}
+        
+        # Check in-memory cache first
+        now = time.time()
+        if self._shortcuts_cache is not None and (now - self._shortcuts_cache_time) < self.SHORTCUTS_CACHE_TTL:
+            return self._shortcuts_cache
 
         try:
             data = load_shortcuts_vdf(self.shortcuts_path)
-            logger.info(f"Loaded {len(data.get('shortcuts', {}))} shortcuts")
+            logger.debug(f"Loaded {len(data.get('shortcuts', {}))} shortcuts from disk")
+            # Update cache
+            self._shortcuts_cache = data
+            self._shortcuts_cache_time = now
             return data
         except Exception as e:
             logger.error(f"Error reading shortcuts.vdf: {e}")
             return {"shortcuts": {}}
 
     async def write_shortcuts(self, shortcuts: Dict[str, Any]) -> bool:
-        """Write shortcuts.vdf file"""
+        """Write shortcuts.vdf file and update in-memory cache"""
         if not self.shortcuts_path:
             logger.error("Cannot write shortcuts.vdf: path not found")
             return False
@@ -1493,9 +1611,17 @@ class ShortcutsManager:
             success = save_shortcuts_vdf(self.shortcuts_path, shortcuts)
             if success:
                 logger.info(f"Wrote {len(shortcuts.get('shortcuts', {}))} shortcuts to file")
+                # Update in-memory cache with what we just wrote
+                self._shortcuts_cache = shortcuts
+                self._shortcuts_cache_time = time.time()
+            else:
+                # Invalidate cache on failure so next read gets fresh data
+                self._shortcuts_cache = None
             return success
         except Exception as e:
             logger.error(f"Error writing shortcuts.vdf: {e}")
+            # Invalidate cache on error
+            self._shortcuts_cache = None
             return False
 
     async def add_game(self, game: Game, launcher_script: str) -> bool:
@@ -1680,7 +1806,7 @@ class ShortcutsManager:
             if added > 0 or removed_count > 0 or reclaimed > 0:
                 success = await self.write_shortcuts(shortcuts)
                 if not success:
-                    return {'added': 0, 'skipped': skipped, 'removed': removed_count, 'reclaimed': 0, 'error': 'Failed to write shortcuts.vdf'}
+                    return {'added': 0, 'skipped': skipped, 'removed': removed_count, 'reclaimed': 0, 'error': 'errors.shortcutWriteFailed'}
 
                 # Log sample of what was written
                 if added > 0:
@@ -1870,7 +1996,7 @@ class ShortcutsManager:
             if added > 0 or updated_count > 0 or removed_count > 0 or reclaimed > 0:
                 success = await self.write_shortcuts(shortcuts)
                 if not success:
-                    return {'added': 0, 'updated': 0, 'removed': 0, 'reclaimed': 0, 'error': 'Failed to write shortcuts.vdf'}
+                    return {'added': 0, 'updated': 0, 'removed': 0, 'reclaimed': 0, 'error': 'errors.shortcutWriteFailed'}
 
             logger.info(f"Force update complete: {added} added, {updated_count} updated, {removed_count} removed, {reclaimed} reclaimed")
             return {'added': added, 'updated': updated_count, 'removed': removed_count, 'reclaimed': reclaimed}
@@ -2437,7 +2563,15 @@ class Plugin:
         
         # Set callback for when downloads complete
         async def on_download_complete(item):
-            """Mark game as installed when download completes"""
+            """Mark game as installed when download completes
+            
+            IMPORTANT: This callback must set item.status = DownloadStatus.ERROR
+            if registration fails, otherwise the UI will show 'completed' but 
+            game launch will fail with 'game not found'.
+            """
+            registration_success = False
+            error_message = None
+            
             try:
                 logger.info(f"[DownloadComplete] Processing completed download: {item.game_title}")
                 
@@ -2463,11 +2597,15 @@ class Plugin:
                             item.game_id, item.store, game_install_path, exe_path
                         )
                         logger.info(f"[DownloadComplete] Marked {item.game_title} as installed")
+                        registration_success = True
                         
                         # Invalidate legendary cache to ensure fresh status on next query
                         global _legendary_installed_cache
                         _legendary_installed_cache['data'] = None
                         logger.debug("[DownloadComplete] Invalidated legendary installed cache")
+                    else:
+                        error_message = "Could not find Epic game executable"
+                        logger.error(f"[DownloadComplete] {error_message} for {item.game_title}")
                 elif item.store == 'gog':
                     # GOG installs to <install_path>/<game_title>
                     # We need to find the folder in the install location used for this download
@@ -2512,10 +2650,13 @@ class Plugin:
                                 item.game_id, item.store, game_install_path, exe_path, work_dir
                             )
                             logger.info(f"[DownloadComplete] Marked {item.game_title} as installed with work_dir={work_dir}")
+                            registration_success = True
                         else:
-                            logger.warning(f"[DownloadComplete] No executable found for {item.game_title}")
+                            error_message = "Could not find GOG game executable"
+                            logger.error(f"[DownloadComplete] {error_message} for {item.game_title}")
                     else:
-                        logger.warning(f"[DownloadComplete] Could not find GOG install folder for {item.game_title}")
+                        error_message = "Could not find GOG install folder"
+                        logger.error(f"[DownloadComplete] {error_message} for {item.game_title}")
                 elif item.store == 'amazon':
                     # Amazon installs - use nile's installed.json for path info
                     game_info = self.amazon.get_installed_game_info(item.game_id)
@@ -2528,12 +2669,25 @@ class Plugin:
                                 item.game_id, item.store, game_install_path, exe_path
                             )
                             logger.info(f"[DownloadComplete] Marked {item.game_title} as installed")
+                            registration_success = True
                         else:
-                            logger.warning(f"[DownloadComplete] No executable found for {item.game_title}")
+                            error_message = "Could not find Amazon game executable"
+                            logger.error(f"[DownloadComplete] {error_message} for {item.game_title}")
                     else:
-                        logger.warning(f"[DownloadComplete] Could not find Amazon install info for {item.game_title}")
+                        error_message = "Could not find Amazon install info"
+                        logger.error(f"[DownloadComplete] {error_message} for {item.game_title}")
             except Exception as e:
-                logger.error(f"[DownloadComplete] Error marking game installed: {e}")
+                error_message = str(e)
+                logger.error(f"[DownloadComplete] Exception marking game installed: {e}")
+            
+            # FIX 1: Propagate registration failures to download status
+            # This ensures users see an error in the UI instead of 'completed'
+            if not registration_success:
+                from download_manager import DownloadStatus
+                item.status = DownloadStatus.ERROR
+                item.error_message = error_message or "Failed to register game after download"
+                logger.error(f"[DownloadComplete] REGISTRATION FAILED for {item.game_title}: {item.error_message}")
+
         
         self.download_queue.set_on_complete_callback(on_download_complete)
         
@@ -2543,6 +2697,9 @@ class Plugin:
             return await self.gog.install_game(game_id, install_path, progress_callback)
         
         self.download_queue.set_gog_install_callback(gog_install_callback)
+        
+        # Set size cache callback to update Install button sizes when accurate size is received
+        self.download_queue.set_size_cache_callback(cache_game_size)
 
         logger.info("[INIT] Unifideck plugin initialization complete")
 
@@ -2614,7 +2771,7 @@ class Plugin:
             logger.warning("Sync already in progress, ignoring request")
             return {
                 'success': False,
-                'error': 'A sync operation is already in progress',
+                'error': 'errors.syncInProgress',
                 'epic_count': 0,
                 'gog_count': 0,
                 'added_count': 0,
@@ -2667,7 +2824,7 @@ class Plugin:
                     self.sync_progress.current_game = "Sync cancelled by user"
                     return {
                         'success': False,
-                        'error': 'Sync cancelled by user',
+                        'error': 'errors.syncCancelled',
                         'cancelled': True,
                         'epic_count': 0,
                         'gog_count': 0,
@@ -2906,10 +3063,10 @@ class Plugin:
             finally:
                 self._is_syncing = False
 
-    async def force_sync_libraries(self) -> Dict[str, Any]:
+    async def force_sync_libraries(self, resync_artwork: bool = False) -> Dict[str, Any]:
         """
         Force sync all libraries - rewrites ALL existing Unifideck shortcuts and compatibility data.
-        Does NOT re-download artwork (preserves existing artwork).
+        Optionally re-downloads artwork if resync_artwork=True (overwrites manual changes).
         
         This is useful when:
         - Shortcut exe paths need to be updated
@@ -2921,7 +3078,7 @@ class Plugin:
             logger.warning("Sync already in progress, ignoring force sync request")
             return {
                 'success': False,
-                'error': 'A sync operation is already in progress',
+                'error': 'errors.syncInProgress',
                 'epic_count': 0,
                 'gog_count': 0,
                 'added_count': 0,
@@ -3042,8 +3199,8 @@ class Plugin:
                 launcher_script = os.path.join(os.path.dirname(__file__), 'bin', 'unifideck-launcher')
 
                 # --- QUEUE SIZE FETCHING (background, non-blocking) ---
-                # Sizes are fetched asynchronously in background, don't hold up sync
-                self.size_fetcher.queue_games(all_games)
+                # Force sync re-fetches all sizes to fix any stale/incorrect values
+                self.size_fetcher.queue_games(all_games, force_refresh=True)
                 self.size_fetcher.start()  # Fire-and-forget
 
                 # Update progress: Force syncing
@@ -3146,13 +3303,15 @@ class Plugin:
                     if steam_appid_cache:
                         save_steam_appid_cache(steam_appid_cache)
 
-                    # STEP 3: Force Sync re-downloads ALL artwork (no has_artwork check)
-                    # This ensures artwork is refreshed for all games
+                    # STEP 3: Artwork handling based on user preference
+                    # If resync_artwork=True, re-download ALL artwork (overwrites manual changes)
+                    # If resync_artwork=False, only download for games missing artwork
                     self.sync_progress.status = "checking_artwork"
-                    self.sync_progress.current_game = "Queuing all games for artwork refresh..."
+                    self.sync_progress.current_game = "Checking artwork..." if not resync_artwork else "Queuing all games for artwork refresh..."
                     for game in all_games:
                         if game.app_id in seen_app_ids:
-                            games_needing_art.append(game)
+                            if resync_artwork or not await self.has_artwork(game.app_id):
+                                games_needing_art.append(game)
                             seen_app_ids.discard(game.app_id)  # Only add once per app_id
 
                     if games_needing_art:
@@ -3262,7 +3421,7 @@ class Plugin:
             await self.background_sync.start()
             return {'success': True}
         else:
-            return {'success': False, 'error': 'Background sync disabled'}
+            return {'success': False, 'error': 'errors.backgroundSyncDisabled'}
 
     async def stop_background_sync(self) -> Dict[str, Any]:
         """Stop background sync service"""
@@ -3270,7 +3429,7 @@ class Plugin:
             await self.background_sync.stop()
             return {'success': True}
         else:
-            return {'success': False, 'error': 'Background sync disabled'}
+            return {'success': False, 'error': 'errors.backgroundSyncDisabled'}
 
     async def get_sync_progress(self) -> Dict[str, Any]:
         """Get current sync progress for frontend polling"""
@@ -3641,7 +3800,7 @@ class Plugin:
                     }
 
             logger.warning(f"[GameInfo] App ID {app_id} not found in shortcuts")
-            return {'error': 'Game not found'}
+            return {'error': 'errors.gameNotFound'}
 
         except Exception as e:
             logger.error(f"Error getting game info for app {app_id}: {e}")
@@ -3709,8 +3868,13 @@ class Plugin:
             logger.error(f"Error installing game by app ID {app_id}: {e}")
             return {'success': False, 'error': str(e)}
 
-    async def uninstall_game_by_appid(self, app_id: int) -> Dict[str, Any]:
-        """Uninstall game by Steam shortcut app ID"""
+    async def uninstall_game_by_appid(self, app_id: int, delete_prefix: bool = False) -> Dict[str, Any]:
+        """Uninstall game by Steam shortcut app ID
+        
+        Args:
+            app_id: Steam shortcut app ID
+            delete_prefix: If True, also delete the Wine/Proton prefix directory
+        """
         try:
             # Get game info first
             game_info = await self.get_game_info(app_id)
@@ -3724,15 +3888,15 @@ class Plugin:
             
             # Check if actually installed
             if not game_info.get('is_installed'):
-                 return {'success': False, 'error': 'Game is not installed'}
+                 return {'success': False, 'error': 'errors.gameNotInstalled'}
 
-            logger.info(f"[Uninstall] Starting uninstallation: {title} ({store}:{game_id})")
+            logger.info(f"[Uninstall] Starting uninstallation: {title} ({store}:{game_id}), delete_prefix={delete_prefix}")
 
             # Perform store-specific uninstall
             if store == 'epic':
                 # legendary uninstall <id> --yes
                 if not self.epic.legendary_bin:
-                    return {'success': False, 'error': 'Legendary CLI not found'}
+                    return {'success': False, 'error': 'errors.legendaryNotFound'}
                 
                 # Clean up stale legendary lock files (legendary returns 0 even when blocked by lock)
                 lock_dir = os.path.expanduser("~/.config/legendary")
@@ -3768,7 +3932,7 @@ class Plugin:
                 combined_output = stdout_str + stderr_str
                 if 'Failed to acquire installed data lock' in combined_output:
                     logger.error("[Epic] Uninstall failed: Lock acquisition failed")
-                    return {'success': False, 'error': 'Legendary lock conflict - please try again'}
+                    return {'success': False, 'error': 'errors.lockConflict'}
                 
                 if proc.returncode != 0:
                      logger.error(f"[Epic] Uninstall failed: {stderr_str}")
@@ -3803,6 +3967,21 @@ class Plugin:
             else:
                 return {'success': False, 'error': f"Unsupported store for uninstall: {store}"}
 
+            # Delete prefix if requested
+            prefix_deleted = False
+            if delete_prefix:
+                prefix_path = os.path.expanduser(f"~/.local/share/unifideck/prefixes/{game_id}")
+                if os.path.exists(prefix_path):
+                    try:
+                        import shutil
+                        shutil.rmtree(prefix_path)
+                        logger.info(f"[Uninstall] Deleted prefix directory: {prefix_path}")
+                        prefix_deleted = True
+                    except Exception as e:
+                        logger.warning(f"[Uninstall] Failed to delete prefix {prefix_path}: {e}")
+                else:
+                    logger.info(f"[Uninstall] No prefix to delete at: {prefix_path}")
+
             # Update shortcut
             logger.info(f"[Uninstall] Reverting shortcut for {title}...")
             shortcut_updated = await self.shortcuts_manager.mark_uninstalled(title, store, game_id)
@@ -3812,18 +3991,21 @@ class Plugin:
                 return {
                     'success': True, 
                     'message': 'Game uninstalled, but shortcut could not be updated. Restart Steam to fix.',
+                    'prefix_deleted': prefix_deleted,
                     'game_update': {'appId': app_id, 'store': store, 'isInstalled': False}
                 }
 
             return {
                 'success': True,
                 'message': f'{title} uninstalled successfully',
+                'prefix_deleted': prefix_deleted,
                 'game_update': {'appId': app_id, 'store': store, 'isInstalled': False}
             }
 
         except Exception as e:
             logger.error(f"[Uninstall] Error uninstalling game {app_id}: {e}", exc_info=True)
             return {'success': False, 'error': str(e)}
+
 
     # ============== DOWNLOAD QUEUE API METHODS ==============
 
@@ -3987,6 +4169,69 @@ class Plugin:
 
     # ============== END DOWNLOAD QUEUE API ==============
 
+    # ============== LANGUAGE SETTINGS API ==============
+
+    async def get_language_preference(self) -> Dict[str, Any]:
+        """Get saved language preference from settings file.
+        
+        Returns:
+            Dict with success status and language code (or 'auto' for system detection)
+        """
+        try:
+            settings_path = os.path.expanduser("~/.local/share/unifideck/settings.json")
+            
+            if os.path.exists(settings_path):
+                with open(settings_path, 'r') as f:
+                    settings = json.load(f)
+                    language = settings.get('language', 'auto')
+            else:
+                language = 'auto'  # Default to auto-detect
+            
+            logger.debug(f"[Language] Got language preference: {language}")
+            return {'success': True, 'language': language}
+        except Exception as e:
+            logger.error(f"[Language] Error getting language preference: {e}")
+            return {'success': False, 'error': str(e), 'language': 'auto'}
+
+    async def set_language_preference(self, language: str) -> Dict[str, Any]:
+        """Save language preference to settings file.
+        
+        Args:
+            language: Language code (e.g., 'en-US', 'de-DE') or 'auto' for system detection
+            
+        Returns:
+            Dict with success status
+        """
+        try:
+            settings_path = os.path.expanduser("~/.local/share/unifideck/settings.json")
+            settings_dir = os.path.dirname(settings_path)
+            
+            # Ensure directory exists
+            os.makedirs(settings_dir, exist_ok=True)
+            
+            # Load existing settings or create new
+            if os.path.exists(settings_path):
+                with open(settings_path, 'r') as f:
+                    settings = json.load(f)
+            else:
+                settings = {}
+            
+            # Update language setting
+            settings['language'] = language
+            
+            # Save
+            with open(settings_path, 'w') as f:
+                json.dump(settings, f, indent=2)
+            
+            logger.info(f"[Language] Saved language preference: {language}")
+            return {'success': True}
+        except Exception as e:
+            logger.error(f"[Language] Error saving language preference: {e}")
+            return {'success': False, 'error': str(e)}
+
+    # ============== END LANGUAGE SETTINGS API ==============
+
+
     async def check_store_status(self) -> Dict[str, Any]:
         """Check connectivity status of all stores"""
         logger.info("[STATUS] Checking store connectivity status")
@@ -3998,15 +4243,15 @@ class Plugin:
             if legendary_installed:
                 logger.info("[STATUS] Checking Epic Games availability")
                 epic_available = await self.epic.is_available()
-                epic_status = 'Connected' if epic_available else 'Not Connected'
+                epic_status = 'connected' if epic_available else 'not_connected'
                 logger.info(f"[STATUS] Epic Games: {epic_status}")
             else:
-                epic_status = 'Legendary not installed'
+                epic_status = 'legendary_not_installed'
                 logger.warning("[STATUS] Epic Games: Legendary CLI not installed")
 
             logger.info("[STATUS] Checking GOG availability")
             gog_available = await self.gog.is_available()
-            gog_status = 'Connected' if gog_available else 'Not Connected'
+            gog_status = 'connected' if gog_available else 'not_connected'
             logger.info(f"[STATUS] GOG: {gog_status}")
 
             # Check Amazon availability
@@ -4016,10 +4261,10 @@ class Plugin:
             if nile_installed:
                 logger.info("[STATUS] Checking Amazon Games availability")
                 amazon_available = await self.amazon.is_available()
-                amazon_status = 'Connected' if amazon_available else 'Not Connected'
+                amazon_status = 'connected' if amazon_available else 'not_connected'
                 logger.info(f"[STATUS] Amazon Games: {amazon_status}")
             else:
-                amazon_status = 'Nile not installed'
+                amazon_status = 'nile_not_installed'
                 logger.warning("[STATUS] Amazon Games: Nile CLI not installed")
 
             result = {
@@ -4038,9 +4283,9 @@ class Plugin:
             return {
                 'success': False,
                 'error': str(e),
-                'epic': 'Error',
-                'gog': 'Error',
-                'amazon': 'Error'
+                'epic': 'error',
+                'gog': 'error',
+                'amazon': 'error'
             }
 
     async def start_epic_auth(self) -> Dict[str, Any]:
@@ -4233,6 +4478,60 @@ class Plugin:
             logger.error(f"Error getting Unifideck games: {e}")
             return []
 
+    async def get_valid_third_party_shortcuts(self) -> List[int]:
+        """
+        Get appIds of non-Unifideck shortcuts that have valid executables.
+        
+        This is used by the frontend to filter out broken third-party shortcuts
+        (e.g., from Heroic, Lutris, or manual additions) that don't have a valid
+        Exe path and shouldn't appear on the Installed tab.
+        
+        Returns:
+            List of valid third-party shortcut appIds
+        """
+        try:
+            shortcuts = await self.shortcuts_manager.read_shortcuts()
+            valid_appids = []
+            broken_count = 0
+            
+            for idx, shortcut in shortcuts.get("shortcuts", {}).items():
+                launch_options = shortcut.get('LaunchOptions', '')
+                
+                # Skip Unifideck games - they have their own validation via games.map
+                if is_unifideck_shortcut(launch_options):
+                    continue
+                
+                app_id = shortcut.get('appid')
+                if not app_id:
+                    continue
+                
+                # Check if the Exe path exists
+                exe_path = shortcut.get('Exe', '')
+                
+                # Valid if:
+                # 1. Exe path is non-empty AND file exists, OR
+                # 2. It's a URL-based shortcut (steam://, heroic://, etc.)
+                if exe_path:
+                    # Check for URL-based shortcuts
+                    if exe_path.startswith(('steam://', 'heroic://', 'lutris://', 'http://', 'https://')):
+                        valid_appids.append(app_id)
+                    # Check if file exists on disk
+                    elif os.path.exists(exe_path):
+                        valid_appids.append(app_id)
+                    else:
+                        broken_count += 1
+                        logger.debug(f"[ThirdParty] Broken shortcut (exe not found): {shortcut.get('AppName', 'Unknown')} - {exe_path}")
+                else:
+                    broken_count += 1
+                    logger.debug(f"[ThirdParty] Broken shortcut (no exe): {shortcut.get('AppName', 'Unknown')}")
+            
+            logger.info(f"[ThirdParty] Found {len(valid_appids)} valid, {broken_count} broken third-party shortcuts")
+            return valid_appids
+            
+        except Exception as e:
+            logger.error(f"Error getting valid third-party shortcuts: {e}")
+            return []
+
     async def get_compat_cache(self) -> Dict[str, Dict]:
         """
         Get the compatibility cache for frontend tab filtering.
@@ -4298,7 +4597,7 @@ class Plugin:
                 logger.info("SteamGridDB client initialized with new API key")
                 return {'success': True}
             else:
-                return {'success': False, 'error': 'SteamGridDB library not available'}
+                return {'success': False, 'error': 'errors.steamGridDbUnavailable'}
         except Exception as e:
             logger.error(f"Error setting SteamGridDB API key: {e}")
             return {'success': False, 'error': str(e)}
@@ -4355,7 +4654,7 @@ class Plugin:
         if self._is_syncing:
             return {
                 'success': False,
-                'error': 'Cannot delete while sync is in progress'
+                'error': 'errors.deleteSyncInProgress'
             }
 
         async with self._sync_lock:  # Lock to prevent sync during deletion

@@ -18,6 +18,8 @@ import {
 
 import type { StorageLocationInfo, StorageLocationsResponse } from "../types/downloads";
 
+import { t } from "../i18n";
+
 /**
  * Storage Location Settings Component
  */
@@ -56,14 +58,14 @@ export const StorageSettings: FC = () => {
             if (result.success) {
                 setDefaultStorage(newLocation);
                 toaster.toast({
-                    title: "Storage Location Updated",
-                    body: `New games will be installed to ${option.label}`,
+                    title: t("storageSettings.toastUpdatedTitle"),
+                    body: t("storageSettings.toastUpdatedBody", { location: option.label }),
                     duration: 3000,
                 });
             } else {
                 toaster.toast({
-                    title: "Failed to Update",
-                    body: result.error || "Unknown error",
+                    title: t("storageSettings.toastFailedTitle"),
+                    body: t("storageSettings.toastFailedBody", { error: t(result.error || "Unknown error") }),
                     duration: 5000,
                     critical: true,
                 });
@@ -86,11 +88,11 @@ export const StorageSettings: FC = () => {
     const selectedOption = dropdownOptions.find((opt) => opt.data === defaultStorage);
 
     return (
-        <PanelSection title="DOWNLOAD SETTINGS">
+        <PanelSection title={t("storageSettings.title")}>
             <PanelSectionRow>
                 <Field
-                    label="Install Location"
-                    description="Where new games will be downloaded"
+                    label={t("storageSettings.installLocationLabel")}
+                    description={t("storageSettings.installLocationDescription")}
                 >
                     {dropdownOptions.length > 0 ? (
                         <Dropdown
@@ -101,16 +103,15 @@ export const StorageSettings: FC = () => {
                         />
                     ) : (
                         <span style={{ color: "#888", fontSize: "12px" }}>
-                            Loading storage options...
+                            {t("storageSettings.loading")}
                         </span>
                     )}
                 </Field>
             </PanelSectionRow>
 
-            {/* Show current default path */}
             {locations.length > 0 && (
                 <PanelSectionRow>
-                    <Field label="Path">
+                    <Field label={t("storageSettings.pathLabel")}>
                         <span style={{ color: "#888", fontSize: "12px" }}>
                             {locations.find((l) => l.id === defaultStorage)?.path || "Unknown"}
                         </span>

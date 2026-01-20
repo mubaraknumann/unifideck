@@ -5,7 +5,7 @@
  * Epic, GOG, and Amazon games alongside Steam games.
  */
 
-import { TabFilter, runFilters, updateUnifideckCache, unifideckGameCache } from './filters';
+import { TabFilter, runFilters, updateUnifideckCache, updateValidThirdPartyCache } from './filters';
 import { loadCompatCacheFromBackend } from './protondb';
 import { gamepadTabbedPageClasses } from '@decky/ui';
 import { call } from '@decky/api';
@@ -275,6 +275,18 @@ class TabManager {
                 this.cacheLoaded = true;
             } else {
                 console.log('[Unifideck] No Unifideck games found in backend');
+            }
+
+            // Load valid third-party shortcuts cache (for filtering broken shortcuts)
+            // This runs regardless of whether Unifideck games exist
+            try {
+                console.log('[Unifideck] Loading valid third-party shortcuts...');
+                const validShortcuts = await call<[], number[]>('get_valid_third_party_shortcuts');
+                if (Array.isArray(validShortcuts)) {
+                    updateValidThirdPartyCache(validShortcuts);
+                }
+            } catch (err) {
+                console.error('[Unifideck] Error loading third-party shortcuts:', err);
             }
         } catch (error) {
             console.error('[Unifideck] Error loading game cache:', error);

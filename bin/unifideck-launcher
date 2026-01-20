@@ -165,6 +165,54 @@ find_python310_plus() {
 }
 
 # ==============================================================================
+# UMU RETRY WRAPPER
+# Wraps UMU invocations with retry logic for network failures
+# (e.g., Steam Runtime download failures)
+# ==============================================================================
+run_umu_with_retry() {
+    local python_bin="$1"
+    local umu_path="$2"
+    shift 2
+    
+    local max_attempts=3
+    local attempt=1
+    local wait_time=5
+    local exit_code=0
+    
+    while [ $attempt -le $max_attempts ]; do
+        log "[UMU] Attempt $attempt/$max_attempts..."
+        
+        # Run UMU command
+        if "$python_bin" "$umu_path" "$@" 2>>"$LOG_FILE"; then
+            return 0
+        fi
+        
+        exit_code=$?
+        
+        # If we still have retries left
+        if [ $attempt -lt $max_attempts ]; then
+            log "[UMU] Failed with exit code $exit_code, retrying in ${wait_time}s..."
+            notify_stage "toasts.launcher.networkError" "toasts.launcher.retryingUmu|seconds=${wait_time}|attempt=$((attempt+1))|max=$max_attempts" "normal"
+            
+            # Clean up partial Steam Runtime downloads to avoid corruption
+            if [ -d "$HOME/.local/share/umu" ]; then
+                log "[UMU] Cleaning up partial downloads..."
+                rm -rf "$HOME/.local/share/umu/umu_steam3" 2>/dev/null || true
+                rm -f "$HOME/.local/share/umu/"*.parts 2>/dev/null || true
+            fi
+            
+            sleep $wait_time
+            wait_time=$((wait_time * 2))
+        fi
+        
+        attempt=$((attempt + 1))
+    done
+    
+    log "[UMU] All $max_attempts attempts failed (last exit code: $exit_code)"
+    return $exit_code
+}
+
+# ==============================================================================
 # PROTON VERSION SELECTION
 # Priority: 1) PROTONPATH= env  2) PROTON= env  3) Steam compat  4) default
 # ==============================================================================
@@ -181,9 +229,9 @@ resolve_proton_path() {
             case "$proton_name" in
                 proton_experimental|"Proton - Experimental"|proton-experimental)
                     [ -d "$base/Proton - Experimental" ] && echo "$base/Proton - Experimental" && return 0 ;;
-                proton_9|proton_90|proton9|"Proton 9"*|"proton-9"*)
+                proton_9|proton_90|proton9|"Proton 9"*|"proton-9"*|"Proton-9"*)
                     [ -d "$base/Proton 9.0 (Beta)" ] && echo "$base/Proton 9.0 (Beta)" && return 0 ;;
-                proton_10|proton10|"Proton 10"*|"proton-10"*)
+                proton_10|proton10|"Proton 10"*|"proton-10"*|"Proton-10"*)
                     [ -d "$base/Proton 10.0" ] && echo "$base/Proton 10.0" && return 0 ;;
             esac
         fi
@@ -236,6 +284,31 @@ select_proton_version() {
             log "[Proton] Resolved PROTON=$PROTON to: $PROTONPATH"
             return 0
         else
+            log "[Proton] PROTON=$PROTON not found locally. Attempting to install..."
+            notify_stage "toasts.launcher.installingProton" "toasts.launcher.attemptingInstall|version=$PROTON" "normal"
+            
+            INSTALLER_SCRIPT="$PLUGIN_DIR/bin/proton_installer.py"
+            if [ -f "$INSTALLER_SCRIPT" ]; then
+                 # run installer
+                 INSTALL_RESULT=$("$PYTHON_BIN" "$INSTALLER_SCRIPT" "$PROTON" 2>>"$LOG_FILE" | tail -n 1)
+                 
+                 if [ -n "$INSTALL_RESULT" ] && [ -d "$INSTALL_RESULT" ]; then
+                     export PROTONPATH="$INSTALL_RESULT"
+                     log "[Proton] Successfully installed to: $PROTONPATH"
+                     return 0
+                 elif [[ "$INSTALL_RESULT" == *"INSTALLED_VIA_STEAM"* ]]; then
+                     log "[Proton] Steam installation completed. Re-resolving..."
+                     resolved=$(resolve_proton_path "$PROTON")
+                     if [ -n "$resolved" ]; then
+                         export PROTONPATH="$resolved"
+                         log "[Proton] Resolved new Steam Proton: $PROTONPATH"
+                         return 0
+                     fi
+                 else
+                     log "[Proton] Installation check failed or returned invalid path: $INSTALL_RESULT"
+                 fi
+            fi
+            
             log "[Proton] WARNING: Could not resolve PROTON=$PROTON, using default"
         fi
     fi
@@ -269,6 +342,7 @@ select_proton_version() {
     log "[Proton] No Proton found locally, umu will download one"
     return 0
 }
+
 
 # Find Python 3.10+ at startup
 PYTHON_BIN=$(find_python310_plus)
@@ -383,33 +457,31 @@ if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]] || \
         *)      UMU_STORE="none" ;;
     esac
     
-    # Check for existing Heroic prefix (preferred - includes redistributables)
-    # Heroic stores prefixes at ~/Games/Heroic/Prefixes/default/<GameTitle>/
-    HEROIC_PREFIX_BASE="$HOME/Games/Heroic/Prefixes/default"
-    HEROIC_PREFIX=""
-    if [ -d "$HEROIC_PREFIX_BASE" ]; then
-        # Try to find a matching prefix by looking in Heroic's game config
-        HEROIC_GAME_CONFIG="$HOME/.var/app/com.heroicgameslauncher.hgl/config/heroic/GamesConfig/$GAME_ID.json"
-        if [ -f "$HEROIC_GAME_CONFIG" ]; then
-            # Extract winePrefix from Heroic's config
-            HEROIC_PREFIX=$(python3 -c "import json; f=open('$HEROIC_GAME_CONFIG'); d=json.load(f); print(d.get('$GAME_ID', {}).get('winePrefix', ''))" 2>/dev/null)
+    # ALWAYS use Unifideck's own prefix directory (complete isolation from Heroic)
+    # This ensures we don't accidentally modify or depend on Heroic's data
+    PREFIX_PATH="$PREFIXES_DIR/$GAME_ID"
+    mkdir -p "$PREFIX_PATH"
+    log "Using Unifideck prefix: $PREFIX_PATH"
+    
+    # UMU ID Lookup: Query the UMU API to get the correct GAMEID for ProtonFixes
+    # This is the same approach Heroic uses to let umu-run apply game-specific fixes
+    # Note: We use "|| true" because the script exits with code 1 when no ID is found
+    UMU_LOOKUP_SCRIPT="$PLUGIN_DIR/bin/umu_lookup.py"
+    UMU_ID=""
+    if [ -f "$UMU_LOOKUP_SCRIPT" ]; then
+        UMU_ID=$(python3 "$UMU_LOOKUP_SCRIPT" "$GAME_ID" "$UMU_STORE" 2>/dev/null || true)
+        if [ -n "$UMU_ID" ]; then
+            log "[UMU] Found umu_id: $UMU_ID (for $UMU_STORE:$GAME_ID)"
+        else
+            log "[UMU] No umu_id found for $UMU_STORE:$GAME_ID, using default"
         fi
     fi
     
-    # Use External prefix if found and valid, otherwise use Unifideck prefix
-    if [ -n "$HEROIC_PREFIX" ] && [ -d "$HEROIC_PREFIX" ]; then
-        PREFIX_PATH="$HEROIC_PREFIX"
-        log "Using External (Shared) prefix: $PREFIX_PATH"
-    else
-        PREFIX_PATH="$PREFIXES_DIR/$GAME_ID"
-        mkdir -p "$PREFIX_PATH"
-        log "Using Unifideck prefix (Self-Managed): $PREFIX_PATH"
-    fi
-    
-    # Set umu environment variables
+    # Set umu environment variables (allow override via env vars for debugging)
     export WINEPREFIX="$PREFIX_PATH"
-    export GAMEID="$GAME_ID"
-    export STORE="$UMU_STORE"
+    # Use UMU ID if found, otherwise fall back to manual override or game ID
+    export GAMEID="${GAMEID:-${UMU_ID:-$GAME_ID}}"
+    export STORE="${STORE:-$UMU_STORE}"
     
     # Heroic/Legendary workaround for games requiring Epic Games Launcher
     if [ "$STORE" == "epic" ] || [ "$STORE" == "egs" ]; then
@@ -484,7 +556,7 @@ if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]] || \
             
             if [ "$NEED_RESET" = true ]; then
                 log "[Proton] Resetting prefix for compatibility with new Proton version..."
-                notify_stage "Proton Upgrade" "Resetting prefix for $CURRENT_PROTON..." "normal"
+                notify_stage "toasts.launcher.protonUpgrade" "toasts.launcher.resettingPrefix|version=$CURRENT_PROTON" "normal"
                 
                 # Backup save data if it exists
                 SAVE_BACKUP=""
@@ -521,7 +593,7 @@ if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]] || \
     
     if [ ! -f "$SYSTEM_REG" ]; then
         log "[FirstLaunch] Prefix not initialized (no system.reg), running setup..."
-        notify_stage "First Time Setup" "Initializing Wine prefix..." "normal"
+        notify_stage "toasts.launcher.firstTimeSetup" "toasts.launcher.initializingPrefix" "normal"
         
         # Ensure prefix directory exists
         mkdir -p "$PREFIX_PATH"
@@ -538,15 +610,15 @@ if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]] || \
         
         log "[FirstLaunch] Running createprefix with umu-run (this may take 1-2 minutes)..."
         
-        # Run createprefix SYNCHRONOUSLY - blocks until prefix is ready
-        if "$PYTHON_BIN" "$SETUP_UMU" createprefix 2>>"$LOG_FILE"; then
+        # Run createprefix with retry wrapper for network resilience
+        if run_umu_with_retry "$PYTHON_BIN" "$SETUP_UMU" createprefix; then
             log "[FirstLaunch] Prefix created successfully"
-            notify_stage "Setup Complete" "Wine prefix initialized" "low"
+            notify_stage "toasts.launcher.setupCompleteTitle" "toasts.launcher.prefixInitialized" "low"
         else
             log "[FirstLaunch] createprefix failed, trying wineboot fallback..."
-            notify_stage "Setup" "Fallback initialization..." "normal"
-            # Fallback: run any exe to trigger prefix creation
-            "$PYTHON_BIN" "$SETUP_UMU" wineboot --init 2>>"$LOG_FILE" || true
+            notify_stage "toasts.launcher.setupFallback" "toasts.launcher.fallbackInitialization" "normal"
+            # Fallback: run any exe to trigger prefix creation (also with retry)
+            run_umu_with_retry "$PYTHON_BIN" "$SETUP_UMU" wineboot --init || true
         fi
         
         # Verify prefix was created
@@ -655,18 +727,18 @@ if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]] || \
         WINETRICKS_MARKER="$PREFIX_PATH/unifideck_winetricks_complete.marker"
         WINETRICKS_SCRIPT="$PLUGIN_DIR/bin/winetricks_installer.py"
 
-        if [ ! -f "$WINETRICKS_MARKER" ] || ! grep -q "complete\|no redistributables" "$WINETRICKS_MARKER" 2>/dev/null; then
+        if [ ! -f "$WINETRICKS_MARKER" ] || ! grep -qi "complete\|no redistributables" "$WINETRICKS_MARKER" 2>/dev/null; then
             if [ -f "$WINETRICKS_SCRIPT" ]; then
                 log "[Winetricks] Running first-launch redistributables installation..."
-                notify_stage "Installing Dependencies" "Installing game redistributables..." "normal"
+                notify_stage "toasts.launcher.dependenciesTitle" "toasts.launcher.installingRedistributables" "normal"
                 
                 # Run SYNCHRONOUSLY - blocks until complete
                 if python3 "$WINETRICKS_SCRIPT" "$GAME_ID" "$PREFIX_PATH" >> "$HOME/.local/share/unifideck/winetricks.log" 2>&1; then
                     log "[Winetricks] Installation completed successfully"
-                    notify_stage "Dependencies Ready" "Redistributables installed" "low"
+                    notify_stage "toasts.launcher.dependenciesReady" "toasts.launcher.redistributablesInstalled" "low"
                 else
                     log "[Winetricks] Installation completed (may have warnings)"
-                    notify_stage "Dependencies" "Setup complete (check logs for details)" "low"
+                    notify_stage "toasts.launcher.dependenciesStatus" "toasts.launcher.checkLogs" "low"
                 fi
             fi
         else
@@ -715,7 +787,7 @@ if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]] || \
         sync_cloud_saves "epic" "$GAME_ID" "download" "$PREFIX_PATH"
 
         # Notify user that game is launching
-        notify_stage "Launching Game" "Starting Epic game..." "low"
+        notify_stage "toasts.launcher.launchingGame" "toasts.launcher.startingEpicGame" "low"
 
         # Execute legendary (wait for exit, don't use exec)
         "$LEGENDARY_BIN" launch "$GAME_ID" --no-wine --wrapper "$PYTHON_BIN $UMU_WRAPPER" --language en 2>>"$LOG_FILE"
@@ -791,13 +863,13 @@ except Exception as e:
         log "Executing: $CMD_STR"
 
         # Notify user that game is launching
-        notify_stage "Launching Game" "Starting Amazon game..." "low"
+        notify_stage "toasts.launcher.launchingGame" "toasts.launcher.startingAmazonGame" "low"
 
-        # Execute umu-run for Amazon game
+        # Execute umu-run for Amazon game (with retry for network failures)
         if [ -n "$AMAZON_ARGS" ]; then
-            eval "$PYTHON_BIN" "$UMU_WRAPPER" "\"$EXE_PATH\"" $AMAZON_ARGS "$@" 2>>"$LOG_FILE"
+            eval run_umu_with_retry "$PYTHON_BIN" "$UMU_WRAPPER" "\"$EXE_PATH\"" $AMAZON_ARGS "$@"
         else
-            "$PYTHON_BIN" "$UMU_WRAPPER" "$EXE_PATH" "$@" 2>>"$LOG_FILE"
+            run_umu_with_retry "$PYTHON_BIN" "$UMU_WRAPPER" "$EXE_PATH" "$@"
         fi
         GAME_EXIT_CODE=$?
 
@@ -808,7 +880,11 @@ except Exception as e:
         # GOG games: use direct umu-run (no legendary needed)
         log "Launching GOG game via umu-run..."
 
-        # Determine Python path - need Python 3.10+ for modern umu-launcher
+        # Change to work directory (CRITICAL: game needs to find its resources)
+        if [ -d "$WORK_DIR" ]; then
+            cd "$WORK_DIR"
+            log "Changed to: $WORK_DIR"
+        fi
         PYTHON_BIN=""
         for py in /usr/bin/python3.13 /usr/bin/python3.12 /usr/bin/python3.11 /usr/bin/python3.10 /usr/bin/python3; do
             if [ -x "$py" ]; then
@@ -833,6 +909,32 @@ except Exception as e:
             exit 1
         fi
 
+        # === GOG GALAXY STUB: Install GalaxyCommunication.exe dummy ===
+        # Some GOG games expect Galaxy services - this stub prevents failures
+        GALAXY_STUB_SCRIPT="$PLUGIN_DIR/bin/galaxy_stub.py"
+        if [ -f "$GALAXY_STUB_SCRIPT" ]; then
+            log "[Galaxy] Installing GalaxyCommunication.exe stub..."
+            python3 "$GALAXY_STUB_SCRIPT" "$PREFIX_PATH" >> "$HOME/.local/share/unifideck/winetricks.log" 2>&1
+        fi
+
+        # === WINETRICKS: Install redistributables (smart detection) ===
+        # winetricks_gog.py handles marker check and installs only missing deps
+        WINETRICKS_SCRIPT="$PLUGIN_DIR/bin/winetricks_gog.py"
+        
+        if [ -f "$WINETRICKS_SCRIPT" ]; then
+            log "[Winetricks] Checking redistributables for GOG game..."
+            
+            if python3 "$WINETRICKS_SCRIPT" "$GAME_ID" "$PREFIX_PATH" >> "$HOME/.local/share/unifideck/winetricks.log" 2>&1; then
+                log "[Winetricks] Check completed"
+            else
+                log "[Winetricks] Check completed (may have warnings)"
+            fi
+        fi
+
+        # Enable NVAPI for modern Proton (matches Epic path)
+        export PROTON_ENABLE_NVAPI="1"
+        export DXVK_NVAPI_ALLOW_OTHER_DRIVERS="1"
+
         CMD_STR="$PYTHON_BIN $UMU_WRAPPER \"$EXE_PATH\" $*"
         log "Executing: $CMD_STR"
 
@@ -840,10 +942,10 @@ except Exception as e:
         sync_cloud_saves "gog" "$GAME_ID" "download" "$PREFIX_PATH" ""
 
         # Notify user that game is launching
-        notify_stage "Launching Game" "Starting GOG game..." "low"
+        notify_stage "toasts.launcher.launchingGame" "toasts.launcher.startingGogGame" "low"
 
-        # Execute umu-run (wait for exit, don't use exec)
-        "$PYTHON_BIN" "$UMU_WRAPPER" "$EXE_PATH" "$@" 2>>"$LOG_FILE"
+        # Execute umu-run with retry for network failures
+        run_umu_with_retry "$PYTHON_BIN" "$UMU_WRAPPER" "$EXE_PATH" "$@"
         GAME_EXIT_CODE=$?
 
         # === CLOUD SAVE: Upload after exit ===

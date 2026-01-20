@@ -357,32 +357,83 @@ class AmazonConnector(Store):
             return None
 
     def _get_executable_from_fuel(self, install_path: str) -> Optional[str]:
-        """Get executable path from fuel.json"""
+        """Get executable path from fuel.json
+        
+        FIX 5: Search subdirectories for fuel.json before giving up,
+        then fallback to largest .exe heuristic.
+        """
         if not install_path:
             return None
 
-        fuel_path = os.path.join(install_path, 'fuel.json')
-        if not os.path.exists(fuel_path):
-            logger.warning(f"[Amazon] No fuel.json found at {fuel_path}")
-            return None
-
+        # Search multiple locations for fuel.json
+        search_paths = [
+            install_path,
+            os.path.join(install_path, 'game'),
+            os.path.join(install_path, 'Game'),
+        ]
+        
+        # Also check immediate subdirectories
         try:
-            # fuel.json might have comments, try json5 style parsing
-            with open(fuel_path, 'r') as f:
-                content = f.read()
-                # Remove single-line comments
-                content = re.sub(r'//.*$', '', content, flags=re.MULTILINE)
-                fuel_data = json.loads(content)
+            for item in os.listdir(install_path):
+                subdir = os.path.join(install_path, item)
+                if os.path.isdir(subdir) and subdir not in search_paths:
+                    search_paths.append(subdir)
+        except Exception:
+            pass
+        
+        for search_dir in search_paths:
+            fuel_path = os.path.join(search_dir, 'fuel.json')
+            if not os.path.exists(fuel_path):
+                continue
+                
+            try:
+                # fuel.json might have comments, try json5 style parsing
+                with open(fuel_path, 'r') as f:
+                    content = f.read()
+                    # Remove single-line comments
+                    content = re.sub(r'//.*$', '', content, flags=re.MULTILINE)
+                    fuel_data = json.loads(content)
 
-            main_cmd = fuel_data.get('Main', {}).get('Command', '')
-            if main_cmd:
-                exe_path = os.path.join(install_path, main_cmd)
-                logger.info(f"[Amazon] Found executable from fuel.json: {exe_path}")
-                return exe_path
+                main_cmd = fuel_data.get('Main', {}).get('Command', '')
+                if main_cmd:
+                    exe_path = os.path.join(search_dir, main_cmd)
+                    if os.path.isfile(exe_path):
+                        logger.info(f"[Amazon] Found executable from fuel.json: {exe_path}")
+                        return exe_path
+                    else:
+                        logger.warning(f"[Amazon] fuel.json Command not found: {exe_path}")
 
-        except Exception as e:
-            logger.error(f"[Amazon] Error parsing fuel.json: {e}")
-
+            except Exception as e:
+                logger.warning(f"[Amazon] Error parsing {fuel_path}: {e}")
+        
+        # Fallback: Find largest .exe (similar to GOG/Epic fallback)
+        logger.info(f"[Amazon] No fuel.json found, attempting .exe fallback for {install_path}")
+        return self._find_largest_exe_fallback(install_path)
+    
+    def _find_largest_exe_fallback(self, install_path: str) -> Optional[str]:
+        """Fallback: Find largest .exe in install directory"""
+        import glob
+        
+        skip_patterns = ['unins', 'setup', 'install', 'crash', 'redist', 'vcredist']
+        exe_candidates = []
+        
+        for pattern in ['*.exe', '**/*.exe']:
+            for exe_path in glob.glob(os.path.join(install_path, pattern), recursive=True):
+                basename = os.path.basename(exe_path).lower()
+                if any(skip in basename for skip in skip_patterns):
+                    continue
+                try:
+                    size = os.path.getsize(exe_path)
+                    exe_candidates.append((exe_path, size))
+                except OSError:
+                    continue
+        
+        if exe_candidates:
+            exe_candidates.sort(key=lambda x: x[1], reverse=True)
+            logger.info(f"[Amazon] Fallback: Found largest exe ({exe_candidates[0][1]/1024/1024:.1f}MB): {exe_candidates[0][0]}")
+            return exe_candidates[0][0]
+        
+        logger.warning(f"[Amazon] No executable found in {install_path}")
         return None
 
     async def get_game_size(self, game_id: str) -> Optional[int]:

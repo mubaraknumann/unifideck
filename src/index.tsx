@@ -2,17 +2,26 @@ import { definePlugin, call, toaster, routerHook } from "@decky/api";
 import { PanelSection, PanelSectionRow, ButtonItem, Field, afterPatch, findInReactTree, createReactTreePatcher, appDetailsClasses, appActionButtonClasses, playSectionClasses, appDetailsHeaderClasses, DialogButton, Focusable, ToggleField, showModal, ConfirmModal } from "@decky/ui";
 import React, { FC, useState, useEffect, useRef } from "react";
 import { FaGamepad, FaSync } from "react-icons/fa";
+import { loadTranslations, t } from "./i18n";
+import { I18nextProvider, useTranslation } from "react-i18next";
+import i18n from "i18next";
+
+// Load translations on startup
+loadTranslations();
 
 // Import views
 
 // Import tab system
-import { patchLibrary, loadCompatCacheFromBackend, tabManager, updateSingleGameStatus } from "./tabs";
+import { patchLibrary, loadCompatCacheFromBackend, updateSingleGameStatus } from "./tabs";
 
 import { syncUnifideckCollections } from "./spoofing/CollectionManager";
 
 // Import Downloads feature components
 import { DownloadsTab } from "./components/DownloadsTab";
 import { StorageSettings } from "./components/StorageSettings";
+import { ForceSyncModal } from "./components/ForceSyncModal";
+import { UninstallConfirmModal } from "./components/UninstallConfirmModal";
+import { LanguageSelector } from "./components/LanguageSelector";
 
 // ========== INSTALL BUTTON FEATURE ==========
 //
@@ -83,6 +92,8 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
   }>({ isDownloading: false });
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  const { t } = useTranslation();
+
   // Fetch game info on mount
   useEffect(() => {
     const cached = gameInfoCache.get(appId);
@@ -148,8 +159,8 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
 
               // Show installation complete toast
               toaster.toast({
-                title: "Installation Complete!",
-                body: `${gameInfo?.title || 'Game'} is ready to play. Restart Steam to see it in your library.`,
+                title: t('toasts.installComplete'),
+                body: t('toasts.installCompleteMessage', { title: gameInfo?.title || 'Game' }),
                 duration: 10000,
                 critical: true,
               });
@@ -183,8 +194,8 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
                 if (info && info.is_installed) {
                   // It is installed, likely success
                   toaster.toast({
-                    title: "Installation Complete!",
-                    body: `${gameInfo?.title || 'Game'} is ready to play.`,
+                    title: t('toasts.installComplete'),
+                    body: t('toasts.installCompleteMessage', { title: gameInfo?.title || 'Game' }),
                     duration: 10000,
                   });
                   setGameInfo(info);
@@ -223,16 +234,16 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
 
     if (result.success) {
       toaster.toast({
-        title: "Download Started. Check UNIFIDECK > Downloads",
-        body: `${gameInfo.title} has been added to the queue.`,
+        title: t('toasts.downloadStarted'),
+        body: t('toasts.downloadQueued', { title: gameInfo.title }),
         duration: 5000,
       });
 
       // Show multi-part alert for GOG games with multiple installer parts
       if (result.is_multipart) {
         toaster.toast({
-          title: "Multi-Part Download Detected",
-          body: "Please be patient and wait for completion",
+          title: t('toasts.multipartDetected'),
+          body: t('toasts.multipartMessage'),
           duration: 8000,
         });
       }
@@ -241,8 +252,8 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
       setDownloadState(prev => ({ ...prev, isDownloading: true, progress: 0 }));
     } else {
       toaster.toast({
-        title: "Download Failed",
-        body: result.error || "Could not start download.",
+        title: t('toasts.downloadFailed'),
+        body: result.error ? t(result.error) : t('toasts.downloadFailedMessage'),
         duration: 10000,
         critical: true,
       });
@@ -263,15 +274,15 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
 
     if (result.success) {
       toaster.toast({
-        title: "Download Cancelled",
-        body: `${gameInfo?.title} download cancelled.`,
+        title: t('toasts.downloadCancelled'),
+        body: t('toasts.downloadCancelledMessage', { title: gameInfo?.title }),
         duration: 5000,
       });
       setDownloadState({ isDownloading: false, progress: 0 });
     } else {
       toaster.toast({
-        title: "Cancel Failed",
-        body: result.error || "Could not cancel download.",
+        title: t('toasts.cancelFailed'),
+        body: result.error ? t(result.error) : t('toasts.cancelFailedMessage'),
         duration: 5000,
         critical: true,
       });
@@ -279,17 +290,19 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
     setProcessing(false);
   };
 
-  const handleUninstall = async () => {
+  const handleUninstall = async (deletePrefix: boolean = false) => {
     if (!gameInfo) return;
     setProcessing(true);
 
     toaster.toast({
-      title: "Uninstalling Game",
-      body: `Removing ${gameInfo.title}...`,
+      title: t('toasts.uninstalling'),
+      body: deletePrefix
+        ? t('toasts.uninstallingMessageProton', { title: gameInfo.title })
+        : t('toasts.uninstallingMessage', { title: gameInfo.title }),
       duration: 5000,
     });
 
-    const result = await call<[number], any>("uninstall_game_by_appid", appId);
+    const result = await call<[number, boolean], any>("uninstall_game_by_appid", appId, deletePrefix);
 
     if (result.success) {
       setGameInfo({ ...gameInfo, is_installed: false });
@@ -301,8 +314,8 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
       }
 
       toaster.toast({
-        title: "Uninstallation Complete!",
-        body: `${gameInfo.title} removed.`,
+        title: t('toasts.uninstallComplete'),
+        body: t('toasts.uninstallCompleteMessage', { title: gameInfo.title }) + (deletePrefix ? ' (including Proton files)' : ''),
         duration: 10000,
       });
     }
@@ -317,10 +330,10 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
   const showInstallConfirmation = () => {
     showModal(
       <ConfirmModal
-        strTitle="Confirm Installation"
-        strDescription={`Are you sure you want to install ${gameInfo?.title}?`}
-        strOKButtonText="Yes"
-        strCancelButtonText="No"
+        strTitle={t('confirmModals.installTitle')}
+        strDescription={t('confirmModals.installDescription', { title: gameInfo?.title })}
+        strOKButtonText={t('confirmModals.yes')}
+        strCancelButtonText={t('confirmModals.no')}
         onOK={() => handleInstall()}
       />
     );
@@ -328,13 +341,9 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
 
   const showUninstallConfirmation = () => {
     showModal(
-      <ConfirmModal
-        strTitle="Confirm Uninstallation"
-        strDescription={`Are you sure you want to uninstall ${gameInfo?.title}?`}
-        strOKButtonText="Yes"
-        strCancelButtonText="No"
-        bDestructiveWarning={true}
-        onOK={() => handleUninstall()}
+      <UninstallConfirmModal
+        gameTitle={gameInfo?.title || 'this game'}
+        onConfirm={(deletePrefix) => handleUninstall(deletePrefix)}
       />
     );
   };
@@ -342,10 +351,10 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
   const showCancelConfirmation = () => {
     showModal(
       <ConfirmModal
-        strTitle="Confirm Cancellation"
-        strDescription={`Are you sure you want to cancel the download for ${gameInfo?.title}?`}
-        strOKButtonText="Yes"
-        strCancelButtonText="No"
+        strTitle={t('confirmModals.cancelTitle')}
+        strDescription={t('confirmModals.cancelDescription', { title: gameInfo?.title })}
+        strOKButtonText={t('confirmModals.yes')}
+        strCancelButtonText={t('confirmModals.no')}
         bDestructiveWarning={true}
         onOK={() => handleCancel()}
       />
@@ -360,36 +369,75 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
   // Determine button display based on state
   let buttonText: string;
   let buttonAction: () => void;
-  // Dynamic style based on state
-  let buttonStyle: React.CSSProperties = {
-    padding: '8px 12px',
-    minHeight: '42px',
-    boxShadow: 'none',
-    borderBottom: 'none',
+
+  // Base button style - ROBUST AGAINST CSS MODS
+  // Uses explicit colors and high specificity to override any Decky CSS themes
+  const baseButtonStyle: React.CSSProperties = {
+    padding: '10px 16px',
+    minHeight: '44px',
+    minWidth: '180px',
+    fontSize: '14px',
+    fontWeight: 600,
+    borderRadius: '4px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+    // Explicit visibility overrides for CSS mod resistance
+    opacity: 1,
+    visibility: 'visible',
+    // Remove any inherited transparency
+    backdropFilter: 'none',
+    WebkitBackdropFilter: 'none',
   };
+
+  // Dynamic style based on state
+  let buttonStyle: React.CSSProperties;
 
   if (downloadState.isDownloading) {
     // Show "Cancel" button with progress during active download
     // Use Math.max(0) to avoid negative -1 initialization
     const progress = Math.max(0, downloadState.progress || 0).toFixed(0);
-    buttonText = `✖ Cancel (${progress}%)`;
+    buttonText = `${t('installButton.cancel')} (${progress}%)`;
     buttonAction = showCancelConfirmation;
 
     buttonStyle = {
-      ...buttonStyle,
-      backgroundColor: 'rgba(200, 40, 40, 0.4)', // Red tint for cancel
-      border: '1px solid #ff4444',
+      ...baseButtonStyle,
+      // Solid red background - highly visible
+      backgroundColor: '#dc3545',
+      color: '#ffffff',
+      border: '2px solid #ff6b6b',
+      boxShadow: '0 2px 8px rgba(220, 53, 69, 0.5)',
     };
   } else if (isInstalled) {
     // Show size for installed games if available
     const sizeText = gameInfo.size_formatted ? ` (${gameInfo.size_formatted})` : ' (- GB)';
-    buttonText = `Uninstall ${gameInfo.title}${sizeText}`;
+    buttonText = t('installButton.uninstall', { title: gameInfo.title }) + sizeText;
     buttonAction = showUninstallConfirmation;
+
+    buttonStyle = {
+      ...baseButtonStyle,
+      // Solid gray/muted blue for uninstall
+      backgroundColor: '#4a5568',
+      color: '#ffffff',
+      border: '2px solid #718096',
+      boxShadow: '0 2px 8px rgba(74, 85, 104, 0.5)',
+    };
   } else {
     // Show size in Install button
     const sizeText = gameInfo.size_formatted ? ` (${gameInfo.size_formatted})` : ' (- GB)';
-    buttonText = `⬇ Install ${gameInfo.title}${sizeText}`;
+    buttonText = t('installButton.install', { title: gameInfo.title }) + sizeText;
     buttonAction = showInstallConfirmation;
+
+    buttonStyle = {
+      ...baseButtonStyle,
+      // Solid blue background - Steam accent color, highly visible
+      backgroundColor: '#1a9fff',
+      color: '#ffffff',
+      border: '2px solid #47b4ff',
+      boxShadow: '0 2px 8px rgba(26, 159, 255, 0.5)',
+    };
   }
 
   return (
@@ -399,15 +447,22 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
           position: 'absolute',
           top: '40px',  // Aligned with ProtonDB badge row
           right: '35px',
-          zIndex: 1000,
+          zIndex: 9999,  // High z-index to ensure visibility above any overlays
+          // Ensure focusable container is visible
+          opacity: 1,
+          visibility: 'visible',
         }}
+        // Ensure controller navigation works
+        onActivate={buttonAction}
       >
         <DialogButton
           onClick={buttonAction}
           disabled={processing}
           style={buttonStyle}
+          // Add focus visual feedback for controller users
+          focusable={true}
         >
-          {processing ? 'Processing...' : buttonText}
+          {processing ? t('installButton.processing') : buttonText}
         </DialogButton>
       </Focusable>
     </>
@@ -536,6 +591,8 @@ let persistentActiveTab: 'settings' | 'downloads' = 'settings';
 
 // Settings panel in Quick Access Menu
 const Content: FC = () => {
+  const { t } = useTranslation();
+
   // Tab navigation state - initialize from persistent value
   const [activeTab, setActiveTab] = useState<'settings' | 'downloads'>(persistentActiveTab);
 
@@ -571,9 +628,9 @@ const Content: FC = () => {
   }, []);
 
   const [storeStatus, setStoreStatus] = useState({
-    epic: "Checking...",
-    gog: "Checking...",
-    amazon: "Checking...",
+    epic: 'checking',
+    gog: 'checking',
+    amazon: 'checking',
   });
   const [syncProgress, setSyncProgress] = useState<{
     total_games: number;
@@ -692,16 +749,16 @@ const Content: FC = () => {
                       const addedCount = result.synced_games || 0;
                       if (addedCount > 0) {
                         toaster.toast({
-                          title: "Sync Complete!",
-                          body: `Added ${addedCount} games. RESTART STEAM (exit completely, not just return to game mode) to see them in your library.`,
+                          title: t('toasts.syncComplete'),
+                          body: t('toasts.syncCompleteMessage', { count: addedCount }),
                           duration: 15000,
                           critical: true,
                         });
                       }
                     } else if (result.status === 'cancelled') {
                       toaster.toast({
-                        title: "Sync Cancelled",
-                        body: result.current_game || "Sync was cancelled by user",
+                        title: t('toasts.syncCancelled'),
+                        body: result.current_game || t('toasts.syncCancelled'),
                         duration: 5000,
                       });
                     }
@@ -779,22 +836,22 @@ const Content: FC = () => {
       } else {
         console.error("[Unifideck] Status check failed:", result.error);
         setStoreStatus({
-          epic: "Error - Check logs",
-          gog: "Error - Check logs",
-          amazon: "Error - Check logs"
+          epic: 'error',
+          gog: 'error',
+          amazon: 'error'
         });
       }
     } catch (error) {
       console.error("[Unifideck] Error checking store status:", error);
       setStoreStatus({
-        epic: "Error - " + (error as Error).message,
-        gog: "Error - " + (error as Error).message,
-        amazon: "Error - " + (error as Error).message
+        epic: 'error',
+        gog: 'error',
+        amazon: 'error'
       });
     }
   };
 
-  const handleManualSync = async (force: boolean = false) => {
+  const handleManualSync = async (force: boolean = false, resyncArtwork: boolean = false) => {
     // Prevent concurrent syncs
     if (syncing || syncCooldown) {
       console.log("[Unifideck] Sync already in progress or on cooldown");
@@ -865,18 +922,18 @@ const Content: FC = () => {
               const addedCount = result.synced_games || 0;
               if (addedCount > 0) {
                 toaster.toast({
-                  title: force ? "Force Sync Complete!" : "Sync Complete!",
+                  title: force ? t('toasts.forceSyncComplete') : t('toasts.syncComplete'),
                   body: force
-                    ? `Updated ${addedCount} games. RESTART STEAM to see changes.`
-                    : `Added ${addedCount} games. RESTART STEAM (exit completely, not just return to game mode) to see them in your library.`,
+                    ? t('toasts.forceSyncCompleteMessage', { count: addedCount })
+                    : t('toasts.syncCompleteMessage', { count: addedCount }),
                   duration: 15000,
                   critical: true,
                 });
               }
             } else if (result.status === 'cancelled') {
               toaster.toast({
-                title: "Sync Cancelled",
-                body: result.current_game || "Sync was cancelled by user",
+                title: t('toasts.syncCancelled'),
+                body: result.current_game || t('toasts.syncCancelled'),
                 duration: 5000,
               });
             }
@@ -892,18 +949,32 @@ const Content: FC = () => {
 
     try {
       // Use force_sync_libraries for force sync (rewrites shortcuts and compatibility data)
-      const methodName = force ? "force_sync_libraries" : "sync_libraries";
-      console.log(`[Unifideck] Starting ${force ? 'force ' : ''}sync...`);
+      console.log(`[Unifideck] Starting ${force ? 'force ' : ''}sync...${force ? ` (resync artwork: ${resyncArtwork})` : ''}`);
 
-      const syncResult = await call<[], {
-        success: boolean;
-        epic_count: number;
-        gog_count: number;
-        amazon_count: number;
-        added_count: number;
-        artwork_count: number;
-        updated_count?: number;
-      }>(methodName);
+      let syncResult;
+      if (force) {
+        // Force sync with resyncArtwork parameter
+        syncResult = await call<[boolean], {
+          success: boolean;
+          epic_count: number;
+          gog_count: number;
+          amazon_count: number;
+          added_count: number;
+          artwork_count: number;
+          updated_count?: number;
+        }>("force_sync_libraries", resyncArtwork);
+      } else {
+        // Regular sync
+        syncResult = await call<[], {
+          success: boolean;
+          epic_count: number;
+          gog_count: number;
+          amazon_count: number;
+          added_count: number;
+          artwork_count: number;
+          updated_count?: number;
+        }>("sync_libraries");
+      }
 
       console.log("[Unifideck] ========== SYNC COMPLETED ==========");
       console.log(`[Unifideck] Epic Games: ${syncResult.epic_count}`);
@@ -984,7 +1055,7 @@ const Content: FC = () => {
           } else {
             status = result.amazon;
           }
-          if (status === "Connected") {
+          if (status === t('storeConnections.connected')) {
             console.log(`[Unifideck] ${store} authentication completed automatically!`);
             return true;
           }
@@ -1021,7 +1092,7 @@ const Content: FC = () => {
   };
 
   const startAuth = async (store: 'epic' | 'gog' | 'amazon') => {
-    const storeName = store === 'epic' ? 'Epic Games' : store === 'amazon' ? 'Amazon Games' : 'GOG';
+    const storeName = store === 'epic' ? t('storeConnections.epicGames') : store === 'amazon' ? t('storeConnections.amazonGames') : t('storeConnections.gog');
 
     try {
       let methodName: string;
@@ -1055,8 +1126,8 @@ const Content: FC = () => {
           if (completed) {
             console.log(`[Unifideck] ✓ ${storeName} authentication successful!`);
             toaster.toast({
-              title: `${storeName} Connected!`,
-              body: `Successfully authenticated with ${storeName}`,
+              title: t('toasts.authConnected', { store: storeName }),
+              body: t('toasts.authConnectedMessage', { store: storeName }),
               duration: 8000,
               critical: true,
             });
@@ -1064,8 +1135,8 @@ const Content: FC = () => {
           } else {
             console.log(`[Unifideck] ${storeName} authentication timed out`);
             toaster.toast({
-              title: "Authentication Timeout",
-              body: `${storeName} auth timed out. Please try again.`,
+              title: t('toasts.authTimeout'),
+              body: t('toasts.authTimeoutMessage', { store: storeName }),
               critical: true,
               duration: 5000,
             });
@@ -1077,8 +1148,8 @@ const Content: FC = () => {
         // Return immediately - don't block waiting for auth to complete
       } else {
         toaster.toast({
-          title: "Authentication Failed",
-          body: result.error || 'Failed to start authentication',
+          title: t('toasts.authFailed'),
+          body: result.error ? t(result.error) : t('toasts.authFailedMessage'),
           critical: true,
           duration: 5000,
         });
@@ -1086,7 +1157,7 @@ const Content: FC = () => {
     } catch (error: any) {
       console.error(`[Unifideck] Error starting ${store} auth:`, error);
       toaster.toast({
-        title: "Authentication Error",
+        title: t('toasts.authError'),
         body: error.message || String(error),
         critical: true,
         duration: 5000,
@@ -1144,16 +1215,19 @@ const Content: FC = () => {
           `${result.deleted_artwork} artwork sets, ${result.deleted_files_count} files deleted`);
 
         toaster.toast({
-          title: "Cleanup Successful",
-          body: `Removed ${result.deleted_games} games, ${result.deleted_artwork} artwork sets, ` +
-            `and ${result.deleted_files_count} file directories. Auth & cache cleared.`,
+          title: t('toasts.cleanupSuccessful'),
+          body: t('toasts.cleanupSuccessfulMessage', {
+            games: result.deleted_games,
+            artwork: result.deleted_artwork,
+            files: result.deleted_files_count
+          }),
           duration: 8000,
         });
       } else {
         console.error(`[Unifideck] Delete failed: ${result.error}`);
         toaster.toast({
-          title: "Delete Failed",
-          body: result.error || "Unknown error",
+          title: t('toasts.deleteFailed'),
+          body: result.error ? t(result.error) : "Unknown error",
           duration: 5000,
         });
       }
@@ -1185,8 +1259,8 @@ const Content: FC = () => {
       if (result.success) {
         console.log("[Unifideck] Sync cancelled");
         toaster.toast({
-          title: "UNIFIDECK SYNC CANCELED",
-          body: "",
+          title: t('toasts.syncCancelled').toUpperCase(),
+          body: t('errors.syncCancelled'),
           duration: 3000,
         });
       } else {
@@ -1207,7 +1281,7 @@ const Content: FC = () => {
             onClick={() => handleTabChange('settings')}
             disabled={activeTab === 'settings'}
           >
-            <div ref={mountRef}>Settings</div>
+            <div ref={mountRef}>{t('tabs.settings')}</div>
           </ButtonItem>
         </PanelSectionRow>
         <PanelSectionRow>
@@ -1216,7 +1290,7 @@ const Content: FC = () => {
             onClick={() => handleTabChange('downloads')}
             disabled={activeTab === 'downloads'}
           >
-            Downloads
+            {t('tabs.downloads')}
           </ButtonItem>
         </PanelSectionRow>
       </PanelSection>
@@ -1233,7 +1307,7 @@ const Content: FC = () => {
       {activeTab === 'settings' && (
         <>
           {/* Store Connections - Compact View */}
-          <PanelSection title="STORE CONNECTIONS">
+          <PanelSection title={t('storeConnections.title')}>
             {/* Status indicators */}
             <PanelSectionRow>
               <Field description={
@@ -1243,27 +1317,27 @@ const Content: FC = () => {
                       width: "8px",
                       height: "8px",
                       borderRadius: "50%",
-                      backgroundColor: storeStatus.epic === "Connected" ? "#4ade80" : "#888"
+                      backgroundColor: storeStatus.epic === 'connected' ? "#4ade80" : "#888"
                     }} />
-                    <span>Epic Games {storeStatus.epic === "Connected" ? "✓" : ""}</span>
+                    <span>{t('storeConnections.epicGames')} {storeStatus.epic === 'connected' ? "✓" : ""}</span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                     <div style={{
                       width: "8px",
                       height: "8px",
                       borderRadius: "50%",
-                      backgroundColor: storeStatus.gog === "Connected" ? "#4ade80" : "#888"
+                      backgroundColor: storeStatus.gog === 'connected' ? "#4ade80" : "#888"
                     }} />
-                    <span>GOG {storeStatus.gog === "Connected" ? "✓" : ""}</span>
+                    <span>{t('storeConnections.gog')} {storeStatus.gog === 'connected' ? "✓" : ""}</span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                     <div style={{
                       width: "8px",
                       height: "8px",
                       borderRadius: "50%",
-                      backgroundColor: storeStatus.amazon === "Connected" ? "#4ade80" : "#888"
+                      backgroundColor: storeStatus.amazon === 'connected' ? "#4ade80" : "#888"
                     }} />
-                    <span>Amazon Games {storeStatus.amazon === "Connected" ? "✓" : ""}</span>
+                    <span>{t('storeConnections.amazonGames')} {storeStatus.amazon === 'connected' ? "✓" : ""}</span>
                   </div>
                 </div>
               } />
@@ -1271,56 +1345,56 @@ const Content: FC = () => {
 
             {/* Action buttons */}
             {/* Epic button */}
-            {storeStatus.epic !== "Checking..." && storeStatus.epic !== "Legendary not installed" && !storeStatus.epic.includes("Error") && (
+            {storeStatus.epic !== 'checking' && storeStatus.epic !== 'legendary_not_installed' && storeStatus.epic !== 'error' && (
               <PanelSectionRow>
                 <ButtonItem
                   layout="below"
-                  onClick={() => storeStatus.epic === "Connected" ? handleLogout('epic') : startAuth('epic')}
+                  onClick={() => storeStatus.epic === 'connected' ? handleLogout('epic') : startAuth('epic')}
                 >
-                  {storeStatus.epic === "Connected" ? "Logout of Epic Games" : "Authenticate Epic Games"}
+                  {storeStatus.epic === 'connected' ? t('storeConnections.logout', { store: t('storeConnections.epicGames') }) : t('storeConnections.authenticate', { store: t('storeConnections.epicGames') })}
                 </ButtonItem>
               </PanelSectionRow>
             )}
 
             {/* GOG button */}
-            {storeStatus.gog !== "Checking..." && !storeStatus.gog.includes("Error") && (
+            {storeStatus.gog !== 'checking' && storeStatus.gog !== 'error' && (
               <PanelSectionRow>
                 <ButtonItem
                   layout="below"
-                  onClick={() => storeStatus.gog === "Connected" ? handleLogout('gog') : startAuth('gog')}
+                  onClick={() => storeStatus.gog === 'connected' ? handleLogout('gog') : startAuth('gog')}
                 >
-                  {storeStatus.gog === "Connected" ? "Logout of GOG" : "Authenticate GOG"}
+                  {storeStatus.gog === 'connected' ? t('storeConnections.logout', { store: t('storeConnections.gog') }) : t('storeConnections.authenticate', { store: t('storeConnections.gog') })}
                 </ButtonItem>
               </PanelSectionRow>
             )}
 
             {/* Amazon button */}
-            {storeStatus.amazon !== "Checking..." && storeStatus.amazon !== "Nile not installed" && !storeStatus.amazon.includes("Error") && (
+            {storeStatus.amazon !== 'checking' && storeStatus.amazon !== 'nile_not_installed' && storeStatus.amazon !== 'error' && (
               <PanelSectionRow>
                 <ButtonItem
                   layout="below"
-                  onClick={() => storeStatus.amazon === "Connected" ? handleLogout('amazon') : startAuth('amazon')}
+                  onClick={() => storeStatus.amazon === 'connected' ? handleLogout('amazon') : startAuth('amazon')}
                 >
-                  {storeStatus.amazon === "Connected" ? "Logout of Amazon Games" : "Authenticate Amazon Games"}
+                  {storeStatus.amazon === 'connected' ? t('storeConnections.logout', { store: t('storeConnections.amazonGames') }) : t('storeConnections.authenticate', { store: t('storeConnections.amazonGames') })}
                 </ButtonItem>
               </PanelSectionRow>
             )}
 
             {/* Error/warning messages */}
-            {storeStatus.epic === "Legendary not installed" && (
+            {storeStatus.epic === 'legendary_not_installed' && (
               <PanelSectionRow>
-                <Field description="⚠️ Installing Epic Games CLI..." />
+                <Field description={t('storeConnections.legendaryNotInstalled')} />
               </PanelSectionRow>
             )}
-            {storeStatus.amazon === "Nile not installed" && (
+            {storeStatus.amazon === 'nile_not_installed' && (
               <PanelSectionRow>
-                <Field description="⚠️ Amazon Games CLI not found" />
+                <Field description={t('storeConnections.nileNotInstalled')} />
               </PanelSectionRow>
             )}
           </PanelSection>
 
           {/* Library Sync Section */}
-          <PanelSection title="LIBRARY SYNC">
+          <PanelSection title={t('librarySync.title')}>
             <PanelSectionRow>
               <ButtonItem
                 layout="below"
@@ -1338,17 +1412,24 @@ const Content: FC = () => {
                     opacity: syncCooldown ? 0.5 : 1
                   }} />
                   {syncing
-                    ? "Syncing..."
+                    ? t('librarySync.syncing')
                     : syncCooldown
                       ? `${cooldownSeconds}s`
-                      : "Sync Libraries"}
+                      : t('librarySync.syncLibraries')}
                 </div>
               </ButtonItem>
             </PanelSectionRow>
             <PanelSectionRow>
               <ButtonItem
                 layout="below"
-                onClick={() => handleManualSync(true)}
+                onClick={() => {
+                  showModal(
+                    <ForceSyncModal
+                      onResyncArtwork={() => handleManualSync(true, true)}
+                      onKeepArtwork={() => handleManualSync(true, false)}
+                    />
+                  );
+                }}
                 disabled={syncing || syncCooldown}
               >
                 <div style={{
@@ -1365,7 +1446,7 @@ const Content: FC = () => {
                     ? "..."
                     : syncCooldown
                       ? `${cooldownSeconds}s`
-                      : "Force Sync"}
+                      : t('librarySync.forceSync')}
                 </div>
               </ButtonItem>
             </PanelSectionRow>
@@ -1377,7 +1458,7 @@ const Content: FC = () => {
                   layout="below"
                   onClick={handleCancelSync}
                 >
-                  Cancel Sync
+                  {t('librarySync.cancelSync')}
                 </ButtonItem>
               </PanelSectionRow>
             )}
@@ -1416,12 +1497,12 @@ const Content: FC = () => {
                     {syncProgress.current_phase === 'artwork' ? (
                       // Artwork phase: show artwork progress
                       <>
-                        {syncProgress.artwork_synced} / {syncProgress.artwork_total} artwork downloaded
+                        {t('librarySync.artworkDownloaded', { synced: syncProgress.artwork_synced || 0, total: syncProgress.artwork_total || 0 })}
                       </>
                     ) : (
                       // Sync phase: show game progress
                       <>
-                        {syncProgress.synced_games} / {syncProgress.total_games} games synced
+                        {t('librarySync.gamesSynced', { synced: syncProgress.synced_games || 0, total: syncProgress.total_games || 0 })}
                       </>
                     )}
                   </div>
@@ -1439,14 +1520,17 @@ const Content: FC = () => {
             {(storeStatus.epic.includes("Error") || storeStatus.gog.includes("Error")) && (
               <PanelSectionRow>
                 <ButtonItem layout="below" onClick={checkStoreStatus}>
-                  Retry Status Check
+                  {t('librarySync.retryStatusCheck')}
                 </ButtonItem>
               </PanelSectionRow>
             )}
           </PanelSection>
 
+          {/* Language Settings - centralized language control */}
+          <LanguageSelector />
+
           {/* Cleanup Section */}
-          <PanelSection title="Cleanup">
+          <PanelSection title={t('cleanup.title')}>
             {!showDeleteConfirm ? (
               <PanelSectionRow>
                 <ButtonItem
@@ -1455,7 +1539,7 @@ const Content: FC = () => {
                   disabled={syncing || deleting || syncCooldown}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: "2px", fontSize: "0.85em", padding: "2px" }}>
-                    Delete all UNIFIDECK Libraries and Cache
+                    {t('cleanup.deleteAll')}
                   </div>
                 </ButtonItem>
               </PanelSectionRow>
@@ -1463,15 +1547,15 @@ const Content: FC = () => {
               <>
                 <PanelSectionRow>
                   <Field
-                    label="⚠️ Warning"
-                    description="Deletes shortcuts, artwork, auth tokens, and cache. Installed games will be preserved and can be re-synced. Enable destructive mode to also delete game files and mappings."
+                    label={t('cleanup.warningTitle')}
+                    description={t('cleanup.warningDescription')}
                   />
                 </PanelSectionRow>
 
                 {/* Delete Files Checkbox */}
                 <PanelSectionRow>
                   <ToggleField
-                    label="Also delete installed game files? (Destructive)"
+                    label={t('cleanup.deleteFilesLabel')}
                     checked={deleteFiles}
                     onChange={(checked) => setDeleteFiles(checked)}
                   />
@@ -1483,7 +1567,7 @@ const Content: FC = () => {
                     onClick={handleDeleteAll}
                     disabled={deleting}
                   >
-                    {deleting ? "Deleting..." : "Yes, Delete Everything"}
+                    {deleting ? t('cleanup.deleting') : t('cleanup.confirmDelete')}
                   </ButtonItem>
                 </PanelSectionRow>
                 <PanelSectionRow>
@@ -1495,7 +1579,7 @@ const Content: FC = () => {
                     }}
                     disabled={deleting}
                   >
-                    Cancel
+                    {t('cleanup.cancel')}
                   </ButtonItem>
                 </PanelSectionRow>
               </>
@@ -1510,6 +1594,7 @@ const Content: FC = () => {
 };
 
 export default definePlugin(() => {
+
   console.log("[Unifideck] Plugin loaded");
 
   // Patch the library to add Unifideck tabs (All, Installed, Great on Deck, Steam, Epic, GOG, Amazon)
@@ -1580,9 +1665,24 @@ export default definePlugin(() => {
 
       if (toasts && toasts.length > 0) {
         for (const toast of toasts) {
+          // Parse body params (format: "key|param1=val1|param2=val2")
+          let bodyKey = toast.body;
+          let bodyParams: Record<string, any> = {};
+
+          if (bodyKey.includes('|')) {
+            const parts = bodyKey.split('|');
+            bodyKey = parts[0];
+            for (let i = 1; i < parts.length; i++) {
+              const [k, v] = parts[i].split('=');
+              if (k && v) {
+                bodyParams[k] = v;
+              }
+            }
+          }
+
           toaster.toast({
-            title: `Unifideck: ${toast.title}`,
-            body: toast.body,
+            title: `${t('toasts.unifideck')} ${t(toast.title)}`,
+            body: String(t(bodyKey, bodyParams)),
             duration: toast.urgency === "critical" ? 10000 : 5000,
             critical: toast.urgency === "critical",
           });
@@ -1604,7 +1704,8 @@ export default definePlugin(() => {
   return {
     name: "UNIFIDECK",
     icon: <FaGamepad />,
-    content: <Content />,
+    content:
+      <I18nextProvider i18n={i18n}><Content /></I18nextProvider>,
     onDismount() {
       console.log("[Unifideck] Plugin unloading");
 

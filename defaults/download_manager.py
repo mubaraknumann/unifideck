@@ -103,8 +103,6 @@ class DownloadQueue:
         self._progress_callback: Optional[Callable] = None
         self._on_complete_callback: Optional[Callable] = None
         self._gog_install_callback: Optional[Callable] = None  # For GOG API-based downloads
-        self._size_cache_callback: Optional[Callable] = None  # For updating game size cache
-        self._size_cached_items: set = set()  # Track which items have had size cached (store:game_id)
         
         # Store plugin directory for finding binaries
         self.plugin_dir = plugin_dir
@@ -284,7 +282,7 @@ class DownloadQueue:
         for item in self.queue:
             if item.id == download_id:
                 logger.warning(f"[DownloadQueue] {download_id} already in queue")
-                return {'success': False, 'error': 'errors.alreadyInQueue'}
+                return {'success': False, 'error': 'Already in queue'}
         
         # Create new download item with installation guardrail
         item = DownloadItem(
@@ -599,7 +597,6 @@ class DownloadQueue:
         try:
             # Progress callback to update download item
             # Can receive float (percentage) or dict (full stats)
-            outer_self = self  # For nested function to access DownloadQueue methods
             async def progress_callback(progress: Any):
                 # Check if cancelled before processing more progress
                 # This allows early exit from long-running downloads
@@ -618,10 +615,7 @@ class DownloadQueue:
                     
                     item.progress_percent = progress.get('progress_percent', 0)
                     item.downloaded_bytes = int(progress.get('downloaded_bytes', 0))
-                    new_total = int(progress.get('total_bytes', 0))
-                    item.total_bytes = new_total
-                    # Update size cache for Install button accuracy (use self from outer scope)
-                    outer_self._update_size_cache_if_needed(item, new_total)
+                    item.total_bytes = int(progress.get('total_bytes', 0))
                     
                     # Update phase message during download if provided
                     if 'phase_message' in progress:
@@ -808,32 +802,6 @@ class DownloadQueue:
         """Set callback for GOG game installation (uses GOGAPIClient)"""
         self._gog_install_callback = callback
 
-    def set_size_cache_callback(self, callback: Callable) -> None:
-        """Set callback for updating game size cache when accurate size is determined
-        
-        Callback signature: callback(store: str, game_id: str, size_bytes: int)
-        """
-        self._size_cache_callback = callback
-
-    def _update_size_cache_if_needed(self, item: DownloadItem, new_total_bytes: int) -> None:
-        """Update game size cache if this is the first accurate size for this download
-        
-        Only updates once per download to avoid redundant cache writes.
-        """
-        if new_total_bytes <= 0:
-            return
-        
-        cache_key = f"{item.store}:{item.game_id}"
-        
-        # Only update if we haven't already cached this item's size AND size is new
-        if cache_key not in self._size_cached_items and self._size_cache_callback:
-            logger.info(f"[DownloadQueue] Updating size cache for {cache_key}: {new_total_bytes} bytes ({new_total_bytes/1024/1024:.1f} MB)")
-            try:
-                self._size_cache_callback(item.store, item.game_id, new_total_bytes)
-                self._size_cached_items.add(cache_key)
-            except Exception as e:
-                logger.warning(f"[DownloadQueue] Failed to update size cache: {e}")
-
     async def _parse_legendary_output(self, item: DownloadItem) -> None:
         """Parse legendary output for progress updates with ETA smoothing"""
         # Regex patterns from Junkstore's epic.py
@@ -907,10 +875,7 @@ class DownloadQueue:
                         size = float(match.group(1))
                         if match.group(2) == 'GiB':
                             size *= 1024
-                        new_total = int(size * 1024 * 1024)
-                        item.total_bytes = new_total
-                        # Update size cache for Install button accuracy
-                        self._update_size_cache_if_needed(item, new_total)
+                        item.total_bytes = int(size * 1024 * 1024)
                     
                     # Save progress periodically
                     self._save()
