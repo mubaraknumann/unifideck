@@ -47,7 +47,9 @@
     },
     "preparingDownload": "Preparando download...",
     "phaseExtracting": "Extraindo {{game}}...",
-    "phaseVerifying": "Verificando {{game}}..."
+    "phaseVerifying": "Verificando {{game}}...",
+    "internalStorage": "Armazenamento interno ({{freeSpace}} GB livres)",
+    "sdCard": "Cartão SD ({{freeSpace}} GB livres)"
   },
   "cloudSave": {
     "title": "Conflito de Save na Nuvem",
@@ -216,5 +218,30 @@
     "steamGridDbUnavailable": "Biblioteca SteamGridDB indisponível",
     "deleteSyncInProgress": "Não é possível excluir enquanto a sincronização está em andamento",
     "alreadyInQueue": "Já na fila"
+  },
+  "sync": {
+    "downloadingArtwork": "Baixando arte de {{game}}...",
+    "fetchingGameLists": "Carregando listas de jogos...",
+    "cancelledByUser": "Sincronização cancelada",
+    "checkingInstalledGames": "Verificando jogos instalados...",
+    "sgdbLookup": "Buscando {{count}} jogos no SteamGridDB...",
+    "checkingExistingArtwork": "Verificando arte existente...",
+    "savingShortcuts": "Salvando atalhos...",
+    "completed": "Sync concluída! {{added}} adicionados, arte {{artwork}}."
+  },
+  "force_sync": {
+    "migratingOldInstallations": "Sync forçada: Migrando instalações...",
+    "fetchingGameLists": "Sync forçada: Carregando listas...",
+    "checkingInstalledGames": "Sync forçada: Verificando jogos...",
+    "rewritingShortcuts": "Sync forçada: Regravando atalhos...",
+    "cancelledShortcutsSaved": "Sync forçada cancelada – atalhos salvos",
+    "writingShortcuts": "Sync forçada: Gravando atalhos...",
+    "clearingProton": "Sync forçada: Limpando Proton...",
+    "completed": "Sync forçada pronta! {{updated}} atualizados, arte {{artwork}}."
+  },
+  "artwork": {
+    "checking": "Verificando arte...",
+    "queueRefresh": "Enfileirando jogos para atualizar arte...",
+    "downloadProgress": "Arte {{synced}}/{{total}} baixada ({{game}})"
   }
 }

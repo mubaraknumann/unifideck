@@ -47,7 +47,9 @@
     },
     "preparingDownload": "ダウンロードを準備中...",
     "phaseExtracting": "{{game}} を展開中...",
-    "phaseVerifying": "{{game}} を検証中..."
+    "phaseVerifying": "{{game}} を検証中...",
+    "internalStorage": "内部ストレージ（空き {{freeSpace}}GB）",
+    "sdCard": "SDカード（空き {{freeSpace}}GB）"
   },
   "cloudSave": {
     "title": "クラウドセーブの競合",
@@ -216,5 +218,30 @@
     "steamGridDbUnavailable": "SteamGridDBライブラリが利用できません",
     "deleteSyncInProgress": "同期中は削除できません",
     "alreadyInQueue": "すでにキューにあります"
+  },
+  "sync": {
+    "downloadingArtwork": "{{game}} のアートをDL中...",
+    "fetchingGameLists": "ゲーム一覧取得中...",
+    "cancelledByUser": "同期がキャンセルされました",
+    "checkingInstalledGames": "インストール済み確認中...",
+    "sgdbLookup": "SteamGridDBで{{count}}件検索中...",
+    "checkingExistingArtwork": "既存アート確認中...",
+    "savingShortcuts": "ショートカット保存中...",
+    "completed": "同期完了！{{added}}追加、アート{{artwork}}。"
+  },
+  "force_sync": {
+    "migratingOldInstallations": "強制同期：移行中...",
+    "fetchingGameLists": "強制同期：一覧取得中...",
+    "checkingInstalledGames": "強制同期：ゲーム確認中...",
+    "rewritingShortcuts": "強制同期：ショートカット再生成...",
+    "cancelledShortcutsSaved": "強制同期中止 – 保存済み",
+    "writingShortcuts": "強制同期：書き込み中...",
+    "clearingProton": "強制同期：Proton互換性削除...",
+    "completed": "強制同期完了！{{updated}}更新、アート{{artwork}}。"
+  },
+  "artwork": {
+    "checking": "アート確認中...",
+    "queueRefresh": "全ゲームを更新キューに追加...",
+    "downloadProgress": "アート {{synced}}/{{total}} DL（{{game}}）"
   }
 }

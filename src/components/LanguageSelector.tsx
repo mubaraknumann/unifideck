@@ -105,11 +105,13 @@ export const LanguageSelector: FC = () => {
                     label={t('languageSettings.label')}
                     description={t('languageSettings.description')}
                 >
-                    <Dropdown
-                        rgOptions={dropdownOptions}
-                        selectedOption={selectedOption?.data}
-                        onChange={handleLanguageChange}
-                    />
+                    <div style={{ display: "flex", flexDirection: "column", width: "100%" }}>
+                        <Dropdown
+                            rgOptions={dropdownOptions}
+                            selectedOption={selectedOption?.data}
+                            onChange={handleLanguageChange}
+                        />
+                    </div>
                 </Field>
             </PanelSectionRow>
         </PanelSection>

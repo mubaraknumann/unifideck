@@ -47,7 +47,9 @@
     },
     "preparingDownload": "Przygotowywanie pobierania...",
     "phaseExtracting": "Rozpakowywanie {{game}}...",
-    "phaseVerifying": "Weryfikowanie {{game}}..."
+    "phaseVerifying": "Weryfikowanie {{game}}...",
+    "internalStorage": "Pamięć wewnętrzna ({{freeSpace}} GB wolne)",
+    "sdCard": "Karta SD ({{freeSpace}} GB wolne)"
   },
   "cloudSave": {
     "title": "Konflikt Zapisu w Chmurze",
@@ -216,5 +218,30 @@
     "steamGridDbUnavailable": "Biblioteka SteamGridDB niedostępna",
     "deleteSyncInProgress": "Nie można usunąć podczas trwania synchronizacji",
     "alreadyInQueue": "Już w kolejce"
+  },
+  "sync": {
+    "downloadingArtwork": "Pobieranie grafiki: {{game}}...",
+    "fetchingGameLists": "Pobieranie list gier...",
+    "cancelledByUser": "Synchronizacja anulowana",
+    "checkingInstalledGames": "Sprawdzanie zainstalowanych gier...",
+    "sgdbLookup": "Wyszukiwanie {{count}} gier w SteamGridDB...",
+    "checkingExistingArtwork": "Sprawdzanie istniejącej grafiki...",
+    "savingShortcuts": "Zapisywanie skrótów...",
+    "completed": "Sync zakończony! {{added}} dodano, grafika {{artwork}}."
+  },
+  "force_sync": {
+    "migratingOldInstallations": "Wymuszony sync: Migracja instalacji...",
+    "fetchingGameLists": "Wymuszony sync: Pobieranie list...",
+    "checkingInstalledGames": "Wymuszony sync: Sprawdzanie gier...",
+    "rewritingShortcuts": "Wymuszony sync: Przepisywanie skrótów...",
+    "cancelledShortcutsSaved": "Wymuszony sync anulowany – skróty zapisane",
+    "writingShortcuts": "Wymuszony sync: Zapisywanie skrótów...",
+    "clearingProton": "Wymuszony sync: Czyszczenie Proton...",
+    "completed": "Wymuszony sync gotowy! {{updated}} zakt., grafika {{artwork}}."
+  },
+  "artwork": {
+    "checking": "Sprawdzanie grafiki...",
+    "queueRefresh": "Kolejkowanie gier do odświeżenia grafiki...",
+    "downloadProgress": "Pobrano grafikę {{synced}}/{{total}} ({{game}})"
   }
 }

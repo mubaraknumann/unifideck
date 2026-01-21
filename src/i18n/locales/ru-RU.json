@@ -47,7 +47,9 @@
     },
     "preparingDownload": "Подготовка загрузки...",
     "phaseExtracting": "Распаковка {{game}}...",
-    "phaseVerifying": "Проверка {{game}}..."
+    "phaseVerifying": "Проверка {{game}}...",
+    "internalStorage": "Внутренняя память ({{freeSpace}} ГБ свободно)",
+    "sdCard": "SD-карта ({{freeSpace}} ГБ свободно)"
   },
   "cloudSave": {
     "title": "Конфликт облачного сохранения",
@@ -216,5 +218,30 @@
     "steamGridDbUnavailable": "Библиотека SteamGridDB недоступна",
     "deleteSyncInProgress": "Невозможно удалить во время синхронизации",
     "alreadyInQueue": "Уже в очереди"
+  },
+  "sync": {
+    "downloadingArtwork": "Загрузка арта для {{game}}...",
+    "fetchingGameLists": "Получение списков игр...",
+    "cancelledByUser": "Синхронизация отменена",
+    "checkingInstalledGames": "Проверка установленных игр...",
+    "sgdbLookup": "Поиск {{count}} игр в SteamGridDB...",
+    "checkingExistingArtwork": "Проверка существующего арта...",
+    "savingShortcuts": "Сохранение ярлыков...",
+    "completed": "Синхронизация завершена! {{added}} добавлено, арт {{artwork}}."
+  },
+  "force_sync": {
+    "migratingOldInstallations": "Принудит. синхр.: Миграция установок...",
+    "fetchingGameLists": "Принудит. синхр.: Загрузка списков...",
+    "checkingInstalledGames": "Принудит. синхр.: Проверка игр...",
+    "rewritingShortcuts": "Принудит. синхр.: Перезапись ярлыков...",
+    "cancelledShortcutsSaved": "Принудит. синхр. отменена – ярлыки сохранены",
+    "writingShortcuts": "Принудит. синхр.: Запись ярлыков...",
+    "clearingProton": "Принудит. синхр.: Очистка Proton...",
+    "completed": "Принудит. синхр. завершена! {{updated}} обновл., арт {{artwork}}."
+  },
+  "artwork": {
+    "checking": "Проверка арта...",
+    "queueRefresh": "Очередь обновления арта для всех игр...",
+    "downloadProgress": "Загружено {{synced}}/{{total}} ({{game}})"
   }
 }
