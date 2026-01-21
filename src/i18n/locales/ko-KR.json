@@ -58,6 +58,7 @@
     "confirmCancelDescription": "{{game}}의 다운로드를 취소하시겠습니까?",
     "confirmCancelYes": "예",
     "confirmCancelNo": "아니요",
+    "cancelDownload": "취소",
     "toastDownloadCancelledTitle": "다운로드 취소됨",
     "toastDownloadCancelledBody": "다운로드가 대기열에서 제거되었습니다.",
     "toastCancelFailedTitle": "취소 실패",
@@ -243,5 +244,10 @@
     "checking": "아트워크 확인 중...",
     "queueRefresh": "모든 게임 아트워크 새로고침 대기열...",
     "downloadProgress": "아트워크 {{synced}}/{{total}} 다운로드됨 ({{game}})"
+  },
+  "deckTabs": {
+    "greatOnDeck": "Steam Deck에 최적화됨",
+    "allGames": "모든 게임",
+    "installed": "설치됨"
   }
 }

@@ -34,6 +34,7 @@
     "confirmCancelDescription": "Weet je zeker dat je de download van {{game}} wilt annuleren?",
     "confirmCancelYes": "Ja",
     "confirmCancelNo": "Nee",
+    "cancelDownload": "Annuleren",
     "toastDownloadCancelledTitle": "Download Geannuleerd",
     "toastDownloadCancelledBody": "De download is uit de wachtrij verwijderd.",
     "toastCancelFailedTitle": "Annuleren Mislukt",
@@ -243,5 +244,10 @@
     "checking": "Artwork controleren...",
     "queueRefresh": "Alle games in wachtrij voor artwork...",
     "downloadProgress": "Artwork {{synced}}/{{total}} gedownload ({{game}})"
+  },
+  "deckTabs": {
+    "greatOnDeck": "Perfect voor Steam Deck",
+    "allGames": "Alle games",
+    "installed": "Geïnstalleerd"
   }
 }

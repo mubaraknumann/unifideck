@@ -34,6 +34,7 @@
     "confirmCancelDescription": "{{game}} için indirmeyi iptal etmek istediğinizden emin misiniz?",
     "confirmCancelYes": "Evet",
     "confirmCancelNo": "Hayır",
+    "cancelDownload": "İptal",
     "toastDownloadCancelledTitle": "İndirme İptal Edildi",
     "toastDownloadCancelledBody": "İndirme kuyruktan kaldırıldı.",
     "toastCancelFailedTitle": "İptal Başarısız",
@@ -242,5 +243,10 @@
     "checking": "Görseller kontrol ediliyor...",
     "queueRefresh": "Tüm oyunlar görsel yenilemeye alınıyor...",
     "downloadProgress": "Görsel {{synced}}/{{total}} indirildi ({{game}})"
+  },
+  "deckTabs": {
+    "greatOnDeck": "Steam Deck için Mükemmel",
+    "allGames": "Tüm Oyunlar",
+    "installed": "Yüklendi"
   }
 }

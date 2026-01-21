@@ -34,6 +34,7 @@
     "confirmCancelDescription": "{{game}} のダウンロードをキャンセルしてもよろしいですか？",
     "confirmCancelYes": "はい",
     "confirmCancelNo": "いいえ",
+    "cancelDownload": "キャンセル",
     "toastDownloadCancelledTitle": "ダウンロードがキャンセルされました",
     "toastDownloadCancelledBody": "ダウンロードはキューから削除されました。",
     "toastCancelFailedTitle": "キャンセルに失敗",
@@ -243,5 +244,10 @@
     "checking": "アート確認中...",
     "queueRefresh": "全ゲームを更新キューに追加...",
     "downloadProgress": "アート {{synced}}/{{total}} DL（{{game}}）"
+  },
+  "deckTabs": {
+    "greatOnDeck": "Steam Deckに最適",
+    "allGames": "すべてのゲーム",
+    "installed": "インストール済み"
   }
 }
