@@ -1765,6 +1765,11 @@ class ShortcutsManager:
                     orphan['LaunchOptions'] = target_launch_options
                     orphan['exe'] = launcher_script
                     orphan['AppName'] = game.title
+                    
+                    # Update icon from cover_image (set by artwork download)
+                    if game.cover_image:
+                        orphan['icon'] = game.cover_image
+                    
                     orphan['tags'] = {
                         '0': game.store.title(),
                         '1': 'Not Installed' if not game.is_installed else ''
@@ -1882,6 +1887,10 @@ class ShortcutsManager:
                             shortcut['exe'] = launcher_script
                             shortcut['LaunchOptions'] = full_id  # Normalize to canonical form
                             
+                            # Update icon from cover_image (set by artwork download)
+                            if game.cover_image:
+                                shortcut['icon'] = game.cover_image
+                            
                             # Update tags
                             store_tag = game.store.title()
                             install_tag = '' if game.is_installed else 'Not Installed'
@@ -1958,6 +1967,11 @@ class ShortcutsManager:
                     orphan['LaunchOptions'] = target_launch_options
                     orphan['exe'] = launcher_script
                     orphan['AppName'] = game.title
+                    
+                    # Update icon from cover_image (set by artwork download)
+                    if game.cover_image:
+                        orphan['icon'] = game.cover_image
+                    
                     orphan['tags'] = {
                         '0': game.store.title(),
                         '1': 'Not Installed' if not game.is_installed else ''
