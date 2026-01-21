@@ -210,7 +210,7 @@ class DownloadQueue:
             
             locations.append({
                 'id': loc,
-                'label': 'Internal Storage' if loc == StorageLocation.INTERNAL else 'SD Card',
+                'label': 'downloadsTab.internalStorage' if loc == StorageLocation.INTERNAL else 'downloadsTab.sdCard',
                 'path': path,
                 'available': available,
                 'free_space_gb': round(free_space_gb, 1) if available else 0

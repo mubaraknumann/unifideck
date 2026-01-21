@@ -47,7 +47,9 @@
     },
     "preparingDownload": "Download wird vorbereitet...",
     "phaseExtracting": "{{game}} wird entpackt...",
-    "phaseVerifying": "{{game}} wird überprüft..."
+    "phaseVerifying": "{{game}} wird überprüft...",
+    "internalStorage": "Interner Speicher ({{freeSpace}} GB frei)",
+    "sdCard": "SD-Karte ({{freeSpace}} GB frei)"
   },
   "cloudSave": {
     "title": "Cloud-Speicher-Konflikt",
@@ -216,5 +218,30 @@
     "steamGridDbUnavailable": "SteamGridDB-Bibliothek nicht verfügbar",
     "deleteSyncInProgress": "Löschen während einer Synchronisierung nicht möglich",
     "alreadyInQueue": "Bereits in Warteschlange"
+  },
+  "sync": {
+    "downloadingArtwork": "Artwork für {{game}} lädt...",
+    "fetchingGameLists": "Spielelisten werden geladen...",
+    "cancelledByUser": "Sync vom Nutzer abgebrochen",
+    "checkingInstalledGames": "Installierte Spiele prüfen...",
+    "sgdbLookup": "{{count}} Spiele bei SteamGridDB suchen...",
+    "checkingExistingArtwork": "Vorhandenes Artwork prüfen...",
+    "savingShortcuts": "Verknüpfungen speichern...",
+    "completed": "Sync fertig! {{added}} hinzugefügt, {{artwork}} Artwork."
+  },
+  "force_sync": {
+    "migratingOldInstallations": "Force-Sync: Alte Installationen migrieren...",
+    "fetchingGameLists": "Force-Sync: Spielelisten laden...",
+    "checkingInstalledGames": "Force-Sync: Installierte Spiele prüfen...",
+    "rewritingShortcuts": "Force-Sync: Verknüpfungen neu schreiben...",
+    "cancelledShortcutsSaved": "Force-Sync abgebrochen – Verknüpfungen gespeichert",
+    "writingShortcuts": "Force-Sync: Verknüpfungen schreiben...",
+    "clearingProton": "Force-Sync: Proton-Kompatibilität löschen...",
+    "completed": "Force-Sync fertig! {{updated}} aktualisiert, {{artwork}} Artwork."
+  },
+  "artwork": {
+    "checking": "Artwork prüfen...",
+    "queueRefresh": "Alle Spiele zur Artwork-Aktualisierung einreihen...",
+    "downloadProgress": "Artwork {{synced}}/{{total}} geladen ({{game}})"
   }
 }

@@ -71,7 +71,9 @@
     },
     "preparingDownload": "다운로드 준비 중...",
     "phaseExtracting": "{{game}} 압축 해제 중...",
-    "phaseVerifying": "{{game}} 검증 중..."
+    "phaseVerifying": "{{game}} 검증 중...",
+    "internalStorage": "내부 저장소 (여유 {{freeSpace}}GB)",
+    "sdCard": "SD 카드 (여유 {{freeSpace}}GB)"
   },
   "cloudSave": {
     "title": "클라우드 저장 충돌",
@@ -216,5 +218,30 @@
     "steamGridDbUnavailable": "SteamGridDB 라이브러리를 사용할 수 없습니다",
     "deleteSyncInProgress": "동기화 중에는 삭제할 수 없습니다",
     "alreadyInQueue": "이미 대기열에 있습니다"
+  },
+  "sync": {
+    "downloadingArtwork": "{{game}} 아트워크 다운로드 중...",
+    "fetchingGameLists": "게임 목록 불러오는 중...",
+    "cancelledByUser": "사용자가 동기화 취소",
+    "checkingInstalledGames": "설치된 게임 확인 중...",
+    "sgdbLookup": "SteamGridDB에서 {{count}}개 검색 중...",
+    "checkingExistingArtwork": "기존 아트워크 확인 중...",
+    "savingShortcuts": "바로가기 저장 중...",
+    "completed": "동기화 완료! {{added}} 추가, 아트워크 {{artwork}}."
+  },
+  "force_sync": {
+    "migratingOldInstallations": "강제 동기화: 설치 이전 중...",
+    "fetchingGameLists": "강제 동기화: 목록 불러오는 중...",
+    "checkingInstalledGames": "강제 동기화: 게임 확인 중...",
+    "rewritingShortcuts": "강제 동기화: 바로가기 재작성...",
+    "cancelledShortcutsSaved": "강제 동기화 취소 – 바로가기 저장됨",
+    "writingShortcuts": "강제 동기화: 바로가기 작성 중...",
+    "clearingProton": "강제 동기화: Proton 호환성 제거...",
+    "completed": "강제 동기화 완료! {{updated}} 업데이트, 아트워크 {{artwork}}."
+  },
+  "artwork": {
+    "checking": "아트워크 확인 중...",
+    "queueRefresh": "모든 게임 아트워크 새로고침 대기열...",
+    "downloadProgress": "아트워크 {{synced}}/{{total}} 다운로드됨 ({{game}})"
   }
 }

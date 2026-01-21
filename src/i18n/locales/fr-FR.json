@@ -47,7 +47,9 @@
     },
     "preparingDownload": "Préparation du téléchargement...",
     "phaseExtracting": "Extraction de {{game}}...",
-    "phaseVerifying": "Vérification de {{game}}..."
+    "phaseVerifying": "Vérification de {{game}}...",
+    "internalStorage": "Stockage interne ({{freeSpace}} Go libres)",
+    "sdCard": "Carte SD ({{freeSpace}} Go libres)"
   },
   "cloudSave": {
     "title": "Conflit de sauvegarde cloud",
@@ -216,5 +218,30 @@
     "steamGridDbUnavailable": "Bibliothèque SteamGridDB indisponible",
     "deleteSyncInProgress": "Impossible de supprimer pendant la synchronisation",
     "alreadyInQueue": "Déjà dans la file d'attente"
+  },
+  "sync": {
+    "downloadingArtwork": "Téléchargement des illustrations pour {{game}}…",
+    "fetchingGameLists": "Récupération des listes de jeux…",
+    "cancelledByUser": "Synchronisation annulée par l’utilisateur",
+    "checkingInstalledGames": "Vérification des jeux installés…",
+    "sgdbLookup": "Recherche de {{count}} jeux sur SteamGridDB…",
+    "checkingExistingArtwork": "Vérification des illustrations existantes…",
+    "savingShortcuts": "Enregistrement des raccourcis…",
+    "completed": "Synchronisation terminée ! {{added}} ajoutés, {{artwork}} illustrations."
+  },
+  "force_sync": {
+    "migratingOldInstallations": "Synchronisation forcée : migration des anciennes installations…",
+    "fetchingGameLists": "Synchronisation forcée : récupération des listes de jeux…",
+    "checkingInstalledGames": "Synchronisation forcée : vérification des jeux installés…",
+    "rewritingShortcuts": "Synchronisation forcée : réécriture des raccourcis…",
+    "cancelledShortcutsSaved": "Synchronisation forcée annulée — raccourcis enregistrés",
+    "writingShortcuts": "Synchronisation forcée : écriture des raccourcis…",
+    "clearingProton": "Synchronisation forcée : réinitialisation de la compatibilité Proton (gérée par le lanceur)…",
+    "completed": "Synchronisation forcée terminée ! {{updated}} jeux mis à jour, {{artwork}} illustrations récupérées."
+  },
+  "artwork": {
+    "checking": "Vérification des illustrations…",
+    "queueRefresh": "Mise en file d’attente de tous les jeux pour le rafraîchissement des illustrations…",
+    "downloadProgress": "Illustrations téléchargées {{synced}}/{{total}} ({{game}})"
   }
 }

@@ -47,7 +47,9 @@
     },
     "preparingDownload": "İndirme hazırlanıyor...",
     "phaseExtracting": "{{game}} çıkarılıyor...",
-    "phaseVerifying": "{{game}} doğrulanıyor..."
+    "phaseVerifying": "{{game}} doğrulanıyor...",
+    "internalStorage": "Dahili depolama ({{freeSpace}} GB boş)",
+    "sdCard": "SD Kart ({{freeSpace}} GB boş)"
   },
   "cloudSave": {
     "title": "Bulut Kayıt Çakışması",
@@ -215,5 +217,30 @@
     "lockConflict": "Kilit çakışması - tekrar deneyin",
     "unknownStore": "Bilinmeyen mağaza",
     "shortcutWriteFailed": "Kısayollar yazılamadı"
+  },
+  "sync": {
+    "downloadingArtwork": "{{game}} için görsel indiriliyor...",
+    "fetchingGameLists": "Oyun listeleri alınıyor...",
+    "cancelledByUser": "Senkronizasyon iptal edildi",
+    "checkingInstalledGames": "Yüklü oyunlar kontrol ediliyor...",
+    "sgdbLookup": "SteamGridDB'de {{count}} oyun aranıyor...",
+    "checkingExistingArtwork": "Mevcut görseller kontrol ediliyor...",
+    "savingShortcuts": "Kısayollar kaydediliyor...",
+    "completed": "Sync tamamlandı! {{added}} eklendi, görsel {{artwork}}."
+  },
+  "force_sync": {
+    "migratingOldInstallations": "Zorla sync: Kurulumlar taşınıyor...",
+    "fetchingGameLists": "Zorla sync: Listeler alınıyor...",
+    "checkingInstalledGames": "Zorla sync: Oyunlar kontrol ediliyor...",
+    "rewritingShortcuts": "Zorla sync: Kısayollar yeniden yazılıyor...",
+    "cancelledShortcutsSaved": "Zorla sync iptal – kısayollar kaydedildi",
+    "writingShortcuts": "Zorla sync: Kısayollar yazılıyor...",
+    "clearingProton": "Zorla sync: Proton temizleniyor...",
+    "completed": "Zorla sync tamamlandı! {{updated}} güncellendi, görsel {{artwork}}."
+  },
+  "artwork": {
+    "checking": "Görseller kontrol ediliyor...",
+    "queueRefresh": "Tüm oyunlar görsel yenilemeye alınıyor...",
+    "downloadProgress": "Görsel {{synced}}/{{total}} indirildi ({{game}})"
   }
 }

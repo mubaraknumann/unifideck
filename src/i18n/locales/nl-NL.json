@@ -47,7 +47,9 @@
     },
     "preparingDownload": "Download voorbereiden...",
     "phaseExtracting": "{{game}} uitpakken...",
-    "phaseVerifying": "{{game}} verifiëren..."
+    "phaseVerifying": "{{game}} verifiëren...",
+    "internalStorage": "Interne opslag ({{freeSpace}} GB vrij)",
+    "sdCard": "SD-kaart ({{freeSpace}} GB vrij)"
   },
   "cloudSave": {
     "title": "Cloud Save Conflict",
@@ -216,5 +218,30 @@
     "steamGridDbUnavailable": "SteamGridDB-bibliotheek niet beschikbaar",
     "deleteSyncInProgress": "Kan niet verwijderen terwijl synchronisatie bezig is",
     "alreadyInQueue": "Reeds in wachtrij"
+  },
+  "sync": {
+    "downloadingArtwork": "Artwork downloaden voor {{game}}...",
+    "fetchingGameLists": "Gamelijsten ophalen...",
+    "cancelledByUser": "Sync geannuleerd",
+    "checkingInstalledGames": "Geïnstalleerde games controleren...",
+    "sgdbLookup": "{{count}} games op SteamGridDB zoeken...",
+    "checkingExistingArtwork": "Bestaande artwork controleren...",
+    "savingShortcuts": "Snelkoppelingen opslaan...",
+    "completed": "Sync klaar! {{added}} toegevoegd, artwork {{artwork}}."
+  },
+  "force_sync": {
+    "migratingOldInstallations": "Geforceerde sync: Migreren...",
+    "fetchingGameLists": "Geforceerde sync: Lijsten ophalen...",
+    "checkingInstalledGames": "Geforceerde sync: Games controleren...",
+    "rewritingShortcuts": "Geforceerde sync: Snelkoppelingen herschrijven...",
+    "cancelledShortcutsSaved": "Geforceerde sync geannuleerd – opgeslagen",
+    "writingShortcuts": "Geforceerde sync: Snelkoppelingen schrijven...",
+    "clearingProton": "Geforceerde sync: Proton opschonen...",
+    "completed": "Geforceerde sync klaar! {{updated}} bijgewerkt, artwork {{artwork}}."
+  },
+  "artwork": {
+    "checking": "Artwork controleren...",
+    "queueRefresh": "Alle games in wachtrij voor artwork...",
+    "downloadProgress": "Artwork {{synced}}/{{total}} gedownload ({{game}})"
   }
 }

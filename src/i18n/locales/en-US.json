@@ -47,7 +47,9 @@
     },
     "preparingDownload": "Preparing download...",
     "phaseExtracting": "Extracting {{game}}...",
-    "phaseVerifying": "Verifying {{game}}..."
+    "phaseVerifying": "Verifying {{game}}...",
+    "internalStorage": "Internal Storage ({{freeSpace}} GB free)",
+    "sdCard": "SD Card ({{freeSpace}} GB free)"
   },
   "cloudSave": {
     "title": "Cloud Save Conflict",
@@ -216,5 +218,30 @@
     "steamGridDbUnavailable": "SteamGridDB library not available",
     "deleteSyncInProgress": "Cannot delete while sync is in progress",
     "alreadyInQueue": "Already in queue"
+  },
+  "sync": {
+    "downloadingArtwork": "Downloading artwork for {{game}}...",
+    "fetchingGameLists": "Fetching game lists...",
+    "cancelledByUser": "Sync cancelled by user",
+    "checkingInstalledGames": "Checking installed games...",
+    "sgdbLookup": "Looking up {{count}} games on SteamGridDB...",
+    "checkingExistingArtwork": "Checking existing artwork...",
+    "savingShortcuts": "Saving shortcuts...",
+    "completed": "Sync completed! Added {{added}}, Art {{artwork}}."
+  },
+  "force_sync": {
+    "migratingOldInstallations": "Force sync: Migrating old installations...",
+    "fetchingGameLists": "Force sync: Fetching game lists...",
+    "checkingInstalledGames": "Force sync: Checking installed games...",
+    "rewritingShortcuts": "Force sync: Rewriting shortcuts...",
+    "cancelledShortcutsSaved": "Force sync cancelled - shortcuts saved",
+    "writingShortcuts": "Force Sync: Writing shortcuts...",
+    "clearingProton": "Force sync: Clearing Proton compatibility (launcher manages internally)...",
+    "completed": "Force sync completed! Updated {{updated}} games, fetched {{artwork}} artwork."
+  },
+  "artwork": {
+    "checking": "Checking artwork...",
+    "queueRefresh": "Queuing all games for artwork refresh...",
+    "downloadProgress": "Downloaded artwork {{synced}}/{{total}} ({{game}})"
   }
 }

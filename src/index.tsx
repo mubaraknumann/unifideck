@@ -81,6 +81,11 @@ const CACHE_TTL = 5000; // 5 seconds - reduced from 30s for faster button state 
 //
 // ================================================
 
+interface SyncProgressCurrentGame {
+  label: string;
+  values: Record<string, string | number>;
+}
+
 // Install Info Display Component - shows download size next to play section
 const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
   const [gameInfo, setGameInfo] = useState<any>(null);
@@ -635,7 +640,7 @@ const Content: FC = () => {
   const [syncProgress, setSyncProgress] = useState<{
     total_games: number;
     synced_games: number;
-    current_game: string;
+    current_game: SyncProgressCurrentGame;
     status: string;
     progress_percent: number;
     error?: string;
@@ -673,7 +678,7 @@ const Content: FC = () => {
           sync_progress: {
             total_games: number;
             synced_games: number;
-            current_game: string;
+            current_game: SyncProgressCurrentGame;
             status: string;
             progress_percent: number;
             error?: string;
@@ -706,7 +711,7 @@ const Content: FC = () => {
                 success?: boolean;
                 total_games: number;
                 synced_games: number;
-                current_game: string;
+                current_game: SyncProgressCurrentGame;
                 status: string;
                 progress_percent: number;
                 error?: string;
@@ -719,11 +724,11 @@ const Content: FC = () => {
                 setSyncProgress(result);
 
                 // Log progress updates
-                if (result.current_game) {
+                if (result.current_game.label) {
                   const progress = result.current_phase === 'artwork'
                     ? `${result.artwork_synced}/${result.artwork_total}`
                     : `${result.synced_games}/${result.total_games}`;
-                  console.log(`[Unifideck] ${result.current_game} (${progress})`);
+                  console.log(`[Unifideck] `+t(`${result.current_game.label}`, result.current_game.values) + ` (${progress})`);
                 }
 
                 // Stop polling when complete, error, or cancelled
@@ -758,7 +763,7 @@ const Content: FC = () => {
                     } else if (result.status === 'cancelled') {
                       toaster.toast({
                         title: t('toasts.syncCancelled'),
-                        body: result.current_game || t('toasts.syncCancelled'),
+                        body: result.current_game.label ? t(result.current_game.label, result.current_game.values) : t('toasts.syncCancelled'),
                         duration: 5000,
                       });
                     }
@@ -877,7 +882,7 @@ const Content: FC = () => {
           success?: boolean;
           total_games: number;
           synced_games: number;
-          current_game: string;
+          current_game: SyncProgressCurrentGame;
           status: string;
           progress_percent: number;
           error?: string;
@@ -890,11 +895,11 @@ const Content: FC = () => {
           setSyncProgress(result);
 
           // Log progress updates
-          if (result.current_game) {
+          if (result.current_game.label) {
             const progress = result.current_phase === 'artwork'
               ? `${result.artwork_synced}/${result.artwork_total}`
               : `${result.synced_games}/${result.total_games}`;
-            console.log(`[Unifideck] ${result.current_game} (${progress})`);
+            console.log(`[Unifideck] `+t(`${result.current_game.label}`, result.current_game.values) + ` (${progress})`);
           }
         }
 
@@ -933,7 +938,7 @@ const Content: FC = () => {
             } else if (result.status === 'cancelled') {
               toaster.toast({
                 title: t('toasts.syncCancelled'),
-                body: result.current_game || t('toasts.syncCancelled'),
+                body: result.current_game.label ? t(result.current_game.label, result.current_game.values) : t('toasts.syncCancelled'),
                 duration: 5000,
               });
             }
@@ -1469,7 +1474,7 @@ const Content: FC = () => {
                 <div style={{ fontSize: '12px', width: '100%' }}>
                   {/* Status text */}
                   <div style={{ marginBottom: '5px', opacity: 0.9 }}>
-                    {syncProgress.current_game}
+                    {t(syncProgress.current_game.label, syncProgress.current_game.values)}
                   </div>
 
                   {/* Progress bar */}

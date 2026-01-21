@@ -14,6 +14,7 @@ import koKR from "./locales/ko-KR.json";
 import nlNL from "./locales/nl-NL.json";
 import plPL from "./locales/pl-PL.json";
 import trTR from "./locales/tr-TR.json";
+import ukUA from "./locales/uk-UA.json";
 
 const resources: Record<string, { translation: object }> = {
   "en-US": { translation: enUS },
@@ -29,6 +30,7 @@ const resources: Record<string, { translation: object }> = {
   "nl-NL": { translation: nlNL },
   "pl-PL": { translation: plPL },
   "tr-TR": { translation: trTR },
+  "uk-UA": { translation: ukUA },
 };
 
 // Native language names for display in dropdown
@@ -46,6 +48,7 @@ export const LANGUAGE_NAMES: Record<string, string> = {
   "ru-RU": "Русский",
   "tr-TR": "Türkçe",
   "zh-CN": "简体中文",
+  "uk-UA": "Українська",
 };
 
 export const loadTranslations = (savedLanguage?: string) => {
@@ -76,6 +79,7 @@ export const loadTranslations = (savedLanguage?: string) => {
         nl: ["nl-NL"],
         pl: ["pl-PL"],
         tr: ["tr-TR"],
+        uk: ["uk-UA"],
         default: ["en-US"],
       },
       load: "languageOnly",

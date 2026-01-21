@@ -520,7 +520,10 @@ class SyncProgress:
     def __init__(self):
         self.total_games = 0
         self.synced_games = 0
-        self.current_game = ""
+        self.current_game = {
+            "label": None,     # key i18n
+            "values": {}       # dynamic values
+        }
         self.status = "idle"  # idle, fetching, checking_installed, syncing, sgdb_lookup, checking_artwork, artwork, proton_setup, complete, error, cancelled
         self.error = None
 
@@ -536,7 +539,14 @@ class SyncProgress:
         """Thread-safe artwork counter increment"""
         async with self._lock:
             self.artwork_synced += 1
-            self.current_game = f"Downloaded artwork {self.artwork_synced}/{self.artwork_total} ({game_title})"
+            self.current_game = {
+                "label": "artwork.downloadProgress",
+                "values": {
+                    "synced": self.artwork_synced,
+                    "total": self.artwork_total,
+                    "game_title": game_title
+                }
+            }
             return self.artwork_synced
 
     def _calculate_progress(self) -> int:
@@ -2745,7 +2755,10 @@ class Plugin:
         async with semaphore:
             try:
                 # Update status to show we're working on this game (before download)
-                self.sync_progress.current_game = f"Downloading artwork for {game.title}..."
+                self.sync_progress.current_game = {
+                    "label": "sync.downloadingArtwork",
+                    "values": {"game": game.title}
+                }
                 
                 # Pass store and store_id for official CDN artwork sources
                 result = await self.steamgriddb.fetch_game_art(
@@ -2801,7 +2814,10 @@ class Plugin:
 
                 # Update progress: Fetching games
                 self.sync_progress.status = "fetching"
-                self.sync_progress.current_game = "Fetching game lists..."
+                self.sync_progress.current_game = {
+                    "label": "sync.fetchingGameLists",
+                    "values": {}
+                }
                 self.sync_progress.error = None
 
                 # Get games from all stores
@@ -2835,7 +2851,10 @@ class Plugin:
                 if self._cancel_sync:
                     logger.warning("Sync cancelled by user after fetching libraries")
                     self.sync_progress.status = "cancelled"
-                    self.sync_progress.current_game = "Sync cancelled by user"
+                    self.sync_progress.current_game = {
+                        "label": "sync.cancelledByUser",
+                        "values": {}
+                    }
                     return {
                         'success': False,
                         'error': 'errors.syncCancelled',
@@ -2857,7 +2876,10 @@ class Plugin:
 
                 # Update progress: Checking installed status
                 self.sync_progress.status = "checking_installed"
-                self.sync_progress.current_game = "Checking installed games..."
+                self.sync_progress.current_game = {
+                    "label": "sync.checkingInstalledGames",
+                    "values": {}
+                }
 
                 # Get installed games
                 epic_installed = await self.epic.get_installed()
@@ -2956,7 +2978,10 @@ class Plugin:
                     if games_needing_sgdb_lookup:
                         logger.info(f"Looking up {len(games_needing_sgdb_lookup)} games on SteamGridDB (parallel)...")
                         self.sync_progress.status = "sgdb_lookup"
-                        self.sync_progress.current_game = f"Looking up {len(games_needing_sgdb_lookup)} games on SteamGridDB..."
+                        self.sync_progress.current_game = {
+                            "label": "sync.sgdbLookup",
+                            "values": {"count": len(games_needing_sgdb_lookup)}
+                        }
                         
                         # Helper to lookup and store result
                         async def lookup_sgdb(game):
@@ -2991,7 +3016,10 @@ class Plugin:
 
                     # STEP 3: Check which games need artwork (quick local file check)
                     self.sync_progress.status = "checking_artwork"
-                    self.sync_progress.current_game = "Checking existing artwork..."
+                    self.sync_progress.current_game = {
+                        "label": "sync.checkingExistingArtwork",
+                        "values": {}
+                    }
                     for game in all_games:
                         if game.app_id in seen_app_ids:
                             if not await self.has_artwork(game.app_id):
@@ -3039,7 +3067,10 @@ class Plugin:
                 
                 # --- STEP 3: WRITE SHORTCUTS ---
                 self.sync_progress.status = "syncing"
-                self.sync_progress.current_game = "Saving shortcuts..."
+                self.sync_progress.current_game = {
+                    "label": "sync.savingShortcuts",
+                    "values": {}
+                }
                 
                 # Use valid_stores to prevent deleting shortcuts for stores that failed to sync
                 batch_result = await self.shortcuts_manager.add_games_batch(all_games, launcher_script, valid_stores=valid_stores)
@@ -3051,7 +3082,10 @@ class Plugin:
                 # Complete
                 self.sync_progress.status = "complete"
                 self.sync_progress.synced_games = len(all_games)
-                self.sync_progress.current_game = f"Sync completed! Added {added_count}, Art {artwork_count}."
+                self.sync_progress.current_game = {
+                    "label": "sync.completed",
+                    "values": {"added": added_count, "artwork": artwork_count}
+                }
 
                 if added_count > 0 or artwork_count > 0:
                     logger.warning("=" * 60)
@@ -3109,7 +3143,10 @@ class Plugin:
 
                 # Update progress: Fetching games
                 self.sync_progress.status = "fetching"
-                self.sync_progress.current_game = "Force sync: Migrating old installations..."
+                self.sync_progress.current_game = {
+                    "label": "force_sync.migratingOldInstallations",
+                    "values": {}
+                }
                 self.sync_progress.error = None
 
                 # Migrate old GOG .unifideck-id markers to new JSON format
@@ -3120,7 +3157,10 @@ class Plugin:
                 except Exception as e:
                     logger.warning(f"[ForceSync] Marker migration failed: {e}")
 
-                self.sync_progress.current_game = "Force sync: Fetching game lists..."
+                self.sync_progress.current_game = {
+                    "label": "force_sync.fetchingGameLists",
+                    "values": {}
+                }
 
                 # Get games from all stores
                 epic_games = await self.epic.get_library()
@@ -3158,7 +3198,10 @@ class Plugin:
 
                 # Update progress: Checking installed status
                 self.sync_progress.status = "checking_installed"
-                self.sync_progress.current_game = "Force sync: Checking installed games..."
+                self.sync_progress.current_game = {
+                    "label": "force_sync.checkingInstalledGames",
+                    "values": {}
+                }
 
                 # Get installed games
                 epic_installed = await self.epic.get_installed()
@@ -3219,7 +3262,10 @@ class Plugin:
 
                 # Update progress: Force syncing
                 self.sync_progress.status = "syncing"
-                self.sync_progress.current_game = "Force sync: Rewriting shortcuts..."
+                self.sync_progress.current_game = {
+                    "label": "force_sync.rewritingShortcuts",
+                    "values": {}
+                }
 
                 # Force update all games - rewrite existing shortcuts
                 batch_result = await self.shortcuts_manager.force_update_games_batch(all_games, launcher_script, valid_stores=valid_stores)
@@ -3238,7 +3284,10 @@ class Plugin:
                 if self._cancel_sync:
                     logger.warning("Force sync cancelled by user after writing shortcuts")
                     self.sync_progress.status = "cancelled"
-                    self.sync_progress.current_game = "Force sync cancelled - shortcuts saved"
+                    self.sync_progress.current_game = {
+                        "label": "force_sync.cancelledShortcutsSaved",
+                        "values": {}
+                    }
                     return {
                         'success': True,
                         'cancelled': True,
@@ -3284,7 +3333,13 @@ class Plugin:
                     if games_needing_sgdb_lookup:
                         logger.info(f"Force Sync: Looking up {len(games_needing_sgdb_lookup)} games on SteamGridDB (parallel)...")
                         self.sync_progress.status = "sgdb_lookup"
-                        self.sync_progress.current_game = f"Looking up {len(games_needing_sgdb_lookup)} games on SteamGridDB..."
+                        self.sync_progress.current_game = {
+                            "label": "sync.sgdbLookup",
+                            "values": {
+                                "count": len(games_needing_sgdb_lookup)
+                            }
+                        }
+
                         
                         # Helper to lookup and store result
                         async def lookup_sgdb(game):
@@ -3321,7 +3376,10 @@ class Plugin:
                     # If resync_artwork=True, re-download ALL artwork (overwrites manual changes)
                     # If resync_artwork=False, only download for games missing artwork
                     self.sync_progress.status = "checking_artwork"
-                    self.sync_progress.current_game = "Checking artwork..." if not resync_artwork else "Queuing all games for artwork refresh..."
+                    self.sync_progress.current_game = {
+                        "label": "sync.checking_artwork" if not resync_artwork else "sync.queueRefresh",
+                        "values": {}
+                    }
                     for game in all_games:
                         if game.app_id in seen_app_ids:
                             if resync_artwork or not await self.has_artwork(game.app_id):
@@ -3367,7 +3425,10 @@ class Plugin:
                              game.cover_image = str(icon_path)
 
                 # --- STEP 3: WRITE SHORTCUTS ---
-                self.sync_progress.current_game = "Force Sync: Writing shortcuts..."
+                self.sync_progress.current_game = {
+                    "label": "force_sync.writingShortcuts",
+                    "values": {}
+                }
                 
                 # Force update all games - rewrites existing shortcuts with fresh data (and local icons)
                 force_result = await self.shortcuts_manager.force_update_games_batch(all_games, launcher_script)
@@ -3382,7 +3443,10 @@ class Plugin:
                 # The unifideck-launcher script handles Proton internally via umu-run
                 # We DON'T want Steam to wrap our launcher in Proton (causes Python path issues)
                 self.sync_progress.status = "proton_setup"
-                self.sync_progress.current_game = "Force sync: Clearing Proton compatibility (launcher manages internally)..."
+                self.sync_progress.current_game = {
+                    "label": "force_sync.clearingProton",
+                    "values": {}
+                }
                 proton_cleared = 0
                 
                 shortcuts_data = await self.shortcuts_manager.read_shortcuts()
@@ -3400,7 +3464,10 @@ class Plugin:
                 # Complete
                 self.sync_progress.status = "complete"
                 self.sync_progress.synced_games = len(all_games)
-                self.sync_progress.current_game = f"Force sync completed! Updated {updated_count} games, fetched {artwork_count} artwork."
+                self.sync_progress.current_game = {
+                    "label": "force_sync.completed",
+                    "values": {"updated": updated_count, "artwork": artwork_count}
+                }
 
                 # Notify about Steam restart requirement
                 if added_count > 0 or updated_count > 0 or artwork_count > 0:

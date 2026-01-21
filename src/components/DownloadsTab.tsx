@@ -95,7 +95,7 @@ const DownloadItemRow: FC<{
                 borderRadius: "8px",
                 padding: "12px",
                 marginBottom: "8px",
-                border: isCurrent ? "1px solid #1a9fff" : "1px solid #333",
+                // border: isCurrent ? "1px solid #1a9fff" : "1px solid #333",
             }}
         >
             {/* Header row: Title + Store + Clear button for finished */}
