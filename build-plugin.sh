@@ -171,15 +171,87 @@ sync_version() {
     echo ""
 }
 # ============================================================
-# Check for Decky CLI
+# Detect OS and Architecture
+# ============================================================
+get_decky_cli_url() {
+    local os_type=""
+    local arch_type=""
+    
+    # Detect OS
+    case "$(uname -s)" in
+        Linux*)     os_type="linux" ;;
+        Darwin*)    os_type="darwin" ;;
+        CYGWIN*|MINGW*|MSYS*) os_type="windows" ;;
+        *)          os_type="unknown" ;;
+    esac
+    
+    # Detect architecture
+    case "$(uname -m)" in
+        x86_64|amd64)   arch_type="x64" ;;
+        arm64|aarch64)  arch_type="arm64" ;;
+        *)              arch_type="x64" ;;  # Default to x64
+    esac
+    
+    # Construct download URL
+    local base_url="https://github.com/SteamDeckHomebrew/cli/releases/latest/download"
+    
+    if [ "$os_type" = "windows" ]; then
+        echo "${base_url}/decky-${os_type}-${arch_type}.exe"
+    else
+        echo "${base_url}/decky-${os_type}-${arch_type}.tar.gz"
+    fi
+}
+
+# ============================================================
+# Check for Decky CLI (with auto-download)
 # ============================================================
 check_decky_cli() {
-    if ! test -f "$CLI_LOCATION/decky"; then
-        log_warn "Decky CLI tool not found at $CLI_LOCATION/decky"
-        log_info "You can install it by running: .vscode/setup.sh"
-        return 1
+    local cli_binary="$CLI_LOCATION/decky"
+    
+    # Check if CLI exists and is executable for this platform
+    if test -f "$cli_binary"; then
+        # Verify the binary is compatible with this OS
+        if "$cli_binary" --version >/dev/null 2>&1; then
+            return 0
+        else
+            log_warn "Decky CLI exists but is incompatible with this OS/architecture"
+            log_info "Will attempt to download correct version..."
+            rm -f "$cli_binary"
+        fi
     fi
-    return 0
+    
+    # CLI doesn't exist or is incompatible - try to download
+    log_info "Downloading Decky CLI for $(uname -s) $(uname -m)..."
+    
+    local download_url
+    download_url=$(get_decky_cli_url)
+    
+    mkdir -p "$CLI_LOCATION"
+    
+    if [[ "$download_url" == *.exe ]]; then
+        # Windows binary
+        if curl -sL "$download_url" -o "$cli_binary.exe"; then
+            log_success "Downloaded Decky CLI for Windows"
+            return 0
+        fi
+    else
+        # Linux/macOS tarball
+        if curl -sL "$download_url" -o "$CLI_LOCATION/decky.tar.gz"; then
+            cd "$CLI_LOCATION"
+            tar -xzf decky.tar.gz 2>/dev/null
+            rm -f decky.tar.gz
+            chmod +x decky 2>/dev/null || true
+            cd "$SCRIPT_DIR"
+            
+            if test -f "$cli_binary" && "$cli_binary" --version >/dev/null 2>&1; then
+                log_success "Downloaded Decky CLI ($(\"$cli_binary\" --version 2>/dev/null | head -1 || echo 'unknown version'))"
+                return 0
+            fi
+        fi
+    fi
+    
+    log_warn "Could not download Decky CLI - will use local build method"
+    return 1
 }
 
 # ============================================================
