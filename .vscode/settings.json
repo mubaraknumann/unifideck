@@ -1,12 +1,18 @@
 {
-    "deckip"    : "steamdeck.local",
-    "deckport"  : "22",
-    "deckuser"  : "deck",
-    "deckpass"  : "ssap",
-    "deckkey"   : "-i ${env:HOME}/.ssh/id_rsa",
-    "deckdir"   : "/home/deck",
-    "pluginname": "Unifideck",
-    "python.analysis.extraPaths": [
-        "./py_modules"
-    ]
+  // Editor Settings
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+
+  // Prettier Configuration
+  "prettier.enable": true,
+  "prettier.configPath": ".prettierrc",
+
+  "deckip": "steamdeck.local",
+  "deckport": "22",
+  "deckuser": "deck",
+  "deckpass": "ssap",
+  "deckkey": "-i ${env:HOME}/.ssh/id_rsa",
+  "deckdir": "/home/deck",
+  "pluginname": "Unifideck",
+  "python.analysis.extraPaths": ["./py_modules"]
 }

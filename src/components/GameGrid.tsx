@@ -45,9 +45,7 @@ export const GameGrid: FC<GameGridProps> = ({ games, loading }) => {
         }}
       >
         <div>{t("gameGrid.noGamesFound")}</div>
-        <div style={{ fontSize: "12px" }}>
-          {t("gameGrid.noGamesHint")}
-        </div>
+        <div style={{ fontSize: "12px" }}>{t("gameGrid.noGamesHint")}</div>
       </div>
     );
   }

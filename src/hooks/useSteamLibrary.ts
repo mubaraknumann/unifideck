@@ -35,7 +35,7 @@ export function useSteamLibrary() {
       // Combine and transform
       const allApps = [...ownedApps, ...nonSteamApps];
       const unifideckGames: UnifideckGame[] = allApps.map((app) =>
-        transformSteamApp(app)
+        transformSteamApp(app),
       );
 
       setGames(unifideckGames);
@@ -94,7 +94,8 @@ export function useSteamLibrary() {
 
   const filterByDeckVerified = (gameList: UnifideckGame[]) => {
     return gameList.filter(
-      (game) => game.deckVerified === "verified" || game.deckVerified === "playable"
+      (game) =>
+        game.deckVerified === "verified" || game.deckVerified === "playable",
     );
   };
 
@@ -116,9 +117,9 @@ export function useSteamLibrary() {
  * This provides store information that we can't get from Steam APIs alone
  */
 export function useUnifideckGames() {
-  const [gameMetadata, setGameMetadata] = useState<Map<number, { store: StoreType }>>(
-    new Map()
-  );
+  const [gameMetadata, setGameMetadata] = useState<
+    Map<number, { store: StoreType }>
+  >(new Map());
 
   useEffect(() => {
     loadUnifideckMetadata();
@@ -128,11 +129,18 @@ export function useUnifideckGames() {
     try {
       // Call backend to get mapping of appId -> store
       const result = await call<[], Record<number, string>>(
-        "get_game_metadata"
+        "get_game_metadata",
       );
 
-      console.log(`[Unifideck] Loaded metadata for ${Object.keys(result || {}).length} games`);
-      console.log("[Unifideck] Metadata sample:", Object.entries(result || {}).slice(0, 5));
+      console.log(
+        `[Unifideck] Loaded metadata for ${
+          Object.keys(result || {}).length
+        } games`,
+      );
+      console.log(
+        "[Unifideck] Metadata sample:",
+        Object.entries(result || {}).slice(0, 5),
+      );
 
       if (result) {
         const metadata = new Map<number, { store: StoreType }>();
