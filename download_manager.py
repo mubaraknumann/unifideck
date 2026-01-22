@@ -124,14 +124,33 @@ class DownloadQueue:
                 with open(self.QUEUE_FILE, 'r') as f:
                     data = json.load(f)
                 
-                self.queue = [DownloadItem.from_dict(item) for item in data.get('queue', [])]
+                raw_queue = [DownloadItem.from_dict(item) for item in data.get('queue', [])]
                 self.finished = [DownloadItem.from_dict(item) for item in data.get('finished', [])]
                 
-                # Reset any "downloading" items to "queued" (from previous crash)
-                for item in self.queue:
-                    if item.status == DownloadStatus.DOWNLOADING:
+                # Clean up stale items from the queue on startup
+                # Items with error/cancelled status should move to finished, not block new downloads
+                self.queue = []
+                stale_count = 0
+                for item in raw_queue:
+                    if item.status in (DownloadStatus.ERROR, DownloadStatus.CANCELLED):
+                        # Move stale error/cancelled items to finished list
+                        item.end_time = item.end_time or time.time()
+                        self.finished.append(item)
+                        stale_count += 1
+                        logger.info(f"[DownloadQueue] Moved stale {item.status} item to finished: {item.game_title}")
+                    elif item.status == DownloadStatus.DOWNLOADING:
+                        # Reset interrupted downloads to queued so they can retry
                         item.status = DownloadStatus.QUEUED
                         item.progress_percent = 0
+                        item.is_preparing = True
+                        self.queue.append(item)
+                        logger.info(f"[DownloadQueue] Reset interrupted download to queued: {item.game_title}")
+                    else:
+                        self.queue.append(item)
+                
+                if stale_count > 0:
+                    logger.info(f"[DownloadQueue] Cleaned up {stale_count} stale entries from queue")
+                    self._save()  # Persist the cleanup
                         
                 logger.info(f"[DownloadQueue] Loaded {len(self.queue)} queue, {len(self.finished)} finished")
         except Exception as e:
@@ -281,10 +300,20 @@ class DownloadQueue:
         download_id = f"{store}:{game_id}"
         
         # Check if already in queue
-        for item in self.queue:
+        for i, item in enumerate(self.queue):
             if item.id == download_id:
-                logger.warning(f"[DownloadQueue] {download_id} already in queue")
-                return {'success': False, 'error': 'errors.alreadyInQueue'}
+                # Auto-clean stale entries (error/cancelled should not block new downloads)
+                if item.status in (DownloadStatus.ERROR, DownloadStatus.CANCELLED):
+                    logger.info(f"[DownloadQueue] Auto-cleaning stale {item.status} entry: {download_id}")
+                    self.queue.pop(i)
+                    item.end_time = item.end_time or time.time()
+                    self.finished.append(item)
+                    self._save()
+                    # Continue to add the new download below
+                    break
+                else:
+                    logger.warning(f"[DownloadQueue] {download_id} already in queue with status {item.status}")
+                    return {'success': False, 'error': 'errors.alreadyInQueue'}
         
         # Create new download item with installation guardrail
         item = DownloadItem(
@@ -321,14 +350,82 @@ class DownloadQueue:
         return False
 
     def remove_finished(self, download_id: str) -> bool:
-        """Remove a finished download from the finished list"""
+        """Remove a finished download from the finished list.
+        
+        Also clears any lingering queue entries for the same ID to ensure
+        the game can be re-downloaded without 'already in queue' errors.
+        """
+        removed = False
+        
+        # Remove from finished list
+        for i, item in enumerate(self.finished):
+            if item.id == download_id:
+                self.finished.pop(i)
+                removed = True
+                logger.info(f"[DownloadQueue] Cleared finished download {download_id}")
+                break
+        
+        # Also check queue for stale entries (shouldn't normally be there, but safety check)
+        for i, item in enumerate(self.queue):
+            if item.id == download_id and item.status in (DownloadStatus.ERROR, DownloadStatus.CANCELLED):
+                self.queue.pop(i)
+                removed = True
+                logger.info(f"[DownloadQueue] Also cleared stale queue entry {download_id}")
+                break
+        
+        if removed:
+            self._save()
+        
+        return removed
+
+    def force_clear_entry(self, download_id: str) -> bool:
+        """Force-remove a stuck entry from the queue regardless of status.
+        
+        This is a recovery method for when entries get stuck (e.g., cancelled at 99%
+        but not properly cleaned up).
+        # Check active queue
+        for i, item in enumerate(self.queue):
+            if item.id == download_id:
+                self.queue.pop(i)
+                item.status = DownloadStatus.CANCELLED
+                item.end_time = time.time()
+                self.finished.append(item)
+                self._save()
+                logger.info(f"[DownloadQueue] Force-cleared stuck entry from queue: {download_id}")
+                return True
+        
+        # Check finished (to allow cleanup there too)
         for i, item in enumerate(self.finished):
             if item.id == download_id:
                 self.finished.pop(i)
                 self._save()
-                logger.info(f"[DownloadQueue] Cleared finished download {download_id}")
+                logger.info(f"[DownloadQueue] Force-cleared entry from finished: {download_id}")
                 return True
+        
         return False
+
+    def clear_all_stale(self) -> int:
+        """Clear all stale (error/cancelled) entries from the queue.
+        
+        Returns the number of entries cleared. Useful for force-sync recovery.
+        """
+        stale_items = []
+        clean_queue = []
+        
+        for item in self.queue:
+            if item.status in (DownloadStatus.ERROR, DownloadStatus.CANCELLED):
+                item.end_time = item.end_time or time.time()
+                stale_items.append(item)
+            else:
+                clean_queue.append(item)
+        
+        if stale_items:
+            self.queue = clean_queue
+            self.finished.extend(stale_items)
+            self._save()
+            logger.info(f"[DownloadQueue] Cleared {len(stale_items)} stale entries from queue")
+        
+        return len(stale_items)
 
     async def cancel_current(self) -> bool:
         """Cancel the currently downloading item and clean up downloaded files"""

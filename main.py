@@ -4204,6 +4204,46 @@ class Plugin:
             logger.error(f"[DownloadQueue] Error clearing finished download {download_id}: {e}")
             return {'success': False, 'error': str(e)}
 
+    async def force_clear_download_entry(self, download_id: str) -> Dict[str, Any]:
+        """Force-remove a stuck entry from the download queue.
+        
+        This is a recovery method for when entries get stuck (e.g., download failed
+        at 99% and got into a bad state). Use when getting 'Already in queue' errors.
+        
+        Args:
+            download_id: The download ID (format: 'store:game_id', e.g., 'gog:12345')
+        """
+        try:
+            logger.info(f"[DownloadQueue] Force-clearing stuck entry: {download_id}")
+            success = self.download_queue.force_clear_entry(download_id)
+            if success:
+                logger.info(f"[DownloadQueue] Successfully force-cleared: {download_id}")
+            else:
+                logger.warning(f"[DownloadQueue] Entry not found for force-clear: {download_id}")
+            return {'success': success}
+        except Exception as e:
+            logger.error(f"[DownloadQueue] Error force-clearing entry {download_id}: {e}")
+            return {'success': False, 'error': str(e)}
+
+    async def clear_stale_downloads(self) -> Dict[str, Any]:
+        """Clear all stale (error/cancelled) entries from the download queue.
+        
+        Use this as a recovery method if downloads are repeatedly blocked by
+        'Already in queue' errors. This is safe to call - it only removes entries
+        that are already in a terminal state (error or cancelled).
+        
+        Returns:
+            Dict with success status and count of cleared entries
+        """
+        try:
+            logger.info("[DownloadQueue] Clearing all stale download entries...")
+            cleared_count = self.download_queue.clear_all_stale()
+            logger.info(f"[DownloadQueue] Cleared {cleared_count} stale entries")
+            return {'success': True, 'cleared_count': cleared_count}
+        except Exception as e:
+            logger.error(f"[DownloadQueue] Error clearing stale downloads: {e}")
+            return {'success': False, 'error': str(e)}
+
     async def is_game_downloading(self, game_id: str, store: str) -> Dict[str, Any]:
         """Check if a specific game is currently downloading or in queue"""
         try:
