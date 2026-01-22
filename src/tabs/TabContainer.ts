@@ -10,6 +10,9 @@ import { loadCompatCacheFromBackend } from './protondb';
 import { gamepadTabbedPageClasses } from '@decky/ui';
 import { call } from '@decky/api';
 import React, { ReactElement } from 'react';
+import { loadTranslations, t } from "../i18n";
+
+loadTranslations();
 
 // Tab definition
 export interface UnifideckTab {
@@ -24,19 +27,19 @@ export interface UnifideckTab {
 export const UNIFIDECK_TABS: UnifideckTab[] = [
     {
         id: 'unifideck-deck',
-        title: 'Great on Deck',
+        title: t("deckTabs.greatOnDeck"),
         position: 0,
         filters: [{ type: 'deckCompat', params: {} }]  // Native, Platinum, or Verified only
     },
     {
         id: 'unifideck-all',
-        title: 'All Games',  // Renamed from "All"
+        title: t("deckTabs.allGames"),  // Renamed from "All"
         position: 1,
         filters: [{ type: 'all', params: {} }]
     },
     {
         id: 'unifideck-installed',
-        title: 'Installed',
+        title: t("deckTabs.installed"),
         position: 2,
         filters: [{ type: 'installed', params: { installed: true } }]
     },

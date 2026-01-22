@@ -39,6 +39,7 @@
     "confirmCancelDescription": "您确定要取消 {{game}} 的下载吗?",
     "confirmCancelYes": "是",
     "confirmCancelNo": "否",
+    "cancelDownload": "取消",
     "toastDownloadCancelledTitle": "下载已取消",
     "toastDownloadCancelledBody": "下载已从队列中删除。",
     "toastCancelFailedTitle": "取消失败",
@@ -224,5 +225,10 @@
     "checking": "检查封面...",
     "queueRefresh": "将所有游戏加入封面刷新队列...",
     "downloadProgress": "已下载 {{synced}}/{{total}}（{{game}}）"
+  },
+  "deckTabs": {
+    "greatOnDeck": "适用于 Steam Deck",
+    "allGames": "所有游戏",
+    "installed": "已安装"
   }
 }

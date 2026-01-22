@@ -9,8 +9,6 @@ import { FC, useState, useEffect } from "react";
 import { call } from "@decky/api";
 import {
     PanelSection,
-    PanelSectionRow,
-    Field,
     Dropdown,
     DropdownOption,
 } from "@decky/ui";
@@ -100,20 +98,17 @@ export const LanguageSelector: FC = () => {
 
     return (
         <PanelSection title={t('languageSettings.title')}>
-            <PanelSectionRow>
-                <Field
-                    label={t('languageSettings.label')}
-                    description={t('languageSettings.description')}
-                >
-                    <div style={{ display: "flex", flexDirection: "column", width: "100%" }}>
-                        <Dropdown
-                            rgOptions={dropdownOptions}
-                            selectedOption={selectedOption?.data}
-                            onChange={handleLanguageChange}
-                        />
-                    </div>
-                </Field>
-            </PanelSectionRow>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
+                <label>{t('languageSettings.label')}</label>
+                <Dropdown
+                    rgOptions={dropdownOptions}
+                    selectedOption={selectedOption?.data}
+                    onChange={handleLanguageChange}
+                />
+                <p style={{ fontSize: "0.85em", color: "#666" }}>
+                    {t('languageSettings.description')}
+                </p>
+            </div>
         </PanelSection>
     );
 };

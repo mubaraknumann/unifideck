@@ -34,6 +34,7 @@
     "confirmCancelDescription": "Bist du sicher, dass du den Download von {{game}} abbrechen möchtest?",
     "confirmCancelYes": "Ja",
     "confirmCancelNo": "Nein",
+    "cancelDownload": "Abbrechen",
     "toastDownloadCancelledTitle": "Download Abgebrochen",
     "toastDownloadCancelledBody": "Der Download wurde aus der Warteschlange entfernt.",
     "toastCancelFailedTitle": "Abbruch Fehlgeschlagen",
@@ -243,5 +244,10 @@
     "checking": "Artwork prüfen...",
     "queueRefresh": "Alle Spiele zur Artwork-Aktualisierung einreihen...",
     "downloadProgress": "Artwork {{synced}}/{{total}} geladen ({{game}})"
+  },
+  "deckTabs": {
+    "greatOnDeck": "Perfekt für Steam Deck",
+    "allGames": "Alle Spiele",
+    "installed": "Installiert"
   }
 }

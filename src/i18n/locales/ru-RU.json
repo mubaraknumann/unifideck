@@ -34,6 +34,7 @@
     "confirmCancelDescription": "Вы уверены, что хотите отменить загрузку {{game}}?",
     "confirmCancelYes": "Да",
     "confirmCancelNo": "Нет",
+    "cancelDownload": "Отменить",
     "toastDownloadCancelledTitle": "Загрузка отменена",
     "toastDownloadCancelledBody": "Загрузка была удалена из очереди.",
     "toastCancelFailedTitle": "Не удалось отменить",
@@ -243,5 +244,10 @@
     "checking": "Проверка арта...",
     "queueRefresh": "Очередь обновления арта для всех игр...",
     "downloadProgress": "Загружено {{synced}}/{{total}} ({{game}})"
+  },
+  "deckTabs": {
+    "greatOnDeck": "Идеально для Steam Deck",
+    "allGames": "Все игры",
+    "installed": "Установлено"
   }
 }

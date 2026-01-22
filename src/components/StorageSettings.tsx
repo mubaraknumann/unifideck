@@ -82,7 +82,6 @@ export const StorageSettings: FC = () => {
         .filter((loc) => loc.available)
         .map((loc) => ({
             data: loc.id,
-            // label: `${loc.label} (${loc.free_space_gb} GB free)`, // A MODIFIER POUR I18N
             label: t(`${loc.label}`, { freeSpace: `${loc.free_space_gb}` }),
         }));
 
@@ -90,27 +89,26 @@ export const StorageSettings: FC = () => {
 
     return (
         <PanelSection title={t("storageSettings.title")}>
-            <PanelSectionRow>
-                <Field
-                    label={t("storageSettings.installLocationLabel")}
-                    description={t("storageSettings.installLocationDescription")}
-                >
-                    <div style={{ display: "flex", flexDirection: "column", width: "100%" }}>
-                        {dropdownOptions.length > 0 ? (
-                            <Dropdown
-                                rgOptions={dropdownOptions}
-                                selectedOption={selectedOption?.data}
-                                onChange={handleStorageChange}
-                                disabled={saving}
-                            />
-                        ) : (
-                            <span style={{ color: "#888", fontSize: "12px" }}>
-                                {t("storageSettings.loading")}
-                            </span>
-                        )}
-                    </div>
-                </Field>
-            </PanelSectionRow>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
+                <label>{t('storageSettings.installLocationLabel')}</label>
+                <div style={{ display: "flex", flexDirection: "column", width: "100%" }}>
+                    {dropdownOptions.length > 0 ? (
+                        <Dropdown
+                            rgOptions={dropdownOptions}
+                            selectedOption={selectedOption?.data}
+                            onChange={handleStorageChange}
+                            disabled={saving}
+                        />
+                    ) : (
+                        <span style={{ color: "#888", fontSize: "12px" }}>
+                            {t("storageSettings.loading")}
+                        </span>
+                    )}
+                </div>
+                <p style={{ fontSize: "0.85em", color: "#666" }}>
+                    {t('storageSettings.installLocationDescription')}
+                </p>
+            </div>
 
             {locations.length > 0 && (
                 <PanelSectionRow>

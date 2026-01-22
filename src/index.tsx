@@ -1,7 +1,7 @@
 import { definePlugin, call, toaster, routerHook } from "@decky/api";
 import { PanelSection, PanelSectionRow, ButtonItem, Field, afterPatch, findInReactTree, createReactTreePatcher, appDetailsClasses, appActionButtonClasses, playSectionClasses, appDetailsHeaderClasses, DialogButton, Focusable, ToggleField, showModal, ConfirmModal } from "@decky/ui";
 import React, { FC, useState, useEffect, useRef } from "react";
-import { FaGamepad, FaSync } from "react-icons/fa";
+import { FaGamepad } from "react-icons/fa";
 import { loadTranslations, t } from "./i18n";
 import { I18nextProvider, useTranslation } from "react-i18next";
 import i18n from "i18next";
@@ -19,9 +19,12 @@ import { syncUnifideckCollections } from "./spoofing/CollectionManager";
 // Import Downloads feature components
 import { DownloadsTab } from "./components/DownloadsTab";
 import { StorageSettings } from "./components/StorageSettings";
-import { ForceSyncModal } from "./components/ForceSyncModal";
 import { UninstallConfirmModal } from "./components/UninstallConfirmModal";
 import { LanguageSelector } from "./components/LanguageSelector";
+import StoreConnections from "./components/settings/StoreConnections";
+import { Store } from "./types/store";
+import LibrarySync from "./components/settings/LibrarySync";
+import { SyncProgress } from "./types/syncProgress";
 
 // ========== INSTALL BUTTON FEATURE ==========
 //
@@ -81,10 +84,6 @@ const CACHE_TTL = 5000; // 5 seconds - reduced from 30s for faster button state 
 //
 // ================================================
 
-interface SyncProgressCurrentGame {
-  label: string;
-  values: Record<string, string | number>;
-}
 
 // Install Info Display Component - shows download size next to play section
 const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
@@ -632,23 +631,13 @@ const Content: FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  const [storeStatus, setStoreStatus] = useState({
+  const [storeStatus, setStoreStatus] = useState<Record<Store, string>>({
     epic: 'checking',
     gog: 'checking',
     amazon: 'checking',
   });
-  const [syncProgress, setSyncProgress] = useState<{
-    total_games: number;
-    synced_games: number;
-    current_game: SyncProgressCurrentGame;
-    status: string;
-    progress_percent: number;
-    error?: string;
-    // Artwork tracking fields
-    artwork_total?: number;
-    artwork_synced?: number;
-    current_phase?: string;
-  } | null>(null);
+
+  const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
 
   // Store polling interval ref to allow cleanup on unmount
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -675,17 +664,7 @@ const Content: FC = () => {
       try {
         const status = await call<[], {
           is_syncing: boolean;
-          sync_progress: {
-            total_games: number;
-            synced_games: number;
-            current_game: SyncProgressCurrentGame;
-            status: string;
-            progress_percent: number;
-            error?: string;
-            artwork_total?: number;
-            artwork_synced?: number;
-            current_phase?: string;
-          } | null;
+          sync_progress: SyncProgress | null;
         }>("get_sync_status");
 
         if (status.is_syncing && status.sync_progress) {
@@ -707,18 +686,7 @@ const Content: FC = () => {
           // Resume polling for progress
           pollIntervalRef.current = setInterval(async () => {
             try {
-              const result = await call<[], {
-                success?: boolean;
-                total_games: number;
-                synced_games: number;
-                current_game: SyncProgressCurrentGame;
-                status: string;
-                progress_percent: number;
-                error?: string;
-                artwork_total?: number;
-                artwork_synced?: number;
-                current_phase?: string;
-              }>("get_sync_progress");
+              const result = await call<[], { success?: boolean } & SyncProgress>("get_sync_progress");
 
               if (result.success) {
                 setSyncProgress(result);
@@ -878,18 +846,7 @@ const Content: FC = () => {
     // Start polling for progress
     pollIntervalRef.current = setInterval(async () => {
       try {
-        const result = await call<[], {
-          success?: boolean;
-          total_games: number;
-          synced_games: number;
-          current_game: SyncProgressCurrentGame;
-          status: string;
-          progress_percent: number;
-          error?: string;
-          artwork_total?: number;
-          artwork_synced?: number;
-          current_phase?: string;
-        }>("get_sync_progress");
+        const result = await call<[], { success?: boolean } & SyncProgress>("get_sync_progress");
 
         if (result.success) {
           setSyncProgress(result);
@@ -1037,7 +994,7 @@ const Content: FC = () => {
   /**
    * Poll store status to detect when authentication completes
    */
-  const pollForAuthCompletion = async (store: 'epic' | 'gog' | 'amazon'): Promise<boolean> => {
+  const pollForAuthCompletion = async (store: Store): Promise<boolean> => {
     const maxAttempts = 60; // 5 minutes (60 * 5s)
     let attempts = 0;
 
@@ -1096,7 +1053,7 @@ const Content: FC = () => {
     });
   };
 
-  const startAuth = async (store: 'epic' | 'gog' | 'amazon') => {
+  const startAuth = async (store: Store) => {
     const storeName = store === 'epic' ? t('storeConnections.epicGames') : store === 'amazon' ? t('storeConnections.amazonGames') : t('storeConnections.gog');
 
     try {
@@ -1170,7 +1127,7 @@ const Content: FC = () => {
     }
   };
 
-  const handleLogout = async (store: 'epic' | 'gog' | 'amazon') => {
+  const handleLogout = async (store: Store) => {
     try {
       let methodName: string;
       if (store === 'epic') {
@@ -1312,224 +1269,24 @@ const Content: FC = () => {
       {activeTab === 'settings' && (
         <>
           {/* Store Connections - Compact View */}
-          <PanelSection title={t('storeConnections.title')}>
-            {/* Status indicators */}
-            <PanelSectionRow>
-              <Field description={
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "13px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <div style={{
-                      width: "8px",
-                      height: "8px",
-                      borderRadius: "50%",
-                      backgroundColor: storeStatus.epic === 'connected' ? "#4ade80" : "#888"
-                    }} />
-                    <span>{t('storeConnections.epicGames')} {storeStatus.epic === 'connected' ? "✓" : ""}</span>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <div style={{
-                      width: "8px",
-                      height: "8px",
-                      borderRadius: "50%",
-                      backgroundColor: storeStatus.gog === 'connected' ? "#4ade80" : "#888"
-                    }} />
-                    <span>{t('storeConnections.gog')} {storeStatus.gog === 'connected' ? "✓" : ""}</span>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <div style={{
-                      width: "8px",
-                      height: "8px",
-                      borderRadius: "50%",
-                      backgroundColor: storeStatus.amazon === 'connected' ? "#4ade80" : "#888"
-                    }} />
-                    <span>{t('storeConnections.amazonGames')} {storeStatus.amazon === 'connected' ? "✓" : ""}</span>
-                  </div>
-                </div>
-              } />
-            </PanelSectionRow>
-
-            {/* Action buttons */}
-            {/* Epic button */}
-            {storeStatus.epic !== 'checking' && storeStatus.epic !== 'legendary_not_installed' && storeStatus.epic !== 'error' && (
-              <PanelSectionRow>
-                <ButtonItem
-                  layout="below"
-                  onClick={() => storeStatus.epic === 'connected' ? handleLogout('epic') : startAuth('epic')}
-                >
-                  {storeStatus.epic === 'connected' ? t('storeConnections.logout', { store: t('storeConnections.epicGames') }) : t('storeConnections.authenticate', { store: t('storeConnections.epicGames') })}
-                </ButtonItem>
-              </PanelSectionRow>
-            )}
-
-            {/* GOG button */}
-            {storeStatus.gog !== 'checking' && storeStatus.gog !== 'error' && (
-              <PanelSectionRow>
-                <ButtonItem
-                  layout="below"
-                  onClick={() => storeStatus.gog === 'connected' ? handleLogout('gog') : startAuth('gog')}
-                >
-                  {storeStatus.gog === 'connected' ? t('storeConnections.logout', { store: t('storeConnections.gog') }) : t('storeConnections.authenticate', { store: t('storeConnections.gog') })}
-                </ButtonItem>
-              </PanelSectionRow>
-            )}
-
-            {/* Amazon button */}
-            {storeStatus.amazon !== 'checking' && storeStatus.amazon !== 'nile_not_installed' && storeStatus.amazon !== 'error' && (
-              <PanelSectionRow>
-                <ButtonItem
-                  layout="below"
-                  onClick={() => storeStatus.amazon === 'connected' ? handleLogout('amazon') : startAuth('amazon')}
-                >
-                  {storeStatus.amazon === 'connected' ? t('storeConnections.logout', { store: t('storeConnections.amazonGames') }) : t('storeConnections.authenticate', { store: t('storeConnections.amazonGames') })}
-                </ButtonItem>
-              </PanelSectionRow>
-            )}
-
-            {/* Error/warning messages */}
-            {storeStatus.epic === 'legendary_not_installed' && (
-              <PanelSectionRow>
-                <Field description={t('storeConnections.legendaryNotInstalled')} />
-              </PanelSectionRow>
-            )}
-            {storeStatus.amazon === 'nile_not_installed' && (
-              <PanelSectionRow>
-                <Field description={t('storeConnections.nileNotInstalled')} />
-              </PanelSectionRow>
-            )}
-          </PanelSection>
+          <StoreConnections
+            storeStatus={storeStatus}
+            onStartAuth={startAuth}
+            onLogout={handleLogout}
+          />
 
           {/* Library Sync Section */}
-          <PanelSection title={t('librarySync.title')}>
-            <PanelSectionRow>
-              <ButtonItem
-                layout="below"
-                onClick={() => handleManualSync(false)}
-                disabled={syncing || syncCooldown}
-              >
-                <div style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  justifyContent: "center"
-                }}>
-                  <FaSync style={{
-                    animation: syncing ? "spin 1s linear infinite" : "none",
-                    opacity: syncCooldown ? 0.5 : 1
-                  }} />
-                  {syncing
-                    ? t('librarySync.syncing')
-                    : syncCooldown
-                      ? `${cooldownSeconds}s`
-                      : t('librarySync.syncLibraries')}
-                </div>
-              </ButtonItem>
-            </PanelSectionRow>
-            <PanelSectionRow>
-              <ButtonItem
-                layout="below"
-                onClick={() => {
-                  showModal(
-                    <ForceSyncModal
-                      onResyncArtwork={() => handleManualSync(true, true)}
-                      onKeepArtwork={() => handleManualSync(true, false)}
-                    />
-                  );
-                }}
-                disabled={syncing || syncCooldown}
-              >
-                <div style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  justifyContent: "center"
-                }}>
-                  <FaSync style={{
-                    animation: syncing ? "spin 1s linear infinite" : "none",
-                    opacity: syncCooldown ? 0.5 : 1
-                  }} />
-                  {syncing
-                    ? "..."
-                    : syncCooldown
-                      ? `${cooldownSeconds}s`
-                      : t('librarySync.forceSync')}
-                </div>
-              </ButtonItem>
-            </PanelSectionRow>
-
-            {/* Cancel button - only visible during sync */}
-            {syncing && (
-              <PanelSectionRow>
-                <ButtonItem
-                  layout="below"
-                  onClick={handleCancelSync}
-                >
-                  {t('librarySync.cancelSync')}
-                </ButtonItem>
-              </PanelSectionRow>
-            )}
-
-            {/* Progress display */}
-            {syncProgress && syncProgress.status !== 'idle' && (
-              <PanelSectionRow>
-                <div style={{ fontSize: '12px', width: '100%' }}>
-                  {/* Status text */}
-                  <div style={{ marginBottom: '5px', opacity: 0.9 }}>
-                    {t(syncProgress.current_game.label, syncProgress.current_game.values)}
-                  </div>
-
-                  {/* Progress bar */}
-                  <div style={{
-                    width: '100%',
-                    height: '4px',
-                    backgroundColor: '#333',
-                    borderRadius: '2px',
-                    overflow: 'hidden'
-                  }}>
-                    <div style={{
-                      width: `${syncProgress.progress_percent}%`,
-                      height: '100%',
-                      backgroundColor:
-                        syncProgress.status === 'error' ? '#ff6b6b' :
-                          syncProgress.status === 'complete' ? '#4caf50' :
-                            syncProgress.current_phase === 'artwork' ? '#ff9800' : // Orange for artwork
-                              '#1a9fff', // Blue for sync
-                      transition: 'width 0.3s ease'
-                    }} />
-                  </div>
-
-                  {/* Stats - different based on phase */}
-                  <div style={{ marginTop: '5px', opacity: 0.7 }}>
-                    {syncProgress.current_phase === 'artwork' ? (
-                      // Artwork phase: show artwork progress
-                      <>
-                        {t('librarySync.artworkDownloaded', { synced: syncProgress.artwork_synced || 0, total: syncProgress.artwork_total || 0 })}
-                      </>
-                    ) : (
-                      // Sync phase: show game progress
-                      <>
-                        {t('librarySync.gamesSynced', { synced: syncProgress.synced_games || 0, total: syncProgress.total_games || 0 })}
-                      </>
-                    )}
-                  </div>
-
-                  {/* Error message */}
-                  {syncProgress.error && (
-                    <div style={{ color: '#ff6b6b', marginTop: '5px' }}>
-                      Error: {syncProgress.error}
-                    </div>
-                  )}
-                </div>
-              </PanelSectionRow>
-            )}
-
-            {(storeStatus.epic.includes("Error") || storeStatus.gog.includes("Error")) && (
-              <PanelSectionRow>
-                <ButtonItem layout="below" onClick={checkStoreStatus}>
-                  {t('librarySync.retryStatusCheck')}
-                </ButtonItem>
-              </PanelSectionRow>
-            )}
-          </PanelSection>
+          <LibrarySync
+            syncing={syncing}
+            syncCooldown={syncCooldown}
+            cooldownSeconds={cooldownSeconds}
+            syncProgress={syncProgress}
+            storeStatus={storeStatus}
+            handleManualSync={handleManualSync}
+            handleCancelSync={handleCancelSync}
+            showModal={showModal}
+            checkStoreStatus={checkStoreStatus}
+          />
 
           {/* Language Settings - centralized language control */}
           <LanguageSelector />

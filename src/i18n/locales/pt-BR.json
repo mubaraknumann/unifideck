@@ -34,6 +34,7 @@
     "confirmCancelDescription": "Tem certeza que deseja cancelar o download de {{game}}?",
     "confirmCancelYes": "Sim",
     "confirmCancelNo": "Não",
+    "cancelDownload": "Cancelar",
     "toastDownloadCancelledTitle": "Download Cancelado",
     "toastDownloadCancelledBody": "O download foi removido da fila.",
     "toastCancelFailedTitle": "Falha ao Cancelar",
@@ -243,5 +244,10 @@
     "checking": "Verificando arte...",
     "queueRefresh": "Enfileirando jogos para atualizar arte...",
     "downloadProgress": "Arte {{synced}}/{{total}} baixada ({{game}})"
+  },
+  "deckTabs": {
+    "greatOnDeck": "Perfeitos para Steam Deck",
+    "allGames": "Todos os Jogos",
+    "installed": "Instalados"
   }
 }
