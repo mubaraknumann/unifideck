@@ -99,8 +99,7 @@
     "amazonGames": "Amazon Games",
     "connected": "연결됨",
     "checking": "확인 중...",
-    "authenticate": "{{store}} 인증",
-    "logout": "{{store}}에서 로그아웃",
+    "authenticate": "로그인",
     "legendaryNotInstalled": "⚠️ Epic Games CLI 설치 중...",
     "nileNotInstalled": "⚠️ Amazon Games CLI를 찾을 수 없습니다",
     "error": "오류 - 로그 확인"

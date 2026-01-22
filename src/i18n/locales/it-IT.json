@@ -75,8 +75,7 @@
     "amazonGames": "Amazon Games",
     "connected": "Connesso",
     "checking": "Verifica...",
-    "authenticate": "Autentica {{store}}",
-    "logout": "Disconnetti da {{store}}",
+    "authenticate": "Accedi",
     "legendaryNotInstalled": "⚠️ Installazione Epic Games CLI...",
     "nileNotInstalled": "⚠️ Amazon Games CLI non trovato",
     "error": "Errore - Controlla i log"

@@ -75,8 +75,7 @@
     "amazonGames": "Amazon Games",
     "connected": "Підключено",
     "checking": "Перевірка...",
-    "authenticate": "Автентифікуватися в {{store}}",
-    "logout": "Вийти з {{store}}",
+    "authenticate": "Увійти",
     "legendaryNotInstalled": "⚠️ Встановлення Epic Games CLI...",
     "nileNotInstalled": "⚠️ Amazon Games CLI не знайдено",
     "error": "Помилка - Перевірте логи"
