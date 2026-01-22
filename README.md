@@ -72,8 +72,7 @@ Your games will now appear in your Steam library!
 ## Known Limitations
 
 - The plugin creates custom tabs that replace the standard Great on Deck, All Games and Installed tabs so standard filtering and sorting will not work (for now).
-- Some GOG games come as multiple download files - these are handled automatically but may take longer to install
-- The plugin handles proton/winetricks automatically, so no compatibiltiy config changes possible.
+- The plugin handles proton/winetricks automatically, but you can use any proton version of your choice. See compatibiity docs.
 - Game download paths (local and sd card) are fixed (for now)
 - Not all games have artwork available - some may show default images. Suggest using SteamGridDB.
 - Cloud saves implemented, but may not work for all games
@@ -131,6 +130,7 @@ Added support for multiple languages. The following translations are now include
 - Dutch — nl-NL
 - Polish — pl-PL
 - Turkish — tr-TR
+- Ukrainian - uk-UA
 
 To add a new language, create a JSON file in `src/i18n/locales/` using `en-US.json` as a template and provide translations for each key.
 
