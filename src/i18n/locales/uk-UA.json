@@ -34,6 +34,7 @@
     "confirmCancelDescription": "Ви впевнені, що хочете скасувати завантаження {{game}}?",
     "confirmCancelYes": "Так",
     "confirmCancelNo": "Ні",
+    "cancelDownload": "Скасувати",
     "toastDownloadCancelledTitle": "Завантаження скасовано",
     "toastDownloadCancelledBody": "Завантаження видалено з черги.",
     "toastCancelFailedTitle": "Скасування не вдалося",
@@ -243,5 +244,10 @@
     "checking": "Перевірка арту...",
     "queueRefresh": "Додавання ігор у чергу оновлення арту...",
     "downloadProgress": "Завантажено {{synced}}/{{total}} ({{game}})"
+  },
+  "deckTabs": {
+    "greatOnDeck": "Ідеально для Steam Deck",
+    "allGames": "Усі ігри",
+    "installed": "Встановлені"
   }
 }

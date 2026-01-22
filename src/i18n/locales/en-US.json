@@ -34,6 +34,7 @@
     "confirmCancelDescription": "Are you sure you want to cancel the download for {{game}}?",
     "confirmCancelYes": "Yes",
     "confirmCancelNo": "No",
+    "cancelDownload": "Cancel",
     "toastDownloadCancelledTitle": "Download Cancelled",
     "toastDownloadCancelledBody": "The download has been removed from the queue.",
     "toastCancelFailedTitle": "Cancel Failed",
@@ -243,5 +244,10 @@
     "checking": "Checking artwork...",
     "queueRefresh": "Queuing all games for artwork refresh...",
     "downloadProgress": "Downloaded artwork {{synced}}/{{total}} ({{game}})"
+  },
+  "deckTabs": {
+    "greatOnDeck": "Great on Deck",
+    "allGames": "All Games",
+    "installed": "Installed"
   }
 }

@@ -34,6 +34,7 @@
     "confirmCancelDescription": "Êtes-vous sûr de vouloir annuler le téléchargement de {{game}} ?",
     "confirmCancelYes": "Oui",
     "confirmCancelNo": "Non",
+    "cancelDownload": "Annuler",
     "toastDownloadCancelledTitle": "Téléchargement annulé",
     "toastDownloadCancelledBody": "Le téléchargement a été retiré de la file.",
     "toastCancelFailedTitle": "Échec de l'annulation",
@@ -243,5 +244,10 @@
     "checking": "Vérification des illustrations…",
     "queueRefresh": "Mise en file d’attente de tous les jeux pour le rafraîchissement des illustrations…",
     "downloadProgress": "Illustrations téléchargées {{synced}}/{{total}} ({{game}})"
+  },
+  "deckTabs": {
+    "greatOnDeck": "Parfaits pour Steam Deck",
+    "allGames": "Tous les jeux",
+    "installed": "Installés"
   }
 }
