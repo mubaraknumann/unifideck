@@ -75,8 +75,7 @@
     "amazonGames": "Amazon Games",
     "connected": "接続済み",
     "checking": "確認中...",
-    "authenticate": "{{store}} 認証",
-    "logout": "{{store}} からログアウト",
+    "authenticate": "ログイン",
     "legendaryNotInstalled": "⚠️ Epic Games CLI をインストール中...",
     "nileNotInstalled": "⚠️ Amazon Games CLI が見つかりません",
     "error": "エラー - ログを確認してください"

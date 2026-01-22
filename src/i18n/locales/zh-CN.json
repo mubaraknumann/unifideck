@@ -80,8 +80,7 @@
     "amazonGames": "Amazon Games",
     "connected": "已连接",
     "checking": "正在检查...",
-    "authenticate": "验证 {{store}}",
-    "logout": "从 {{store}} 注销",
+    "authenticate": "登录",
     "legendaryNotInstalled": "⚠️ 正在安装 Epic Games CLI...",
     "nileNotInstalled": "⚠️ 未找到 Amazon Games CLI",
     "error": "错误 - 检查日志"
