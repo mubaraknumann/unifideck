@@ -1,7 +1,4 @@
-export type Store =
-  | "epic"
-  | "gog"
-  | "amazon";
+export type Store = "epic" | "gog" | "amazon";
 
 export type StoreFinal =
   | "epic"

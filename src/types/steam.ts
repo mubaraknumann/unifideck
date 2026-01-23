@@ -8,7 +8,7 @@ export interface SteamApp {
   display_name: string;
   sort_as: string;
   installed: boolean;
-  is_shortcuts_app: boolean;  // True for non-Steam games
+  is_shortcuts_app: boolean; // True for non-Steam games
   BIsShortcut(): boolean;
   size_on_disk: string;
   minutes_playtime_forever: string;
@@ -62,7 +62,7 @@ declare global {
   }
 }
 
-export type StoreType = 'steam' | 'epic' | 'gog' | 'amazon' | 'unknown';
+export type StoreType = "steam" | "epic" | "gog" | "amazon" | "unknown";
 
 export interface UnifideckGame {
   appId: number;
@@ -71,7 +71,7 @@ export interface UnifideckGame {
   isInstalled: boolean;
   isShortcut: boolean;
   tags?: string[];
-  deckVerified?: 'verified' | 'playable' | 'unsupported' | 'unknown';
+  deckVerified?: "verified" | "playable" | "unsupported" | "unknown";
   lastPlayed?: number;
   playtimeMinutes?: number;
 }

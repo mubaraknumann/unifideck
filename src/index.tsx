@@ -1,5 +1,22 @@
 import { definePlugin, call, toaster, routerHook } from "@decky/api";
-import { PanelSection, PanelSectionRow, ButtonItem, Field, afterPatch, findInReactTree, createReactTreePatcher, appDetailsClasses, appActionButtonClasses, playSectionClasses, appDetailsHeaderClasses, DialogButton, Focusable, ToggleField, showModal, ConfirmModal } from "@decky/ui";
+import {
+  PanelSection,
+  PanelSectionRow,
+  ButtonItem,
+  Field,
+  afterPatch,
+  findInReactTree,
+  createReactTreePatcher,
+  appDetailsClasses,
+  appActionButtonClasses,
+  playSectionClasses,
+  appDetailsHeaderClasses,
+  DialogButton,
+  Focusable,
+  ToggleField,
+  showModal,
+  ConfirmModal,
+} from "@decky/ui";
 import React, { FC, useState, useEffect, useRef } from "react";
 import { FaGamepad } from "react-icons/fa";
 import { loadTranslations, t } from "./i18n";
@@ -12,7 +29,11 @@ loadTranslations();
 // Import views
 
 // Import tab system
-import { patchLibrary, loadCompatCacheFromBackend, updateSingleGameStatus } from "./tabs";
+import {
+  patchLibrary,
+  loadCompatCacheFromBackend,
+  updateSingleGameStatus,
+} from "./tabs";
 
 import { syncUnifideckCollections } from "./spoofing/CollectionManager";
 
@@ -77,13 +98,12 @@ const CACHE_TTL = 5000; // 5 seconds - reduced from 30s for faster button state 
 // ========== END INSTALL BUTTON FEATURE ==========
 
 // ========== NATIVE PLAY BUTTON OVERRIDE ==========
-// 
+//
 // This component shows alongside the native Play button for uninstalled Unifideck games.
 // For installed games, we hide this and let Steam's native Play button work.
 // For uninstalled games, we show an Install button with size info.
 //
 // ================================================
-
 
 // Install Info Display Component - shows download size next to play section
 const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
@@ -101,16 +121,19 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
   // Fetch game info on mount
   useEffect(() => {
     const cached = gameInfoCache.get(appId);
-    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
       setGameInfo(cached.info);
       return;
     }
 
     call<[number], any>("get_game_info", appId)
-      .then(info => {
+      .then((info) => {
         const processedInfo = info?.error ? null : info;
         setGameInfo(processedInfo);
-        gameInfoCache.set(appId, { info: processedInfo, timestamp: Date.now() });
+        gameInfoCache.set(appId, {
+          info: processedInfo,
+          timestamp: Date.now(),
+        });
       })
       .catch(() => setGameInfo(null));
   }, [appId]);
@@ -121,28 +144,31 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
 
     const checkDownloadState = async () => {
       try {
-        const result = await call<[string, string], {
-          success: boolean;
-          is_downloading: boolean;
-          download_info?: {
-            id: string;
-            progress_percent: number;
-            status: string;
-          };
-        }>("is_game_downloading", gameInfo.game_id, gameInfo.store);
+        const result = await call<
+          [string, string],
+          {
+            success: boolean;
+            is_downloading: boolean;
+            download_info?: {
+              id: string;
+              progress_percent: number;
+              status: string;
+            };
+          }
+        >("is_game_downloading", gameInfo.game_id, gameInfo.store);
 
-        setDownloadState(prevState => {
+        setDownloadState((prevState) => {
           const newState = {
             isDownloading: false,
             progress: 0,
-            downloadId: undefined as string | undefined
+            downloadId: undefined as string | undefined,
           };
 
           if (result.success && result.is_downloading && result.download_info) {
             const status = result.download_info.status;
             // Only show as downloading if status is actively downloading or queued
             // Cancelled/error items should not be shown as active downloads
-            if (status === 'downloading' || status === 'queued') {
+            if (status === "downloading" || status === "queued") {
               newState.isDownloading = true;
               newState.progress = result.download_info.progress_percent;
               newState.downloadId = result.download_info.id;
@@ -152,19 +178,25 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
 
           // Detect transition from Downloading -> Not Downloading (Completion)
           if (prevState.isDownloading && !newState.isDownloading) {
-            console.log("[InstallInfoDisplay] Download stopped, checking status...");
+            console.log(
+              "[InstallInfoDisplay] Download stopped, checking status...",
+            );
 
             // Check the status from the download info to determine actual completion
             // result.download_info might be available even if is_downloading is false
             const finalStatus = result.download_info?.status;
 
-            if (finalStatus === 'completed') {
-              console.log("[InstallInfoDisplay] Download successfully finished");
+            if (finalStatus === "completed") {
+              console.log(
+                "[InstallInfoDisplay] Download successfully finished",
+              );
 
               // Show installation complete toast
               toaster.toast({
-                title: t('toasts.installComplete'),
-                body: t('toasts.installCompleteMessage', { title: gameInfo?.title || 'Game' }),
+                title: t("toasts.installComplete"),
+                body: t("toasts.installCompleteMessage", {
+                  title: gameInfo?.title || "Game",
+                }),
                 duration: 10000,
                 critical: true,
               });
@@ -173,33 +205,43 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
               gameInfoCache.delete(appId);
 
               // Refresh game info to update button state (Install -> Play/Uninstall)
-              call<[number], any>("get_game_info", appId)
-                .then(info => {
-                  const processedInfo = info?.error ? null : info;
-                  setGameInfo(processedInfo);
-                  if (processedInfo) {
-                    gameInfoCache.set(appId, { info: processedInfo, timestamp: Date.now() });
-                    // Update tab cache immediately so UI reflects change
-                    updateSingleGameStatus({
-                      appId,
-                      store: processedInfo.store,
-                      isInstalled: processedInfo.is_installed
-                    });
-                  }
-                });
-            } else if (finalStatus === 'cancelled') {
-              console.log("[InstallInfoDisplay] Download was cancelled - suppressing success message");
-            } else if (finalStatus === 'error') {
-              console.log("[InstallInfoDisplay] Download failed - suppressing success message");
+              call<[number], any>("get_game_info", appId).then((info) => {
+                const processedInfo = info?.error ? null : info;
+                setGameInfo(processedInfo);
+                if (processedInfo) {
+                  gameInfoCache.set(appId, {
+                    info: processedInfo,
+                    timestamp: Date.now(),
+                  });
+                  // Update tab cache immediately so UI reflects change
+                  updateSingleGameStatus({
+                    appId,
+                    store: processedInfo.store,
+                    isInstalled: processedInfo.is_installed,
+                  });
+                }
+              });
+            } else if (finalStatus === "cancelled") {
+              console.log(
+                "[InstallInfoDisplay] Download was cancelled - suppressing success message",
+              );
+            } else if (finalStatus === "error") {
+              console.log(
+                "[InstallInfoDisplay] Download failed - suppressing success message",
+              );
             } else {
               // Fallback: If no status info (legacy behavior or edge case), verify installation again
-              console.log("[InstallInfoDisplay] No final status, verifying installation...");
-              call<[number], any>("get_game_info", appId).then(info => {
+              console.log(
+                "[InstallInfoDisplay] No final status, verifying installation...",
+              );
+              call<[number], any>("get_game_info", appId).then((info) => {
                 if (info && info.is_installed) {
                   // It is installed, likely success
                   toaster.toast({
-                    title: t('toasts.installComplete'),
-                    body: t('toasts.installCompleteMessage', { title: gameInfo?.title || 'Game' }),
+                    title: t("toasts.installComplete"),
+                    body: t("toasts.installCompleteMessage", {
+                      title: gameInfo?.title || "Game",
+                    }),
                     duration: 10000,
                   });
                   setGameInfo(info);
@@ -210,9 +252,11 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
 
           return newState;
         });
-
       } catch (error) {
-        console.error("[InstallInfoDisplay] Error checking download state:", error);
+        console.error(
+          "[InstallInfoDisplay] Error checking download state:",
+          error,
+        );
       }
     };
 
@@ -234,30 +278,39 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
     setProcessing(true);
 
     // Queue download instead of direct install
-    const result = await call<[number], any>("add_to_download_queue_by_appid", appId);
+    const result = await call<[number], any>(
+      "add_to_download_queue_by_appid",
+      appId,
+    );
 
     if (result.success) {
       toaster.toast({
-        title: t('toasts.downloadStarted'),
-        body: t('toasts.downloadQueued', { title: gameInfo.title }),
+        title: t("toasts.downloadStarted"),
+        body: t("toasts.downloadQueued", { title: gameInfo.title }),
         duration: 5000,
       });
 
       // Show multi-part alert for GOG games with multiple installer parts
       if (result.is_multipart) {
         toaster.toast({
-          title: t('toasts.multipartDetected'),
-          body: t('toasts.multipartMessage'),
+          title: t("toasts.multipartDetected"),
+          body: t("toasts.multipartMessage"),
           duration: 8000,
         });
       }
 
       // Force immediate state check to update UI to "Cancel" faster
-      setDownloadState(prev => ({ ...prev, isDownloading: true, progress: 0 }));
+      setDownloadState((prev) => ({
+        ...prev,
+        isDownloading: true,
+        progress: 0,
+      }));
     } else {
       toaster.toast({
-        title: t('toasts.downloadFailed'),
-        body: result.error ? t(result.error) : t('toasts.downloadFailedMessage'),
+        title: t("toasts.downloadFailed"),
+        body: result.error
+          ? t(result.error)
+          : t("toasts.downloadFailedMessage"),
         duration: 10000,
         critical: true,
       });
@@ -267,26 +320,27 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
 
   const handleCancel = async () => {
     // If we don't have a specific download ID yet (race condition at start), try to construct it
-    const dlId = downloadState.downloadId || `${gameInfo.store}:${gameInfo.game_id}`;
+    const dlId =
+      downloadState.downloadId || `${gameInfo.store}:${gameInfo.game_id}`;
 
     setProcessing(true);
 
     const result = await call<[string], { success: boolean; error?: string }>(
       "cancel_download_by_id",
-      dlId
+      dlId,
     );
 
     if (result.success) {
       toaster.toast({
-        title: t('toasts.downloadCancelled'),
-        body: t('toasts.downloadCancelledMessage', { title: gameInfo?.title }),
+        title: t("toasts.downloadCancelled"),
+        body: t("toasts.downloadCancelledMessage", { title: gameInfo?.title }),
         duration: 5000,
       });
       setDownloadState({ isDownloading: false, progress: 0 });
     } else {
       toaster.toast({
-        title: t('toasts.cancelFailed'),
-        body: result.error ? t(result.error) : t('toasts.cancelFailedMessage'),
+        title: t("toasts.cancelFailed"),
+        body: result.error ? t(result.error) : t("toasts.cancelFailedMessage"),
         duration: 5000,
         critical: true,
       });
@@ -299,14 +353,18 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
     setProcessing(true);
 
     toaster.toast({
-      title: t('toasts.uninstalling'),
+      title: t("toasts.uninstalling"),
       body: deletePrefix
-        ? t('toasts.uninstallingMessageProton', { title: gameInfo.title })
-        : t('toasts.uninstallingMessage', { title: gameInfo.title }),
+        ? t("toasts.uninstallingMessageProton", { title: gameInfo.title })
+        : t("toasts.uninstallingMessage", { title: gameInfo.title }),
       duration: 5000,
     });
 
-    const result = await call<[number, boolean], any>("uninstall_game_by_appid", appId, deletePrefix);
+    const result = await call<[number, boolean], any>(
+      "uninstall_game_by_appid",
+      appId,
+      deletePrefix,
+    );
 
     if (result.success) {
       setGameInfo({ ...gameInfo, is_installed: false });
@@ -318,8 +376,10 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
       }
 
       toaster.toast({
-        title: t('toasts.uninstallComplete'),
-        body: t('toasts.uninstallCompleteMessage', { title: gameInfo.title }) + (deletePrefix ? ' (including Proton files)' : ''),
+        title: t("toasts.uninstallComplete"),
+        body:
+          t("toasts.uninstallCompleteMessage", { title: gameInfo.title }) +
+          (deletePrefix ? " (including Proton files)" : ""),
         duration: 10000,
       });
     }
@@ -334,34 +394,38 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
   const showInstallConfirmation = () => {
     showModal(
       <ConfirmModal
-        strTitle={t('confirmModals.installTitle')}
-        strDescription={t('confirmModals.installDescription', { title: gameInfo?.title })}
-        strOKButtonText={t('confirmModals.yes')}
-        strCancelButtonText={t('confirmModals.no')}
+        strTitle={t("confirmModals.installTitle")}
+        strDescription={t("confirmModals.installDescription", {
+          title: gameInfo?.title,
+        })}
+        strOKButtonText={t("confirmModals.yes")}
+        strCancelButtonText={t("confirmModals.no")}
         onOK={() => handleInstall()}
-      />
+      />,
     );
   };
 
   const showUninstallConfirmation = () => {
     showModal(
       <UninstallConfirmModal
-        gameTitle={gameInfo?.title || 'this game'}
+        gameTitle={gameInfo?.title || "this game"}
         onConfirm={(deletePrefix) => handleUninstall(deletePrefix)}
-      />
+      />,
     );
   };
 
   const showCancelConfirmation = () => {
     showModal(
       <ConfirmModal
-        strTitle={t('confirmModals.cancelTitle')}
-        strDescription={t('confirmModals.cancelDescription', { title: gameInfo?.title })}
-        strOKButtonText={t('confirmModals.yes')}
-        strCancelButtonText={t('confirmModals.no')}
+        strTitle={t("confirmModals.cancelTitle")}
+        strDescription={t("confirmModals.cancelDescription", {
+          title: gameInfo?.title,
+        })}
+        strOKButtonText={t("confirmModals.yes")}
+        strCancelButtonText={t("confirmModals.no")}
         bDestructiveWarning={true}
         onOK={() => handleCancel()}
-      />
+      />,
     );
   };
 
@@ -377,23 +441,23 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
   // Base button style - ROBUST AGAINST CSS MODS
   // Uses explicit colors and high specificity to override any Decky CSS themes
   const baseButtonStyle: React.CSSProperties = {
-    padding: '10px 16px',
-    minHeight: '44px',
-    minWidth: '180px',
-    fontSize: '14px',
+    padding: "10px 16px",
+    minHeight: "44px",
+    minWidth: "180px",
+    fontSize: "14px",
     fontWeight: 600,
-    borderRadius: '4px',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '8px',
+    borderRadius: "4px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "8px",
     // Explicit visibility overrides for CSS mod resistance
     opacity: 1,
-    visibility: 'visible',
+    visibility: "visible",
     // Remove any inherited transparency
-    backdropFilter: 'none',
-    WebkitBackdropFilter: 'none',
+    backdropFilter: "none",
+    WebkitBackdropFilter: "none",
   };
 
   // Dynamic style based on state
@@ -403,58 +467,66 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
     // Show "Cancel" button with progress during active download
     // Use Math.max(0) to avoid negative -1 initialization
     const progress = Math.max(0, downloadState.progress || 0).toFixed(0);
-    buttonText = `${t('installButton.cancel')} (${progress}%)`;
+    buttonText = `${t("installButton.cancel")} (${progress}%)`;
     buttonAction = showCancelConfirmation;
 
     buttonStyle = {
       ...baseButtonStyle,
       // Solid red background - highly visible
-      backgroundColor: '#dc3545',
-      color: '#ffffff',
-      border: '2px solid #ff6b6b',
-      boxShadow: '0 2px 8px rgba(220, 53, 69, 0.5)',
+      backgroundColor: "#dc3545",
+      color: "#ffffff",
+      border: "2px solid #ff6b6b",
+      boxShadow: "0 2px 8px rgba(220, 53, 69, 0.5)",
     };
   } else if (isInstalled) {
     // Show size for installed games if available
-    const sizeText = gameInfo.size_formatted ? ` (${gameInfo.size_formatted})` : ' (- GB)';
-    buttonText = t('installButton.uninstall', { title: gameInfo.title }) + sizeText;
+    const sizeText = gameInfo.size_formatted
+      ? ` (${gameInfo.size_formatted})`
+      : " (- GB)";
+    buttonText =
+      t("installButton.uninstall", { title: gameInfo.title }) + sizeText;
     buttonAction = showUninstallConfirmation;
 
     buttonStyle = {
       ...baseButtonStyle,
       // Solid gray/muted blue for uninstall
-      backgroundColor: '#4a5568',
-      color: '#ffffff',
-      border: '2px solid #718096',
-      boxShadow: '0 2px 8px rgba(74, 85, 104, 0.5)',
+      backgroundColor: "#4a5568",
+      color: "#ffffff",
+      border: "2px solid #718096",
+      boxShadow: "0 2px 8px rgba(74, 85, 104, 0.5)",
     };
   } else {
     // Show size in Install button
-    const sizeText = gameInfo.size_formatted ? ` (${gameInfo.size_formatted})` : ' (- GB)';
-    buttonText = t('installButton.install', { title: gameInfo.title }) + sizeText;
+    const sizeText = gameInfo.size_formatted
+      ? ` (${gameInfo.size_formatted})`
+      : " (- GB)";
+    buttonText =
+      t("installButton.install", { title: gameInfo.title }) + sizeText;
     buttonAction = showInstallConfirmation;
 
     buttonStyle = {
       ...baseButtonStyle,
       // Solid blue background - Steam accent color, highly visible
-      backgroundColor: '#1a9fff',
-      color: '#ffffff',
-      border: '2px solid #47b4ff',
-      boxShadow: '0 2px 8px rgba(26, 159, 255, 0.5)',
+      backgroundColor: "#1a9fff",
+      color: "#ffffff",
+      border: "2px solid #47b4ff",
+      boxShadow: "0 2px 8px rgba(26, 159, 255, 0.5)",
     };
   }
 
   return (
-    <>      {/* Install/Uninstall/Cancel Button */}
+    <>
+      {" "}
+      {/* Install/Uninstall/Cancel Button */}
       <Focusable
         style={{
-          position: 'absolute',
-          top: '40px',  // Aligned with ProtonDB badge row
-          right: '35px',
-          zIndex: 9999,  // High z-index to ensure visibility above any overlays
+          position: "absolute",
+          top: "40px", // Aligned with ProtonDB badge row
+          right: "35px",
+          zIndex: 9999, // High z-index to ensure visibility above any overlays
           // Ensure focusable container is visible
           opacity: 1,
-          visibility: 'visible',
+          visibility: "visible",
         }}
         // Ensure controller navigation works
         onActivate={buttonAction}
@@ -466,34 +538,34 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
           // Add focus visual feedback for controller users
           focusable={true}
         >
-          {processing ? t('installButton.processing') : buttonText}
+          {processing ? t("installButton.processing") : buttonText}
         </DialogButton>
       </Focusable>
     </>
   );
 };
 
-
 // Patch function for game details route - EXTRACTED TO MODULE SCOPE (ProtonDB/HLTB pattern)
 // This ensures the patch is registered in the correct Decky loader context
 function patchGameDetailsRoute() {
-  return routerHook.addPatch(
-    '/library/app/:appid',
-    (routerTree: any) => {
-      const routeProps = findInReactTree(routerTree, (x: any) => x?.renderFunc);
-      if (!routeProps) return routerTree;
+  return routerHook.addPatch("/library/app/:appid", (routerTree: any) => {
+    const routeProps = findInReactTree(routerTree, (x: any) => x?.renderFunc);
+    if (!routeProps) return routerTree;
 
-      // Create tree patcher (SAFE: mutates BEFORE React reconciles)
-      const patchHandler = createReactTreePatcher([
+    // Create tree patcher (SAFE: mutates BEFORE React reconciles)
+    const patchHandler = createReactTreePatcher(
+      [
         // Finder function: return children array (NOT overview object) - ProtonDB pattern
-        (tree) => findInReactTree(tree, (x: any) =>
-          x?.props?.children?.props?.overview
-        )?.props?.children
-      ], (_, ret) => {
+        (tree) =>
+          findInReactTree(tree, (x: any) => x?.props?.children?.props?.overview)
+            ?.props?.children,
+      ],
+      (_, ret) => {
         // Patcher function: SAFE to mutate here (before reconciliation)
         // Extract appId from ret (not from finder closure)
-        const overview = findInReactTree(ret, (x: any) =>
-          x?.props?.children?.props?.overview
+        const overview = findInReactTree(
+          ret,
+          (x: any) => x?.props?.children?.props?.overview,
         )?.props?.children?.props?.overview;
 
         if (!overview) return ret;
@@ -504,49 +576,72 @@ function patchGameDetailsRoute() {
           // The Header is at the top of the game details page, above the scrollable content
 
           // Look for the AppDetailsHeader container first (best position)
-          const headerContainer = findInReactTree(ret, (x: any) =>
-            Array.isArray(x?.props?.children) &&
-            (x?.props?.className?.includes(appDetailsClasses?.Header) ||
-              x?.props?.className?.includes(appDetailsHeaderClasses?.TopCapsule))
+          const headerContainer = findInReactTree(
+            ret,
+            (x: any) =>
+              Array.isArray(x?.props?.children) &&
+              (x?.props?.className?.includes(appDetailsClasses?.Header) ||
+                x?.props?.className?.includes(
+                  appDetailsHeaderClasses?.TopCapsule,
+                )),
           );
 
           // Find the PlaySection container (where Play button lives)
-          const playSection = findInReactTree(ret, (x: any) =>
-            Array.isArray(x?.props?.children) &&
-            x?.props?.className?.includes(playSectionClasses?.Container)
+          const playSection = findInReactTree(
+            ret,
+            (x: any) =>
+              Array.isArray(x?.props?.children) &&
+              x?.props?.className?.includes(playSectionClasses?.Container),
           );
 
           // Alternative: Find the AppButtonsContainer
-          const buttonsContainer = findInReactTree(ret, (x: any) =>
-            Array.isArray(x?.props?.children) &&
-            x?.props?.className?.includes(playSectionClasses?.AppButtonsContainer)
+          const buttonsContainer = findInReactTree(
+            ret,
+            (x: any) =>
+              Array.isArray(x?.props?.children) &&
+              x?.props?.className?.includes(
+                playSectionClasses?.AppButtonsContainer,
+              ),
           );
 
           // Find the game info row (typically contains play button, shortcuts, settings)
-          const gameInfoRow = findInReactTree(ret, (x: any) =>
-            Array.isArray(x?.props?.children) &&
-            x?.props?.style?.display === 'flex' &&
-            x?.props?.children?.some?.((c: any) =>
-              c?.props?.className?.includes?.(appActionButtonClasses?.PlayButtonContainer) ||
-              c?.type?.toString?.()?.includes?.('PlayButton')
-            )
+          const gameInfoRow = findInReactTree(
+            ret,
+            (x: any) =>
+              Array.isArray(x?.props?.children) &&
+              x?.props?.style?.display === "flex" &&
+              x?.props?.children?.some?.(
+                (c: any) =>
+                  c?.props?.className?.includes?.(
+                    appActionButtonClasses?.PlayButtonContainer,
+                  ) || c?.type?.toString?.()?.includes?.("PlayButton"),
+              ),
           );
 
           // Find InnerContainer as fallback (original approach)
-          const innerContainer = findInReactTree(ret, (x: any) =>
-            Array.isArray(x?.props?.children) &&
-            x?.props?.className?.includes(appDetailsClasses?.InnerContainer)
+          const innerContainer = findInReactTree(
+            ret,
+            (x: any) =>
+              Array.isArray(x?.props?.children) &&
+              x?.props?.className?.includes(appDetailsClasses?.InnerContainer),
           );
 
           // ProtonDB COMPATIBILITY: Always use InnerContainer first to match ProtonDB's behavior
           // When multiple plugins modify the SAME container, patches chain correctly.
           // When plugins modify DIFFERENT containers (parent vs child), React reconciliation conflicts occur.
           // Since InstallInfoDisplay uses position: absolute, it works in any container.
-          let container = innerContainer || headerContainer || playSection || buttonsContainer || gameInfoRow;
+          let container =
+            innerContainer ||
+            headerContainer ||
+            playSection ||
+            buttonsContainer ||
+            gameInfoRow;
 
           // If none of those work, log but try to proceed with whatever we have (or return)
           if (!container) {
-            console.log(`[Unifideck] No suitable container found for app ${appId}, skipping injection`);
+            console.log(
+              `[Unifideck] No suitable container found for app ${appId}, skipping injection`,
+            );
             return ret;
           }
 
@@ -568,40 +663,52 @@ function patchGameDetailsRoute() {
             0,
             React.createElement(InstallInfoDisplay, {
               key: `unifideck-install-info-${appId}`,
-              appId
-            })
+              appId,
+            }),
           );
 
-          console.log(`[Unifideck] Injected install info for app ${appId} in ${innerContainer ? 'InnerContainer' : headerContainer ? 'Header' : playSection ? 'PlaySection' : buttonsContainer ? 'ButtonsContainer' : 'GameInfoRow'} at index ${spliceIndex}`);
-
-
+          console.log(
+            `[Unifideck] Injected install info for app ${appId} in ${
+              innerContainer
+                ? "InnerContainer"
+                : headerContainer
+                ? "Header"
+                : playSection
+                ? "PlaySection"
+                : buttonsContainer
+                ? "ButtonsContainer"
+                : "GameInfoRow"
+            } at index ${spliceIndex}`,
+          );
         } catch (error) {
-          console.error('[Unifideck] Error injecting install info:', error);
+          console.error("[Unifideck] Error injecting install info:", error);
         }
 
         return ret; // Always return modified tree
-      });
+      },
+    );
 
-      // Apply patcher to renderFunc
-      afterPatch(routeProps, 'renderFunc', patchHandler);
+    // Apply patcher to renderFunc
+    afterPatch(routeProps, "renderFunc", patchHandler);
 
-      return routerTree;
-    }
-  );
+    return routerTree;
+  });
 }
 
 // Persistent tab state (survives component remounts)
-let persistentActiveTab: 'settings' | 'downloads' = 'settings';
+let persistentActiveTab: "settings" | "downloads" = "settings";
 
 // Settings panel in Quick Access Menu
 const Content: FC = () => {
   const { t } = useTranslation();
 
   // Tab navigation state - initialize from persistent value
-  const [activeTab, setActiveTab] = useState<'settings' | 'downloads'>(persistentActiveTab);
+  const [activeTab, setActiveTab] = useState<"settings" | "downloads">(
+    persistentActiveTab,
+  );
 
   // Update persistent state whenever tab changes
-  const handleTabChange = (tab: 'settings' | 'downloads') => {
+  const handleTabChange = (tab: "settings" | "downloads") => {
     persistentActiveTab = tab;
     setActiveTab(tab);
   };
@@ -621,10 +728,12 @@ const Content: FC = () => {
     // Focus the first focusable element on mount
     const timer = setTimeout(() => {
       if (mountRef.current) {
-        const focusable = mountRef.current.querySelector('button, [tabindex="0"]');
+        const focusable = mountRef.current.querySelector(
+          'button, [tabindex="0"]',
+        );
         if (focusable instanceof HTMLElement) {
           focusable.focus();
-          focusable.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          focusable.scrollIntoView({ behavior: "smooth", block: "start" });
         }
       }
     }, 100);
@@ -632,9 +741,9 @@ const Content: FC = () => {
   }, []);
 
   const [storeStatus, setStoreStatus] = useState<Record<Store, string>>({
-    epic: 'checking',
-    gog: 'checking',
-    amazon: 'checking',
+    epic: "checking",
+    gog: "checking",
+    amazon: "checking",
   });
 
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
@@ -662,13 +771,19 @@ const Content: FC = () => {
   useEffect(() => {
     const restoreSyncState = async () => {
       try {
-        const status = await call<[], {
-          is_syncing: boolean;
-          sync_progress: SyncProgress | null;
-        }>("get_sync_status");
+        const status = await call<
+          [],
+          {
+            is_syncing: boolean;
+            sync_progress: SyncProgress | null;
+          }
+        >("get_sync_status");
 
         if (status.is_syncing && status.sync_progress) {
-          console.log("[Unifideck] Restoring sync state on mount:", status.sync_progress);
+          console.log(
+            "[Unifideck] Restoring sync state on mount:",
+            status.sync_progress,
+          );
 
           // Restore syncing state
           setSyncing(true);
@@ -680,27 +795,44 @@ const Content: FC = () => {
           // Clear any existing polling interval before creating a new one
           if (pollIntervalRef.current) {
             clearInterval(pollIntervalRef.current);
-            console.log("[Unifideck] Cleared existing polling interval before restore");
+            console.log(
+              "[Unifideck] Cleared existing polling interval before restore",
+            );
           }
 
           // Resume polling for progress
           pollIntervalRef.current = setInterval(async () => {
             try {
-              const result = await call<[], { success?: boolean } & SyncProgress>("get_sync_progress");
+              const result = await call<
+                [],
+                { success?: boolean } & SyncProgress
+              >("get_sync_progress");
 
               if (result.success) {
                 setSyncProgress(result);
 
                 // Log progress updates
                 if (result.current_game.label) {
-                  const progress = result.current_phase === 'artwork'
-                    ? `${result.artwork_synced}/${result.artwork_total}`
-                    : `${result.synced_games}/${result.total_games}`;
-                  console.log(`[Unifideck] `+t(`${result.current_game.label}`, result.current_game.values) + ` (${progress})`);
+                  const progress =
+                    result.current_phase === "artwork"
+                      ? `${result.artwork_synced}/${result.artwork_total}`
+                      : `${result.synced_games}/${result.total_games}`;
+                  console.log(
+                    `[Unifideck] ` +
+                      t(
+                        `${result.current_game.label}`,
+                        result.current_game.values,
+                      ) +
+                      ` (${progress})`,
+                  );
                 }
 
                 // Stop polling when complete, error, or cancelled
-                if (result.status === 'complete' || result.status === 'error' || result.status === 'cancelled') {
+                if (
+                  result.status === "complete" ||
+                  result.status === "error" ||
+                  result.status === "cancelled"
+                ) {
                   if (pollIntervalRef.current) {
                     clearInterval(pollIntervalRef.current);
                     pollIntervalRef.current = null;
@@ -711,27 +843,36 @@ const Content: FC = () => {
                   if (!completionHandled) {
                     completionHandled = true;
 
-                    if (result.status === 'complete') {
-                      console.log(`[Unifideck] ✓ Sync completed: ${result.synced_games} games processed`);
-                    } else if (result.status === 'cancelled') {
+                    if (result.status === "complete") {
+                      console.log(
+                        `[Unifideck] ✓ Sync completed: ${result.synced_games} games processed`,
+                      );
+                    } else if (result.status === "cancelled") {
                       console.log(`[Unifideck] ⚠ Sync cancelled by user`);
                     }
 
                     // Show toast only if changes were made
-                    if (result.status === 'complete') {
+                    if (result.status === "complete") {
                       const addedCount = result.synced_games || 0;
                       if (addedCount > 0) {
                         toaster.toast({
-                          title: t('toasts.syncComplete'),
-                          body: t('toasts.syncCompleteMessage', { count: addedCount }),
+                          title: t("toasts.syncComplete"),
+                          body: t("toasts.syncCompleteMessage", {
+                            count: addedCount,
+                          }),
                           duration: 15000,
                           critical: true,
                         });
                       }
-                    } else if (result.status === 'cancelled') {
+                    } else if (result.status === "cancelled") {
                       toaster.toast({
-                        title: t('toasts.syncCancelled'),
-                        body: result.current_game.label ? t(result.current_game.label, result.current_game.values) : t('toasts.syncCancelled'),
+                        title: t("toasts.syncCancelled"),
+                        body: result.current_game.label
+                          ? t(
+                              result.current_game.label,
+                              result.current_game.values,
+                            )
+                          : t("toasts.syncCancelled"),
                         duration: 5000,
                       });
                     }
@@ -741,7 +882,7 @@ const Content: FC = () => {
                     setCooldownSeconds(5);
 
                     const cooldownInterval = setInterval(() => {
-                      setCooldownSeconds(prev => {
+                      setCooldownSeconds((prev) => {
                         if (prev <= 1) {
                           clearInterval(cooldownInterval);
                           setSyncCooldown(false);
@@ -776,55 +917,68 @@ const Content: FC = () => {
     try {
       // Add timeout wrapper
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Status check timed out')), 10000)
+        setTimeout(() => reject(new Error("Status check timed out")), 10000),
       );
 
-      const checkPromise = call<[], {
-        success: boolean;
-        epic: string;
-        gog: string;
-        amazon: string;
-        error?: string;
-        legendary_installed?: boolean;
-        nile_installed?: boolean;
-      }>("check_store_status");
+      const checkPromise = call<
+        [],
+        {
+          success: boolean;
+          epic: string;
+          gog: string;
+          amazon: string;
+          error?: string;
+          legendary_installed?: boolean;
+          nile_installed?: boolean;
+        }
+      >("check_store_status");
 
-      const result = await Promise.race([checkPromise, timeoutPromise]) as any;
+      const result = (await Promise.race([
+        checkPromise,
+        timeoutPromise,
+      ])) as any;
 
       if (result.success) {
         setStoreStatus({
           epic: result.epic,
           gog: result.gog,
-          amazon: result.amazon
+          amazon: result.amazon,
         });
 
         // Show warning if legendary not installed
         if (result.legendary_installed === false) {
-          console.warn("[Unifideck] Legendary CLI not installed - Epic Games won't work");
+          console.warn(
+            "[Unifideck] Legendary CLI not installed - Epic Games won't work",
+          );
         }
         // Show warning if nile not installed
         if (result.nile_installed === false) {
-          console.warn("[Unifideck] Nile CLI not installed - Amazon Games won't work");
+          console.warn(
+            "[Unifideck] Nile CLI not installed - Amazon Games won't work",
+          );
         }
       } else {
         console.error("[Unifideck] Status check failed:", result.error);
         setStoreStatus({
-          epic: 'error',
-          gog: 'error',
-          amazon: 'error'
+          epic: "error",
+          gog: "error",
+          amazon: "error",
         });
       }
     } catch (error) {
       console.error("[Unifideck] Error checking store status:", error);
       setStoreStatus({
-        epic: 'error',
-        gog: 'error',
-        amazon: 'error'
+        epic: "error",
+        gog: "error",
+        amazon: "error",
       });
     }
   };
 
-  const handleManualSync = async (force: boolean = false, resyncArtwork: boolean = false) => {
+  const handleManualSync = async (
+    force: boolean = false,
+    resyncArtwork: boolean = false,
+  ) => {
     // Prevent concurrent syncs
     if (syncing || syncCooldown) {
       console.log("[Unifideck] Sync already in progress or on cooldown");
@@ -840,28 +994,41 @@ const Content: FC = () => {
     // Clear any existing polling interval before creating a new one
     if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current);
-      console.log("[Unifideck] Cleared existing polling interval before manual sync");
+      console.log(
+        "[Unifideck] Cleared existing polling interval before manual sync",
+      );
     }
 
     // Start polling for progress
     pollIntervalRef.current = setInterval(async () => {
       try {
-        const result = await call<[], { success?: boolean } & SyncProgress>("get_sync_progress");
+        const result = await call<[], { success?: boolean } & SyncProgress>(
+          "get_sync_progress",
+        );
 
         if (result.success) {
           setSyncProgress(result);
 
           // Log progress updates
           if (result.current_game.label) {
-            const progress = result.current_phase === 'artwork'
-              ? `${result.artwork_synced}/${result.artwork_total}`
-              : `${result.synced_games}/${result.total_games}`;
-            console.log(`[Unifideck] `+t(`${result.current_game.label}`, result.current_game.values) + ` (${progress})`);
+            const progress =
+              result.current_phase === "artwork"
+                ? `${result.artwork_synced}/${result.artwork_total}`
+                : `${result.synced_games}/${result.total_games}`;
+            console.log(
+              `[Unifideck] ` +
+                t(`${result.current_game.label}`, result.current_game.values) +
+                ` (${progress})`,
+            );
           }
         }
 
         // Stop polling when complete, error, or cancelled
-        if (result.status === 'complete' || result.status === 'error' || result.status === 'cancelled') {
+        if (
+          result.status === "complete" ||
+          result.status === "error" ||
+          result.status === "cancelled"
+        ) {
           if (pollIntervalRef.current) {
             clearInterval(pollIntervalRef.current);
             pollIntervalRef.current = null;
@@ -870,38 +1037,48 @@ const Content: FC = () => {
 
           // CRITICAL FIX: Only run completion logic ONCE
           if (!completionHandled) {
-            completionHandled = true;  // Set flag IMMEDIATELY
+            completionHandled = true; // Set flag IMMEDIATELY
 
-            if (result.status === 'complete') {
-              console.log(`[Unifideck] ✓ Sync completed: ${result.synced_games} games processed`);
-            } else if (result.status === 'cancelled') {
+            if (result.status === "complete") {
+              console.log(
+                `[Unifideck] ✓ Sync completed: ${result.synced_games} games processed`,
+              );
+            } else if (result.status === "cancelled") {
               console.log(`[Unifideck] ⚠ Sync cancelled by user`);
             }
 
             // Show restart notification when sync completes (only if changes were made)
-            if (result.status === 'complete') {
+            if (result.status === "complete") {
               // Only show toast if there were actual changes (not just a refresh that added 0 games)
               const addedCount = result.synced_games || 0;
               if (addedCount > 0) {
                 toaster.toast({
-                  title: force ? t('toasts.forceSyncComplete') : t('toasts.syncComplete'),
+                  title: force
+                    ? t("toasts.forceSyncComplete")
+                    : t("toasts.syncComplete"),
                   body: force
-                    ? t('toasts.forceSyncCompleteMessage', { count: addedCount })
-                    : t('toasts.syncCompleteMessage', { count: addedCount }),
+                    ? t("toasts.forceSyncCompleteMessage", {
+                        count: addedCount,
+                      })
+                    : t("toasts.syncCompleteMessage", { count: addedCount }),
                   duration: 15000,
                   critical: true,
                 });
               }
-            } else if (result.status === 'cancelled') {
+            } else if (result.status === "cancelled") {
               toaster.toast({
-                title: t('toasts.syncCancelled'),
-                body: result.current_game.label ? t(result.current_game.label, result.current_game.values) : t('toasts.syncCancelled'),
+                title: t("toasts.syncCancelled"),
+                body: result.current_game.label
+                  ? t(result.current_game.label, result.current_game.values)
+                  : t("toasts.syncCancelled"),
                 duration: 5000,
               });
             }
           } else {
             // Completion already handled by another poll - do nothing
-            console.log(`[Unifideck] (duplicate poll detected, skipping completion logic)`);
+            console.log(
+              `[Unifideck] (duplicate poll detected, skipping completion logic)`,
+            );
           }
         }
       } catch (error) {
@@ -911,52 +1088,68 @@ const Content: FC = () => {
 
     try {
       // Use force_sync_libraries for force sync (rewrites shortcuts and compatibility data)
-      console.log(`[Unifideck] Starting ${force ? 'force ' : ''}sync...${force ? ` (resync artwork: ${resyncArtwork})` : ''}`);
+      console.log(
+        `[Unifideck] Starting ${force ? "force " : ""}sync...${
+          force ? ` (resync artwork: ${resyncArtwork})` : ""
+        }`,
+      );
 
       let syncResult;
       if (force) {
         // Force sync with resyncArtwork parameter
-        syncResult = await call<[boolean], {
-          success: boolean;
-          epic_count: number;
-          gog_count: number;
-          amazon_count: number;
-          added_count: number;
-          artwork_count: number;
-          updated_count?: number;
-        }>("force_sync_libraries", resyncArtwork);
+        syncResult = await call<
+          [boolean],
+          {
+            success: boolean;
+            epic_count: number;
+            gog_count: number;
+            amazon_count: number;
+            added_count: number;
+            artwork_count: number;
+            updated_count?: number;
+          }
+        >("force_sync_libraries", resyncArtwork);
       } else {
         // Regular sync
-        syncResult = await call<[], {
-          success: boolean;
-          epic_count: number;
-          gog_count: number;
-          amazon_count: number;
-          added_count: number;
-          artwork_count: number;
-          updated_count?: number;
-        }>("sync_libraries");
+        syncResult = await call<
+          [],
+          {
+            success: boolean;
+            epic_count: number;
+            gog_count: number;
+            amazon_count: number;
+            added_count: number;
+            artwork_count: number;
+            updated_count?: number;
+          }
+        >("sync_libraries");
       }
 
       console.log("[Unifideck] ========== SYNC COMPLETED ==========");
       console.log(`[Unifideck] Epic Games: ${syncResult.epic_count}`);
       console.log(`[Unifideck] GOG Games: ${syncResult.gog_count}`);
       console.log(`[Unifideck] Amazon Games: ${syncResult.amazon_count || 0}`);
-      console.log(`[Unifideck] Total Games: ${syncResult.epic_count + syncResult.gog_count + (syncResult.amazon_count || 0)}`);
+      console.log(
+        `[Unifideck] Total Games: ${
+          syncResult.epic_count +
+          syncResult.gog_count +
+          (syncResult.amazon_count || 0)
+        }`,
+      );
       console.log(`[Unifideck] Games Added: ${syncResult.added_count}`);
       console.log(`[Unifideck] Artwork Fetched: ${syncResult.artwork_count}`);
       console.log("[Unifideck] =====================================");
 
       // Phase 3: Sync Steam Collections
       // Update collections ([Unifideck] Epic Games, etc.) with new games
-      await syncUnifideckCollections().catch(err =>
-        console.error("[Unifideck] Failed to sync collections:", err)
+      await syncUnifideckCollections().catch((err) =>
+        console.error("[Unifideck] Failed to sync collections:", err),
       );
 
       // Reload compat cache from backend (so Great on Deck tab updates immediately)
       console.log("[Unifideck] Refreshing compat cache...");
-      await loadCompatCacheFromBackend().catch(err =>
-        console.error("[Unifideck] Failed to refresh compat cache:", err)
+      await loadCompatCacheFromBackend().catch((err) =>
+        console.error("[Unifideck] Failed to refresh compat cache:", err),
       );
 
       await checkStoreStatus();
@@ -976,7 +1169,7 @@ const Content: FC = () => {
 
       // Countdown timer
       const cooldownInterval = setInterval(() => {
-        setCooldownSeconds(prev => {
+        setCooldownSeconds((prev) => {
           if (prev <= 1) {
             clearInterval(cooldownInterval);
             setSyncCooldown(false);
@@ -1001,24 +1194,29 @@ const Content: FC = () => {
     // Helper function to check status
     const checkStatus = async (): Promise<boolean> => {
       try {
-        const result = await call<[], {
-          success: boolean;
-          epic: string;
-          gog: string;
-          amazon: string;
-        }>("check_store_status");
+        const result = await call<
+          [],
+          {
+            success: boolean;
+            epic: string;
+            gog: string;
+            amazon: string;
+          }
+        >("check_store_status");
 
         if (result.success) {
           let status: string;
-          if (store === 'epic') {
+          if (store === "epic") {
             status = result.epic;
-          } else if (store === 'gog') {
+          } else if (store === "gog") {
             status = result.gog;
           } else {
             status = result.amazon;
           }
-          if (status === t('storeConnections.connected')) {
-            console.log(`[Unifideck] ${store} authentication completed automatically!`);
+          if (status === t("storeConnections.connected")) {
+            console.log(
+              `[Unifideck] ${store} authentication completed automatically!`,
+            );
             return true;
           }
         }
@@ -1046,7 +1244,9 @@ const Content: FC = () => {
         // Timeout after max attempts
         if (attempts >= maxAttempts) {
           clearInterval(pollInterval);
-          console.log(`[Unifideck] Polling timeout for ${store} authentication`);
+          console.log(
+            `[Unifideck] Polling timeout for ${store} authentication`,
+          );
           resolve(false);
         }
       }, 5000); // Poll every 5 seconds
@@ -1054,64 +1254,82 @@ const Content: FC = () => {
   };
 
   const startAuth = async (store: Store) => {
-    const storeName = store === 'epic' ? t('storeConnections.epicGames') : store === 'amazon' ? t('storeConnections.amazonGames') : t('storeConnections.gog');
+    const storeName =
+      store === "epic"
+        ? t("storeConnections.epicGames")
+        : store === "amazon"
+        ? t("storeConnections.amazonGames")
+        : t("storeConnections.gog");
 
     try {
       let methodName: string;
-      if (store === 'epic') {
-        methodName = 'start_epic_auth';
-      } else if (store === 'gog') {
-        methodName = 'start_gog_auth_auto';
+      if (store === "epic") {
+        methodName = "start_epic_auth";
+      } else if (store === "gog") {
+        methodName = "start_gog_auth_auto";
       } else {
-        methodName = 'start_amazon_auth';
+        methodName = "start_amazon_auth";
       }
 
-      const result = await call<[], { success: boolean; url?: string; message?: string; error?: string }>(
-        methodName
-      );
+      const result = await call<
+        [],
+        { success: boolean; url?: string; message?: string; error?: string }
+      >(methodName);
 
       if (result.success && result.url) {
         const authUrl = result.url;
 
         // Open popup window
-        const popup = window.open(authUrl, '_blank', 'width=800,height=600,popup=yes');
+        const popup = window.open(
+          authUrl,
+          "_blank",
+          "width=800,height=600,popup=yes",
+        );
 
         if (!popup) {
-          console.log(`[Unifideck] Popup window did not open, continuing with backend auth monitoring...`);
+          console.log(
+            `[Unifideck] Popup window did not open, continuing with backend auth monitoring...`,
+          );
         }
 
-        console.log(`[Unifideck] Opened ${store} auth popup. Backend monitoring via CDP...`);
+        console.log(
+          `[Unifideck] Opened ${store} auth popup. Backend monitoring via CDP...`,
+        );
 
         // Poll for authentication completion in background (NON-BLOCKING)
         // This allows multiple store auths to happen simultaneously
-        pollForAuthCompletion(store).then(async (completed) => {
-          if (completed) {
-            console.log(`[Unifideck] ✓ ${storeName} authentication successful!`);
-            toaster.toast({
-              title: t('toasts.authConnected', { store: storeName }),
-              body: t('toasts.authConnectedMessage', { store: storeName }),
-              duration: 8000,
-              critical: true,
-            });
-            await checkStoreStatus(); // Refresh status
-          } else {
-            console.log(`[Unifideck] ${storeName} authentication timed out`);
-            toaster.toast({
-              title: t('toasts.authTimeout'),
-              body: t('toasts.authTimeoutMessage', { store: storeName }),
-              critical: true,
-              duration: 5000,
-            });
-          }
-        }).catch((error) => {
-          console.error(`[Unifideck] Error polling ${store} auth:`, error);
-        });
+        pollForAuthCompletion(store)
+          .then(async (completed) => {
+            if (completed) {
+              console.log(
+                `[Unifideck] ✓ ${storeName} authentication successful!`,
+              );
+              toaster.toast({
+                title: t("toasts.authConnected", { store: storeName }),
+                body: t("toasts.authConnectedMessage", { store: storeName }),
+                duration: 8000,
+                critical: true,
+              });
+              await checkStoreStatus(); // Refresh status
+            } else {
+              console.log(`[Unifideck] ${storeName} authentication timed out`);
+              toaster.toast({
+                title: t("toasts.authTimeout"),
+                body: t("toasts.authTimeoutMessage", { store: storeName }),
+                critical: true,
+                duration: 5000,
+              });
+            }
+          })
+          .catch((error) => {
+            console.error(`[Unifideck] Error polling ${store} auth:`, error);
+          });
 
         // Return immediately - don't block waiting for auth to complete
       } else {
         toaster.toast({
-          title: t('toasts.authFailed'),
-          body: result.error ? t(result.error) : t('toasts.authFailedMessage'),
+          title: t("toasts.authFailed"),
+          body: result.error ? t(result.error) : t("toasts.authFailedMessage"),
           critical: true,
           duration: 5000,
         });
@@ -1119,7 +1337,7 @@ const Content: FC = () => {
     } catch (error: any) {
       console.error(`[Unifideck] Error starting ${store} auth:`, error);
       toaster.toast({
-        title: t('toasts.authError'),
+        title: t("toasts.authError"),
         body: error.message || String(error),
         critical: true,
         duration: 5000,
@@ -1130,15 +1348,15 @@ const Content: FC = () => {
   const handleLogout = async (store: Store) => {
     try {
       let methodName: string;
-      if (store === 'epic') {
-        methodName = 'logout_epic';
-      } else if (store === 'gog') {
-        methodName = 'logout_gog';
+      if (store === "epic") {
+        methodName = "logout_epic";
+      } else if (store === "gog") {
+        methodName = "logout_gog";
       } else {
-        methodName = 'logout_amazon';
+        methodName = "logout_amazon";
       }
       const result = await call<[], { success: boolean; message?: string }>(
-        methodName
+        methodName,
       );
 
       if (result.success) {
@@ -1160,35 +1378,40 @@ const Content: FC = () => {
     setShowDeleteConfirm(false);
 
     try {
-      const result = await call<[{ delete_files: boolean }], {
-        success: boolean;
-        deleted_games: number;
-        deleted_artwork: number;
-        deleted_files_count: number;
-        preserved_shortcuts: number;
-        error?: string;
-      }>("perform_full_cleanup", { delete_files: deleteFiles });
+      const result = await call<
+        [{ delete_files: boolean }],
+        {
+          success: boolean;
+          deleted_games: number;
+          deleted_artwork: number;
+          deleted_files_count: number;
+          preserved_shortcuts: number;
+          error?: string;
+        }
+      >("perform_full_cleanup", { delete_files: deleteFiles });
 
       // Reset checkbox
       setDeleteFiles(false);
 
       if (result.success) {
-        console.log(`[Unifideck] Cleanup complete: ${result.deleted_games} games, ` +
-          `${result.deleted_artwork} artwork sets, ${result.deleted_files_count} files deleted`);
+        console.log(
+          `[Unifideck] Cleanup complete: ${result.deleted_games} games, ` +
+            `${result.deleted_artwork} artwork sets, ${result.deleted_files_count} files deleted`,
+        );
 
         toaster.toast({
-          title: t('toasts.cleanupSuccessful'),
-          body: t('toasts.cleanupSuccessfulMessage', {
+          title: t("toasts.cleanupSuccessful"),
+          body: t("toasts.cleanupSuccessfulMessage", {
             games: result.deleted_games,
             artwork: result.deleted_artwork,
-            files: result.deleted_files_count
+            files: result.deleted_files_count,
           }),
           duration: 8000,
         });
       } else {
         console.error(`[Unifideck] Delete failed: ${result.error}`);
         toaster.toast({
-          title: t('toasts.deleteFailed'),
+          title: t("toasts.deleteFailed"),
           body: result.error ? t(result.error) : "Unknown error",
           duration: 5000,
         });
@@ -1213,16 +1436,19 @@ const Content: FC = () => {
       setSyncProgress(null);
       setSyncing(false);
 
-      const result = await call<[], {
-        success: boolean;
-        message: string;
-      }>("cancel_sync");
+      const result = await call<
+        [],
+        {
+          success: boolean;
+          message: string;
+        }
+      >("cancel_sync");
 
       if (result.success) {
         console.log("[Unifideck] Sync cancelled");
         toaster.toast({
-          title: t('toasts.syncCancelled').toUpperCase(),
-          body: t('errors.syncCancelled'),
+          title: t("toasts.syncCancelled").toUpperCase(),
+          body: t("errors.syncCancelled"),
           duration: 3000,
         });
       } else {
@@ -1240,25 +1466,25 @@ const Content: FC = () => {
         <PanelSectionRow>
           <ButtonItem
             layout="below"
-            onClick={() => handleTabChange('settings')}
-            disabled={activeTab === 'settings'}
+            onClick={() => handleTabChange("settings")}
+            disabled={activeTab === "settings"}
           >
-            <div ref={mountRef}>{t('tabs.settings')}</div>
+            <div ref={mountRef}>{t("tabs.settings")}</div>
           </ButtonItem>
         </PanelSectionRow>
         <PanelSectionRow>
           <ButtonItem
             layout="below"
-            onClick={() => handleTabChange('downloads')}
-            disabled={activeTab === 'downloads'}
+            onClick={() => handleTabChange("downloads")}
+            disabled={activeTab === "downloads"}
           >
-            {t('tabs.downloads')}
+            {t("tabs.downloads")}
           </ButtonItem>
         </PanelSectionRow>
       </PanelSection>
 
       {/* Downloads Tab */}
-      {activeTab === 'downloads' && (
+      {activeTab === "downloads" && (
         <>
           <DownloadsTab />
           <StorageSettings />
@@ -1266,7 +1492,7 @@ const Content: FC = () => {
       )}
 
       {/* Settings Tab */}
-      {activeTab === 'settings' && (
+      {activeTab === "settings" && (
         <>
           {/* Store Connections - Compact View */}
           <StoreConnections
@@ -1292,7 +1518,7 @@ const Content: FC = () => {
           <LanguageSelector />
 
           {/* Cleanup Section */}
-          <PanelSection title={t('cleanup.title')}>
+          <PanelSection title={t("cleanup.title")}>
             {!showDeleteConfirm ? (
               <PanelSectionRow>
                 <ButtonItem
@@ -1300,8 +1526,16 @@ const Content: FC = () => {
                   onClick={handleDeleteAll}
                   disabled={syncing || deleting || syncCooldown}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: "2px", fontSize: "0.85em", padding: "2px" }}>
-                    {t('cleanup.deleteAll')}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "2px",
+                      fontSize: "0.85em",
+                      padding: "2px",
+                    }}
+                  >
+                    {t("cleanup.deleteAll")}
                   </div>
                 </ButtonItem>
               </PanelSectionRow>
@@ -1309,15 +1543,15 @@ const Content: FC = () => {
               <>
                 <PanelSectionRow>
                   <Field
-                    label={t('cleanup.warningTitle')}
-                    description={t('cleanup.warningDescription')}
+                    label={t("cleanup.warningTitle")}
+                    description={t("cleanup.warningDescription")}
                   />
                 </PanelSectionRow>
 
                 {/* Delete Files Checkbox */}
                 <PanelSectionRow>
                   <ToggleField
-                    label={t('cleanup.deleteFilesLabel')}
+                    label={t("cleanup.deleteFilesLabel")}
                     checked={deleteFiles}
                     onChange={(checked) => setDeleteFiles(checked)}
                   />
@@ -1329,7 +1563,9 @@ const Content: FC = () => {
                     onClick={handleDeleteAll}
                     disabled={deleting}
                   >
-                    {deleting ? t('cleanup.deleting') : t('cleanup.confirmDelete')}
+                    {deleting
+                      ? t("cleanup.deleting")
+                      : t("cleanup.confirmDelete")}
                   </ButtonItem>
                 </PanelSectionRow>
                 <PanelSectionRow>
@@ -1341,14 +1577,12 @@ const Content: FC = () => {
                     }}
                     disabled={deleting}
                   >
-                    {t('cleanup.cancel')}
+                    {t("cleanup.cancel")}
                   </ButtonItem>
                 </PanelSectionRow>
               </>
             )}
           </PanelSection>
-
-
         </>
       )}
     </>
@@ -1356,7 +1590,6 @@ const Content: FC = () => {
 };
 
 export default definePlugin(() => {
-
   console.log("[Unifideck] Plugin loaded");
 
   // Patch the library to add Unifideck tabs (All, Installed, Great on Deck, Steam, Epic, GOG, Amazon)
@@ -1368,7 +1601,9 @@ export default definePlugin(() => {
   // v70.3 FIX: Call extracted function to ensure proper Decky loader context
   const patchGameDetails = patchGameDetailsRoute();
 
-  console.log("[Unifideck] ✓ All route patches registered (including game details)");
+  console.log(
+    "[Unifideck] ✓ All route patches registered (including game details)",
+  );
 
   // Sync Unifideck Collections on load (with delay to ensure Steam is ready)
   // Automatic collection sync on load removed to prevent crashes
@@ -1421,9 +1656,15 @@ export default definePlugin(() => {
   let launcherToastInterval: NodeJS.Timeout | null = null;
   launcherToastInterval = setInterval(async () => {
     try {
-      const toasts = await call<[], Array<{ title: string; body: string; urgency?: string; timestamp?: number }>>(
-        "get_launcher_toasts"
-      );
+      const toasts = await call<
+        [],
+        Array<{
+          title: string;
+          body: string;
+          urgency?: string;
+          timestamp?: number;
+        }>
+      >("get_launcher_toasts");
 
       if (toasts && toasts.length > 0) {
         for (const toast of toasts) {
@@ -1431,11 +1672,11 @@ export default definePlugin(() => {
           let bodyKey = toast.body;
           let bodyParams: Record<string, any> = {};
 
-          if (bodyKey.includes('|')) {
-            const parts = bodyKey.split('|');
+          if (bodyKey.includes("|")) {
+            const parts = bodyKey.split("|");
             bodyKey = parts[0];
             for (let i = 1; i < parts.length; i++) {
-              const [k, v] = parts[i].split('=');
+              const [k, v] = parts[i].split("=");
               if (k && v) {
                 bodyParams[k] = v;
               }
@@ -1443,7 +1684,7 @@ export default definePlugin(() => {
           }
 
           toaster.toast({
-            title: `${t('toasts.unifideck')} ${t(toast.title)}`,
+            title: `${t("toasts.unifideck")} ${t(toast.title)}`,
             body: String(t(bodyKey, bodyParams)),
             duration: toast.urgency === "critical" ? 10000 : 5000,
             critical: toast.urgency === "critical",
@@ -1462,12 +1703,14 @@ export default definePlugin(() => {
   // Background sync disabled - users manually sync via UI when needed
   console.log("[Unifideck] Background sync disabled (use manual sync button)");
 
-
   return {
     name: "UNIFIDECK",
     icon: <FaGamepad />,
-    content:
-      <I18nextProvider i18n={i18n}><Content /></I18nextProvider>,
+    content: (
+      <I18nextProvider i18n={i18n}>
+        <Content />
+      </I18nextProvider>
+    ),
     onDismount() {
       console.log("[Unifideck] Plugin unloading");
 
@@ -1492,8 +1735,9 @@ export default definePlugin(() => {
       gameInfoCache.clear();
 
       // Stop background sync service
-      call("stop_background_sync")
-        .catch((error) => console.error("[Unifideck] Failed to stop background sync:", error));
+      call("stop_background_sync").catch((error) =>
+        console.error("[Unifideck] Failed to stop background sync:", error),
+      );
     },
   };
 });

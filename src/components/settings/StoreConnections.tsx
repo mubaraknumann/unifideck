@@ -18,55 +18,85 @@ const STORES: {
   notInstalledStatus?: string;
   notInstalledMessage?: string;
 }[] = [
-  { key: "epic", label: "storeConnections.epicGames", notInstalledStatus: "legendary_not_installed", notInstalledMessage: "storeConnections.legendaryNotInstalled" },
+  {
+    key: "epic",
+    label: "storeConnections.epicGames",
+    notInstalledStatus: "legendary_not_installed",
+    notInstalledMessage: "storeConnections.legendaryNotInstalled",
+  },
   { key: "gog", label: "storeConnections.gog" },
-  { key: "amazon", label: "storeConnections.amazonGames", notInstalledStatus: "nile_not_installed", notInstalledMessage: "storeConnections.nileNotInstalled" },
+  {
+    key: "amazon",
+    label: "storeConnections.amazonGames",
+    notInstalledStatus: "nile_not_installed",
+    notInstalledMessage: "storeConnections.nileNotInstalled",
+  },
 ];
 
-const StoreConnections = ({ storeStatus, onLogout, onStartAuth }: StoreConnectionsProps) => {
+const StoreConnections = ({
+  storeStatus,
+  onLogout,
+  onStartAuth,
+}: StoreConnectionsProps) => {
   return (
-    <PanelSection title={t('storeConnections.title')}>
-      <div style={{ display: "flex", flexDirection: "column", gap:"2px"}}>
-        {STORES.map(({ key, label, notInstalledStatus, notInstalledMessage }) => {
-          const status = storeStatus[key];
-          const isConnected = status === "connected";
-          const isCheckingOrError = status === "checking" || status === "error" || status === notInstalledStatus;
+    <PanelSection title={t("storeConnections.title")}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+        {STORES.map(
+          ({ key, label, notInstalledStatus, notInstalledMessage }) => {
+            const status = storeStatus[key];
+            const isConnected = status === "connected";
+            const isCheckingOrError =
+              status === "checking" ||
+              status === "error" ||
+              status === notInstalledStatus;
 
-          return (
-            <div key={key}>
-              {/* Status indicators */}
-              <div style={{ 
-                display: "flex",
-                alignItems: "center",
-                flexDirection: "row",
-                justifyContent: "space-between",
-                padding: 0
-              }}>
-                <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
-                  <StoreIcon store={key} size="18px" color={isConnected ? "#4ade80" : "#fff"} />
-                  <span style={{ fontSize:"14px" }}>{t(label)}</span>
+            return (
+              <div key={key}>
+                {/* Status indicators */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    padding: 0,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "8px",
+                    }}
+                  >
+                    <StoreIcon
+                      store={key}
+                      size="18px"
+                      color={isConnected ? "#4ade80" : "#fff"}
+                    />
+                    <span style={{ fontSize: "14px" }}>{t(label)}</span>
+                  </div>
+
+                  {!isCheckingOrError && (
+                    <StoreAuthButton
+                      store={key}
+                      status={status}
+                      onLogout={onLogout}
+                      onStartAuth={onStartAuth}
+                    />
+                  )}
                 </div>
 
-                {!isCheckingOrError && (
-                  <StoreAuthButton
-                    store={key}
-                    status={status}
-                    onLogout={onLogout}
-                    onStartAuth={onStartAuth}
-                  />
+                {/* Error/warning messages */}
+                {status === notInstalledStatus && notInstalledMessage && (
+                  <PanelSectionRow>
+                    <Field description={t(notInstalledMessage)} />
+                  </PanelSectionRow>
                 )}
               </div>
-
-
-              {/* Error/warning messages */}
-              {status === notInstalledStatus && notInstalledMessage && (
-                <PanelSectionRow>
-                  <Field description={t(notInstalledMessage)} />
-                </PanelSectionRow>
-              )}
-            </div>
-          );
-        })}
+            );
+          },
+        )}
       </div>
     </PanelSection>
   );
