@@ -247,5 +247,11 @@
     "greatOnDeck": "Steam Deck için Mükemmel",
     "allGames": "Tüm Oyunlar",
     "installed": "Yüklendi"
+  },
+  "gameLanguage": {
+    "title": "Game Language",
+    "auto": "Auto (Global/System)",
+    "description": "Language preference for this game",
+    "note": "Applies on next launch. Some games may require re-download for full language pack."
   }
 }

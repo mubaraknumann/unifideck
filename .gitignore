@@ -73,6 +73,7 @@ cli/
 
 # Agent/AI assistant configs
 .agent/
+AGENTS.md
 
 # Research notes
 research/

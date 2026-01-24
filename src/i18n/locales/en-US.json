@@ -194,8 +194,14 @@
   "languageSettings": {
     "title": "LANGUAGE",
     "label": "Display Language",
-    "description": "Language for UI and game downloads (where supported)",
+    "description": "Language for UI, game downloads, and launches (where supported)",
     "autoDetect": "Auto (System)"
+  },
+  "gameLanguage": {
+    "title": "Game Language",
+    "auto": "Auto (Global/System)",
+    "description": "Language preference for this game",
+    "note": "Applies on next launch. Some games may require re-download for full language pack."
   },
   "errors": {
     "legendaryNotFound": "Epic Games CLI (Legendary) not found",

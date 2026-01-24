@@ -194,8 +194,14 @@
   "languageSettings": {
     "title": "IDIOMA",
     "label": "Idioma de exibição",
-    "description": "Idioma para interface e downloads de jogos (onde suportado)",
+    "description": "Idioma para interface, downloads e execução de jogos (onde suportado)",
     "autoDetect": "Automático (Sistema)"
+  },
+  "gameLanguage": {
+    "title": "Idioma do Jogo",
+    "auto": "Automático (Global/Sistema)",
+    "description": "Preferência de idioma para este jogo",
+    "note": "Aplica-se na próxima execução. Alguns jogos podem exigir novo download do pacote de idioma completo."
   },
   "errors": {
     "legendaryNotFound": "CLI do Epic Games (Legendary) não encontrado",

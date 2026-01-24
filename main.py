@@ -3887,6 +3887,117 @@ class Plugin:
             logger.error(f"Error getting game info for app {app_id}: {e}")
             return {'error': str(e)}
 
+    async def get_game_language_preference(self, store: str, game_id: str) -> Dict[str, Any]:
+        """Get language preference for a specific game
+        
+        Args:
+            store: Store name ('epic', 'gog', 'amazon')
+            game_id: Game ID
+        
+        Returns:
+            Dict with language preference: {
+                'success': bool,
+                'language': str (language code or 'auto'),
+                'resolved_language': str (final language after fallback resolution)
+            }
+        """
+        try:
+            from backend.utils.language import get_game_language_preference, get_resolved_language
+            
+            preference = get_game_language_preference(store, game_id)
+            resolved = get_resolved_language(store, game_id)
+            
+            logger.info(f"[Language] Get preference for {store}:{game_id} -> {preference} (resolved: {resolved})")
+            
+            return {
+                'success': True,
+                'language': preference,
+                'resolved_language': resolved
+            }
+        except Exception as e:
+            logger.error(f"[Language] Error getting preference for {store}:{game_id}: {e}")
+            return {'success': False, 'error': str(e)}
+
+    async def set_game_language_preference(self, store: str, game_id: str, language: str) -> Dict[str, Any]:
+        """Set language preference for a specific game
+        
+        Args:
+            store: Store name ('epic', 'gog', 'amazon')
+            game_id: Game ID
+            language: Language code (e.g., 'pt-BR') or 'auto' to use global/system default
+        
+        Returns:
+            Dict with success status
+        """
+        try:
+            from backend.utils.language import set_game_language_preference
+            
+            success = set_game_language_preference(store, game_id, language)
+            
+            if success:
+                logger.info(f"[Language] Set preference for {store}:{game_id} -> {language}")
+                return {'success': True}
+            else:
+                return {'success': False, 'error': 'Failed to save language preference'}
+        except Exception as e:
+            logger.error(f"[Language] Error setting preference for {store}:{game_id}: {e}")
+            return {'success': False, 'error': str(e)}
+
+    async def get_game_language_options(self, store: str, game_id: str) -> Dict[str, Any]:
+        """Get available language options for a game
+        
+        Args:
+            store: Store name ('epic', 'gog', 'amazon')
+            game_id: Game ID
+        
+        Returns:
+            Dict with language options: {
+                'success': bool,
+                'languages': List[str] (list of language codes),
+                'current': str (current preference),
+                'resolved': str (resolved language after fallback)
+            }
+        """
+        try:
+            from backend.utils.language import (
+                get_supported_languages,
+                get_game_language_preference,
+                get_resolved_language
+            )
+            
+            # For GOG, we can query actual available languages from the API
+            # For Epic/Amazon, return the store's supported languages list
+            if store == 'gog':
+                # Try to get actual game-specific languages from GOG API
+                try:
+                    gog_languages = await self.gog.get_available_languages(game_id)
+                    if gog_languages:
+                        languages = gog_languages
+                    else:
+                        # Fallback to GOG's general supported languages
+                        languages = get_supported_languages(store)
+                except Exception as e:
+                    logger.warning(f"[Language] Could not get GOG languages for {game_id}: {e}")
+                    languages = get_supported_languages(store)
+            else:
+                # Epic/Amazon: use store's supported languages
+                languages = get_supported_languages(store)
+            
+            current = get_game_language_preference(store, game_id)
+            resolved = get_resolved_language(store, game_id)
+            
+            logger.info(f"[Language] Get options for {store}:{game_id} -> {len(languages)} languages available")
+            
+            return {
+                'success': True,
+                'languages': languages,
+                'current': current,
+                'resolved': resolved
+            }
+        except Exception as e:
+            logger.error(f"[Language] Error getting options for {store}:{game_id}: {e}")
+            return {'success': False, 'error': str(e)}
+
     async def install_game_by_appid(self, app_id: int) -> Dict[str, Any]:
         """Install game by Steam shortcut app ID
 

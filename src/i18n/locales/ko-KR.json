@@ -248,5 +248,11 @@
     "greatOnDeck": "Steam Deck에 최적화됨",
     "allGames": "모든 게임",
     "installed": "설치됨"
+  },
+  "gameLanguage": {
+    "title": "Game Language",
+    "auto": "Auto (Global/System)",
+    "description": "Language preference for this game",
+    "note": "Applies on next launch. Some games may require re-download for full language pack."
   }
 }

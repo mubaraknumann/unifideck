@@ -42,6 +42,7 @@ import { DownloadsTab } from "./components/DownloadsTab";
 import { StorageSettings } from "./components/StorageSettings";
 import { UninstallConfirmModal } from "./components/UninstallConfirmModal";
 import { LanguageSelector } from "./components/LanguageSelector";
+import { GameLanguageSelector } from "./components/GameLanguageSelector";
 import StoreConnections from "./components/settings/StoreConnections";
 import { Store } from "./types/store";
 import LibrarySync from "./components/settings/LibrarySync";
@@ -516,7 +517,6 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
 
   return (
     <>
-      {" "}
       {/* Install/Uninstall/Cancel Button */}
       <Focusable
         style={{
@@ -541,6 +541,27 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
           {processing ? t("installButton.processing") : buttonText}
         </DialogButton>
       </Focusable>
+
+      {/* Per-Game Language Selector - Only show for non-Steam games */}
+      {gameInfo && gameInfo.store && gameInfo.store !== "steam" && (
+        <div
+          style={{
+            position: "absolute",
+            top: "100px", // Below the install button
+            right: "35px",
+            width: "300px",
+            zIndex: 9998,
+            backgroundColor: "rgba(0, 0, 0, 0.8)",
+            padding: "12px",
+            borderRadius: "4px",
+          }}
+        >
+          <GameLanguageSelector
+            store={gameInfo.store}
+            gameId={gameInfo.game_id}
+          />
+        </div>
+      )}
     </>
   );
 };
@@ -672,12 +693,12 @@ function patchGameDetailsRoute() {
               innerContainer
                 ? "InnerContainer"
                 : headerContainer
-                ? "Header"
-                : playSection
-                ? "PlaySection"
-                : buttonsContainer
-                ? "ButtonsContainer"
-                : "GameInfoRow"
+                  ? "Header"
+                  : playSection
+                    ? "PlaySection"
+                    : buttonsContainer
+                      ? "ButtonsContainer"
+                      : "GameInfoRow"
             } at index ${spliceIndex}`,
           );
         } catch (error) {
@@ -1258,8 +1279,8 @@ const Content: FC = () => {
       store === "epic"
         ? t("storeConnections.epicGames")
         : store === "amazon"
-        ? t("storeConnections.amazonGames")
-        : t("storeConnections.gog");
+          ? t("storeConnections.amazonGames")
+          : t("storeConnections.gog");
 
     try {
       let methodName: string;

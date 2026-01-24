@@ -978,9 +978,17 @@ class GOGAPIClient:
         if not self._ensure_auth_config():
              return {'success': False, 'error': 'Failed to configure GOG authentication'}
         
-        # Get preferred language based on system locale
-        preferred_lang = self._get_unifideck_language()
-        logger.info(f"[GOG] Using language preference: {preferred_lang}")
+        # Get preferred language using centralized resolution
+        # This respects per-game override → global setting → system locale
+        try:
+            from backend.utils.language import get_resolved_language
+            preferred_lang = get_resolved_language('gog', game_id)
+            logger.info(f"[GOG] Using resolved language preference: {preferred_lang}")
+        except Exception as e:
+            # Fallback to existing method if language utility fails
+            logger.warning(f"[GOG] Could not resolve language via utility, using fallback: {e}")
+            preferred_lang = self._get_unifideck_language()
+            logger.info(f"[GOG] Using fallback language preference: {preferred_lang}")
 
         # 2. Determine Install Path
         if not base_path:

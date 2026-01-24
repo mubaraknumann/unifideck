@@ -651,6 +651,18 @@ class DownloadQueue:
                 except Exception as e:
                     logger.warning(f"[DownloadQueue] Could not clear lock {lock_file}: {e}")
         
+        # Resolve language preference for this game
+        try:
+            from backend.utils.language import get_resolved_language, normalize_language_code
+            resolved_lang = get_resolved_language('epic', item.game_id)
+            # Epic legendary uses 2-letter codes or specific variants (e.g., pt-BR, es-MX)
+            # Keep the full code as Epic supports both formats
+            language_code = resolved_lang
+            logger.info(f"[DownloadQueue] Using language for Epic download: {language_code}")
+        except Exception as e:
+            logger.warning(f"[DownloadQueue] Could not resolve language, using default: {e}")
+            language_code = None
+        
         cmd = [
             legendary_bin,
             "install",
@@ -658,6 +670,10 @@ class DownloadQueue:
             "--base-path", install_path,
             "-y"  # Non-interactive
         ]
+        
+        # Add language parameter if available
+        if language_code:
+            cmd.extend(["--language", language_code])
         
         logger.info(f"[DownloadQueue] Running: {' '.join(cmd)}")
         

@@ -488,6 +488,31 @@ if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]] || \
         export LEGENDARY_WRAPPER_EXE="C:\\windows\\command\\EpicGamesLauncher.exe"
     fi
     
+    # ===========================================================================
+    # LANGUAGE RESOLUTION
+    # Get resolved language preference (per-game → global → system locale)
+    # and export LANG/LC_ALL for Wine/Proton to respect
+    # ===========================================================================
+    RESOLVED_LANG=""
+    LANG_SCRIPT="$PLUGIN_DIR/bin/resolve_language.py"
+    if [ -f "$LANG_SCRIPT" ]; then
+        RESOLVED_LANG=$(python3 "$LANG_SCRIPT" "$STORE" "$GAME_ID" 2>/dev/null || echo "")
+        if [ -n "$RESOLVED_LANG" ]; then
+            log "[Language] Resolved language for $STORE:$GAME_ID: $RESOLVED_LANG"
+            
+            # Export locale environment variables for Wine/Proton
+            # This ensures the game respects the language setting
+            export LANG="${RESOLVED_LANG}.UTF-8"
+            export LC_ALL="${RESOLVED_LANG}.UTF-8"
+            export LANGUAGE="${RESOLVED_LANG}"
+            
+            log "[Language] Set LANG=$LANG, LC_ALL=$LC_ALL, LANGUAGE=$LANGUAGE"
+        else
+            log "[Language] Could not resolve language, using system default"
+        fi
+    else
+        log "[Language] Language resolver script not found, using system default"
+    fi
     
     # Select Proton version (respects PROTONPATH/PROTON env, Steam settings, defaults to Experimental)
     select_proton_version "$GAME_ID" ""
@@ -779,8 +804,12 @@ if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]] || \
             log "WARNING: No authenticated Legendary config found! Game may fail to launch."
         fi
 
-        # Construct the legendary launch command
-        CMD="$LEGENDARY_BIN launch $GAME_ID --no-wine --wrapper \"$PYTHON_BIN $UMU_WRAPPER\" --language en"
+        # Construct the legendary launch command (use resolved language if available)
+        LANG_PARAM=""
+        if [ -n "$RESOLVED_LANG" ]; then
+            LANG_PARAM="--language $RESOLVED_LANG"
+        fi
+        CMD="$LEGENDARY_BIN launch $GAME_ID --no-wine --wrapper \"$PYTHON_BIN $UMU_WRAPPER\" $LANG_PARAM"
         log "Executing: $CMD"
 
         # === CLOUD SAVE: Download before launch ===
@@ -790,7 +819,11 @@ if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]] || \
         notify_stage "toasts.launcher.launchingGame" "toasts.launcher.startingEpicGame" "low"
 
         # Execute legendary (wait for exit, don't use exec)
-        "$LEGENDARY_BIN" launch "$GAME_ID" --no-wine --wrapper "$PYTHON_BIN $UMU_WRAPPER" --language en 2>>"$LOG_FILE"
+        if [ -n "$RESOLVED_LANG" ]; then
+            "$LEGENDARY_BIN" launch "$GAME_ID" --no-wine --wrapper "$PYTHON_BIN $UMU_WRAPPER" --language "$RESOLVED_LANG" 2>>"$LOG_FILE"
+        else
+            "$LEGENDARY_BIN" launch "$GAME_ID" --no-wine --wrapper "$PYTHON_BIN $UMU_WRAPPER" 2>>"$LOG_FILE"
+        fi
 
         GAME_EXIT_CODE=$?
 

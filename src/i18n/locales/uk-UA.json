@@ -248,5 +248,11 @@
     "greatOnDeck": "Ідеально для Steam Deck",
     "allGames": "Усі ігри",
     "installed": "Встановлені"
+  },
+  "gameLanguage": {
+    "title": "Game Language",
+    "auto": "Auto (Global/System)",
+    "description": "Language preference for this game",
+    "note": "Applies on next launch. Some games may require re-download for full language pack."
   }
 }

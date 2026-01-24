@@ -248,5 +248,11 @@
     "greatOnDeck": "Steam Deckに最適",
     "allGames": "すべてのゲーム",
     "installed": "インストール済み"
+  },
+  "gameLanguage": {
+    "title": "Game Language",
+    "auto": "Auto (Global/System)",
+    "description": "Language preference for this game",
+    "note": "Applies on next launch. Some games may require re-download for full language pack."
   }
 }
