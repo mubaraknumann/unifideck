@@ -181,7 +181,9 @@
       "dependenciesStatus": "Bağımlılıklar",
       "checkLogs": "Kurulum tamamlandı (detaylar için günlüklere bakın)",
       "installingProton": "Proton Yükleniyor",
-      "attemptingInstall": "{{version}} yüklenmeye çalışılıyor..."
+      "attemptingInstall": "{{version}} yüklenmeye çalışılıyor...",
+      "epicAuthRequired": "Epic Login Required",
+      "epicAuthRequiredMessage": "Please sign in to Epic Games in Unifideck settings"
     }
   },
   "uninstallModal": {

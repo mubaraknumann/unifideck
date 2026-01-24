@@ -1213,7 +1213,7 @@ const Content: FC = () => {
           } else {
             status = result.amazon;
           }
-          if (status === t("storeConnections.connected")) {
+          if (status === "connected") {
             console.log(
               `[Unifideck] ${store} authentication completed automatically!`,
             );

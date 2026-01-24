@@ -1868,7 +1868,18 @@ class ShortcutsManager:
             # STEP 2: Remove orphaned shortcuts and update existing ones
             removed_count = 0
             updated_count = 0
+            repaired_count = 0  # Shortcuts recovered via appid lookup
             to_remove = []
+            
+            # Load shortcuts registry for appid-based recovery
+            shortcuts_registry = load_shortcuts_registry()
+            # Build reverse lookup: appid -> original launch_options
+            appid_to_launch_opts = {
+                entry['appid']: opts 
+                for opts, entry in shortcuts_registry.items() 
+                if 'appid' in entry
+            }
+
             
             for idx in list(shortcuts["shortcuts"].keys()):
                 shortcut = shortcuts["shortcuts"][idx]
@@ -1884,7 +1895,65 @@ class ShortcutsManager:
 
                     full_id = get_full_id(launch)
                     if full_id not in current_launch_options:
-                        # Orphaned - game no longer in library
+                        # Game ID in LaunchOptions doesn't match library
+                        # BUT check if we can recover by appid BEFORE marking as orphan
+                        app_id = shortcut.get('appid')
+                        
+                        if app_id and app_id in appid_to_launch_opts:
+                            # This shortcut has a registered appid - recover it!
+                            original_launch_opts = appid_to_launch_opts[app_id]
+                            game = games_by_launch_opts.get(original_launch_opts)
+                            
+                            if game:
+                                logger.info(f"[ForceSync] Repairing modified game ID: {shortcut.get('AppName')}")
+                                logger.info(f"[ForceSync]   Corrupted: {launch} -> Correct: {original_launch_opts}")
+                                
+                                # Restore correct LaunchOptions
+                                shortcut['LaunchOptions'] = original_launch_opts
+                                shortcut['exe'] = launcher_script
+                                shortcut['AppName'] = game.title
+                                
+                                # Update icon if available
+                                if game.cover_image:
+                                    shortcut['icon'] = game.cover_image
+                                
+                                # Update tags based on actual installation status
+                                store_tag = game.store.title()
+                                install_tag = '' if game.is_installed else 'Not Installed'
+                                shortcut['tags'] = {
+                                    '0': store_tag,
+                                    '1': install_tag
+                                } if install_tag else {'0': store_tag}
+                                
+                                # Update games.map if installed
+                                if game.is_installed:
+                                    if game.store == 'epic':
+                                        metadata = await self.epic.get_installed()
+                                        if game.id in metadata:
+                                            meta = metadata[game.id]
+                                            install_path = meta.get('install', {}).get('install_path')
+                                            executable = meta.get('manifest', {}).get('launch_exe')
+                                            if install_path and executable:
+                                                exe_path = os.path.join(install_path, executable)
+                                                work_dir = os.path.dirname(exe_path)
+                                                await self._update_game_map(game.store, game.id, exe_path, work_dir)
+                                    elif game.store == 'gog':
+                                        game_info = self.gog.get_installed_game_info(game.id)
+                                        if game_info and game_info.get('executable'):
+                                            exe_path = game_info['executable']
+                                            work_dir = os.path.dirname(exe_path)
+                                            await self._update_game_map(game.store, game.id, exe_path, work_dir)
+                                    elif game.store == 'amazon':
+                                        game_info = self.amazon.get_installed_game_info(game.id)
+                                        if game_info and game_info.get('executable'):
+                                            exe_path = game_info['executable']
+                                            work_dir = os.path.dirname(exe_path)
+                                            await self._update_game_map(game.store, game.id, exe_path, work_dir)
+                                
+                                repaired_count += 1
+                                continue  # Skip orphan removal, we repaired it
+                        
+                        # Truly orphaned - game no longer in library AND no appid recovery possible
                         logger.debug(f"Removing orphaned shortcut: {shortcut.get('AppName')} ({launch})")
                         to_remove.append(idx)
                         removed_count += 1
@@ -1925,6 +1994,63 @@ class ShortcutsManager:
                             updated_count += 1
                             logger.debug(f"Updated installed shortcut: {game.title}")
                             break
+                else:
+                    # APPID-BASED RECOVERY: Check if this shortcut's appid is in our registry
+                    # This handles cases where user modified/cleared LaunchOptions entirely
+                    app_id = shortcut.get('appid')
+                    if app_id and app_id in appid_to_launch_opts:
+                        original_launch_opts = appid_to_launch_opts[app_id]
+                        game = games_by_launch_opts.get(original_launch_opts)
+                        
+                        if game:
+                            logger.info(f"[ForceSync] Repairing shortcut: {shortcut.get('AppName')} (restoring {original_launch_opts})")
+                            
+                            # Restore Unifideck ownership
+                            shortcut['LaunchOptions'] = original_launch_opts
+                            shortcut['exe'] = launcher_script
+                            shortcut['AppName'] = game.title
+                            
+                            # Update icon if available
+                            if game.cover_image:
+                                shortcut['icon'] = game.cover_image
+                            
+                            # Update tags
+                            store_tag = game.store.title()
+                            install_tag = '' if game.is_installed else 'Not Installed'
+                            shortcut['tags'] = {
+                                '0': store_tag,
+                                '1': install_tag
+                            } if install_tag else {'0': store_tag}
+                            
+                            # Update games.map if installed
+                            if game.is_installed:
+                                game_info = None
+                                if game.store == 'epic':
+                                    metadata = await self.epic.get_installed()
+                                    if game.id in metadata:
+                                        meta = metadata[game.id]
+                                        install_path = meta.get('install', {}).get('install_path')
+                                        executable = meta.get('manifest', {}).get('launch_exe')
+                                        if install_path and executable:
+                                            exe_path = os.path.join(install_path, executable)
+                                            work_dir = os.path.dirname(exe_path)
+                                            await self._update_game_map(game.store, game.id, exe_path, work_dir)
+                                elif game.store == 'gog':
+                                    game_info = self.gog.get_installed_game_info(game.id)
+                                    if game_info and game_info.get('executable'):
+                                        exe_path = game_info['executable']
+                                        work_dir = os.path.dirname(exe_path)
+                                        await self._update_game_map(game.store, game.id, exe_path, work_dir)
+                                elif game.store == 'amazon':
+                                    game_info = self.amazon.get_installed_game_info(game.id)
+                                    if game_info and game_info.get('executable'):
+                                        exe_path = game_info['executable']
+                                        work_dir = os.path.dirname(exe_path)
+                                        await self._update_game_map(game.store, game.id, exe_path, work_dir)
+                            
+                            repaired_count += 1
+            
+            logger.info(f"[ForceSync] Repaired {repaired_count} shortcuts with missing/corrupted LaunchOptions")
             
             # Remove orphaned shortcuts
             for idx in to_remove:
@@ -1934,7 +2060,7 @@ class ShortcutsManager:
             existing_app_ids = {
                 shortcut.get('appid')
                 for shortcut in shortcuts.get("shortcuts", {}).values()
-                if shortcut.get('appid')
+            if shortcut.get('appid')
             }
             
             # Build appid to index lookup for reconciliation
@@ -1944,8 +2070,15 @@ class ShortcutsManager:
                 if shortcut.get('appid')
             }
             
-            # Load shortcuts registry for reconciliation
-            shortcuts_registry = load_shortcuts_registry()
+            # Build LaunchOptions set to prevent duplicates after repair
+            # This catches repaired shortcuts whose appid differs from newly generated app_id
+            existing_launch_options = {
+                shortcut.get('LaunchOptions')
+                for shortcut in shortcuts.get("shortcuts", {}).values()
+                if shortcut.get('LaunchOptions')
+            }
+            
+            # shortcuts_registry already loaded earlier for appid-based recovery
 
             # STEP 4: Find next available index
             existing_indices = [int(k) for k in shortcuts.get("shortcuts", {}).keys() if k.isdigit()]
@@ -1957,6 +2090,12 @@ class ShortcutsManager:
 
             for game in games:
                 target_launch_options = f'{game.store}:{game.id}'
+                
+                # Skip if shortcut with this LaunchOptions already exists
+                # (handles repaired shortcuts whose appid differs from newly generated)
+                if target_launch_options in existing_launch_options:
+                    continue
+                
                 app_id = self.generate_app_id(game.title, launcher_script)
                 
                 # Skip if already exists by app_id
@@ -2747,8 +2886,8 @@ class Plugin:
             grid_path / f"{unsigned_id}_logo.png", # Logo
             grid_path / f"{unsigned_id}_icon.jpg"  # Icon
         ]
-
         return any(f.exists() for f in artwork_files)
+
 
     async def fetch_artwork_with_progress(self, game, semaphore):
         """Fetch artwork for a single game with concurrency control"""

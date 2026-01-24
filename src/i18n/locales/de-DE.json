@@ -178,7 +178,9 @@
       "dependenciesStatus": "Abhängigkeiten",
       "checkLogs": "Einrichtung abgeschlossen (siehe Logs für Details)",
       "installingProton": "Proton wird installiert",
-      "attemptingInstall": "Versuche {{version}} zu installieren..."
+      "attemptingInstall": "Versuche {{version}} zu installieren...",
+      "epicAuthRequired": "Epic Login Required",
+      "epicAuthRequiredMessage": "Please sign in to Epic Games in Unifideck settings"
     }
   },
   "uninstallModal": {

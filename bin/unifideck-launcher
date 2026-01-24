@@ -777,6 +777,8 @@ if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]] || \
             log "Using External LEGENDARY_CONFIG_PATH: $LEGENDARY_CONFIG_PATH"
         else
             log "WARNING: No authenticated Legendary config found! Game may fail to launch."
+            # Show user-facing alert via toast system
+            notify_stage "toasts.launcher.epicAuthRequired" "toasts.launcher.epicAuthRequiredMessage" "critical"
         fi
 
         # Construct the legendary launch command

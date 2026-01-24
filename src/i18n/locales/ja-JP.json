@@ -178,7 +178,9 @@
       "dependenciesStatus": "依存関係",
       "checkLogs": "セットアップ完了 (詳細はログを確認)",
       "installingProton": "Protonをインストール中",
-      "attemptingInstall": "{{version}} のインストールを試行中..."
+      "attemptingInstall": "{{version}} のインストールを試行中...",
+      "epicAuthRequired": "Epic Login Required",
+      "epicAuthRequiredMessage": "Please sign in to Epic Games in Unifideck settings"
     }
   },
   "uninstallModal": {

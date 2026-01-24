@@ -44,7 +44,9 @@
     "dependenciesStatus": "종속성",
     "checkLogs": "설정 완료 (세부 정보는 로그 확인)",
     "installingProton": "Proton 설치 중",
-    "attemptingInstall": "{{version}} 설치 시도 중..."
+    "attemptingInstall": "{{version}} 설치 시도 중...",
+      "epicAuthRequired": "Epic Login Required",
+      "epicAuthRequiredMessage": "Please sign in to Epic Games in Unifideck settings"
   },
   "downloadsTab": {
     "currentDownload": "현재 다운로드",
