@@ -45,8 +45,8 @@
     "checkLogs": "설정 완료 (세부 정보는 로그 확인)",
     "installingProton": "Proton 설치 중",
     "attemptingInstall": "{{version}} 설치 시도 중...",
-      "epicAuthRequired": "Epic Login Required",
-      "epicAuthRequiredMessage": "Please sign in to Epic Games in Unifideck settings"
+    "epicAuthRequired": "Epic Login Required",
+    "epicAuthRequiredMessage": "Please sign in to Epic Games in Unifideck settings"
   },
   "downloadsTab": {
     "currentDownload": "현재 다운로드",
@@ -228,6 +228,8 @@
     "checkingInstalledGames": "설치된 게임 확인 중...",
     "sgdbLookup": "SteamGridDB에서 {{count}}개 검색 중...",
     "checkingExistingArtwork": "기존 아트워크 확인 중...",
+    "cleaningOrphanedArtwork": "고아 아트워크 정리 중...",
+    "retryingMissingArtwork": "아트웍이 누락된 게임 {{count}}개를 다시 시도하는 중...",
     "savingShortcuts": "바로가기 저장 중...",
     "completed": "동기화 완료! {{added}} 추가, 아트워크 {{artwork}}."
   },

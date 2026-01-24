@@ -173,13 +173,20 @@ class SteamGridDBClient:
 
         return sorted_assets[0]
 
-    async def download_image(self, url: str, save_path: str) -> bool:
-        """Download image from URL to local path"""
+    async def download_image(self, url: str, save_path: str, timeout: int = 30) -> bool:
+        """Download image from URL to local path
+
+        Args:
+            url: URL to download from
+            save_path: Local path to save the image
+            timeout: Timeout in seconds for the download (default 30s)
+        """
         try:
             # Temporarily disable SSL verification to work around certificate validation issues
             # TODO: Fix properly by updating system CA certificates or certifi package
             connector = aiohttp.TCPConnector(ssl=False)
-            async with aiohttp.ClientSession(connector=connector) as session:
+            client_timeout = aiohttp.ClientTimeout(total=timeout)
+            async with aiohttp.ClientSession(connector=connector, timeout=client_timeout) as session:
                 async with session.get(url) as response:
                     if response.status == 200:
                         content = await response.read()
@@ -189,6 +196,9 @@ class SteamGridDBClient:
                         return True
                     else:
                         logger.error(f"Failed to download image: HTTP {response.status}")
+        except asyncio.TimeoutError:
+            logger.warning(f"Timeout downloading image from {url}")
+            return False
         except Exception as e:
             logger.error(f"Error downloading image: {e}")
 

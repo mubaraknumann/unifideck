@@ -228,6 +228,8 @@
     "checkingInstalledGames": "Проверка установленных игр...",
     "sgdbLookup": "Поиск {{count}} игр в SteamGridDB...",
     "checkingExistingArtwork": "Проверка существующего арта...",
+    "cleaningOrphanedArtwork": "Очистка оставшихся без привязки обложек...",
+    "retryingMissingArtwork": "Повторная попытка для {{count}} игр с отсутствующими обложками...",
     "savingShortcuts": "Сохранение ярлыков...",
     "completed": "Синхронизация завершена! {{added}} добавлено, арт {{artwork}}."
   },

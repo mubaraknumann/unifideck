@@ -227,6 +227,8 @@
     "checkingInstalledGames": "Yüklü oyunlar kontrol ediliyor...",
     "sgdbLookup": "SteamGridDB'de {{count}} oyun aranıyor...",
     "checkingExistingArtwork": "Mevcut görseller kontrol ediliyor...",
+    "cleaningOrphanedArtwork": "Sahipsiz görseller temizleniyor...",
+    "retryingMissingArtwork": "Eksik görselleri olan {{count}} oyun tekrar deneniyor...",
     "savingShortcuts": "Kısayollar kaydediliyor...",
     "completed": "Sync tamamlandı! {{added}} eklendi, görsel {{artwork}}."
   },

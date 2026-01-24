@@ -228,6 +228,8 @@
     "checkingInstalledGames": "Checking installed games...",
     "sgdbLookup": "Looking up {{count}} games on SteamGridDB...",
     "checkingExistingArtwork": "Checking existing artwork...",
+    "cleaningOrphanedArtwork": "Cleaning up orphaned artwork...",
+    "retryingMissingArtwork": "Retrying {{count}} games with missing artwork...",
     "savingShortcuts": "Saving shortcuts...",
     "completed": "Sync completed! Added {{added}}, Art {{artwork}}."
   },

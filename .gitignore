@@ -98,3 +98,8 @@ bin/cabextract
 # Prefetch/installer scripts (should be committed)
 # bin/prefetch_winetricks.py
 # bin/winetricks_installer.py
+antigravity-dashboard/*
+!test_gog_lang.py
+!test_gog_dynamic.py
+!test_gog_invalid.py
+task.md

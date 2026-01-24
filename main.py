@@ -81,6 +81,9 @@ _legendary_installed_cache = {
 
 _legendary_info_cache = {}  # Per-game info cache
 
+# Artwork sync timeout (seconds per game)
+ARTWORK_FETCH_TIMEOUT = 90
+
 
 # ============================================================================
 # CDPOAuthMonitor - Now imported from backend.auth module
@@ -2888,9 +2891,33 @@ class Plugin:
         ]
         return any(f.exists() for f in artwork_files)
 
+    async def get_missing_artwork_types(self, app_id: int) -> set:
+        """Check which specific artwork types are missing for this app_id
+
+        Returns:
+            set: Set of missing artwork types (e.g., {'grid', 'hero', 'logo', 'icon'})
+        """
+        if not self.steamgriddb or not self.steamgriddb.grid_path:
+            return {'grid', 'hero', 'logo', 'icon'}
+
+        unsigned_id = app_id if app_id >= 0 else app_id + 2**32
+        grid_path = Path(self.steamgriddb.grid_path)
+
+        artwork_checks = {
+            'grid': grid_path / f"{unsigned_id}p.jpg",
+            'hero': grid_path / f"{unsigned_id}_hero.jpg",
+            'logo': grid_path / f"{unsigned_id}_logo.png",
+            'icon': grid_path / f"{unsigned_id}_icon.jpg"
+        }
+
+        return {art_type for art_type, path in artwork_checks.items() if not path.exists()}
 
     async def fetch_artwork_with_progress(self, game, semaphore):
-        """Fetch artwork for a single game with concurrency control"""
+        """Fetch artwork for a single game with concurrency control and timeout
+
+        Returns:
+            dict: {success: bool, timed_out: bool, game: Game, error: str}
+        """
         async with semaphore:
             try:
                 # Update status to show we're working on this game (before download)
@@ -2898,36 +2925,44 @@ class Plugin:
                     "label": "sync.downloadingArtwork",
                     "values": {"game": game.title}
                 }
-                
-                # Pass store and store_id for official CDN artwork sources
-                result = await self.steamgriddb.fetch_game_art(
-                    game.title, 
-                    game.app_id,
-                    store=game.store,      # 'epic', 'gog', or 'amazon'
-                    store_id=game.id       # Store-specific game ID (e.g. GOG product ID, Epic app_name, Amazon game ID)
-                )
-                
+
+                # Wrap with timeout to prevent sync from hanging
+                try:
+                    result = await asyncio.wait_for(
+                        self.steamgriddb.fetch_game_art(
+                            game.title,
+                            game.app_id,
+                            store=game.store,      # 'epic', 'gog', or 'amazon'
+                            store_id=game.id       # Store-specific game ID
+                        ),
+                        timeout=ARTWORK_FETCH_TIMEOUT
+                    )
+                except asyncio.TimeoutError:
+                    logger.warning(f"Artwork fetch timed out for {game.title} after {ARTWORK_FETCH_TIMEOUT}s")
+                    await self.sync_progress.increment_artwork(game.title)
+                    return {'success': False, 'timed_out': True, 'game': game}
+
                 # Store steam_app_id from search (for ProtonDB lookups)
                 if result.get('steam_app_id'):
                     game.steam_app_id = result['steam_app_id']
 
                 # Update progress (thread-safe)
                 count = await self.sync_progress.increment_artwork(game.title)
-                
+
                 # Build detailed source log
                 sources = result.get('sources', [])
                 art_count = result.get('artwork_count', 0)
                 sgdb = '+SGDB' if result.get('sgdb_filled') else ''
                 source_str = ' '.join(sources) if sources else 'NO_SOURCE'
-                
+
                 # Log format: [progress] STORE: Title [sources] (artwork_count)
                 logger.info(f"  [{count}/{self.sync_progress.artwork_total}] {game.store.upper()}: {game.title} [{source_str}{sgdb}] ({art_count}/4)")
 
-                return result.get('success', False)
+                return {'success': result.get('success', False), 'game': game, 'artwork_count': art_count}
             except Exception as e:
                 logger.error(f"Error fetching artwork for {game.title}: {e}")
                 await self.sync_progress.increment_artwork(game.title)
-                return False
+                return {'success': False, 'error': str(e), 'game': game}
 
     async def sync_libraries(self, fetch_artwork: bool = True) -> Dict[str, Any]:
         """Sync all game libraries to shortcuts.vdf and optionally fetch artwork - with global lock protection"""
@@ -3153,6 +3188,16 @@ class Plugin:
                     if steam_appid_cache:
                         save_steam_appid_cache(steam_appid_cache)
 
+                    # Cleanup orphaned artwork before sync (prevents duplicate files)
+                    if self.steamgriddb:
+                        self.sync_progress.current_game = {
+                            "label": "sync.cleaningOrphanedArtwork",
+                            "values": {}
+                        }
+                        cleanup_result = await self.cleanup_orphaned_artwork()
+                        if cleanup_result.get('removed_count', 0) > 0:
+                            logger.info(f"Cleaned up {cleanup_result['removed_count']} orphaned artwork files")
+
                     # STEP 3: Check which games need artwork (quick local file check)
                     self.sync_progress.status = "checking_artwork"
                     self.sync_progress.current_game = {
@@ -3171,7 +3216,7 @@ class Plugin:
                         self.sync_progress.status = "artwork"
                         self.sync_progress.artwork_total = len(games_needing_art)
                         self.sync_progress.artwork_synced = 0
-                        
+
                         # Reset main counters for clean UI
                         self.sync_progress.synced_games = 0
                         self.sync_progress.total_games = 0
@@ -3181,14 +3226,56 @@ class Plugin:
                              logger.warning("Sync cancelled before artwork")
                              return {'success': False, 'cancelled': True}
 
-                        # Download in parallel - 30 concurrent (10 per source × 3 sources)
-                        logger.info(f"  → Starting parallel download (concurrency: 30, sources: Epic/GOG/Amazon CDN + Steam + SGDB fallback)")
+                        # === PASS 1: Initial artwork fetch ===
+                        logger.info(f"  [Pass 1] Starting parallel download (concurrency: 30)")
                         semaphore = asyncio.Semaphore(30)
                         tasks = [self.fetch_artwork_with_progress(game, semaphore) for game in games_needing_art]
                         results = await asyncio.gather(*tasks, return_exceptions=True)
-                        artwork_count = sum(1 for r in results if r is True)
-                        
-                        logger.info(f"Artwork download complete: {artwork_count}/{len(games_needing_art)} games successful")
+
+                        # Count successes (results are now dicts)
+                        pass1_success = sum(1 for r in results if isinstance(r, dict) and r.get('success'))
+                        logger.info(f"  [Pass 1] Complete: {pass1_success}/{len(games_needing_art)} games")
+
+                        # === PASS 2: Retry games with incomplete artwork ===
+                        games_to_retry = []
+                        for game in games_needing_art:
+                            missing = await self.get_missing_artwork_types(game.app_id)
+                            if missing:
+                                games_to_retry.append(game)
+
+                        if games_to_retry and not self._cancel_sync:
+                            logger.info(f"  [Pass 2] Retrying {len(games_to_retry)} games with incomplete artwork")
+                            self.sync_progress.status = "artwork_retry"
+                            self.sync_progress.current_game = {
+                                "label": "sync.retryingMissingArtwork",
+                                "values": {"count": len(games_to_retry)}
+                            }
+                            self.sync_progress.artwork_total = len(games_to_retry)
+                            self.sync_progress.artwork_synced = 0
+
+                            retry_tasks = [self.fetch_artwork_with_progress(game, semaphore) for game in games_to_retry]
+                            await asyncio.gather(*retry_tasks, return_exceptions=True)
+
+                            # Count recovered games (can't use await in generator expression)
+                            pass2_recovered = 0
+                            for g in games_to_retry:
+                                if not await self.get_missing_artwork_types(g.app_id):
+                                    pass2_recovered += 1
+                            logger.info(f"  [Pass 2] Recovered: {pass2_recovered}/{len(games_to_retry)} games")
+
+                        # Log still-incomplete games for debugging
+                        still_incomplete = []
+                        for g in games_needing_art:
+                            missing = await self.get_missing_artwork_types(g.app_id)
+                            if missing:
+                                still_incomplete.append((g.title, missing))
+                        if still_incomplete:
+                            logger.warning(f"  Artwork incomplete for {len(still_incomplete)} games after 2 passes")
+                            for title, missing in still_incomplete[:5]:  # Log first 5
+                                logger.debug(f"    - {title}: missing {missing}")
+
+                        artwork_count = len(games_needing_art) - len(still_incomplete)
+                        logger.info(f"Artwork download complete: {artwork_count}/{len(games_needing_art)} games fully successful")
 
                 # --- STEP 2: UPDATE GAME ICONS ---
                 # Check for local icons and update game objects
@@ -3511,6 +3598,16 @@ class Plugin:
                     if steam_appid_cache:
                         save_steam_appid_cache(steam_appid_cache)
 
+                    # Cleanup orphaned artwork before sync (prevents duplicate files)
+                    if self.steamgriddb:
+                        self.sync_progress.current_game = {
+                            "label": "sync.cleaningOrphanedArtwork",
+                            "values": {}
+                        }
+                        cleanup_result = await self.cleanup_orphaned_artwork()
+                        if cleanup_result.get('removed_count', 0) > 0:
+                            logger.info(f"Cleaned up {cleanup_result['removed_count']} orphaned artwork files")
+
                     # STEP 3: Artwork handling based on user preference
                     # If resync_artwork=True, re-download ALL artwork (overwrites manual changes)
                     # If resync_artwork=False, only download for games missing artwork
@@ -3531,7 +3628,7 @@ class Plugin:
                         self.sync_progress.status = "artwork"
                         self.sync_progress.artwork_total = len(games_needing_art)
                         self.sync_progress.artwork_synced = 0
-                        
+
                         # Reset main counters for clean UI
                         self.sync_progress.synced_games = 0
                         self.sync_progress.total_games = 0
@@ -3541,14 +3638,56 @@ class Plugin:
                              logger.warning("Force Sync cancelled before artwork")
                              return {'success': False, 'cancelled': True}
 
-                        # Download in parallel - 30 concurrent
-                        logger.info(f"  → Starting parallel download (concurrency: 30, sources: Epic/GOG/Amazon CDN + Steam + SGDB fallback)")
+                        # === PASS 1: Initial artwork fetch ===
+                        logger.info(f"  [Pass 1] Starting parallel download (concurrency: 30)")
                         semaphore = asyncio.Semaphore(30)
                         tasks = [self.fetch_artwork_with_progress(game, semaphore) for game in games_needing_art]
                         results = await asyncio.gather(*tasks, return_exceptions=True)
-                        artwork_count = sum(1 for r in results if r is True)
-                        
-                        logger.info(f"Artwork download complete: {artwork_count}/{len(games_needing_art)} games successful")
+
+                        # Count successes (results are now dicts)
+                        pass1_success = sum(1 for r in results if isinstance(r, dict) and r.get('success'))
+                        logger.info(f"  [Pass 1] Complete: {pass1_success}/{len(games_needing_art)} games")
+
+                        # === PASS 2: Retry games with incomplete artwork ===
+                        games_to_retry = []
+                        for game in games_needing_art:
+                            missing = await self.get_missing_artwork_types(game.app_id)
+                            if missing:
+                                games_to_retry.append(game)
+
+                        if games_to_retry and not self._cancel_sync:
+                            logger.info(f"  [Pass 2] Retrying {len(games_to_retry)} games with incomplete artwork")
+                            self.sync_progress.status = "artwork_retry"
+                            self.sync_progress.current_game = {
+                                "label": "sync.retryingMissingArtwork",
+                                "values": {"count": len(games_to_retry)}
+                            }
+                            self.sync_progress.artwork_total = len(games_to_retry)
+                            self.sync_progress.artwork_synced = 0
+
+                            retry_tasks = [self.fetch_artwork_with_progress(game, semaphore) for game in games_to_retry]
+                            await asyncio.gather(*retry_tasks, return_exceptions=True)
+
+                            # Count recovered games (can't use await in generator expression)
+                            pass2_recovered = 0
+                            for g in games_to_retry:
+                                if not await self.get_missing_artwork_types(g.app_id):
+                                    pass2_recovered += 1
+                            logger.info(f"  [Pass 2] Recovered: {pass2_recovered}/{len(games_to_retry)} games")
+
+                        # Log still-incomplete games for debugging
+                        still_incomplete = []
+                        for g in games_needing_art:
+                            missing = await self.get_missing_artwork_types(g.app_id)
+                            if missing:
+                                still_incomplete.append((g.title, missing))
+                        if still_incomplete:
+                            logger.warning(f"  Artwork incomplete for {len(still_incomplete)} games after 2 passes")
+                            for title, missing in still_incomplete[:5]:  # Log first 5
+                                logger.debug(f"    - {title}: missing {missing}")
+
+                        artwork_count = len(games_needing_art) - len(still_incomplete)
+                        logger.info(f"Artwork download complete: {artwork_count}/{len(games_needing_art)} games fully successful")
 
                 # --- STEP 2: UPDATE GAME ICONS ---
                 # Check for local icons and update game objects
@@ -4869,6 +5008,62 @@ class Plugin:
             'configured': self.steamgriddb is not None,
             'has_api_key': self.steamgriddb_api_key is not None
         }
+
+    async def cleanup_orphaned_artwork(self) -> Dict[str, Any]:
+        """Remove artwork files not matching any current shortcut
+
+        This prevents duplicate artwork when game exe path/title changes,
+        which generates a new app_id but leaves old artwork orphaned.
+
+        Returns:
+            dict: {removed_count: int, removed_files: list}
+        """
+        if not self.steamgriddb or not self.steamgriddb.grid_path:
+            return {'removed_count': 0, 'removed_files': []}
+
+        grid_path = Path(self.steamgriddb.grid_path)
+        if not grid_path.exists():
+            return {'removed_count': 0, 'removed_files': []}
+
+        # Get valid app_ids from shortcuts
+        shortcuts = await self.shortcuts_manager.read_shortcuts()
+        valid_ids = set()
+        for shortcut in shortcuts.get('shortcuts', {}).values():
+            app_id = shortcut.get('appid')
+            if app_id is not None:
+                unsigned_id = app_id if app_id >= 0 else app_id + 2**32
+                valid_ids.add(str(unsigned_id))
+
+        # Patterns for artwork files: filename ends with these suffixes
+        # The part before the suffix is the app_id
+        patterns = ['p.jpg', '_hero.jpg', '_logo.png', '_icon.jpg', '.jpg']
+
+        # Scan and remove orphans
+        removed = []
+        try:
+            for filepath in grid_path.iterdir():
+                if not filepath.is_file():
+                    continue
+                filename = filepath.name
+
+                for pattern in patterns:
+                    if filename.endswith(pattern):
+                        extracted_id = filename[:-len(pattern)]
+                        # Only remove if it looks like a numeric app_id and is orphaned
+                        if extracted_id.isdigit() and extracted_id not in valid_ids:
+                            try:
+                                filepath.unlink()
+                                removed.append(filename)
+                            except Exception as e:
+                                logger.error(f"Error removing orphaned artwork {filename}: {e}")
+                        break  # Only match one pattern per file
+        except Exception as e:
+            logger.error(f"Error scanning grid path for orphaned artwork: {e}")
+
+        if removed:
+            logger.info(f"[Cleanup] Removed {len(removed)} orphaned artwork files")
+
+        return {'removed_count': len(removed), 'removed_files': removed}
 
     async def _delete_game_artwork(self, app_id: int) -> Dict[str, bool]:
         """Delete artwork files for a single game"""

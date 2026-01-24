@@ -1013,6 +1013,9 @@ class GOGAPIClient:
             proc = await asyncio.create_subprocess_exec(*info_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=self._get_gogdl_env())
             stdout, stderr = await proc.communicate()
             
+        # 3. Parse Info Output (Folder Name + Supported Languages)
+        supported_languages = []
+        
         if proc.returncode == 0:
             try:
                 # Find JSON in output
@@ -1020,14 +1023,22 @@ class GOGAPIClient:
                 for line in reversed(output_lines):
                     try:
                         data = json.loads(line)
-                        if 'folder_name' in data:
+                        # Extract folder name
+                        if 'folder_name' in data and not folder_name:
                             folder_name = data['folder_name']
                             logger.info(f"[GOG] Predicted folder name: {folder_name}")
+                        
+                        # Extract supported languages
+                        if 'languages' in data:
+                            supported_languages = data['languages']
+                            logger.info(f"[GOG] Found supported languages in manifest: {supported_languages}")
+                            
+                        if folder_name and supported_languages:
                             break
                     except json.JSONDecodeError:
                         continue
             except Exception as e:
-                logger.warning(f"[GOG] Could not parse folder name from info: {e}")
+                logger.warning(f"[GOG] Could not parse info: {e}")
         
         # 4. Start Download using 'repair' command
         # IMPORTANT: We use 'repair' instead of 'download' because gogdl V2 has a bug
@@ -1086,8 +1097,31 @@ class GOGAPIClient:
             '--platform', platform,
             '--path', gogdl_path,
             '--support', support_dir,
-            '--lang', preferred_lang
         ]
+        
+        # STRATEGY CHANGE: Download ALL supported languages found in manifest
+        # This ensures complete preservation and avoids missed localization files.
+        if supported_languages:
+            logger.info(f"[GOG] Downloading all supported languages: {supported_languages}")
+            for lang in supported_languages:
+                cmd.extend(['--lang', lang])
+        else:
+            # Fallback: Just English + Selected + Safety List
+            # If manifest parsing fails, we request all major languages to ensure we catch whatever is supported.
+            logger.warning("[GOG] No languages found in manifest, enabling Safety Fallback (Download All Common Languages)")
+            
+            # Common major languages supported by GOG
+            # gogdl ignores unsupported flags (verified), so this is safe.
+            safety_langs = {
+                'en-US', 'fr-FR', 'de-DE', 'es-ES', 'it-IT', 
+                'pt-BR', 'ru-RU', 'pl-PL', 'zh-CN', 'ja-JP', 'ko-KR'
+            }
+            # Add user's preference
+            if preferred_lang:
+                safety_langs.add(preferred_lang)
+            
+            for lang in sorted(safety_langs):
+                cmd.extend(['--lang', lang])
         
         logger.info(f"[GOG] Using {install_mode} mode with path: {gogdl_path}")
         

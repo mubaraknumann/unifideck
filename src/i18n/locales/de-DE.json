@@ -228,6 +228,8 @@
     "checkingInstalledGames": "Installierte Spiele prüfen...",
     "sgdbLookup": "{{count}} Spiele bei SteamGridDB suchen...",
     "checkingExistingArtwork": "Vorhandenes Artwork prüfen...",
+    "cleaningOrphanedArtwork": "Verwaiste Grafiken werden bereinigt...",
+    "retryingMissingArtwork": "{{count}} Spiele werden mit fehlenden Grafiken erneut versucht...",
     "savingShortcuts": "Verknüpfungen speichern...",
     "completed": "Sync fertig! {{added}} hinzugefügt, {{artwork}} Artwork."
   },

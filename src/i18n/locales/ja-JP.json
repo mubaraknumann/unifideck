@@ -228,6 +228,8 @@
     "checkingInstalledGames": "インストール済み確認中...",
     "sgdbLookup": "SteamGridDBで{{count}}件検索中...",
     "checkingExistingArtwork": "既存アート確認中...",
+    "cleaningOrphanedArtwork": "孤立したアートワークをクリーンアップしています...",
+    "retryingMissingArtwork": "アートワークが不足しているゲーム {{count}} 個を再試行しています...",
     "savingShortcuts": "ショートカット保存中...",
     "completed": "同期完了！{{added}}追加、アート{{artwork}}。"
   },

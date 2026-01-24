@@ -228,6 +228,8 @@
     "checkingInstalledGames": "Geïnstalleerde games controleren...",
     "sgdbLookup": "{{count}} games op SteamGridDB zoeken...",
     "checkingExistingArtwork": "Bestaande artwork controleren...",
+    "cleaningOrphanedArtwork": "Wees-artwork opruimen...",
+    "retryingMissingArtwork": "{{count}} spellen met ontbrekend artwork opnieuw proberen...",
     "savingShortcuts": "Snelkoppelingen opslaan...",
     "completed": "Sync klaar! {{added}} toegevoegd, artwork {{artwork}}."
   },

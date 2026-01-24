@@ -207,6 +207,8 @@
     "checkingInstalledGames": "检查已安装游戏...",
     "sgdbLookup": "在 SteamGridDB 查找 {{count}} 个游戏...",
     "checkingExistingArtwork": "检查已有封面...",
+    "cleaningOrphanedArtwork": "正在清理孤立的封面...",
+    "retryingMissingArtwork": "正在重试 {{count}} 个缺少封面的游戏...",
     "savingShortcuts": "保存快捷方式...",
     "completed": "同步完成！新增 {{added}}，封面 {{artwork}}。"
   },
