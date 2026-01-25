@@ -109,72 +109,70 @@ const LibrarySync: React.FC<LibrarySyncProps> = ({
 
       {/* Progress display */}
       {syncProgress && syncProgress.status !== "idle" && (
-        <PanelSectionRow>
-          <div style={{ fontSize: "12px", width: "100%" }}>
-            {/* Status text */}
-            <div style={{ marginBottom: "5px", opacity: 0.9 }}>
-              {t(
-                syncProgress.current_game.label,
-                syncProgress.current_game.values,
-              )}
-            </div>
-
-            {/* Progress bar */}
-            <div
-              style={{
-                width: "100%",
-                height: "4px",
-                backgroundColor: "#333",
-                borderRadius: "2px",
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  width: `${syncProgress.progress_percent}%`,
-                  height: "100%",
-                  backgroundColor:
-                    syncProgress.status === "error"
-                      ? "#ff6b6b"
-                      : syncProgress.status === "complete"
-                      ? "#4caf50"
-                      : syncProgress.current_phase === "artwork"
-                      ? "#ff9800" // Orange for artwork
-                      : "#1a9fff", // Blue for sync
-                  transition: "width 0.3s ease",
-                }}
-              />
-            </div>
-
-            {/* Stats - different based on phase */}
-            <div style={{ marginTop: "5px", opacity: 0.7 }}>
-              {syncProgress.current_phase === "artwork" ? (
-                // Artwork phase: show artwork progress
-                <>
-                  {t("librarySync.artworkDownloaded", {
-                    synced: syncProgress.artwork_synced || 0,
-                    total: syncProgress.artwork_total || 0,
-                  })}
-                </>
-              ) : (
-                // Sync phase: show game progress
-                <>
-                  {t("librarySync.gamesSynced", {
-                    synced: syncProgress.synced_games || 0,
-                    total: syncProgress.total_games || 0,
-                  })}
-                </>
-              )}
-            </div>
-
-            {/* Error message */}
-            {syncProgress.error && (
-              <div style={{ color: "#ff6b6b", marginTop: "5px" }}>
-                Error: {syncProgress.error}
-              </div>
+        <div style={{ fontSize: "12px", width: "100%" }}>
+          {/* Status text */}
+          <div style={{ marginBottom: "5px", opacity: 0.9 }}>
+            {t(
+              syncProgress.current_game.label,
+              syncProgress.current_game.values,
             )}
           </div>
-        </PanelSectionRow>
+
+          {/* Progress bar */}
+          <div
+            style={{
+              width: "100%",
+              height: "4px",
+              backgroundColor: "#333",
+              borderRadius: "2px",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                width: `${syncProgress.progress_percent}%`,
+                height: "100%",
+                backgroundColor:
+                  syncProgress.status === "error"
+                    ? "#ff6b6b"
+                    : syncProgress.status === "complete"
+                    ? "#4caf50"
+                    : syncProgress.current_phase === "artwork"
+                    ? "#ff9800" // Orange for artwork
+                    : "#1a9fff", // Blue for sync
+                transition: "width 0.3s ease",
+              }}
+            />
+          </div>
+
+          {/* Stats - different based on phase */}
+          <div style={{ marginTop: "5px", opacity: 0.7 }}>
+            {syncProgress.current_phase === "artwork" ? (
+              // Artwork phase: show artwork progress
+              <>
+                {t("librarySync.artworkDownloaded", {
+                  synced: syncProgress.artwork_synced || 0,
+                  total: syncProgress.artwork_total || 0,
+                })}
+              </>
+            ) : (
+              // Sync phase: show game progress
+              <>
+                {t("librarySync.gamesSynced", {
+                  synced: syncProgress.synced_games || 0,
+                  total: syncProgress.total_games || 0,
+                })}
+              </>
+            )}
+          </div>
+
+          {/* Error message */}
+          {syncProgress.error && (
+            <div style={{ color: "#ff6b6b", marginTop: "5px" }}>
+              Error: {syncProgress.error}
+            </div>
+          )}
+        </div>
       )}
 
       {(storeStatus.epic.includes("Error") ||

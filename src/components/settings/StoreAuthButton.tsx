@@ -1,4 +1,4 @@
-import { Button } from "@decky/ui";
+import { DialogButton } from "@decky/ui";
 import React from "react";
 import { Store } from "../../types/store";
 import { FiLogOut } from "react-icons/fi";
@@ -25,49 +25,38 @@ const StoreAuthButton: React.FC<StoreAuthButtonProps> = ({
   return (
     <>
       <style>{`
-        .store-auth-button {
-            border: none;
-            outline: none;
-            color: #fff !important;
-            transition: background-color 0.2s;
-            background-color: #32373D !important;
-        }
         .store-auth-button.connected {
             background-color: #ef4444 !important;
-        }
-        .store-auth-button:focus, .store-auth-button:hover {
-            background-color: #fff !important;
-            color: #000 !important;
-            cursor: pointer;
+            color: #fff;
         }
         .store-auth-button.connected:focus,
         .store-auth-button.connected:hover {
-            background-color: #fff !important;
             color: #ef4444 !important;
+            background-color: #fff !important;
         }
     `}</style>
-      <Button
+      <DialogButton
         className={`store-auth-button ${
           isConnected ? "connected" : "disconnected"
         }`}
         onClick={() => (isConnected ? onLogout(store) : onStartAuth(store))}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "4px 10px",
+          fontSize: "10px",
+          height: "28px",
+          width: "fit-content",
+          minWidth: "unset",
+        }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "4px",
-            fontSize: "10px",
-          }}
-        >
-          {isConnected ? (
-            <FiLogOut size={12} />
-          ) : (
-            t("storeConnections.authenticate")
-          )}
-        </div>
-      </Button>
+        {isConnected ? (
+          <FiLogOut size={12} />
+        ) : (
+          t("storeConnections.authenticate")
+        )}
+      </DialogButton>
     </>
   );
 };
