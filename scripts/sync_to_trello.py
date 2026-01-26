@@ -8,7 +8,7 @@ GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
 TRELLO_KEY = os.environ.get('TRELLO_API_KEY')
 TRELLO_TOKEN = os.environ.get('TRELLO_API_TOKEN')
 TRELLO_LIST_ID = os.environ.get('TRELLO_LIST_ID')
-REPO = os.environ.get('GITHUB_REPOSITORY')  # e.g. "owner/repo"
+REPO = os.environ.get('GITHUB_REPOSITORY')
 
 if not all([GITHUB_TOKEN, TRELLO_KEY, TRELLO_TOKEN, TRELLO_LIST_ID, REPO]):
     print("Error: Missing required environment variables.")
@@ -17,9 +17,8 @@ if not all([GITHUB_TOKEN, TRELLO_KEY, TRELLO_TOKEN, TRELLO_LIST_ID, REPO]):
 API_BASE = "https://api.github.com"
 TRELLO_BASE = "https://api.trello.com/1"
 
-# --- Signatures to detect source and prevent loops ---
-SIG_GH_ON_TRELLO_PREFIX = "**" # Matches "**User wrote on GitHub:**"
-SIG_TRELLO_ON_GH_PREFIX = "**[Trello]" # Matches "**[Trello] User wrote:**"
+SIG_GH_ON_TRELLO_PREFIX = "**" 
+SIG_TRELLO_ON_GH_PREFIX = "**[Trello]"
 
 def get_gh_headers():
     return {
@@ -28,7 +27,6 @@ def get_gh_headers():
     }
 
 def fetch_all_invocations(url):
-    """Fetch all pages from a GH paginated API."""
     results = []
     while url:
         resp = requests.get(url, headers=get_gh_headers())
@@ -37,16 +35,16 @@ def fetch_all_invocations(url):
         url = resp.links.get('next', {}).get('url')
     return results
 
-# --- GitHub API Helpers ---
-
+# --- GitHub Helpers ---
 def get_issue(issue_number):
     url = f"{API_BASE}/repos/{REPO}/issues/{issue_number}"
     resp = requests.get(url, headers=get_gh_headers())
     resp.raise_for_status()
     return resp.json()
 
-def get_all_open_issues():
-    url = f"{API_BASE}/repos/{REPO}/issues?state=open&per_page=100"
+def get_all_issues():
+    # Fetch ALL issues (open+closed) to ensure state sync works both ways
+    url = f"{API_BASE}/repos/{REPO}/issues?state=all&per_page=100"
     issues = fetch_all_invocations(url)
     issues.sort(key=lambda x: x['number'])
     return issues
@@ -55,25 +53,53 @@ def get_issue_comments(issue_number):
     url = f"{API_BASE}/repos/{REPO}/issues/{issue_number}/comments"
     return fetch_all_invocations(url)
 
+def update_github_issue_state(issue_number, state):
+    """state: 'open' or 'closed'"""
+    url = f"{API_BASE}/repos/{REPO}/issues/{issue_number}"
+    resp = requests.patch(url, headers=get_gh_headers(), json={'state': state})
+    resp.raise_for_status()
+    print(f"    [Trello->GH] Issue #{issue_number} set to {state}")
+
 def add_comment_to_github(issue_number, text):
     url = f"{API_BASE}/repos/{REPO}/issues/{issue_number}/comments"
     resp = requests.post(url, headers=get_gh_headers(), json={'body': text})
     resp.raise_for_status()
     return resp.json()
 
-# --- Trello API Helpers ---
-
-def get_trello_cards_in_list():
-    url = f"{TRELLO_BASE}/lists/{TRELLO_LIST_ID}/cards"
+# --- Trello Helpers ---
+def get_trello_lists_map():
+    # Helper to map List ID -> List Name
+    url = f"{TRELLO_BASE}/boards/{get_board_id_from_list()}/lists"
     params = {'key': TRELLO_KEY, 'token': TRELLO_TOKEN}
+    resp = requests.get(url, params=params)
+    resp.raise_for_status()
+    return {lst['id']: lst['name'] for lst in resp.json()}
+
+def get_board_id_from_list():
+    # Need to find Board ID first to get all lists
+    url = f"{TRELLO_BASE}/lists/{TRELLO_LIST_ID}"
+    params = {'key': TRELLO_KEY, 'token': TRELLO_TOKEN, 'fields': 'idBoard'}
+    resp = requests.get(url, params=params)
+    resp.raise_for_status()
+    return resp.json()['idBoard']
+
+def get_trello_cards_in_board():
+    # Fetch all cards on board (not just list) to catch moved cars
+    board_id = get_board_id_from_list()
+    url = f"{TRELLO_BASE}/boards/{board_id}/cards"
+    params = {'key': TRELLO_KEY, 'token': TRELLO_TOKEN, 'filter': 'all'}
     resp = requests.get(url, params=params)
     resp.raise_for_status()
     return resp.json()
 
-def get_trello_comments(card_id):
-    """Fetch comments (actions) for a card."""
+def get_trello_actions(card_id):
+    # Fetch comments, list moves, and dueComplete changes
     url = f"{TRELLO_BASE}/cards/{card_id}/actions"
-    params = {'key': TRELLO_KEY, 'token': TRELLO_TOKEN, 'filter': 'commentCard'}
+    params = {
+        'key': TRELLO_KEY, 
+        'token': TRELLO_TOKEN, 
+        'filter': 'commentCard,updateCard:idList,updateCard:dueComplete'
+    }
     resp = requests.get(url, params=params)
     resp.raise_for_status()
     return resp.json()
@@ -92,87 +118,134 @@ def create_trello_card(name, desc):
     resp.raise_for_status()
     return resp.json()
 
-def add_comment_to_trello(card_id, text):
-    url = f"{TRELLO_BASE}/cards/{card_id}/actions/comments"
-    params = {
-        'key': TRELLO_KEY,
-        'token': TRELLO_TOKEN,
-        'text': text
-    }
-    resp = requests.post(url, params=params)
+def update_trello_card(card_id, params):
+    url = f"{TRELLO_BASE}/cards/{card_id}"
+    params['key'] = TRELLO_KEY
+    params['token'] = TRELLO_TOKEN
+    resp = requests.put(url, params=params)
     resp.raise_for_status()
 
-# --- Logic ---
+def add_comment_to_trello(card_id, text):
+    url = f"{TRELLO_BASE}/cards/{card_id}/actions/comments"
+    params = {'key': TRELLO_KEY, 'token': TRELLO_TOKEN, 'text': text}
+    requests.post(url, params=params)
 
-def sync_card(issue, card_id):
-    """Syncs comments bidirectional between Issue and Card."""
+# --- Core Logic ---
+
+def sync_card(issue, card, lists_map):
     issue_num = issue['number']
-    print(f" -> Syncing comments for Issue #{issue_num} <-> Card {card_id}")
+    card_id = card['id']
+    print(f" -> Syncing Issue #{issue_num} <-> Card {card_id}")
 
-    # 1. Fetch all comments from both sides
+    # Find "Done" list ID (case-insensitive)
+    done_list_id = None
+    for lid, lname in lists_map.items():
+        if lname.lower() == 'done':
+            done_list_id = lid
+            break
+
+    # --- 1. State Sync (GitHub -> Trello) ---
+    is_gh_closed = (issue['state'] == 'closed')
+    is_trello_complete = card['dueComplete']
+    current_list_id = card['idList']
+
+    if is_gh_closed:
+        # If open on Trello, mark complete AND move to Done
+        updates = {}
+        if not is_trello_complete:
+            updates['dueComplete'] = 'true'
+            print(f"    [GH->Trello] Issue closed -> Mark Trello complete")
+        
+        if done_list_id and current_list_id != done_list_id:
+            updates['idList'] = done_list_id
+            print(f"    [GH->Trello] Issue closed -> Move to Done list")
+        
+        if updates:
+            update_trello_card(card_id, updates)
+            
+    elif not is_gh_closed and is_trello_complete:
+        # Reopen logic (Optional: move back to Todo? skipping move back for now, just uncheck)
+        print(f"    [GH->Trello] Issue open -> Unchecking Trello due")
+        update_trello_card(card_id, {'dueComplete': 'false'})
+
+    # --- 2. Fetch History ---
     gh_comments = get_issue_comments(issue_num)
-    trello_actions = get_trello_comments(card_id)
+    trello_actions = get_trello_actions(card_id)
 
-    # Convert Trello actions to a list of existing comment texts for dedup steps
-    # Trello returns newest first; we reverse to process oldest -> newest if needed,
-    # but for sets/existence checks order doesn't matter much.
-    trello_texts = [action['data']['text'] for action in trello_actions]
+    trello_texts = [a['data']['text'] for a in trello_actions if 'text' in a['data']]
     gh_texts = [c['body'] for c in gh_comments]
 
-    # --- Sync GitHub -> Trello ---
+    # --- 3. Sync Trello Actions -> GitHub ---
+    has_closed_gh = False
+    
+    for action in trello_actions:
+        a_type = action['type']
+        creator = action['memberCreator']['fullName']
+        
+        # A. MOVES (updateCard:idList)
+        if a_type == 'updateCard' and 'listAfter' in action['data']:
+            list_name = action['data']['listAfter']['name']
+            
+            # SUPPRESSION LOGIC:
+            # If the move is to "Done" AND the issue is closed on GH, 
+            # assume WE did it programmatically in step 1 (or it's intended state).
+            # Don't comment "Moved to Done" to avoid noise.
+            if list_name.lower() == 'done' and is_gh_closed:
+                continue
+
+            move_sig = f"**[Trello] {creator} moved this card to list \"{list_name}\"**"
+            if move_sig not in gh_texts:
+                 print(f"    [Trello->GH] Sync move to {list_name}")
+                 add_comment_to_github(issue_num, move_sig)
+                 gh_texts.append(move_sig)
+
+        # B. COMPLETION (updateCard:dueComplete)
+        if a_type == 'updateCard' and 'dueComplete' in action['data']['card']:
+            new_complete = action['data']['card']['dueComplete']
+            if new_complete and not is_gh_closed and not has_closed_gh:
+                 update_github_issue_state(issue_num, 'closed')
+                 has_closed_gh = True
+            elif not new_complete and is_gh_closed:
+                 update_github_issue_state(issue_num, 'open')
+
+        # C. COMMENTS (commentCard)
+        if a_type == 'commentCard':
+            text = action['data']['text']
+            if text.startswith(SIG_GH_ON_TRELLO_PREFIX): continue
+            
+            target_text = f"**[Trello] {creator} wrote:**\n\n{text}"
+            if target_text not in gh_texts:
+                print(f"    [Trello->GH] New comment from {creator}")
+                add_comment_to_github(issue_num, target_text)
+                gh_texts.append(target_text)
+
+    # --- 4. Sync GitHub Comments -> Trello ---
     for gh_c in gh_comments:
         user = gh_c['user']['login']
         body = gh_c['body']
-        
-        # Check Signature: If this GH comment was originally from Trello, SKIP it.
-        # (Prevents looping: Trello -> GH -> Trello)
-        if body.startswith(SIG_TRELLO_ON_GH_PREFIX):
-            continue
+        if body.startswith(SIG_TRELLO_ON_GH_PREFIX): continue
 
-        # Format what the Trello comment SHOULD look like
         target_text = f"**{user} wrote on GitHub:**\n\n{body}"
+        if target_text not in trello_texts:
+             print(f"    [GH->Trello] New comment from {user}")
+             add_comment_to_trello(card_id, target_text)
 
-        # Dedup: If this specific text already exists on Trello, skip
-        if target_text in trello_texts:
-            continue
-        
-        print(f"    [GH->Trello] New comment from {user}")
-        add_comment_to_trello(card_id, target_text)
-
-    # --- Sync Trello -> GitHub ---
-    for action in trello_actions:
-        data = action['data']
-        text = data['text']
-        creator = action['memberCreator']['fullName'] # or 'username'
-        
-        # Check Signature: If this Trello comment was originally from GitHub, SKIP it.
-        if text.startswith(SIG_GH_ON_TRELLO_PREFIX) and "wrote on GitHub:**" in text:
-            continue
-
-        # Format what the GH comment SHOULD look like
-        target_gh_text = f"**[Trello] {creator} wrote:**\n\n{text}"
-
-        # Dedup: If this specific text already exists on GitHub, skip
-        if target_gh_text in gh_texts:
-            continue
-
-        print(f"    [Trello->GH] New comment from {creator}")
-        add_comment_to_github(issue_num, target_gh_text)
-
-def process_issue(issue, existing_cards_map):
-    if 'pull_request' in issue:
-        return
+def process_issue(issue, existing_cards_map, lists_map):
+    if 'pull_request' in issue: return
 
     issue_num = issue['number']
     title = issue['title']
     card_title = f"{title} (#{issue_num})"
 
     if card_title in existing_cards_map:
-        # Card exists: Just sync comments
-        card_id = existing_cards_map[card_title]
-        sync_card(issue, card_id)
+        card = existing_cards_map[card_title]
+        sync_card(issue, card, lists_map)
     else:
-        # Card missing: Create it, then sync comments
+        # Only create if issue is OPEN. Don't backfill closed issues as new cards
+        if issue['state'] == 'closed':
+            print(f"Skipping closed issue #{issue_num} (No existing card)")
+            return
+
         print(f"Processing Issue #{issue_num}: Creating new card")
         body = issue.get('body') or ""
         author = issue['user']['login']
@@ -181,34 +254,33 @@ def process_issue(issue, existing_cards_map):
         
         try:
             card = create_trello_card(card_title, desc)
-            card_id = card['id']
-            # After creation, perform sync to pull any existing GH comments
-            sync_card(issue, card_id)
+            sync_card(issue, card, lists_map)
         except Exception as e:
             print(f"Error creating card for #{issue_num}: {e}")
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--issue', type=int, help='Sync a specific Issue Number')
-    parser.add_argument('--all', action='store_true', help='Sync ALL open issues')
+    parser.add_argument('--all', action='store_true', help='Sync ALL issues')
     args = parser.parse_args()
 
-    print("Fetching Trello Cards...")
-    trello_cards = get_trello_cards_in_list()
-    existing_map = {c['name']: c['id'] for c in trello_cards}
+    print("Fetching Trello Data...")
+    lists_map = get_trello_lists_map()
+    trello_cards = get_trello_cards_in_board()
+    existing_map = {c['name']: c for c in trello_cards} # Map Name -> Full Card Object
 
     if args.issue:
         try:
             issue = get_issue(args.issue)
-            process_issue(issue, existing_map)
+            process_issue(issue, existing_map, lists_map)
         except Exception as e:
             print(f"Failed to process #{args.issue}: {e}")
             sys.exit(1)
     elif args.all:
-        print("Fetching open GitHub Issues...")
-        all_issues = get_all_open_issues()
+        print("Fetching all GitHub Issues...")
+        all_issues = get_all_issues()
         for issue in all_issues:
-            process_issue(issue, existing_map)
+            process_issue(issue, existing_map, lists_map)
     else:
         print("Usage: --issue <num> OR --all")
         sys.exit(1)
