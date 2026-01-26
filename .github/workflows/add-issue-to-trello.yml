@@ -26,7 +26,7 @@ jobs:
   sync-trello:
     runs-on: ubuntu-latest
     permissions:
-      issues: read
+      issues: write
       contents: read
     steps:
       - name: Checkout code
