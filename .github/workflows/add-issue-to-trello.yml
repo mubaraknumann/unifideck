@@ -4,6 +4,27 @@ on:
   issues:
     types: [opened]
   workflow_dispatch:
+    inputs:
+      issue_title:
+        description: "Issue Title"
+        required: false
+        default: "Manual Test Issue"
+      issue_number:
+        description: "Issue Number"
+        required: false
+        default: "0"
+      issue_url:
+        description: "Issue URL"
+        required: false
+        default: "https://github.com/mubaraknumann/unifideck/issues/0"
+      issue_body:
+        description: "Issue Body"
+        required: false
+        default: "This is a manually triggered test card."
+      issue_author:
+        description: "Issue Author"
+        required: false
+        default: "manual-tester"
 
 jobs:
   add-to-trello:
@@ -14,11 +35,11 @@ jobs:
           TRELLO_API_KEY: ${{ secrets.TRELLO_API_KEY }}
           TRELLO_API_TOKEN: ${{ secrets.TRELLO_API_TOKEN }}
           TRELLO_LIST_ID: ${{ secrets.TRELLO_LIST_ID }}
-          ISSUE_TITLE: ${{ github.event.issue.title }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-          ISSUE_URL: ${{ github.event.issue.html_url }}
-          ISSUE_BODY: ${{ github.event.issue.body }}
-          ISSUE_AUTHOR: ${{ github.event.issue.user.login }}
+          ISSUE_TITLE: ${{ github.event.issue.title || inputs.issue_title }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+          ISSUE_URL: ${{ github.event.issue.html_url || inputs.issue_url }}
+          ISSUE_BODY: ${{ github.event.issue.body || inputs.issue_body }}
+          ISSUE_AUTHOR: ${{ github.event.issue.user.login || inputs.issue_author }}
         run: |
           # Construct description with metadata
           DESC="$ISSUE_BODY
