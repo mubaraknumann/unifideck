@@ -241,12 +241,9 @@ def process_issue(issue, existing_cards_map, lists_map):
         card = existing_cards_map[card_title]
         sync_card(issue, card, lists_map)
     else:
-        # Only create if issue is OPEN. Don't backfill closed issues as new cards
-        if issue['state'] == 'closed':
-            print(f"Skipping closed issue #{issue_num} (No existing card)")
-            return
-
+        # Card missing: Create it, then sync comments
         print(f"Processing Issue #{issue_num}: Creating new card")
+
         body = issue.get('body') or ""
         author = issue['user']['login']
         html_url = issue['html_url']
