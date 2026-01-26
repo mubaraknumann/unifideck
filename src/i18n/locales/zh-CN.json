@@ -164,6 +164,8 @@
     "launcher": {
       "installingRedist": "正在安装运行库",
       "installingRedistMessage": "正在运行首次 GOG 运行库安装...",
+      "epicAuthRequired": "需要 Epic 登录",
+      "epicAuthRequiredMessage": "请在 Unifideck 设置中登录 Epic Games",
       "setupFailed": "设置失败",
       "setupFailedMessage": "安装失败，请查看日志详情"
     }
