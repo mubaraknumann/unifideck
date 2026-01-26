@@ -180,7 +180,11 @@
       "installingProton": "Protonをインストール中",
       "attemptingInstall": "{{version}} のインストールを試行中...",
       "epicAuthRequired": "Epic Login Required",
-      "epicAuthRequiredMessage": "Please sign in to Epic Games in Unifideck settings"
+      "epicAuthRequiredMessage": "Please sign in to Epic Games in Unifideck settings",
+      "installingRedist": "再頒布可能パッケージをインストール中",
+      "installingRedistMessage": "GOG再頒布可能パッケージの初回インストールを実行中...",
+      "setupFailed": "セットアップに失敗しました",
+      "setupFailedMessage": "インストールに失敗しました。詳細はログを確認してください"
     }
   },
   "uninstallModal": {

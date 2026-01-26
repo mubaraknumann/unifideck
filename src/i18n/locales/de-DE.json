@@ -180,7 +180,11 @@
       "installingProton": "Proton wird installiert",
       "attemptingInstall": "Versuche {{version}} zu installieren...",
       "epicAuthRequired": "Epic Login Required",
-      "epicAuthRequiredMessage": "Please sign in to Epic Games in Unifideck settings"
+      "epicAuthRequiredMessage": "Please sign in to Epic Games in Unifideck settings",
+      "installingRedist": "Redistributables werden installiert",
+      "installingRedistMessage": "Führe erstmalige GOG-Redistributable-Installation aus...",
+      "setupFailed": "Einrichtung fehlgeschlagen",
+      "setupFailedMessage": "Installation fehlgeschlagen, siehe Protokolle für Details"
     }
   },
   "uninstallModal": {

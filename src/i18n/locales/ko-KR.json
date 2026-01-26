@@ -181,7 +181,13 @@
     "cleanupSuccessful": "정리 성공",
     "cleanupSuccessfulMessage": "{{games}}개 게임, {{artwork}}개 아트워크 세트, {{files}}개 파일 디렉토리가 제거되었습니다. 인증 및 캐시가 지워졌습니다.",
     "deleteFailed": "삭제 실패",
-    "unifideck": "Unifideck:"
+    "unifideck": "Unifideck:",
+    "launcher": {
+      "installingRedist": "재배포 패키지 설치 중",
+      "installingRedistMessage": "GOG 재배포 패키지 초기 설치 실행 중...",
+      "setupFailed": "설치 실패",
+      "setupFailedMessage": "설치에 실패했습니다. 자세한 내용은 로그를 확인하세요."
+    }
   },
   "uninstallModal": {
     "title": "제거 확인",

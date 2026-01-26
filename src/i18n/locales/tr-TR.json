@@ -183,7 +183,11 @@
       "installingProton": "Proton Yükleniyor",
       "attemptingInstall": "{{version}} yüklenmeye çalışılıyor...",
       "epicAuthRequired": "Epic Login Required",
-      "epicAuthRequiredMessage": "Please sign in to Epic Games in Unifideck settings"
+      "epicAuthRequiredMessage": "Please sign in to Epic Games in Unifideck settings",
+      "installingRedist": "Yeniden Dağıtılabilir Paketler Yükleniyor",
+      "installingRedistMessage": "İlk GOG paket kurulumu çalıştırılıyor...",
+      "setupFailed": "Kurulum Başarısız",
+      "setupFailedMessage": "Kurulum başarısız, ayrıntılar için günlüklere bakın"
     }
   },
   "uninstallModal": {

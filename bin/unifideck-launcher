@@ -929,12 +929,17 @@ except Exception as e:
             log "[Setup] Running first-time GOG redistributable installation..."
             notify_stage "toasts.launcher.installingRedist" "toasts.launcher.installingRedistMessage" "normal"
 
+            # Create marker FIRST to prevent double-launch
+            touch "$SETUP_MARKER"
+
             if python3 "$GOG_SETUP_SCRIPT" "$GAME_ID" "$PREFIX_PATH" "$WORK_DIR" >> "$HOME/.local/share/unifideck/gog_setup.log" 2>&1; then
-                log "[Setup] Redistributable installation completed"
-                touch "$SETUP_MARKER"
+                log "[Setup] Redistributable installation completed successfully"
             else
-                log "[Setup] Installation completed with warnings (non-critical)"
-                touch "$SETUP_MARKER"
+                # Setup failed - remove marker and abort launch
+                log "[Setup] ERROR: Installation failed, see gog_setup.log for details"
+                rm -f "$SETUP_MARKER"
+                notify_stage "toasts.launcher.setupFailed" "toasts.launcher.setupFailedMessage" "critical"
+                exit 1
             fi
         elif [ -f "$SETUP_MARKER" ]; then
             log "[Setup] Redistributables already installed, skipping"

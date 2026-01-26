@@ -160,7 +160,13 @@
     "cleanupSuccessful": "清理成功",
     "cleanupSuccessfulMessage": "已删除 {{games}} 个游戏、{{artwork}} 个封面集和 {{files}} 个文件目录。认证和缓存已清除。",
     "deleteFailed": "删除失败",
-    "unifideck": "Unifideck:"
+    "unifideck": "Unifideck:",
+    "launcher": {
+      "installingRedist": "正在安装运行库",
+      "installingRedistMessage": "正在运行首次 GOG 运行库安装...",
+      "setupFailed": "设置失败",
+      "setupFailedMessage": "安装失败，请查看日志详情"
+    }
   },
   "uninstallModal": {
     "title": "确认卸载",

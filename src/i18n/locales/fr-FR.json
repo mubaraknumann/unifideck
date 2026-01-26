@@ -180,7 +180,11 @@
       "installingProton": "Installation de Proton",
       "attemptingInstall": "Tentative d'installation de {{version}}...",
       "epicAuthRequired": "Epic Login Required",
-      "epicAuthRequiredMessage": "Please sign in to Epic Games in Unifideck settings"
+      "epicAuthRequiredMessage": "Please sign in to Epic Games in Unifideck settings",
+      "installingRedist": "Installation des redistribuables",
+      "installingRedistMessage": "Exécution de la première installation des redistribuables GOG...",
+      "setupFailed": "Échec de l'installation",
+      "setupFailedMessage": "L'installation a échoué, voir les journaux pour plus de détails"
     }
   },
   "uninstallModal": {

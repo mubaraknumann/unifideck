@@ -103,3 +103,4 @@ antigravity-dashboard/*
 !test_gog_dynamic.py
 !test_gog_invalid.py
 task.md
+.claude/settings.json
