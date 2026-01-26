@@ -3,6 +3,7 @@ name: Add Issue to Trello
 on:
   issues:
     types: [opened]
+  workflow_dispatch:
 
 jobs:
   add-to-trello:
