@@ -9,15 +9,31 @@ jobs:
   add-to-trello:
     runs-on: ubuntu-latest
     steps:
-      - name: Add Trello Card
-        uses: vasu-1/add-trello-card@v1
-        with:
-          api-key: ${{ secrets.TRELLO_API_KEY }}
-          api-token: ${{ secrets.TRELLO_API_TOKEN }}
-          list-id: ${{ secrets.TRELLO_LIST_ID }}
-          name: "${{ github.event.issue.title }} (#${{ github.event.issue.number }})"
-          desc: |
-            ${{ github.event.issue.body }}
+      - name: Create Trello Card
+        env:
+          TRELLO_API_KEY: ${{ secrets.TRELLO_API_KEY }}
+          TRELLO_API_TOKEN: ${{ secrets.TRELLO_API_TOKEN }}
+          TRELLO_LIST_ID: ${{ secrets.TRELLO_LIST_ID }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_AUTHOR: ${{ github.event.issue.user.login }}
+        run: |
+          # Construct description with metadata
+          DESC="$ISSUE_BODY
+
+          ---
+          **Issue Details:**
+          - **Link:** $ISSUE_URL
+          - **Author:** $ISSUE_AUTHOR"
+
+          # Create card via Trello API
+          curl --request POST \
+            --url "https://api.trello.com/1/cards?idList=$TRELLO_LIST_ID&key=$TRELLO_API_KEY&token=$TRELLO_API_TOKEN" \
+            --header 'Accept: application/json' \
+            --data-urlencode "name=$ISSUE_TITLE (#$ISSUE_NUMBER)" \
+            --data-urlencode "desc=$DESC"
 
             ---
             **Issue Details:**
