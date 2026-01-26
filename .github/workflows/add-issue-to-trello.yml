@@ -1,0 +1,26 @@
+name: Add Issue to Trello
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  add-to-trello:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add Trello Card
+        uses: vasu-1/add-trello-card@v1
+        with:
+          api-key: ${{ secrets.TRELLO_API_KEY }}
+          api-token: ${{ secrets.TRELLO_API_TOKEN }}
+          list-id: ${{ secrets.TRELLO_LIST_ID }}
+          name: "${{ github.event.issue.title }} (#${{ github.event.issue.number }})"
+          desc: |
+            ${{ github.event.issue.body }}
+
+            ---
+            **Issue Details:**
+            - **Link:** ${{ github.event.issue.html_url }}
+            - **Author:** ${{ github.event.issue.user.login }}
+            - **Created:** ${{ github.event.issue.created_at }}
+            - **Status:** ${{ github.event.issue.state }}
