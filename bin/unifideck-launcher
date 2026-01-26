@@ -919,25 +919,32 @@ except Exception as e:
             python3 "$GALAXY_STUB_SCRIPT" "$PREFIX_PATH" >> "$HOME/.local/share/unifideck/winetricks.log" 2>&1
         fi
 
-        # === WINETRICKS: Install redistributables (smart detection) ===
-        # winetricks_gog.py handles marker check and installs only missing deps
-        WINETRICKS_SCRIPT="$PLUGIN_DIR/bin/winetricks_gog.py"
-        
-        if [ -f "$WINETRICKS_SCRIPT" ]; then
-            log "[Winetricks] Checking redistributables for GOG game..."
-            
-            if python3 "$WINETRICKS_SCRIPT" "$GAME_ID" "$PREFIX_PATH" >> "$HOME/.local/share/unifideck/winetricks.log" 2>&1; then
-                log "[Winetricks] Check completed"
+        # === GOG SETUP: Install redistributables on first launch ===
+        # Port of Heroic's setup.ts - installs DirectX, vcrun, etc. from GOG manifests
+        # Uses marker file to run only once per game prefix
+        SETUP_MARKER="$PREFIX_PATH/.unifideck-gog-setup-done"
+        GOG_SETUP_SCRIPT="$PLUGIN_DIR/bin/gog_setup.py"
+
+        if [ ! -f "$SETUP_MARKER" ] && [ -f "$GOG_SETUP_SCRIPT" ]; then
+            log "[Setup] Running first-time GOG redistributable installation..."
+            notify_stage "toasts.launcher.installingRedist" "toasts.launcher.installingRedistMessage" "normal"
+
+            if python3 "$GOG_SETUP_SCRIPT" "$GAME_ID" "$PREFIX_PATH" "$WORK_DIR" >> "$HOME/.local/share/unifideck/gog_setup.log" 2>&1; then
+                log "[Setup] Redistributable installation completed"
+                touch "$SETUP_MARKER"
             else
-                log "[Winetricks] Check completed (may have warnings)"
+                log "[Setup] Installation completed with warnings (non-critical)"
+                touch "$SETUP_MARKER"
             fi
+        elif [ -f "$SETUP_MARKER" ]; then
+            log "[Setup] Redistributables already installed, skipping"
         fi
 
         # Enable NVAPI for modern Proton (matches Epic path)
         export PROTON_ENABLE_NVAPI="1"
         export DXVK_NVAPI_ALLOW_OTHER_DRIVERS="1"
 
-        CMD_STR="$PYTHON_BIN $UMU_WRAPPER \"$EXE_PATH\" $*"
+        CMD_STR="$PYTHON_BIN $UMU_WRAPPER \"$EXE_PATH\""
         log "Executing: $CMD_STR"
 
         # === CLOUD SAVE: Download before launch ===
@@ -947,7 +954,8 @@ except Exception as e:
         notify_stage "toasts.launcher.launchingGame" "toasts.launcher.startingGogGame" "low"
 
         # Execute umu-run with retry for network failures
-        run_umu_with_retry "$PYTHON_BIN" "$UMU_WRAPPER" "$EXE_PATH" "$@"
+        # NOTE: Do NOT pass "$@" - it contains gog:GAME_ID which umu-run doesn't understand
+        run_umu_with_retry "$PYTHON_BIN" "$UMU_WRAPPER" "$EXE_PATH"
         GAME_EXIT_CODE=$?
 
         # === CLOUD SAVE: Upload after exit ===
