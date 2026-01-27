@@ -1,26 +1,26 @@
-name: Sync Issues to Trello
+#name: Sync Issues to Trello
 
-on:
-  issues:
-    types: [opened]
-  issue_comment:
-    types: [created]
-  schedule:
-    - cron: "*/10 * * * *" # Run every 10 minutes
-  workflow_dispatch:
-    inputs:
-      sync_mode:
-        description: "Sync Mode"
-        required: true
-        default: "all"
-        type: choice
-        options:
-          - all
-          - single_issue
-      issue_number:
-        description: "Issue Number (if Single Issue mode)"
-        required: false
-        default: ""
+#on:
+#  issues:
+#    types: [opened]
+  #issue_comment:
+ #   types: [created]
+#  schedule:
+ #   - cron: "*/10 * * * *" # Run every 10 minutes
+ # workflow_dispatch:
+  #  inputs:
+   #   sync_mode:
+    #    description: "Sync Mode"
+    #    required: true
+     #   default: "all"
+     #   type: choice
+      #  options:
+      #    - all
+     #     - single_issue
+     # issue_number:
+       # description: "Issue Number (if Single Issue mode)"
+       # required: false
+      #  default: ""
 
 jobs:
   sync-trello:
