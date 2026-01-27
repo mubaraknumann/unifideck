@@ -144,29 +144,32 @@ def sync_card(issue, card, lists_map):
             done_list_id = lid
             break
 
-    # --- 1. State Sync (GitHub -> Trello) ---
+    # --- 1. State Sync (Current State Based - No History) ---
     is_gh_closed = (issue['state'] == 'closed')
     is_trello_complete = card['dueComplete']
     current_list_id = card['idList']
 
-    if is_gh_closed:
-        # If open on Trello, mark complete AND move to Done
-        updates = {}
-        if not is_trello_complete:
-            updates['dueComplete'] = 'true'
-            print(f"    [GH->Trello] Issue closed -> Mark Trello complete")
-        
+    # A. If GitHub is CLOSED but Trello is NOT complete -> Mark Trello complete + Move to Done
+    if is_gh_closed and not is_trello_complete:
+        updates = {'dueComplete': 'true'}
+        print(f"    [GH->Trello] Issue closed -> Mark Trello complete")
         if done_list_id and current_list_id != done_list_id:
             updates['idList'] = done_list_id
             print(f"    [GH->Trello] Issue closed -> Move to Done list")
-        
-        if updates:
-            update_trello_card(card_id, updates)
-            
-    elif not is_gh_closed and is_trello_complete:
-        # Reopen logic (Optional: move back to Todo? skipping move back for now, just uncheck)
-        print(f"    [GH->Trello] Issue open -> Unchecking Trello due")
-        update_trello_card(card_id, {'dueComplete': 'false'})
+        update_trello_card(card_id, updates)
+    
+    # B. If Trello is COMPLETE but GitHub is OPEN -> Close GitHub
+    elif is_trello_complete and not is_gh_closed:
+        print(f"    [Trello->GH] Trello marked complete -> Close GH Issue")
+        update_github_issue_state(issue_num, 'closed')
+    
+    # C. If GitHub is CLOSED, ensure card is in Done list (even if already complete)
+    elif is_gh_closed and done_list_id and current_list_id != done_list_id:
+        update_trello_card(card_id, {'idList': done_list_id})
+        print(f"    [GH->Trello] Ensuring closed issue card is in Done list")
+    
+    # NOTE: We intentionally do NOT reopen GH if Trello is unchecked.
+    # This prevents the flip-flop loop. To reopen, user must reopen on GH directly.
 
     # --- 2. Fetch History ---
     gh_comments = get_issue_comments(issue_num)
@@ -176,40 +179,34 @@ def sync_card(issue, card, lists_map):
     gh_texts = [c['body'] for c in gh_comments]
 
     # --- 3. Sync Trello Actions -> GitHub ---
-    has_closed_gh = False
+    # Trello actions are returned NEWEST FIRST. 
+    # We only want the MOST RECENT action of each type.
     
+    # A. MOVES: Find the most recent move action only
+    latest_move = None
     for action in trello_actions:
-        a_type = action['type']
-        creator = action['memberCreator']['fullName']
+        if action['type'] == 'updateCard' and 'listAfter' in action['data']:
+            latest_move = action
+            break  # First one is most recent
+    
+    if latest_move:
+        creator = latest_move['memberCreator']['fullName']
+        list_name = latest_move['data']['listAfter']['name']
         
-        # A. MOVES (updateCard:idList)
-        if a_type == 'updateCard' and 'listAfter' in action['data']:
-            list_name = action['data']['listAfter']['name']
-            
-            # SUPPRESSION LOGIC:
-            # If the move is to "Done" AND the issue is closed on GH, 
-            # assume WE did it programmatically in step 1 (or it's intended state).
-            # Don't comment "Moved to Done" to avoid noise.
-            if list_name.lower() == 'done' and is_gh_closed:
-                continue
-
+        # Suppress "Moved to Done" if issue is already closed (programmatic move)
+        if not (list_name.lower() == 'done' and is_gh_closed):
             move_sig = f"**[Trello] {creator} moved this card to list \"{list_name}\"**"
             if move_sig not in gh_texts:
-                 print(f"    [Trello->GH] Sync move to {list_name}")
-                 add_comment_to_github(issue_num, move_sig)
-                 gh_texts.append(move_sig)
+                print(f"    [Trello->GH] Sync move to {list_name}")
+                add_comment_to_github(issue_num, move_sig)
+                gh_texts.append(move_sig)
 
-        # B. COMPLETION (updateCard:dueComplete)
-        if a_type == 'updateCard' and 'dueComplete' in action['data']['card']:
-            new_complete = action['data']['card']['dueComplete']
-            if new_complete and not is_gh_closed and not has_closed_gh:
-                 update_github_issue_state(issue_num, 'closed')
-                 has_closed_gh = True
-            elif not new_complete and is_gh_closed:
-                 update_github_issue_state(issue_num, 'open')
+    # B. COMPLETION: Already handled in Step 1 using current state.
 
-        # C. COMMENTS (commentCard)
-        if a_type == 'commentCard':
+    # C. COMMENTS: Sync all missing comments (comments are additive, not state)
+    for action in trello_actions:
+        if action['type'] == 'commentCard':
+            creator = action['memberCreator']['fullName']
             text = action['data']['text']
             if text.startswith(SIG_GH_ON_TRELLO_PREFIX): continue
             
