@@ -165,10 +165,51 @@ class GOGAPIClient:
         """Save OAuth tokens to file"""
         try:
             os.makedirs(os.path.dirname(self.token_file), exist_ok=True)
+            
+            # Load existing user info to preserve if API fails
+            existing_username = ""
+            existing_user_id = ""
+            try:
+                if os.path.exists(self.token_file):
+                    with open(self.token_file, 'r') as f:
+                        existing = json.load(f)
+                        existing_username = existing.get('username', '')
+                        existing_user_id = existing.get('user_id', '')
+            except Exception:
+                pass
+            
+            # Fetch user info from GOG API for Comet integration
+            username = existing_username
+            user_id = existing_user_id
+            try:
+                import urllib.request
+                import ssl as ssl_module
+                # SSL context for Steam Deck compatibility
+                ctx = ssl_module.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl_module.CERT_NONE
+                
+                req = urllib.request.Request(
+                    "https://embed.gog.com/userData.json",
+                    headers={
+                        "Authorization": f"Bearer {access_token}",
+                        "User-Agent": "Unifideck/1.0"
+                    }
+                )
+                with urllib.request.urlopen(req, timeout=10, context=ctx) as response:
+                    user_data = json.loads(response.read().decode())
+                    username = user_data.get("username", "") or existing_username
+                    user_id = user_data.get("galaxyUserId", "") or existing_user_id
+                    logger.info(f"Fetched GOG user info: {username}")
+            except Exception as e:
+                logger.warning(f"Could not fetch GOG user info: {e} - preserving existing: {existing_username}")
+            
             with open(self.token_file, 'w') as f:
                 json.dump({
                     'access_token': access_token,
-                    'refresh_token': refresh_token
+                    'refresh_token': refresh_token,
+                    'username': username,
+                    'user_id': user_id
                 }, f)
             self.access_token = access_token
             self.refresh_token = refresh_token
@@ -228,6 +269,10 @@ class GOGAPIClient:
         env = os.environ.copy()
         # Point to parent dir - gogdl creates subdirectories inside
         env['GOGDL_CONFIG_PATH'] = os.path.dirname(self.gogdl_config_dir)
+        # CRITICAL: Force unbuffered Python output in gogdl
+        # Without this, gogdl (a Python script) buffers output when stdout is piped,
+        # causing the asyncio output reading loop to hang/timeout and downloads to fail
+        env['PYTHONUNBUFFERED'] = '1'
         return env
 
     async def is_available(self) -> bool:
@@ -749,7 +794,32 @@ class GOGAPIClient:
         except:
             return 0
 
-    async def _determine_install_mode(self, game_id: str, target_folder: Optional[str], platform: str) -> str:
+    def _smart_match_language(self, target: str, choices: list[str]) -> str | None:
+        """Finds the best match for a target language in a list of choices.
+        
+        Handles:
+        1. Exact match ('en-US' == 'en-US')
+        2. Prefix match ('en-US' matches 'en')
+        3. Reverse prefix match ('en' matches 'en-US')
+        """
+        if not target or not choices:
+            return None
+            
+        # 1. Exact match
+        if target in choices:
+            return target
+            
+        # 2. Base language match
+        target_base = target.split('-')[0].lower()
+        
+        for choice in choices:
+            choice_base = choice.split('-')[0].lower()
+            if target_base == choice_base:
+                return choice
+                
+        return None
+
+    async def _determine_install_mode(self, game_id: str, target_folder: str | None, platform: str) -> str:
         """Determine whether to use 'download' or 'repair' based on folder state.
         
         This prevents gogdl from deleting existing game data (which happens when
@@ -829,6 +899,8 @@ class GOGAPIClient:
             manifest_locations = [
                 os.path.join(self.gogdl_config_dir, "heroic_gogdl", "manifests", game_id),
                 os.path.join(os.path.dirname(self.gogdl_config_dir), "heroic_gogdl", "manifests", game_id),
+                os.path.join(self.gogdl_config_dir, "manifests", game_id),
+                os.path.join(os.path.dirname(self.gogdl_config_dir), "gogdl", "manifests", game_id),
             ]
             for manifest_path in manifest_locations:
                 if os.path.exists(manifest_path):
@@ -991,6 +1063,37 @@ class GOGAPIClient:
         os.makedirs(base_path, exist_ok=True)
         
         logger.info(f"[GOG] Starting installation of {game_id} via gogdl to {base_path}")
+        
+        # CRITICAL: Always clear stale manifests before ANY install attempt
+        # This handles cases where manifests exist from:
+        # - Previous failed install attempts
+        # - External sources (Heroic, etc.)
+        # - Incomplete uninstalls
+        # NOTE: gogdl creates manifests in BOTH 'heroic_gogdl/manifests/' AND 'gogdl/manifests/'
+        manifest_locations = [
+            os.path.join(self.gogdl_config_dir, "heroic_gogdl", "manifests", game_id),
+            os.path.join(os.path.dirname(self.gogdl_config_dir), "heroic_gogdl", "manifests", game_id),
+            # Also clean gogdl/ subdirectory (gogdl creates manifests in both locations)
+            os.path.join(self.gogdl_config_dir, "manifests", game_id),
+            os.path.join(os.path.dirname(self.gogdl_config_dir), "gogdl", "manifests", game_id),
+        ]
+        for manifest_path in manifest_locations:
+            if os.path.exists(manifest_path):
+                try:
+                    os.remove(manifest_path)
+                    logger.info(f"[GOG] Pre-install: cleared stale manifest: {manifest_path}")
+                except Exception as e:
+                    logger.warning(f"[GOG] Pre-install: could not clear manifest {manifest_path}: {e}")
+        
+        # CRITICAL: Also clear gog-support cache directory
+        # This contains install state that makes gogdl think game is already installed
+        support_dir = os.path.join(self.gogdl_config_dir, "gog-support", game_id)
+        if os.path.exists(support_dir):
+            try:
+                shutil.rmtree(support_dir)
+                logger.info(f"[GOG] Pre-install: cleared stale support cache: {support_dir}")
+            except Exception as e:
+                logger.warning(f"[GOG] Pre-install: could not clear support cache: {e}")
 
         # Re-running platform check properly
         platform = 'linux'
@@ -1077,6 +1180,9 @@ class GOGAPIClient:
                 os.path.join(self.gogdl_config_dir, "heroic_gogdl", "manifests", game_id),
                 # Current correct location: parent of gogdl_config_dir
                 os.path.join(os.path.dirname(self.gogdl_config_dir), "heroic_gogdl", "manifests", game_id),
+                # Also check gogdl/ subdirectory (gogdl creates manifests in both locations)
+                os.path.join(self.gogdl_config_dir, "manifests", game_id),
+                os.path.join(os.path.dirname(self.gogdl_config_dir), "gogdl", "manifests", game_id),
             ]
             for manifest_path in manifest_locations:
                 if os.path.exists(manifest_path):
@@ -1085,6 +1191,19 @@ class GOGAPIClient:
                         logger.info(f"[GOG] Cleared stale manifest: {manifest_path}")
                     except Exception as e:
                         logger.warning(f"[GOG] Could not clear stale manifest {manifest_path}: {e}")
+            
+            # CRITICAL: Delete incomplete game folder if it exists
+            # A folder without .unifideck-id marker is incomplete/corrupt and needs to be removed
+            # Otherwise gogdl may skip downloading files that partially exist
+            if target_folder and os.path.exists(target_folder):
+                marker_path = os.path.join(target_folder, '.unifideck-id')
+                if not os.path.exists(marker_path):
+                    logger.info(f"[GOG] Found incomplete folder (no .unifideck-id): {target_folder}")
+                    try:
+                        shutil.rmtree(target_folder)
+                        logger.info(f"[GOG] Deleted incomplete folder for fresh download")
+                    except Exception as e:
+                        logger.warning(f"[GOG] Could not delete incomplete folder: {e}")
         else:
             # Repair: pass the specific game folder
             gogdl_path = target_folder if target_folder and os.path.exists(target_folder) else base_path
@@ -1099,29 +1218,60 @@ class GOGAPIClient:
             '--support', support_dir,
         ]
         
-        # STRATEGY CHANGE: Download ALL supported languages found in manifest
-        # This ensures complete preservation and avoids missed localization files.
+        # STRATEGY: Prioritize User Preference, then Download ALL Supported
+        languages_to_download = []
+        
+        # 1. Determine Primary Language (User Preference or English)
+        primary_lang = preferred_lang or 'en-US'
+        
         if supported_languages:
-            logger.info(f"[GOG] Downloading all supported languages: {supported_languages}")
+            # Smart match for primary language (handles en vs en-US)
+            matched_primary = self._smart_match_language(primary_lang, supported_languages)
+            
+            if matched_primary:
+                languages_to_download.append(matched_primary)
+            else:
+                # If primary not found, try English fallback (smart match)
+                matched_english = self._smart_match_language('en-US', supported_languages)
+                if matched_english:
+                    languages_to_download.append(matched_english)
+                else:
+                    # If neither preferred nor English is supported, take the first available
+                    languages_to_download.append(supported_languages[0])
+                
+            # 2. Add ALL other supported languages (as requested by user)
             for lang in supported_languages:
-                cmd.extend(['--lang', lang])
+                if lang not in languages_to_download:
+                    languages_to_download.append(lang)
         else:
-            # Fallback: Just English + Selected + Safety List
-            # If manifest parsing fails, we request all major languages to ensure we catch whatever is supported.
-            logger.warning("[GOG] No languages found in manifest, enabling Safety Fallback (Download All Common Languages)")
-            
-            # Common major languages supported by GOG
-            # gogdl ignores unsupported flags (verified), so this is safe.
-            safety_langs = {
-                'en-US', 'fr-FR', 'de-DE', 'es-ES', 'it-IT', 
-                'pt-BR', 'ru-RU', 'pl-PL', 'zh-CN', 'ja-JP', 'ko-KR'
-            }
-            # Add user's preference
-            if preferred_lang:
-                safety_langs.add(preferred_lang)
-            
-            for lang in sorted(safety_langs):
-                cmd.extend(['--lang', lang])
+            # Fallback if info failed: Try Preferred + English
+            languages_to_download.append(primary_lang)
+            if 'en-US' not in languages_to_download:
+                languages_to_download.append('en-US')
+        
+        logger.info(f"[GOG] Downloading languages (English first): {languages_to_download}")
+        for lang in languages_to_download:
+            cmd.extend(['--lang', lang])
+        # LOGIC FIX: Do NOT use "Safety Fallback" with all languages.
+        # Sending multiple --lang flags to gogdl breaks the download for some games (only 1KB downloaded).
+        # We rely on 'languages_to_download' which defaults to ['en-US'] if manifest parsing failed.
+        # This ensures we always attempted to download at least the English version.
+        
+        # CRITICAL FIX: Delete manifest AGAIN right before download
+        if install_mode == 'download':
+            manifest_locations = [
+                os.path.join(self.gogdl_config_dir, "heroic_gogdl", "manifests", game_id),
+                os.path.join(os.path.dirname(self.gogdl_config_dir), "heroic_gogdl", "manifests", game_id),
+                os.path.join(self.gogdl_config_dir, "manifests", game_id),
+                os.path.join(os.path.dirname(self.gogdl_config_dir), "gogdl", "manifests", game_id),
+            ]
+            for manifest_path in manifest_locations:
+                if os.path.exists(manifest_path):
+                    try:
+                        os.remove(manifest_path)
+                        logger.info(f"[GOG] Pre-download: cleared manifest recreated by gogdl info: {manifest_path}")
+                    except Exception as e:
+                        logger.warning(f"[GOG] Pre-download: could not clear manifest {manifest_path}: {e}")
         
         logger.info(f"[GOG] Using {install_mode} mode with path: {gogdl_path}")
         
@@ -1248,12 +1398,8 @@ class GOGAPIClient:
         logger.info(f"[GOG] Running verification (repair) to check for missing files...")
         if progress_callback:
             await progress_callback({
-                'progress_percent': 99,
-                'downloaded_bytes': current_progress.get('total_bytes', 0),
-                'total_bytes': current_progress.get('total_bytes', 0),
-                'speed_bps': 0,
-                'eta_seconds': 0,
-                'phase_message': 'Verifying installation...'
+                'phase': 'verifying',
+                'phase_message': ''
             })
         
         # Determine install path for repair command - MUST use game folder, not base_path
@@ -1436,11 +1582,13 @@ class GOGAPIClient:
                 logger.warning(f"[GOG] Could not read goggame info: {e}")
             
             # Write marker (this marks 100% complete)
+            # Include language for setup script to use during first launch
+            info_data['language'] = preferred_lang
             marker_path = os.path.join(found_path, '.unifideck-id')
             try:
                 with open(marker_path, 'w') as f:
                     json.dump(info_data, f, indent=2)
-                logger.info(f"[GOG] Wrote .unifideck-id marker at {marker_path}")
+                logger.info(f"[GOG] Wrote .unifideck-id marker at {marker_path} (language: {preferred_lang})")
             except Exception as e:
                 logger.error(f"[GOG] Failed to write marker: {e}")
                 # Cleanup on failure to write marker
@@ -1535,6 +1683,21 @@ class GOGAPIClient:
                 logger.info(f"[GOG] Cleaned up support directory: {support_dir}")
             except Exception as e:
                 logger.warning(f"[GOG] Could not clean support dir: {e}")
+        
+        # Clean up gogdl manifest files (prevents "Nothing to do" on re-download)
+        manifest_locations = [
+            os.path.join(self.gogdl_config_dir, "heroic_gogdl", "manifests", game_id),
+            os.path.join(os.path.dirname(self.gogdl_config_dir), "heroic_gogdl", "manifests", game_id),
+            os.path.join(self.gogdl_config_dir, "manifests", game_id),
+            os.path.join(os.path.dirname(self.gogdl_config_dir), "gogdl", "manifests", game_id),
+        ]
+        for manifest_path in manifest_locations:
+            if os.path.exists(manifest_path):
+                try:
+                    os.remove(manifest_path)
+                    logger.info(f"[GOG] Deleted manifest: {manifest_path}")
+                except Exception as e:
+                    logger.warning(f"[GOG] Could not delete manifest {manifest_path}: {e}")
         
         # Final verification
         if os.path.exists(install_path):

@@ -929,10 +929,21 @@ except Exception as e:
             log "[Setup] Running first-time GOG redistributable installation..."
             notify_stage "toasts.launcher.installingRedist" "toasts.launcher.installingRedistMessage" "normal"
 
+            # Read language from .unifideck-id marker (written during installation)
+            # This ensures the game setup uses the same language as the installation
+            INSTALL_LANG="en-US"
+            UNIFIDECK_ID_FILE="$WORK_DIR/.unifideck-id"
+            if [ -f "$UNIFIDECK_ID_FILE" ]; then
+                INSTALL_LANG=$(python3 -c "import json; print(json.load(open('$UNIFIDECK_ID_FILE')).get('language', 'en-US'))" 2>/dev/null || echo "en-US")
+                log "[Setup] Using language from marker: $INSTALL_LANG"
+            else
+                log "[Setup] No .unifideck-id marker found, using default language: $INSTALL_LANG"
+            fi
+
             # Create marker FIRST to prevent double-launch
             touch "$SETUP_MARKER"
 
-            if python3 "$GOG_SETUP_SCRIPT" "$GAME_ID" "$PREFIX_PATH" "$WORK_DIR" >> "$HOME/.local/share/unifideck/gog_setup.log" 2>&1; then
+            if python3 "$GOG_SETUP_SCRIPT" "$GAME_ID" "$PREFIX_PATH" "$WORK_DIR" "$INSTALL_LANG" >> "$HOME/.local/share/unifideck/gog_setup.log" 2>&1; then
                 log "[Setup] Redistributable installation completed successfully"
             else
                 # Setup failed - remove marker and abort launch
@@ -955,6 +966,41 @@ except Exception as e:
         # === CLOUD SAVE: Download before launch ===
         sync_cloud_saves "gog" "$GAME_ID" "download" "$PREFIX_PATH" ""
 
+        # === COMET: Launch GOG Galaxy SDK replacement ===
+        # Comet provides GOG Galaxy online features (achievements, multiplayer, etc.)
+        COMET_BIN="$PLUGIN_DIR/bin/comet/comet"
+        COMET_PID=""
+        if [ -f "$COMET_BIN" ]; then
+            # Get GOG tokens from Unifideck config
+            GOG_TOKEN_FILE="$HOME/.config/unifideck/gog_token.json"
+            if [ -f "$GOG_TOKEN_FILE" ]; then
+                GOG_ACCESS_TOKEN=$(python3 -c "import json; print(json.load(open('$GOG_TOKEN_FILE')).get('access_token',''))" 2>/dev/null)
+                GOG_REFRESH_TOKEN=$(python3 -c "import json; print(json.load(open('$GOG_TOKEN_FILE')).get('refresh_token',''))" 2>/dev/null)
+                GOG_USER_ID=$(python3 -c "import json; print(json.load(open('$GOG_TOKEN_FILE')).get('user_id',''))" 2>/dev/null)
+                GOG_USERNAME=$(python3 -c "import json; print(json.load(open('$GOG_TOKEN_FILE')).get('username','GOGUser'))" 2>/dev/null)
+                
+                # If no username stored, use a default
+                [ -z "$GOG_USERNAME" ] && GOG_USERNAME="GOGUser"
+                
+                if [ -n "$GOG_ACCESS_TOKEN" ] && [ -n "$GOG_REFRESH_TOKEN" ]; then
+                    log "[Comet] Starting GOG Galaxy SDK replacement..."
+                    # Launch Comet in background with tokens
+                    COMET_ARGS="--username $GOG_USERNAME --access-token $GOG_ACCESS_TOKEN --refresh-token $GOG_REFRESH_TOKEN --quit"
+                    [ -n "$GOG_USER_ID" ] && COMET_ARGS="$COMET_ARGS --user-id $GOG_USER_ID"
+                    
+                    "$COMET_BIN" $COMET_ARGS >> "$HOME/.local/share/unifideck/comet.log" 2>&1 &
+                    COMET_PID=$!
+                    log "[Comet] Started with PID $COMET_PID"
+                else
+                    log "[Comet] WARNING: No GOG tokens available, Galaxy online features disabled"
+                fi
+            else
+                log "[Comet] No GOG token file found, Galaxy online features disabled"
+            fi
+        else
+            log "[Comet] Binary not found at $COMET_BIN"
+        fi
+
         # Notify user that game is launching
         notify_stage "toasts.launcher.launchingGame" "toasts.launcher.startingGogGame" "low"
 
@@ -962,6 +1008,14 @@ except Exception as e:
         # NOTE: Do NOT pass "$@" - it contains gog:GAME_ID which umu-run doesn't understand
         run_umu_with_retry "$PYTHON_BIN" "$UMU_WRAPPER" "$EXE_PATH"
         GAME_EXIT_CODE=$?
+
+        # === COMET: Stop after game exits ===
+        if [ -n "$COMET_PID" ]; then
+            log "[Comet] Stopping (PID $COMET_PID)..."
+            kill "$COMET_PID" 2>/dev/null
+            wait "$COMET_PID" 2>/dev/null
+            log "[Comet] Stopped"
+        fi
 
         # === CLOUD SAVE: Upload after exit ===
         log "GOG game exited with code: $GAME_EXIT_CODE"

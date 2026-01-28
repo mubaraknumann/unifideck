@@ -10,7 +10,10 @@ This script:
 4. Runs scriptinterpreter.exe for v2 manifests
 5. Installs each redistributable into the Wine prefix
 
-Usage: gog_setup.py <game_id> <prefix_path> <install_path>
+Usage: gog_setup.py <game_id> <prefix_path> <install_path> [language]
+
+The language argument (e.g., 'en-US', 'de-DE') is used to configure
+the game's language setting during setup. Defaults to 'en-US'.
 """
 
 import os
@@ -24,7 +27,7 @@ from pathlib import Path
 
 # Paths
 GOGDL_CONFIG = Path.home() / ".config" / "unifideck" / "gogdl"
-MANIFESTS_DIR = GOGDL_CONFIG / "manifests"
+MANIFESTS_DIR = Path.home() / ".config" / "unifideck" / "heroic_gogdl" / "manifests"
 REDIST_DIR = GOGDL_CONFIG / "redist"
 SUPPORT_DIR = GOGDL_CONFIG / "gog-support"  # Where temp_executable files are stored
 
@@ -50,6 +53,29 @@ def log(message: str):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(LOG_FILE, "a") as f:
         f.write(log_msg + "\n")
+
+
+def language_code_to_name(lang_code: str) -> str:
+    """Convert language code (e.g., 'en-US') to language name for GOG setup.
+    
+    GOG setup executables accept language names like 'english', 'german', etc.
+    """
+    lang_map = {
+        'en': 'english', 'en-US': 'english', 'en-GB': 'english',
+        'de': 'german', 'de-DE': 'german',
+        'fr': 'french', 'fr-FR': 'french',
+        'es': 'spanish', 'es-ES': 'spanish',
+        'it': 'italian', 'it-IT': 'italian',
+        'pt': 'portuguese', 'pt-BR': 'portuguese', 'pt-PT': 'portuguese',
+        'ru': 'russian', 'ru-RU': 'russian',
+        'pl': 'polish', 'pl-PL': 'polish',
+        'zh': 'chinese', 'zh-CN': 'chinese', 'zh-TW': 'chinese',
+        'ja': 'japanese', 'ja-JP': 'japanese',
+        'ko': 'korean', 'ko-KR': 'korean',
+        'nl': 'dutch', 'nl-NL': 'dutch',
+        'tr': 'turkish', 'tr-TR': 'turkish',
+    }
+    return lang_map.get(lang_code, lang_map.get(lang_code.split('-')[0], 'english'))
 
 
 def wait_for_prefix_ready(prefix_path: str, timeout: int = 30) -> bool:
@@ -154,15 +180,20 @@ def ensure_redist_downloaded(deps: list[str]):
         # Check if redistributables manifest exists
         manifest_path = REDIST_DIR / ".gogdl-redist-manifest"
         if manifest_path.exists():
-            # Check if all required deps are in the manifest
-            redist_manifest = get_redist_manifest()
-            if redist_manifest:
-                installed_deps = [depot["dependencyId"] for depot in redist_manifest.get("depots", [])]
-                missing = [d for d in all_deps if d not in installed_deps]
-                if not missing:
-                    log("All redistributables already downloaded")
-                    return
-                all_deps = missing
+            # Check if all required deps are ACTUALLY downloaded (folder exists AND has files)
+            # The manifest lists ALL available redistributables, not just downloaded ones
+            redist_base = REDIST_DIR / "__redist"
+            missing = []
+            for d in all_deps:
+                dep_dir = redist_base / d
+                # Check folder exists AND has at least one file (not empty)
+                if not dep_dir.exists() or not any(dep_dir.iterdir()):
+                    missing.append(d)
+            
+            if not missing:
+                log("All redistributables already downloaded")
+                return
+            all_deps = missing
 
         # Download via gogdl
         if not GOGDL_BIN.exists():
@@ -236,10 +267,13 @@ def run_wine_command(exe_path: str, args: list[str], prefix_path: str, install_p
         return False
 
 
-def run_script_interpreter(game_id: str, manifest: dict, prefix_path: str, install_path: str) -> bool:
+def run_script_interpreter(game_id: str, manifest: dict, prefix_path: str, install_path: str, language: str = "en-US") -> bool:
     """Run scriptinterpreter.exe for v2 manifests.
 
     Heroic's setup.ts lines 246-281
+    
+    Args:
+        language: Language code like 'en-US', 'de-DE' to configure game language
     """
     isi_path = REDIST_DIR / "__redist" / "ISI" / "scriptinterpreter.exe"
     if not isi_path.exists():
@@ -247,11 +281,9 @@ def run_script_interpreter(game_id: str, manifest: dict, prefix_path: str, insta
         return False
 
     support_dir = SUPPORT_DIR / game_id
+    lang_name = language_code_to_name(language)
 
-    # Get install language (default to English)
-    install_language = "en-US"  # TODO: Get from game info if available
-
-    log("Running scriptinterpreter for game setup...")
+    log(f"Running scriptinterpreter for game setup (language: {language} -> {lang_name})...")
 
     success = True
     for product in manifest.get("products", []):
@@ -268,13 +300,13 @@ def run_script_interpreter(game_id: str, manifest: dict, prefix_path: str, insta
         args = [
             "/VERYSILENT",
             f"/DIR={install_path}",
-            f"/Language=English",
-            f"/LANG=English",
+            f"/Language={lang_name}",
+            f"/LANG={lang_name}",
             f"/ProductId={product_id}",
             "/galaxyclient",
             f"/buildId={build_id}",
             f"/versionName={version}",
-            f"/lang-code={install_language}",
+            f"/lang-code={language}",
             f"/supportDir={support_dir}",
             "/nodesktopshorctut",  # Yes, this typo is in GOG's setup
             "/nodesktopshortcut"
@@ -288,14 +320,18 @@ def run_script_interpreter(game_id: str, manifest: dict, prefix_path: str, insta
     return success
 
 
-def run_temp_executable(game_id: str, manifest: dict, prefix_path: str, install_path: str) -> bool:
+def run_temp_executable(game_id: str, manifest: dict, prefix_path: str, install_path: str, language: str = "en-US") -> bool:
     """Run temp_executable for v2 manifests without scriptInterpreter.
 
     This is Heroic's setup.ts Path B (lines 283-328).
     For games like The Witcher that have a game-specific setup executable
     instead of using the generic scriptinterpreter (ISI).
+    
+    Args:
+        language: Language code like 'en-US', 'de-DE' to configure game language
     """
-    log("Running temp_executable setup (v2 manifest without scriptInterpreter)...")
+    lang_name = language_code_to_name(language)
+    log(f"Running temp_executable setup (language: {language} -> {lang_name})...")
 
     success = True
     for product in manifest.get("products", []):
@@ -319,15 +355,14 @@ def run_temp_executable(game_id: str, manifest: dict, prefix_path: str, install_
         # Get build ID and version from manifest
         build_id = manifest.get("buildId", "0")
         version = manifest.get("version_name", "1.0")
-        install_language = manifest.get("HGLInstallLanguage", "en-US")
 
         # Build arguments matching Heroic's setup.ts lines 295-315
         args = [
             "/VERYSILENT",
             f"/DIR={install_path}",
-            f"/Language=English",
-            f"/LANG=English",
-            f"/lang-code={install_language}",
+            f"/Language={lang_name}",
+            f"/LANG={lang_name}",
+            f"/lang-code={language}",
             f"/ProductId={product_id}",
             "/galaxyclient",
             f"/buildId={build_id}",
@@ -408,11 +443,19 @@ def install_redistributables(deps: list[str], redist_manifest: dict, prefix_path
     return success
 
 
-def run_setup(game_id: str, prefix_path: str, install_path: str):
-    """Main setup function - installs redistributables."""
+def run_setup(game_id: str, prefix_path: str, install_path: str, language: str = "en-US"):
+    """Main setup function - installs redistributables.
+    
+    Args:
+        game_id: GOG game/product ID
+        prefix_path: Path to Wine/Proton prefix
+        install_path: Game installation directory
+        language: Language code (e.g., 'en-US', 'de-DE') for game config
+    """
     log(f"=== GOG Setup for {game_id} ===")
     log(f"Prefix: {prefix_path}")
     log(f"Install: {install_path}")
+    log(f"Language: {language}")
 
     # Wait for prefix to be ready before running setup
     if not wait_for_prefix_ready(prefix_path):
@@ -440,14 +483,16 @@ def run_setup(game_id: str, prefix_path: str, install_path: str):
         if manifest.get("scriptInterpreter"):
             # Path A: Use ISI (scriptinterpreter.exe) - for games like Dredge
             log("Manifest requires scriptinterpreter (ISI)")
-            if not run_script_interpreter(game_id, manifest, prefix_path, install_path):
-                errors.append("Script interpreter execution failed")
+            if not run_script_interpreter(game_id, manifest, prefix_path, install_path, language):
+                # errors.append("Script interpreter execution failed")
+                log("WARNING: Script interpreter failed (non-fatal - redistributables are what matter)")
         else:
             # Path B: Run temp_executable - for games like The Witcher
             # This is the game-specific setup executable from products[]
             log("Manifest uses temp_executable (no scriptInterpreter)")
-            if not run_temp_executable(game_id, manifest, prefix_path, install_path):
-                errors.append("temp_executable execution failed")
+            if not run_temp_executable(game_id, manifest, prefix_path, install_path, language):
+                # errors.append("temp_executable execution failed")
+                log("WARNING: temp_executable failed (non-fatal - redistributables are what matter)")
 
     # 5. Install redistributables
     if deps:
@@ -469,12 +514,13 @@ def run_setup(game_id: str, prefix_path: str, install_path: str):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 4:
-        print("Usage: gog_setup.py <game_id> <prefix_path> <install_path>")
+    if len(sys.argv) < 4:
+        print("Usage: gog_setup.py <game_id> <prefix_path> <install_path> [language]")
         sys.exit(1)
 
     game_id = sys.argv[1]
     prefix_path = sys.argv[2]
     install_path = sys.argv[3]
+    language = sys.argv[4] if len(sys.argv) > 4 else "en-US"
 
-    run_setup(game_id, prefix_path, install_path)
+    run_setup(game_id, prefix_path, install_path, language)

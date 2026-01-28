@@ -12,7 +12,8 @@
     "toastUpdatedTitle": "存储位置已更新",
     "toastUpdatedBody": "新游戏将安装到 {{location}}",
     "toastFailedTitle": "更新失败",
-    "toastFailedBody": "{{error}}"
+    "toastFailedBody": "{{error}}",
+    "unknown": "未知"
   },
   "gameGrid": {
     "loading": "正在加载游戏...",
@@ -20,7 +21,8 @@
     "noGamesHint": "尝试从 Unifideck 设置同步您的库",
     "showingGames": "显示 {{count}} 个游戏",
     "installed": "已安装",
-    "notInstalled": "未安装"
+    "notInstalled": "未安装",
+    "playtime": "{{hours}}小时{{minutes}}分钟游玩"
   },
   "downloadsTab": {
     "currentDownload": "当前下载",
@@ -238,6 +240,18 @@
   "deckTabs": {
     "greatOnDeck": "适用于 Steam Deck",
     "allGames": "所有游戏",
-    "installed": "已安装"
+    "installed": "已安装",
+    "nonSteam": "非Steam"
+  },
+  "unifiedLibrary": {
+    "error": "Unifideck 错误",
+    "errorLoadingView": "无法加载库视图",
+    "checkConsole": "请查看浏览器控制台了解详情",
+    "errorLoadingGames": "加载游戏时出错",
+    "tryReloading": "请尝试重新加载插件或查看控制台",
+    "storeLabel": "商店:",
+    "allStores": "所有商店",
+    "searchPlaceholder": "搜索游戏...",
+    "library": "游戏库"
   }
 }

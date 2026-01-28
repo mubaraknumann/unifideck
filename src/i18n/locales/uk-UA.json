@@ -12,7 +12,8 @@
     "toastUpdatedTitle": "Місце зберігання оновлено",
     "toastUpdatedBody": "Нові ігри будуть встановлені в {{location}}",
     "toastFailedTitle": "Не вдалося оновити",
-    "toastFailedBody": "{{error}}"
+    "toastFailedBody": "{{error}}",
+    "unknown": "Невідомо"
   },
   "gameGrid": {
     "loading": "Завантаження ігор...",
@@ -20,7 +21,8 @@
     "noGamesHint": "Спробуйте синхронізувати свої бібліотеки в налаштуваннях Unifideck",
     "showingGames": "Показано {{count}} ігор",
     "installed": "Встановлено",
-    "notInstalled": "Не встановлено"
+    "notInstalled": "Не встановлено",
+    "playtime": "{{hours}}г {{minutes}}хв зіграно"
   },
   "downloadsTab": {
     "currentDownload": "ПОТОЧНЕ ЗАВАНТАЖЕННЯ",
@@ -255,6 +257,18 @@
   "deckTabs": {
     "greatOnDeck": "Ідеально для Steam Deck",
     "allGames": "Усі ігри",
-    "installed": "Встановлені"
+    "installed": "Встановлені",
+    "nonSteam": "Не Steam"
+  },
+  "unifiedLibrary": {
+    "error": "Помилка Unifideck",
+    "errorLoadingView": "Не вдалося завантажити вигляд бібліотеки",
+    "checkConsole": "Перевірте консоль браузера для деталей",
+    "errorLoadingGames": "Помилка завантаження ігор",
+    "tryReloading": "Спробуйте перезавантажити плагін або перевірте консоль",
+    "storeLabel": "Магазин:",
+    "allStores": "Всі Магазини",
+    "searchPlaceholder": "Пошук ігор...",
+    "library": "Бібліотека"
   }
 }

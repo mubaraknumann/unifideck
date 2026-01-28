@@ -134,7 +134,7 @@ export const StorageSettings: FC = () => {
           <Field label={t("storageSettings.pathLabel")}>
             <span style={{ color: "#888", fontSize: "12px" }}>
               {locations.find((l) => l.id === defaultStorage)?.path ||
-                "Unknown"}
+                t("storageSettings.unknown")}
             </span>
           </Field>
         </PanelSectionRow>

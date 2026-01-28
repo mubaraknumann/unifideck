@@ -74,7 +74,7 @@ export const UNIFIDECK_TABS: UnifideckTab[] = [
   },
   {
     id: "unifideck-nonsteam",
-    title: "Non-Steam",
+    title: t("deckTabs.nonSteam"),
     position: 7,
     filters: [{ type: "nonSteam", params: {} }], // All non-Steam shortcuts except non-installed Unifideck
   },

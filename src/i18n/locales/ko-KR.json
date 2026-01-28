@@ -12,7 +12,8 @@
     "toastUpdatedTitle": "저장소 위치 업데이트됨",
     "toastUpdatedBody": "새 게임은 {{location}}에 설치됩니다",
     "toastFailedTitle": "업데이트 실패",
-    "toastFailedBody": "{{error}}"
+    "toastFailedBody": "{{error}}",
+    "unknown": "알 수 없음"
   },
   "gameGrid": {
     "loading": "게임 불러오는 중...",
@@ -20,7 +21,8 @@
     "noGamesHint": "Unifideck 설정에서 라이브러리를 동기화해 보세요",
     "showingGames": "{{count}}개의 게임 표시 중",
     "installed": "설치됨",
-    "notInstalled": "설치 안 됨"
+    "notInstalled": "설치 안 됨",
+    "playtime": "{{hours}}시간 {{minutes}}분 플레이"
   },
   "launcher": {
     "networkError": "네트워크 오류",
@@ -257,6 +259,18 @@
   "deckTabs": {
     "greatOnDeck": "Steam Deck에 최적화됨",
     "allGames": "모든 게임",
-    "installed": "설치됨"
+    "installed": "설치됨",
+    "nonSteam": "비Steam"
+  },
+  "unifiedLibrary": {
+    "error": "Unifideck 오류",
+    "errorLoadingView": "라이브러리 뷰를 불러올 수 없습니다",
+    "checkConsole": "자세한 내용은 브라우저 콘솔을 확인하세요",
+    "errorLoadingGames": "게임 로딩 오류",
+    "tryReloading": "플러그인을 다시 로드하거나 콘솔을 확인하세요",
+    "storeLabel": "스토어:",
+    "allStores": "모든 스토어",
+    "searchPlaceholder": "게임 검색...",
+    "library": "라이브러리"
   }
 }

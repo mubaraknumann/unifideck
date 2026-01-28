@@ -12,7 +12,8 @@
     "toastUpdatedTitle": "Opslaglocatie Bijgewerkt",
     "toastUpdatedBody": "Nieuwe games worden geïnstalleerd op {{location}}",
     "toastFailedTitle": "Bijwerken Mislukt",
-    "toastFailedBody": "{{error}}"
+    "toastFailedBody": "{{error}}",
+    "unknown": "Onbekend"
   },
   "gameGrid": {
     "loading": "Games laden...",
@@ -20,7 +21,8 @@
     "noGamesHint": "Probeer je bibliotheken te synchroniseren vanuit de Unifideck-instellingen",
     "showingGames": "{{count}} games weergegeven",
     "installed": "Geïnstalleerd",
-    "notInstalled": "Niet Geïnstalleerd"
+    "notInstalled": "Niet Geïnstalleerd",
+    "playtime": "{{hours}}u {{minutes}}m gespeeld"
   },
   "downloadsTab": {
     "currentDownload": "HUIDIGE DOWNLOAD",
@@ -255,6 +257,18 @@
   "deckTabs": {
     "greatOnDeck": "Perfect voor Steam Deck",
     "allGames": "Alle games",
-    "installed": "Geïnstalleerd"
+    "installed": "Geïnstalleerd",
+    "nonSteam": "Niet-Steam"
+  },
+  "unifiedLibrary": {
+    "error": "Unifideck Fout",
+    "errorLoadingView": "Kan bibliotheekweergave niet laden",
+    "checkConsole": "Controleer de browserconsole voor details",
+    "errorLoadingGames": "Fout bij het laden van games",
+    "tryReloading": "Probeer de plugin opnieuw te laden of controleer de console",
+    "storeLabel": "Winkel:",
+    "allStores": "Alle Winkels",
+    "searchPlaceholder": "Games zoeken...",
+    "library": "Bibliotheek"
   }
 }

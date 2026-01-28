@@ -12,7 +12,8 @@
     "toastUpdatedTitle": "ストレージ場所を更新しました",
     "toastUpdatedBody": "新しいゲームは {{location}} にインストールされます",
     "toastFailedTitle": "更新に失敗しました",
-    "toastFailedBody": "{{error}}"
+    "toastFailedBody": "{{error}}",
+    "unknown": "不明"
   },
   "gameGrid": {
     "loading": "ゲームを読み込み中...",
@@ -20,7 +21,8 @@
     "noGamesHint": "Unifideck設定からライブラリを同期してみてください",
     "showingGames": "{{count}} 件のゲームを表示",
     "installed": "インストール済み",
-    "notInstalled": "未インストール"
+    "notInstalled": "未インストール",
+    "playtime": "{{hours}}時間{{minutes}}分プレイ"
   },
   "downloadsTab": {
     "currentDownload": "現在のダウンロード",
@@ -255,6 +257,18 @@
   "deckTabs": {
     "greatOnDeck": "Steam Deckに最適",
     "allGames": "すべてのゲーム",
-    "installed": "インストール済み"
+    "installed": "インストール済み",
+    "nonSteam": "非Steam"
+  },
+  "unifiedLibrary": {
+    "error": "Unifideckエラー",
+    "errorLoadingView": "ライブラリビューの読み込みに失敗しました",
+    "checkConsole": "詳細はブラウザコンソールをご確認ください",
+    "errorLoadingGames": "ゲームの読み込みエラー",
+    "tryReloading": "プラグインの再読み込みまたはコンソールをご確認ください",
+    "storeLabel": "ストア:",
+    "allStores": "すべてのストア",
+    "searchPlaceholder": "ゲームを検索...",
+    "library": "ライブラリ"
   }
 }

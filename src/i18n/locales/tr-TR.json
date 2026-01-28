@@ -12,7 +12,8 @@
     "toastUpdatedTitle": "Depolama Konumu Güncellendi",
     "toastUpdatedBody": "Yeni oyunlar {{location}} konumuna kurulacak",
     "toastFailedTitle": "Güncelleme Başarısız",
-    "toastFailedBody": "{{error}}"
+    "toastFailedBody": "{{error}}",
+    "unknown": "Bilinmiyor"
   },
   "gameGrid": {
     "loading": "Oyunlar yükleniyor...",
@@ -20,7 +21,8 @@
     "noGamesHint": "Unifideck ayarlarından kütüphanelerinizi senkronize etmeyi deneyin",
     "showingGames": "{{count}} oyun gösteriliyor",
     "installed": "Kurulu",
-    "notInstalled": "Kurulu Değil"
+    "notInstalled": "Kurulu Değil",
+    "playtime": "{{hours}}s {{minutes}}d oynandı"
   },
   "downloadsTab": {
     "currentDownload": "MEVCUT İNDİRME",
@@ -254,6 +256,18 @@
   "deckTabs": {
     "greatOnDeck": "Steam Deck için Mükemmel",
     "allGames": "Tüm Oyunlar",
-    "installed": "Yüklendi"
+    "installed": "Yüklendi",
+    "nonSteam": "Steam Dışı"
+  },
+  "unifiedLibrary": {
+    "error": "Unifideck Hatası",
+    "errorLoadingView": "Kütüphane görünümü yüklenemedi",
+    "checkConsole": "Ayrıntılar için tarayıcı konsolunu kontrol edin",
+    "errorLoadingGames": "Oyunlar yüklenirken hata oluştu",
+    "tryReloading": "Eklentiyi yeniden yüklemeyi deneyin veya konsolu kontrol edin",
+    "storeLabel": "Mağaza:",
+    "allStores": "Tüm Mağazalar",
+    "searchPlaceholder": "Oyun ara...",
+    "library": "Kütüphane"
   }
 }

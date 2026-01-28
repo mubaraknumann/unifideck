@@ -29,6 +29,12 @@ export const LanguageSelector: FC = () => {
         );
         if (result.success && result.language) {
           setSelectedLanguage(result.language);
+          // Apply saved language to i18n (fixes language not being set on startup)
+          if (result.language === "auto") {
+            await changeLanguage(navigator.language);
+          } else {
+            await changeLanguage(result.language);
+          }
         } else {
           // Default to current i18n language or auto
           setSelectedLanguage("auto");

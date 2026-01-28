@@ -19,7 +19,7 @@ import {
 } from "@decky/ui";
 import React, { FC, useState, useEffect, useRef } from "react";
 import { FaGamepad } from "react-icons/fa";
-import { loadTranslations, t } from "./i18n";
+import { loadTranslations, t, changeLanguage } from "./i18n";
 import { I18nextProvider, useTranslation } from "react-i18next";
 import i18n from "i18next";
 
@@ -1591,6 +1591,16 @@ const Content: FC = () => {
 
 export default definePlugin(() => {
   console.log("[Unifideck] Plugin loaded");
+
+  // Apply saved language preference early (loadTranslations uses navigator.language as default)
+  call<[], { success: boolean; language: string }>("get_language_preference")
+    .then((result) => {
+      if (result?.success && result.language && result.language !== "auto") {
+        changeLanguage(result.language);
+        console.log("[Unifideck] Applied saved language:", result.language);
+      }
+    })
+    .catch(() => {}); // Silently ignore if backend not ready
 
   // Patch the library to add Unifideck tabs (All, Installed, Great on Deck, Steam, Epic, GOG, Amazon)
   // This uses TabMaster's approach: intercept useMemo hook to inject custom tabs

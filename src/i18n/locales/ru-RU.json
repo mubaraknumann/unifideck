@@ -12,7 +12,8 @@
     "toastUpdatedTitle": "Хранилище обновлено",
     "toastUpdatedBody": "Новые игры будут устанавливаться в {{location}}",
     "toastFailedTitle": "Не удалось обновить",
-    "toastFailedBody": "{{error}}"
+    "toastFailedBody": "{{error}}",
+    "unknown": "Неизвестно"
   },
   "gameGrid": {
     "loading": "Загрузка игр...",
@@ -20,7 +21,8 @@
     "noGamesHint": "Попробуйте синхронизировать библиотеки в настройках Unifideck",
     "showingGames": "Показано {{count}} игр",
     "installed": "Установлено",
-    "notInstalled": "Не установлено"
+    "notInstalled": "Не установлено",
+    "playtime": "{{hours}}ч {{minutes}}м сыграно"
   },
   "downloadsTab": {
     "currentDownload": "ТЕКУЩАЯ ЗАГРУЗКА",
@@ -255,6 +257,18 @@
   "deckTabs": {
     "greatOnDeck": "Идеально для Steam Deck",
     "allGames": "Все игры",
-    "installed": "Установлено"
+    "installed": "Установлено",
+    "nonSteam": "Не Steam"
+  },
+  "unifiedLibrary": {
+    "error": "Ошибка Unifideck",
+    "errorLoadingView": "Не удалось загрузить представление библиотеки",
+    "checkConsole": "Проверьте консоль браузера для подробностей",
+    "errorLoadingGames": "Ошибка загрузки игр",
+    "tryReloading": "Попробуйте перезагрузить плагин или проверьте консоль",
+    "storeLabel": "Магазин:",
+    "allStores": "Все Магазины",
+    "searchPlaceholder": "Поиск игр...",
+    "library": "Библиотека"
   }
 }

@@ -12,7 +12,8 @@
     "toastUpdatedTitle": "Speicherort Aktualisiert",
     "toastUpdatedBody": "Neue Spiele werden in {{location}} installiert",
     "toastFailedTitle": "Aktualisierung Fehlgeschlagen",
-    "toastFailedBody": "{{error}}"
+    "toastFailedBody": "{{error}}",
+    "unknown": "Unbekannt"
   },
   "gameGrid": {
     "loading": "Lade Spiele...",
@@ -20,7 +21,8 @@
     "noGamesHint": "Versuche, deine Bibliotheken in den Unifideck-Einstellungen zu synchronisieren",
     "showingGames": "Zeige {{count}} Spiele",
     "installed": "Installiert",
-    "notInstalled": "Nicht installiert"
+    "notInstalled": "Nicht installiert",
+    "playtime": "{{hours}}h {{minutes}}m gespielt"
   },
   "downloadsTab": {
     "currentDownload": "AKTUELLER DOWNLOAD",
@@ -255,6 +257,18 @@
   "deckTabs": {
     "greatOnDeck": "Perfekt für Steam Deck",
     "allGames": "Alle Spiele",
-    "installed": "Installiert"
+    "installed": "Installiert",
+    "nonSteam": "Nicht-Steam"
+  },
+  "unifiedLibrary": {
+    "error": "Unifideck-Fehler",
+    "errorLoadingView": "Bibliotheksansicht konnte nicht geladen werden",
+    "checkConsole": "Siehe Browser-Konsole für Details",
+    "errorLoadingGames": "Fehler beim Laden der Spiele",
+    "tryReloading": "Versuche das Plugin neu zu laden oder prüfe die Konsole",
+    "storeLabel": "Store:",
+    "allStores": "Alle Stores",
+    "searchPlaceholder": "Spiele suchen...",
+    "library": "Bibliothek"
   }
 }
