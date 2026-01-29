@@ -377,9 +377,11 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
 
       toaster.toast({
         title: t("toasts.uninstallComplete"),
-        body:
-          t("toasts.uninstallCompleteMessage", { title: gameInfo.title }) +
-          (deletePrefix ? " (including Proton files)" : ""),
+        body: deletePrefix
+          ? t("toasts.uninstallCompleteMessageProton", {
+              title: gameInfo.title,
+            })
+          : t("toasts.uninstallCompleteMessage", { title: gameInfo.title }),
         duration: 10000,
       });
     }
@@ -672,12 +674,12 @@ function patchGameDetailsRoute() {
               innerContainer
                 ? "InnerContainer"
                 : headerContainer
-                ? "Header"
-                : playSection
-                ? "PlaySection"
-                : buttonsContainer
-                ? "ButtonsContainer"
-                : "GameInfoRow"
+                  ? "Header"
+                  : playSection
+                    ? "PlaySection"
+                    : buttonsContainer
+                      ? "ButtonsContainer"
+                      : "GameInfoRow"
             } at index ${spliceIndex}`,
           );
         } catch (error) {
@@ -1258,8 +1260,8 @@ const Content: FC = () => {
       store === "epic"
         ? t("storeConnections.epicGames")
         : store === "amazon"
-        ? t("storeConnections.amazonGames")
-        : t("storeConnections.gog");
+          ? t("storeConnections.amazonGames")
+          : t("storeConnections.gog");
 
     try {
       let methodName: string;

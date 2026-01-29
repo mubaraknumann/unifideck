@@ -429,6 +429,7 @@ build_local() {
         "bin/winetricks_gog.py"
         "bin/umu_lookup.py"
         "bin/galaxy_stub.py"
+        "bin/gog_set_language.py"
         "bin/stubs/GalaxyCommunication.exe"
         "py_modules/pip/__init__.py"
         "steamgriddb_client.py"

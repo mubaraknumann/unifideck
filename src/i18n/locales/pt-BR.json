@@ -140,6 +140,7 @@
     "uninstallingMessageProton": "Desinstalando {{title}} e arquivos Proton...",
     "uninstallComplete": "Desinstalação Concluída!",
     "uninstallCompleteMessage": "{{title}} removido.",
+    "uninstallCompleteMessageProton": "{{title}} removido (incluindo arquivos Proton).",
     "installComplete": "Instalação Concluída!",
     "installCompleteMessage": "{{title}} está pronto para jogar. Reinicie o Steam para vê-lo na biblioteca.",
     "syncComplete": "Sincronização Concluída!",

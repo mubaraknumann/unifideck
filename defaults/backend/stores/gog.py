@@ -1101,7 +1101,7 @@ class GOGAPIClient:
         
         info_cmd = [
             self.gogdl_bin, '--auth-config-path', self.gogdl_config_path,
-            'info', '--platform', 'linux', '--lang', preferred_lang, game_id
+            'info', '--platform', 'linux', game_id
         ]
         proc = await asyncio.create_subprocess_exec(*info_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=self._get_gogdl_env())
         stdout, stderr = await proc.communicate()
@@ -1111,7 +1111,7 @@ class GOGAPIClient:
             platform = 'windows'
             info_cmd = [
                 self.gogdl_bin, '--auth-config-path', self.gogdl_config_path,
-                'info', '--platform', 'windows', '--lang', preferred_lang, game_id
+                'info', '--platform', 'windows', game_id
             ]
             proc = await asyncio.create_subprocess_exec(*info_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=self._get_gogdl_env())
             stdout, stderr = await proc.communicate()
@@ -1258,22 +1258,26 @@ class GOGAPIClient:
         # This ensures we always attempted to download at least the English version.
         
         # CRITICAL FIX: Delete manifest AGAIN right before download
-        if install_mode == 'download':
-            manifest_locations = [
-                os.path.join(self.gogdl_config_dir, "heroic_gogdl", "manifests", game_id),
-                os.path.join(os.path.dirname(self.gogdl_config_dir), "heroic_gogdl", "manifests", game_id),
-                os.path.join(self.gogdl_config_dir, "manifests", game_id),
-                os.path.join(os.path.dirname(self.gogdl_config_dir), "gogdl", "manifests", game_id),
-            ]
-            for manifest_path in manifest_locations:
-                if os.path.exists(manifest_path):
-                    try:
-                        os.remove(manifest_path)
-                        logger.info(f"[GOG] Pre-download: cleared manifest recreated by gogdl info: {manifest_path}")
-                    except Exception as e:
-                        logger.warning(f"[GOG] Pre-download: could not clear manifest {manifest_path}: {e}")
+        # gogdl info creates a manifest that can override our --lang flags
+        # Delete for BOTH download and repair modes to ensure correct language
+        manifest_locations = [
+            os.path.join(self.gogdl_config_dir, "heroic_gogdl", "manifests", game_id),
+            os.path.join(os.path.dirname(self.gogdl_config_dir), "heroic_gogdl", "manifests", game_id),
+            os.path.join(self.gogdl_config_dir, "manifests", game_id),
+            os.path.join(os.path.dirname(self.gogdl_config_dir), "gogdl", "manifests", game_id),
+        ]
+        for manifest_path in manifest_locations:
+            if os.path.exists(manifest_path):
+                try:
+                    os.remove(manifest_path)
+                    logger.info(f"[GOG] Pre-download: cleared manifest recreated by gogdl info: {manifest_path}")
+                except Exception as e:
+                    logger.warning(f"[GOG] Pre-download: could not clear manifest {manifest_path}: {e}")
         
         logger.info(f"[GOG] Using {install_mode} mode with path: {gogdl_path}")
+        
+        # DEBUG: Log the full command to diagnose language issues
+        logger.info(f"[GOG] Full command: {' '.join(cmd)}")
         
         # Redirect stderr to stdout to capture logging output from gogdl
         proc = await asyncio.create_subprocess_exec(

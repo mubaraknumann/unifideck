@@ -140,6 +140,7 @@
     "uninstallingMessageProton": "{{title}} en Proton-bestanden verwijderen...",
     "uninstallComplete": "Verwijderen voltooid",
     "uninstallCompleteMessage": "{{title}} verwijderd.",
+    "uninstallCompleteMessageProton": "{{title}} verwijderd (inclusief Proton-bestanden).",
     "installComplete": "Installatie Voltooid!",
     "installCompleteMessage": "{{title}} is klaar om te spelen. Herstart Steam om het in je bibliotheek te zien.",
     "syncComplete": "Synchronisatie Voltooid!",

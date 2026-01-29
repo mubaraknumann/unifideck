@@ -143,6 +143,7 @@
     "uninstallingMessageProton": "{{title}} ve Proton dosyaları kaldırılıyor...",
     "uninstallComplete": "Kaldırma Tamamlandı!",
     "uninstallCompleteMessage": "{{title}} kaldırıldı.",
+    "uninstallCompleteMessageProton": "{{title}} kaldırıldı (Proton dosyaları dahil).",
     "installComplete": "Kurulum Tamamlandı!",
     "installCompleteMessage": "{{title}} oynamaya hazır. Kütüphanenizde görmek için Steam'i yeniden başlatın.",
     "syncComplete": "Senkronizasyon Tamamlandı!",

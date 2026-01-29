@@ -960,6 +960,15 @@ except Exception as e:
         export PROTON_ENABLE_NVAPI="1"
         export DXVK_NVAPI_ALLOW_OTHER_DRIVERS="1"
 
+        # === LANGUAGE FIX: Set game language based on Unifideck preference ===
+        # GOG games read language from goggame-*.info in the install directory.
+        # This modifies that file to use the user's preferred language.
+        GOG_LANG_SCRIPT="$PLUGIN_DIR/bin/gog_set_language.py"
+        if [ -f "$GOG_LANG_SCRIPT" ]; then
+            log "[Language] Setting game language based on Unifideck preference..."
+            python3 "$GOG_LANG_SCRIPT" "$GAME_ID" "$WORK_DIR" >> "$HOME/.local/share/unifideck/gog_language.log" 2>&1 || true
+        fi
+
         CMD_STR="$PYTHON_BIN $UMU_WRAPPER \"$EXE_PATH\""
         log "Executing: $CMD_STR"
 
