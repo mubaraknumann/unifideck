@@ -112,10 +112,25 @@ class DownloadQueue:
         # Ensure directories exist
         os.makedirs(os.path.dirname(self.QUEUE_FILE), exist_ok=True)
         
+        # CLEANUP: Kill any orphaned download processes from previous session
+        self.cleanup_processes()
+        
         # Load persisted queue
         self._load()
         
         logger.info(f"[DownloadQueue] Initialized with {len(self.queue)} queued items, plugin_dir={plugin_dir}")
+
+    def cleanup_processes(self):
+        """Kill any lingering gogdl/legendary/nile processes from previous session"""
+        try:
+            # Simple kill by name - safer than PID which might be reused
+            # We want to kill these specific binaries that might be hung
+            subprocess.run(['pkill', '-f', 'gogdl'], capture_output=True)
+            subprocess.run(['pkill', '-f', 'legendary'], capture_output=True)
+            subprocess.run(['pkill', '-f', 'nile'], capture_output=True)
+            logger.info("[DownloadQueue] Cleaned up orphaned download processes")
+        except Exception as e:
+            logger.warning(f"[DownloadQueue] Error cleaning orphaned processes: {e}")
 
     def _load(self) -> None:
         """Load queue from persistent storage"""
@@ -153,10 +168,29 @@ class DownloadQueue:
                     self._save()  # Persist the cleanup
                         
                 logger.info(f"[DownloadQueue] Loaded {len(self.queue)} queue, {len(self.finished)} finished")
+                
+                # Auto-start processing if queue is not empty
+                # Note: We also expose start_queue() for explicit calling from main.py
+                if self.queue and self.state == "idle":
+                    logger.info("[DownloadQueue] Auto-starting download queue on init load")
+                    asyncio.create_task(self._process_queue())
         except Exception as e:
             logger.error(f"[DownloadQueue] Error loading queue: {e}")
             self.queue = []
             self.finished = []
+
+    def start_queue(self):
+        """Explicitly start the download queue logic if it contains items and is idle.
+        
+        Called from main.py on plugin load to ensure resumption.
+        """
+        if self.queue and self.state == "idle":
+             logger.info("[DownloadQueue] Explicitly starting queue processing")
+             asyncio.create_task(self._process_queue())
+        elif self.queue:
+             logger.info(f"[DownloadQueue] Queue has items but state is {self.state}, not starting")
+        else:
+             logger.info("[DownloadQueue] Queue is empty, nothing to start")
 
     def _save(self) -> None:
         """Save queue to persistent storage"""

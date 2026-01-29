@@ -103,7 +103,7 @@
     "deleting": "Удаление..."
   },
   "installButton": {
-    "install": "⬇ Установить {{title}}",
+    "install": "Установить {{title}}",
     "uninstall": "Удалить {{title}}",
     "cancel": "✖ Отмена",
     "processing": "Обработка...",

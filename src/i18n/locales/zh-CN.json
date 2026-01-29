@@ -108,7 +108,7 @@
     "deleting": "正在删除..."
   },
   "installButton": {
-    "install": "⬇ 安装 {{title}}",
+    "install": "安装 {{title}}",
     "uninstall": "卸载 {{title}}",
     "cancel": "✖ 取消",
     "processing": "正在处理...",

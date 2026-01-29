@@ -129,7 +129,7 @@
     "deleting": "삭제 중..."
   },
   "installButton": {
-    "install": "⬇ {{title}} 설치",
+    "install": "{{title}} 설치",
     "uninstall": "{{title}} 제거",
     "cancel": "✖ 취소",
     "processing": "처리 중...",

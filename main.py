@@ -30,8 +30,8 @@ try:
 except ImportError:
     STEAMGRIDDB_AVAILABLE = False
 
-# Import Download Manager
-from download_manager import get_download_queue, DownloadQueue
+# Import Download Manager (modular backend)
+from backend.download.manager import get_download_queue, DownloadQueue
 
 # Import Cloud Save Manager
 from cloud_save_manager import CloudSaveManager
@@ -2727,6 +2727,11 @@ class Plugin:
         logger.info(f"[INIT] Initializing DownloadQueue with plugin_dir={DECKY_PLUGIN_DIR}")
         self.download_queue = get_download_queue(DECKY_PLUGIN_DIR)
         
+        # STARTUP: Backend DownloadQueue handles cleanup and auto-resume internally
+        # - cleanup_processes() is called automatically in __init__
+        # - start_queue() is called automatically in _load() if queue has items
+        logger.info("[INIT] DownloadQueue initialized with auto-cleanup and auto-resume")
+        
         # Set callback for when downloads complete
         async def on_download_complete(item):
             """Mark game as installed when download completes
@@ -2849,7 +2854,7 @@ class Plugin:
             # FIX 1: Propagate registration failures to download status
             # This ensures users see an error in the UI instead of 'completed'
             if not registration_success:
-                from download_manager import DownloadStatus
+                from backend.download.manager import DownloadStatus
                 item.status = DownloadStatus.ERROR
                 item.error_message = error_message or "Failed to register game after download"
                 logger.error(f"[DownloadComplete] REGISTRATION FAILED for {item.game_title}: {item.error_message}")

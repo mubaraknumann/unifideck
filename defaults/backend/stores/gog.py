@@ -1305,7 +1305,21 @@ class GOGAPIClient:
         }
         
         while True:
-            line = await proc.stdout.readline()
+            try:
+                line = await asyncio.wait_for(proc.stdout.readline(), timeout=120.0)
+            except asyncio.TimeoutError:
+                logger.warning(f"[GOG] Download stalled (no output for 120s) - terminating gogdl")
+                try:
+                    proc.terminate()
+                    # Give it a moment to die gracefully
+                    await asyncio.sleep(1)
+                    if proc.returncode is None:
+                        proc.kill()
+                except Exception as e:
+                    logger.error(f"[GOG] Error terminating stalled process: {e}")
+                
+                return {'success': False, 'error': 'Download stalled (connection timeout)'}
+
             if not line:
                 break
                 

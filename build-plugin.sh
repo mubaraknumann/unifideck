@@ -314,7 +314,7 @@ build_with_cli() {
     cp "$SCRIPT_DIR/rollup.config.mjs" "$STAGING_PLUGIN/"
     cp "$SCRIPT_DIR/vdf_utils.py" "$STAGING_PLUGIN/"
     cp "$SCRIPT_DIR/steamgriddb_client.py" "$STAGING_PLUGIN/"
-    cp "$SCRIPT_DIR/download_manager.py" "$STAGING_PLUGIN/"
+    # Note: download_manager.py is now in defaults/backend/download/manager.py (included via defaults/ copy above)
     cp "$SCRIPT_DIR/cloud_save_manager.py" "$STAGING_PLUGIN/"
     cp "$SCRIPT_DIR/steam_user_utils.py" "$STAGING_PLUGIN/"
     cp "$SCRIPT_DIR/launch_options_parser.py" "$STAGING_PLUGIN/"
@@ -394,7 +394,7 @@ build_local() {
     cp "$SCRIPT_DIR/package.json" "$PLUGIN_DIR/"
     cp "$SCRIPT_DIR/vdf_utils.py" "$PLUGIN_DIR/"
     cp "$SCRIPT_DIR/steamgriddb_client.py" "$PLUGIN_DIR/"
-    cp "$SCRIPT_DIR/download_manager.py" "$PLUGIN_DIR/"
+    # Note: download_manager.py is now in defaults/backend/download/manager.py (included via defaults/ copy above)
     cp "$SCRIPT_DIR/cloud_save_manager.py" "$PLUGIN_DIR/"
     cp "$SCRIPT_DIR/steam_user_utils.py" "$PLUGIN_DIR/"
     cp "$SCRIPT_DIR/launch_options_parser.py" "$PLUGIN_DIR/"
@@ -406,7 +406,7 @@ build_local() {
     log_info "Verifying critical files..."
     CRITICAL_FILES=(
         "main.py"
-        "download_manager.py"
+        "defaults/backend/download/manager.py"
         "plugin.json"
         "dist/index.js"
         "lib/vdf/__init__.py"

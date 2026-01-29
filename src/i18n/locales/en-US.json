@@ -103,7 +103,7 @@
     "deleting": "Deleting..."
   },
   "installButton": {
-    "install": "⬇ Install {{title}}",
+    "install": "Install {{title}}",
     "uninstall": "Uninstall {{title}}",
     "cancel": "✖ Cancel",
     "processing": "Processing...",

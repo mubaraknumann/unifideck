@@ -103,7 +103,7 @@
     "deleting": "削除中..."
   },
   "installButton": {
-    "install": "⬇ インストール {{title}}",
+    "install": "インストール {{title}}",
     "uninstall": "{{title}} をアンインストール",
     "cancel": "✖ キャンセル",
     "processing": "処理中...",

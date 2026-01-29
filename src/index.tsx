@@ -45,6 +45,7 @@ import { LanguageSelector } from "./components/LanguageSelector";
 import StoreConnections from "./components/settings/StoreConnections";
 import { Store } from "./types/store";
 import LibrarySync from "./components/settings/LibrarySync";
+import StoreIcon from "./components/StoreIcon";
 import { SyncProgress } from "./types/syncProgress";
 
 // ========== INSTALL BUTTON FEATURE ==========
@@ -540,7 +541,12 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
           // Add focus visual feedback for controller users
           focusable={true}
         >
-          {processing ? t("installButton.processing") : buttonText}
+          {processing ? t("installButton.processing") : (
+            <>
+              <StoreIcon store={gameInfo.store} size="16px" color="#ffffff" />
+              {buttonText}
+            </>
+          )}
         </DialogButton>
       </Focusable>
     </>

@@ -106,7 +106,7 @@
     "deleting": "Siliniyor..."
   },
   "installButton": {
-    "install": "⬇ {{title}} Kur",
+    "install": "{{title}} Kur",
     "uninstall": "{{title}} Kaldır",
     "cancel": "✖ İptal",
     "processing": "İşleniyor...",
