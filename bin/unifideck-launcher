@@ -781,8 +781,24 @@ if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]] || \
             notify_stage "toasts.launcher.epicAuthRequired" "toasts.launcher.epicAuthRequiredMessage" "critical"
         fi
 
+        # === LANGUAGE: Read Unifideck language preference for Epic launch ===
+        EPIC_LANG="en"
+        SETTINGS_FILE="$HOME/.local/share/unifideck/settings.json"
+        if [ -f "$SETTINGS_FILE" ]; then
+            RAW_LANG=$(python3 -c "import json; print(json.load(open('$SETTINGS_FILE')).get('language', 'auto'))" 2>/dev/null || echo "auto")
+            if [ "$RAW_LANG" != "auto" ] && [ -n "$RAW_LANG" ]; then
+                # Extract 2-letter code: "en-US" -> "en", "de-DE" -> "de"
+                EPIC_LANG=$(echo "$RAW_LANG" | cut -d'-' -f1)
+                log "[Language] Using Unifideck language for Epic: $EPIC_LANG (from $RAW_LANG)"
+            else
+                log "[Language] Unifideck language set to auto, defaulting to: $EPIC_LANG"
+            fi
+        else
+            log "[Language] No Unifideck settings found, defaulting to: $EPIC_LANG"
+        fi
+
         # Construct the legendary launch command
-        CMD="$LEGENDARY_BIN launch $GAME_ID --no-wine --wrapper \"$PYTHON_BIN $UMU_WRAPPER\" --language en"
+        CMD="$LEGENDARY_BIN launch $GAME_ID --no-wine --wrapper \"$PYTHON_BIN $UMU_WRAPPER\" --language $EPIC_LANG"
         log "Executing: $CMD"
 
         # === CLOUD SAVE: Download before launch ===
@@ -792,7 +808,7 @@ if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]] || \
         notify_stage "toasts.launcher.launchingGame" "toasts.launcher.startingEpicGame" "low"
 
         # Execute legendary (wait for exit, don't use exec)
-        "$LEGENDARY_BIN" launch "$GAME_ID" --no-wine --wrapper "$PYTHON_BIN $UMU_WRAPPER" --language en 2>>"$LOG_FILE"
+        "$LEGENDARY_BIN" launch "$GAME_ID" --no-wine --wrapper "$PYTHON_BIN $UMU_WRAPPER" --language $EPIC_LANG 2>>"$LOG_FILE"
 
         GAME_EXIT_CODE=$?
 
@@ -854,6 +870,13 @@ except Exception as e:
         else
             log "ERROR: umu-run not found"
             exit 1
+        fi
+
+        # === LANGUAGE: Set Windows locale in prefix for Amazon games ===
+        AMAZON_LANG_SCRIPT="$PLUGIN_DIR/bin/amazon_set_language.py"
+        if [ -f "$AMAZON_LANG_SCRIPT" ]; then
+            log "[Language] Setting Windows locale for Amazon game..."
+            python3 "$AMAZON_LANG_SCRIPT" "$PREFIX_PATH" >> "$LOG_FILE" 2>&1 || true
         fi
 
         # Build the command with any Amazon-specific args
