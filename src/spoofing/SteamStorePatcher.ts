@@ -1,22 +1,5 @@
 import { call } from "@decky/api";
 
-interface SteamAppStore {
-  GetAppOverviewByAppID(appId: number): any;
-  GetOwnedApps(): any[];
-}
-
-interface SteamAppDetailsStore {
-  GetAppDetails(appId: number): any;
-  GetAppData(appId: number): any;
-}
-
-declare global {
-  interface Window {
-    appStore: SteamAppStore;
-    appDetailsStore: SteamAppDetailsStore;
-  }
-}
-
 // Cache for shortcut -> real Steam App ID mappings
 let steamAppIdMappings: Record<number, number> = {};
 

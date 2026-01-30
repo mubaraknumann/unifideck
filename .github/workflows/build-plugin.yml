@@ -18,6 +18,9 @@ jobs:
         with:
           version: 9
 
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y cabextract
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
