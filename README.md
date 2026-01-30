@@ -161,7 +161,7 @@ This project builds upon numerous open source projects, libraries, and tools. We
 
 - **[legendary](https://github.com/derrod/legendary)** - For authenticating, syncing library, downloading, and launching Epic Games Store titles
 - **[umu-launcher](https://github.com/Open-Wine-Components/umu-launcher)** - For running Windows games (.exe) with Proton compatibility layer
-- **[innoextract](https://constexpr.org/innoextract/)** - For extracting GOG Windows game installers without Wine
+- **[comet](https://github.com/imLinguin/comet)** - GOG Galaxy SDK replacement for achievements and multiplayer features
 
 ### Python Libraries
 

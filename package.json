@@ -80,6 +80,11 @@
       "sha256hash": "3a8c080c864a5952a01d7661693c60727b34a355ae21e9eab2047096b606c1df",
       "url": "https://github.com/imLinguin/nile/releases/download/v1.1.2/nile_linux_x86_64",
       "name": "nile"
+    },
+    {
+      "sha256hash": "0019dfc4b32d63c1392aa264aed2253c1e0c2fb09216f8e2cc269bbfb8bb49b5",
+      "url": "https://github.com/imLinguin/comet/releases/download/v0.3.2/comet-linux-x86_64",
+      "name": "comet/comet"
     }
   ]
 }
