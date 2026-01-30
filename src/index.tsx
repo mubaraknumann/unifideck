@@ -36,6 +36,10 @@ import {
 } from "./tabs";
 
 import { syncUnifideckCollections } from "./spoofing/CollectionManager";
+import {
+  loadSteamAppIdMappings,
+  patchSteamStores,
+} from "./spoofing/SteamStorePatcher";
 
 // Import Downloads feature components
 import { DownloadsTab } from "./components/DownloadsTab";
@@ -1597,6 +1601,9 @@ const Content: FC = () => {
   );
 };
 
+// Store unpatch function for Steam stores
+let unpatchSteamStores: (() => void) | null = null;
+
 export default definePlugin(() => {
   console.log("[Unifideck] Plugin loaded");
 
@@ -1609,6 +1616,11 @@ export default definePlugin(() => {
       }
     })
     .catch(() => {}); // Silently ignore if backend not ready
+
+  // Load Steam App ID mappings and patch stores for game info spoofing
+  loadSteamAppIdMappings().then(() => {
+    unpatchSteamStores = patchSteamStores();
+  });
 
   // Patch the library to add Unifideck tabs (All, Installed, Great on Deck, Steam, Epic, GOG, Amazon)
   // This uses TabMaster's approach: intercept useMemo hook to inject custom tabs
@@ -1731,6 +1743,12 @@ export default definePlugin(() => {
     ),
     onDismount() {
       console.log("[Unifideck] Plugin unloading");
+
+      // Unpatch Steam stores
+      if (unpatchSteamStores) {
+        unpatchSteamStores();
+        unpatchSteamStores = null;
+      }
 
       // Stop launcher toast polling
       const toastInterval = (window as any).__unifideck_toast_interval;

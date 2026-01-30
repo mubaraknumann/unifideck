@@ -4692,6 +4692,28 @@ class Plugin:
                 'amazon': 'error'
             }
 
+    async def get_real_steam_appid_mappings(self) -> Dict[str, Any]:
+        """
+        Get the mapping of shortcut app IDs to real Steam app IDs.
+        Used by frontend to patch Steam's data stores.
+
+        Returns:
+            Dict with 'mappings' key containing { shortcutAppId: realSteamAppId }
+        """
+        try:
+            cache = load_real_steam_appid_cache()  # Uses existing function from line 162
+            return {
+                "success": True,
+                "mappings": cache  # Dict[int, int]
+            }
+        except Exception as e:
+            logging.error(f"Error loading Steam App ID mappings: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "mappings": {}
+            }
+
     async def start_epic_auth(self) -> Dict[str, Any]:
         """Start Epic Games OAuth authentication"""
         return await self.epic.start_auth()

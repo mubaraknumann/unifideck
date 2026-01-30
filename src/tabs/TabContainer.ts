@@ -281,6 +281,8 @@ class TabManager {
           appId: g.appId,
           store: g.store as "epic" | "gog" | "amazon",
           isInstalled: g.isInstalled,
+          steamAppId: g.steamAppId,  // SteamGridDB ID for ProtonDB
+          realSteamAppId: g.realSteamAppId,  // Real Steam Store App ID for spoofing
         }));
         updateUnifideckCache(cacheData);
 
