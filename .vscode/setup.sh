@@ -68,6 +68,6 @@ if ! test -f "$CLI_INSTALLED"; then
         fi
         
         chmod +x "$(pwd)"/cli/decky
-        echo "Decky CLI tool is now installed and you can build plugins into easy zip files using the \"Build\" Task in VSCode."
+        echo "Decky CLI tool is now installed and you can build plugins into easy zip files using the \"Build Zip\" Task in vscodium."
     fi
 fi
