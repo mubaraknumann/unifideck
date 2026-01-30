@@ -59,6 +59,7 @@
       ]
     }
   },
+  "remote_binary_bundling" : true,
   "remote_binary": [
     {
       "sha256hash": "5663b221d46ffd98ed4ca1bbaa803af9ac22b371fa1af8261b11758cb9b20893",
