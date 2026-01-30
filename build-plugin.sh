@@ -298,7 +298,7 @@ build_with_cli() {
     mkdir -p "$STAGING_PLUGIN"
     
     # Copy only required directories
-    cp -r "$SCRIPT_DIR/lib" "$STAGING_PLUGIN/"
+    cp -r "$SCRIPT_DIR/backend" "$STAGING_PLUGIN/"
     cp -r "$SCRIPT_DIR/bin" "$STAGING_PLUGIN/"
     cp -r "$SCRIPT_DIR/defaults" "$STAGING_PLUGIN/"
     cp -r "$SCRIPT_DIR/py_modules" "$STAGING_PLUGIN/"
@@ -382,7 +382,7 @@ build_local() {
     log_info "Copying files..."
     
     # Copy required directories
-    cp -r "$SCRIPT_DIR/lib" "$PLUGIN_DIR/"
+    cp -r "$SCRIPT_DIR/backend" "$PLUGIN_DIR/"
     cp -r "$SCRIPT_DIR/dist" "$PLUGIN_DIR/"
     cp -r "$SCRIPT_DIR/bin" "$PLUGIN_DIR/"
     cp -r "$SCRIPT_DIR/defaults" "$PLUGIN_DIR/"
