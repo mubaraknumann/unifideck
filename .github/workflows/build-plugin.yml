@@ -27,8 +27,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build plugin (equivalent to .vscode/build.sh)
-        run: bash .vscode/build.sh
+      - name: Build frontend
+        run: pnpm run build
+
+      - name: Build plugin
+        env:
+          FORCE_LOCAL_BUILD: true
+        run: bash build-plugin.sh dev
 
       - name: Upload plugin artifact
         uses: actions/upload-artifact@v4

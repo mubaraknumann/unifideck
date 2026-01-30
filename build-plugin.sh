@@ -517,6 +517,13 @@ main() {
     prebuild_binaries
     sync_version
     
+    # Check if forced to use local build (e.g., in CI)
+    if [ "${FORCE_LOCAL_BUILD:-}" = "true" ]; then
+        log_info "Forced local build mode..."
+        build_local
+        return 0
+    fi
+    
     # Check if Decky CLI is available
     if check_decky_cli; then
         # Check for container engine
