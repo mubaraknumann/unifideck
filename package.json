@@ -58,5 +58,22 @@
         "react-dom"
       ]
     }
-  }
+  },
+  "remote_binary": [
+    {
+      "sha256hash": "5663b221d46ffd98ed4ca1bbaa803af9ac22b371fa1af8261b11758cb9b20893",
+      "url": "https://github.com/Heroic-Games-Launcher/legendary/releases/download/0.20.38/legendary_linux_x86_64",
+      "name": "legendary"
+    },
+    {
+      "sha256hash": "01d7e42821d5310cdc59f09d1b573af7a1e2e35f56741a1076dab9da05fd0cd8",
+      "url": "https://github.com/Heroic-Games-Launcher/heroic-gogdl/releases/download/v1.1.2/gogdl_linux_x86_64",
+      "name": "gogdl"
+    },
+    {
+      "sha256hash": "ee2ff9f5a804d401993c9e3c3e443083827d0844c6ff54acec3771deea2cc2c3",
+      "url": "https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks",
+      "name": "winetricks"
+    }
+  ]
 }

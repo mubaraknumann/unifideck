@@ -32,10 +32,14 @@ jobs:
       - name: Build frontend
         run: pnpm run build
 
-      - name: Build plugin
-        env:
-          FORCE_LOCAL_BUILD: true
-        run: bash build-plugin.sh dev
+      - name: Download Decky CLI
+        run: |
+          mkdir -p cli
+          curl -L -o cli/decky https://github.com/SteamDeckHomebrew/cli/releases/latest/download/decky-linux-x64
+          chmod +x cli/decky
+
+      - name: Build plugin with Decky CLI
+        run: cli/decky plugin build .
 
       - name: Upload plugin artifact
         uses: actions/upload-artifact@v4
