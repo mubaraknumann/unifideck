@@ -88,7 +88,7 @@ bin/legendary
 bin/gogdl
 bin/winetricks
 bin/nile
-bin/comet/comet
+bin/comet
 
 # EpicGamesLauncher stub (should be committed if custom)
 # bin/EpicGamesLauncher.exe
