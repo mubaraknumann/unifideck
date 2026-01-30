@@ -139,7 +139,7 @@ To add a new language, create a JSON file in `src/i18n/locales/` using `en-US.js
 
 ## Support
 
-If you enjoy this plugin and want to support its development, you can:
+(Since I have received multiple donation queries) If you enjoy this plugin and want to support its development, you can:
 
 - [Become a GitHub Sponsor](https://github.com/sponsors/mubaraknumann)
 - [Buy me a coffee on Ko-fi](https://ko-fi.com/mubaraknumann)
