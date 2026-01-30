@@ -3,7 +3,6 @@ name: Build plugin artifact
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-  push:
 
 jobs:
   build:
