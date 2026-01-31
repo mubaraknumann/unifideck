@@ -83,11 +83,12 @@ research/
 # Visual C++ redistributable
 vc_redist.x64.exe
 
-# Downloaded by build-plugin.sh prebuild step
+# Downloaded by Decky CLI via remote_binary in package.json
 bin/legendary
 bin/gogdl
 bin/winetricks
-bin/cabextract
+bin/nile
+bin/comet
 
 # EpicGamesLauncher stub (should be committed if custom)
 # bin/EpicGamesLauncher.exe

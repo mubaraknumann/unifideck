@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Delegate to the main build script which handles permissions, versioning, and dependencies correctly
-SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
-ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+CLI_LOCATION="$(pwd)/cli"
+echo "Building plugin in $(pwd)"
+printf "Please input sudo password to proceed.\n"
 
-# Execute the main build script in dev mode
-cd "$ROOT_DIR"
-chmod +x build-plugin.sh
-./build-plugin.sh dev
+# read -s sudopass
+
+# printf "\n"
+
+echo $sudopass | sudo -E $CLI_LOCATION/decky plugin build $(pwd)
