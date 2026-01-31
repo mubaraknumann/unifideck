@@ -12,7 +12,6 @@ import {
   playSectionClasses,
   appDetailsHeaderClasses,
   DialogButton,
-  Focusable,
   ToggleField,
   showModal,
   ConfirmModal,
@@ -39,6 +38,7 @@ import { syncUnifideckCollections } from "./spoofing/CollectionManager";
 import {
   loadSteamAppIdMappings,
   patchSteamStores,
+  injectGameToAppinfo,
 } from "./spoofing/SteamStorePatcher";
 
 // Import Downloads feature components
@@ -50,6 +50,7 @@ import StoreConnections from "./components/settings/StoreConnections";
 import { Store } from "./types/store";
 import LibrarySync from "./components/settings/LibrarySync";
 import StoreIcon from "./components/StoreIcon";
+import GameInfoPanel from "./components/GameInfoPanel";
 import { SyncProgress } from "./types/syncProgress";
 
 // ========== INSTALL BUTTON FEATURE ==========
@@ -521,38 +522,53 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
     };
   }
 
+  // CSS for controller focus state (.gpfocus is automatically applied by Steam)
+  const focusStyles = `
+    /* Controller focus state - Steam automatically applies .gpfocus */
+    .unifideck-install-button.gpfocus,
+    .unifideck-install-button:hover {
+      filter: brightness(1.2) !important;
+      box-shadow: 0 0 12px rgba(26, 159, 255, 0.8) !important;
+      transform: scale(1.02);
+      transition: all 0.15s ease;
+    }
+
+    /* Extra visibility for focus ring */
+    .unifideck-install-button.gpfocus {
+      outline: 2px solid #1a9fff !important;
+      outline-offset: 2px !important;
+    }
+  `;
+
   return (
     <>
-      {" "}
-      {/* Install/Uninstall/Cancel Button */}
-      <Focusable
+      <style>{focusStyles}</style>
+      {/* Install/Uninstall/Cancel Button - ProtonDB pattern (no Focusable wrapper) */}
+      <div
         style={{
           position: "absolute",
           top: "40px", // Aligned with ProtonDB badge row
           right: "35px",
           zIndex: 9999, // High z-index to ensure visibility above any overlays
-          // Ensure focusable container is visible
-          opacity: 1,
-          visibility: "visible",
         }}
-        // Ensure controller navigation works
-        onActivate={buttonAction}
+        className="unifideck-install-button-container"
       >
         <DialogButton
           onClick={buttonAction}
           disabled={processing}
           style={buttonStyle}
-          // Add focus visual feedback for controller users
-          focusable={true}
+          className="unifideck-install-button"
         >
-          {processing ? t("installButton.processing") : (
+          {processing ? (
+            t("installButton.processing")
+          ) : (
             <>
               <StoreIcon store={gameInfo.store} size="16px" color="#ffffff" />
               {buttonText}
             </>
           )}
         </DialogButton>
-      </Focusable>
+      </div>
     </>
   );
 };
@@ -582,6 +598,15 @@ function patchGameDetailsRoute() {
 
         if (!overview) return ret;
         const appId = overview.appid;
+
+        // DISABLED: Store patching disabled, so no metadata injection
+        // TODO: Re-enable once we figure out what's breaking Steam
+        // const isShortcut = appId > 2000000000;
+        // if (isShortcut) {
+        //   const signedAppId = appId > 0x7FFFFFFF ? appId - 0x100000000 : appId;
+        //   console.log(`[Unifideck] Game details opened for shortcut: ${appId} (signed: ${signedAppId})`);
+        //   injectGameToAppinfo(signedAppId);
+        // }
 
         try {
           // Strategy: Find the Header area (contains Play button and game info)
@@ -692,6 +717,35 @@ function patchGameDetailsRoute() {
                       : "GameInfoRow"
             } at index ${spliceIndex}`,
           );
+
+          // ========== GAME INFO PANEL INJECTION ==========
+          // For non-Steam games, inject our custom GameInfoPanel to display metadata
+          // Non-Steam shortcuts have appId > 2000000000
+          const isNonSteamGame = appId > 2000000000;
+          console.log(
+            `[Unifideck] Checking GameInfoPanel injection: appId=${appId}, isNonSteamGame=${isNonSteamGame}`,
+          );
+          if (isNonSteamGame) {
+            try {
+              // Add GameInfoPanel to the same container, after InstallInfoDisplay
+              container.props.children.splice(
+                spliceIndex + 1, // Insert after InstallInfoDisplay
+                0,
+                React.createElement(GameInfoPanel, {
+                  key: `unifideck-game-info-${appId}`,
+                  appId,
+                }),
+              );
+              console.log(
+                `[Unifideck] Injected GameInfoPanel for non-Steam game ${appId}`,
+              );
+            } catch (panelError) {
+              console.error(
+                `[Unifideck] Error creating GameInfoPanel:`,
+                panelError,
+              );
+            }
+          }
         } catch (error) {
           console.error("[Unifideck] Error injecting install info:", error);
         }
@@ -1617,10 +1671,11 @@ export default definePlugin(() => {
     })
     .catch(() => {}); // Silently ignore if backend not ready
 
-  // Load Steam App ID mappings and patch stores for game info spoofing
-  loadSteamAppIdMappings().then(() => {
-    unpatchSteamStores = patchSteamStores();
-  });
+  // DISABLED: Store patching was causing Steam to hang on startup
+  // TODO: Re-enable once we figure out what's breaking Steam
+  // loadSteamAppIdMappings().then(() => {
+  //   unpatchSteamStores = patchSteamStores();
+  // });
 
   // Patch the library to add Unifideck tabs (All, Installed, Great on Deck, Steam, Epic, GOG, Amazon)
   // This uses TabMaster's approach: intercept useMemo hook to inject custom tabs

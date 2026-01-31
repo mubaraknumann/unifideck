@@ -8,7 +8,7 @@ import struct
 import json
 import aiohttp.web
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass, asdict
 from urllib.parse import parse_qs
 
@@ -72,6 +72,7 @@ if BACKEND_AVAILABLE:
 
 # Global caches for legendary CLI results (performance optimization)
 import time
+import re
 
 _legendary_installed_cache = {
     'data': None,
@@ -143,6 +144,629 @@ def save_steam_appid_cache(cache: Dict[int, int]) -> bool:
     except Exception as e:
         logger.error(f"Error saving steam_appid cache: {e}")
         return False
+
+
+# Steam Metadata Cache - stores Steam API game details for store patching
+STEAM_METADATA_CACHE_FILE = "steam_metadata_cache.json"
+
+
+def get_steam_metadata_cache_path() -> Path:
+    """Get path to Steam metadata cache file"""
+    return Path.home() / ".local" / "share" / "unifideck" / STEAM_METADATA_CACHE_FILE
+
+
+def load_steam_metadata_cache() -> Dict[int, Dict]:
+    """Load Steam metadata cache. Returns {steam_appid: metadata_dict}"""
+    cache_path = get_steam_metadata_cache_path()
+    try:
+        if cache_path.exists():
+            with open(cache_path, 'r') as f:
+                data = json.load(f)
+                return {int(k): v for k, v in data.items()}
+    except Exception as e:
+        logger.error(f"Error loading steam metadata cache: {e}")
+    return {}
+
+
+def save_steam_metadata_cache(cache: Dict[int, Dict]) -> bool:
+    """Save Steam metadata cache"""
+    cache_path = get_steam_metadata_cache_path()
+    try:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(cache_path, 'w') as f:
+            json.dump(cache, f)
+        logger.info(f"Saved {len(cache)} Steam metadata entries to cache")
+        return True
+    except Exception as e:
+        logger.error(f"Error saving steam metadata cache: {e}")
+        return False
+
+
+# RAWG Metadata Cache - stores RAWG API results keyed by game title (lowercase)
+RAWG_METADATA_CACHE_FILE = "rawg_metadata_cache.json"
+
+
+def get_rawg_metadata_cache_path() -> Path:
+    """Get path to RAWG metadata cache file"""
+    return Path.home() / ".local" / "share" / "unifideck" / RAWG_METADATA_CACHE_FILE
+
+
+def load_rawg_metadata_cache() -> Dict[str, Dict]:
+    """Load RAWG metadata cache. Returns {lowercase_title: rawg_data_dict}"""
+    cache_path = get_rawg_metadata_cache_path()
+    try:
+        if cache_path.exists():
+            with open(cache_path, 'r') as f:
+                return json.load(f)
+    except Exception as e:
+        logger.error(f"Error loading RAWG metadata cache: {e}")
+    return {}
+
+
+def save_rawg_metadata_cache(cache: Dict[str, Dict]) -> bool:
+    """Save RAWG metadata cache"""
+    cache_path = get_rawg_metadata_cache_path()
+    try:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(cache_path, 'w') as f:
+            json.dump(cache, f)
+        logger.info(f"Saved {len(cache)} RAWG metadata entries to cache")
+        return True
+    except Exception as e:
+        logger.error(f"Error saving RAWG metadata cache: {e}")
+        return False
+
+
+def sanitize_description(text: str, max_length: int = 1000) -> str:
+    """Clean up RAWG/Steam descriptions for display.
+
+    Strips markdown headers, HTML tags, fixes missing spaces, and normalizes whitespace.
+    """
+    if not text:
+        return ''
+    # Remove HTML tags
+    text = re.sub(r'<[^>]+>', '', text)
+    # Fix markdown headers with missing space (e.g. "###Plot" -> "Plot")
+    # Also strips the header markers entirely since we just want plain text
+    text = re.sub(r'^#{1,6}\s*', '', text, flags=re.MULTILINE)
+    # Remove leftover markdown bold/italic markers
+    text = re.sub(r'\*{1,3}([^*]+)\*{1,3}', r'\1', text)
+    # Fix sentences joined without space (e.g. "end.Start" -> "end. Start")
+    text = re.sub(r'([.!?])([A-Z])', r'\1 \2', text)
+    # Normalize whitespace: collapse multiple spaces/newlines into single space
+    text = re.sub(r'\s+', ' ', text).strip()
+    # Truncate to max length
+    if len(text) > max_length:
+        text = text[:max_length].rsplit(' ', 1)[0] + '...'
+    return text
+
+
+def read_steam_appinfo_vdf() -> Dict[int, Dict]:
+    """
+    Read and parse Steam's appinfo.vdf binary cache file (supports v27-v29).
+    Steam maintains this file automatically - we just read it.
+
+    Returns {app_id: sections_dict} for all apps.
+    """
+    appinfo_path = Path.home() / ".steam" / "steam" / "appcache" / "appinfo.vdf"
+    if not appinfo_path.exists():
+        appinfo_path = Path.home() / ".local" / "share" / "Steam" / "appcache" / "appinfo.vdf"
+    if not appinfo_path.exists():
+        logger.warning("Steam appinfo.vdf not found")
+        return {}
+
+    try:
+        with open(appinfo_path, 'rb') as f:
+            data = f.read()
+
+        magic = struct.unpack_from('<I', data, 0)[0]
+        logger.info(f"Reading Steam appinfo.vdf from {appinfo_path} ({len(data)} bytes, version 0x{magic:08x})")
+
+        if magic == 0x07564429:
+            return _parse_appinfo_v29(data)
+        elif magic in (0x07564427, 0x07564428):
+            return _parse_appinfo_v27(data)
+        else:
+            logger.error(f"Unsupported appinfo.vdf version: 0x{magic:08x}")
+            return {}
+    except Exception as e:
+        logger.error(f"Failed to read appinfo.vdf: {e}")
+        return {}
+
+
+def _parse_appinfo_v29(data: bytes) -> Dict[int, Dict]:
+    """Parse appinfo.vdf v29 format (string table + indexed keys)."""
+    string_table_offset = struct.unpack_from('<Q', data, 8)[0]
+
+    # Parse string table (at end of file)
+    st_offset = string_table_offset
+    string_count = struct.unpack_from('<I', data, st_offset)[0]
+    st_offset += 4
+    strings = []
+    for _ in range(string_count):
+        end = data.index(b'\x00', st_offset)
+        strings.append(data[st_offset:end].decode('utf-8', errors='replace'))
+        st_offset = end + 1
+
+    # Parse app entries (start at offset 16)
+    result = {}
+    offset = 16
+    while offset < string_table_offset:
+        app_id = struct.unpack_from('<I', data, offset)[0]
+        if app_id == 0:
+            break
+        offset += 4
+        # App header: size(4)+state(4)+last_update(4)+access_token(8)+sha1(20)+change_number(4)+sha1_binary(20) = 64
+        offset += 64
+        sections, offset = _parse_vdf_sections_indexed(data, offset, strings)
+        result[app_id] = sections
+
+    logger.info(f"Parsed {len(result)} apps from appinfo.vdf v29")
+    return result
+
+
+def _parse_appinfo_v27(data: bytes) -> Dict[int, Dict]:
+    """Parse appinfo.vdf v27/v28 format (inline string keys)."""
+    result = {}
+    offset = 8
+    while True:
+        app_id = struct.unpack_from('<I', data, offset)[0]
+        if app_id == 0:
+            break
+        offset += 4
+        # App header: size(4)+state(4)+last_update(4)+access_token(8)+sha1(20)+change_number(4) = 44
+        offset += 44
+        sections, offset = _parse_vdf_sections_inline(data, offset)
+        result[app_id] = sections
+
+    logger.info(f"Parsed {len(result)} apps from appinfo.vdf v27/v28")
+    return result
+
+
+def _parse_vdf_sections_indexed(data: bytes, offset: int, strings: list) -> tuple:
+    """Parse binary VDF with string-table-indexed keys (v29)."""
+    result = {}
+    while offset < len(data):
+        type_byte = data[offset]
+        offset += 1
+        if type_byte == 0x08:  # SECTION_END
+            break
+        key_idx = struct.unpack_from('<I', data, offset)[0]
+        offset += 4
+        key = strings[key_idx] if key_idx < len(strings) else f'_unknown_{key_idx}'
+
+        if type_byte == 0x00:  # SECTION
+            val, offset = _parse_vdf_sections_indexed(data, offset, strings)
+            result[key] = val
+        elif type_byte == 0x01:  # STRING
+            end = data.index(b'\x00', offset)
+            result[key] = data[offset:end].decode('utf-8', errors='replace')
+            offset = end + 1
+        elif type_byte == 0x02:  # INT32
+            result[key] = struct.unpack_from('<I', data, offset)[0]
+            offset += 4
+        elif type_byte == 0x07:  # INT64
+            result[key] = struct.unpack_from('<Q', data, offset)[0]
+            offset += 8
+    return result, offset
+
+
+def _parse_vdf_sections_inline(data: bytes, offset: int) -> tuple:
+    """Parse binary VDF with inline string keys (v27/v28)."""
+    result = {}
+    while offset < len(data):
+        type_byte = data[offset]
+        offset += 1
+        if type_byte == 0x08:  # SECTION_END
+            break
+        end = data.index(b'\x00', offset)
+        key = data[offset:end].decode('utf-8', errors='replace')
+        offset = end + 1
+
+        if type_byte == 0x00:  # SECTION
+            val, offset = _parse_vdf_sections_inline(data, offset)
+            result[key] = val
+        elif type_byte == 0x01:  # STRING
+            end = data.index(b'\x00', offset)
+            result[key] = data[offset:end].decode('utf-8', errors='replace')
+            offset = end + 1
+        elif type_byte == 0x02:  # INT32
+            result[key] = struct.unpack_from('<I', data, offset)[0]
+            offset += 4
+        elif type_byte == 0x07:  # INT64
+            result[key] = struct.unpack_from('<Q', data, offset)[0]
+            offset += 8
+    return result, offset
+
+
+# ============================================================================
+# appinfo.vdf v29 ENCODER (for writing/injecting games)
+# ============================================================================
+
+def write_steam_appinfo_vdf(apps_data: Dict[int, Dict]) -> bool:
+    """
+    Write apps data to Steam's appinfo.vdf in v29 format.
+    Returns True if successful.
+    """
+    import shutil
+    import time as time_module
+
+    appinfo_path = Path.home() / ".steam" / "steam" / "appcache" / "appinfo.vdf"
+    if not appinfo_path.exists():
+        appinfo_path = Path.home() / ".local" / "share" / "Steam" / "appcache" / "appinfo.vdf"
+
+    if not appinfo_path.exists():
+        logger.error("Steam appinfo.vdf not found for writing")
+        return False
+
+    # Create backup on first write
+    backup_path = appinfo_path.with_suffix('.vdf.unifideck_backup')
+    if not backup_path.exists():
+        shutil.copy2(appinfo_path, backup_path)
+        logger.info(f"Created appinfo.vdf backup: {backup_path}")
+
+    try:
+        # Encode to bytes
+        data = _encode_appinfo_v29(apps_data, time_module)
+
+        # Write atomically (write to temp, then rename)
+        temp_path = appinfo_path.with_suffix('.vdf.tmp')
+        with open(temp_path, 'wb') as f:
+            f.write(data)
+        temp_path.replace(appinfo_path)
+
+        logger.info(f"Wrote {len(apps_data)} apps to appinfo.vdf ({len(data)} bytes)")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to write appinfo.vdf: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
+def _dict_to_text_vdf(data: Dict, tabs: int = 0) -> bytes:
+    """Convert dict to text VDF format for checksum calculation.
+
+    Steam requires a text VDF checksum that matches a specific format.
+    This replicates the format used by Steam's internal VDF serialization.
+    """
+    output = b""
+    tab_str = b"\t" * tabs
+
+    for key, value in data.items():
+        if isinstance(key, bytes):
+            continue  # Skip internal keys
+        key_bytes = str(key).replace("\\", "\\\\").encode()
+
+        if isinstance(value, dict):
+            output += tab_str + b'"' + key_bytes + b'"\n'
+            output += tab_str + b"{\n"
+            output += _dict_to_text_vdf(value, tabs + 1)
+            output += tab_str + b"}\n"
+        else:
+            val_bytes = str(value).replace("\\", "\\\\").encode()
+            output += tab_str + b'"' + key_bytes + b'"\t\t"' + val_bytes + b'"\n'
+
+    return output
+
+
+def _get_text_checksum(sections: Dict) -> bytes:
+    """Calculate SHA1 of text VDF representation (required by Steam v29 format)."""
+    import hashlib
+    text_vdf = _dict_to_text_vdf(sections)
+    return hashlib.sha1(text_vdf).digest()
+
+
+def _encode_appinfo_v29(apps_data: Dict[int, Dict], time_module) -> bytes:
+    """Encode apps data to v29 binary format."""
+    import hashlib
+    import io
+
+    # Build string table from all keys (collect unique strings)
+    strings_set = set()
+
+    def collect_strings(d):
+        for k, v in d.items():
+            if isinstance(k, str):
+                strings_set.add(k)
+            if isinstance(v, dict):
+                collect_strings(v)
+
+    for app_data in apps_data.values():
+        collect_strings(app_data)
+
+    strings = sorted(strings_set)
+    string_to_idx = {s: i for i, s in enumerate(strings)}
+
+    # Encode app entries
+    apps_buf = io.BytesIO()
+    for app_id, sections in sorted(apps_data.items()):
+        if isinstance(app_id, bytes):
+            continue  # Skip internal keys like b'__vdf_version'
+
+        # App ID (4 bytes)
+        apps_buf.write(struct.pack('<I', app_id))
+
+        # Encode binary VDF sections first to calculate checksums
+        sections_bytes = _encode_vdf_sections_indexed(sections, string_to_idx)
+
+        # Calculate BOTH checksums (Steam v29 requires both!)
+        checksum_text = _get_text_checksum(sections)  # SHA1 of text VDF representation
+        checksum_binary = hashlib.sha1(sections_bytes).digest()  # SHA1 of binary sections
+
+        # Size = rest of header (60 bytes after appid+size) + sections
+        # Header after appid+size: state(4) + last_update(4) + access_token(8) +
+        #                          checksum_text(20) + change_number(4) + checksum_binary(20) = 60 bytes
+        size = 60 + len(sections_bytes)
+
+        # Write app header
+        apps_buf.write(struct.pack('<I', size))  # size (includes header after appid+size)
+        apps_buf.write(struct.pack('<I', 2))  # state (2 = available)
+        apps_buf.write(struct.pack('<I', int(time_module.time())))  # last_update
+        apps_buf.write(struct.pack('<Q', 0))  # access_token
+        apps_buf.write(checksum_text)  # SHA1 of text VDF (required!)
+        apps_buf.write(struct.pack('<I', 1))  # change_number
+        apps_buf.write(checksum_binary)  # SHA1 of binary VDF sections
+
+        # Binary VDF sections
+        apps_buf.write(sections_bytes)
+
+    # End marker (app_id = 0)
+    apps_buf.write(struct.pack('<I', 0))
+
+    # Build string table
+    strings_buf = io.BytesIO()
+    strings_buf.write(struct.pack('<I', len(strings)))
+    for s in strings:
+        strings_buf.write(s.encode('utf-8', errors='replace'))
+        strings_buf.write(b'\x00')
+
+    # Calculate string table offset (header + apps)
+    string_table_offset = 16 + apps_buf.tell()
+
+    # Combine: header(16) + apps + string_table
+    output = io.BytesIO()
+    output.write(struct.pack('<I', 0x07564429))  # magic (v29)
+    output.write(struct.pack('<I', 1))  # universe
+    output.write(struct.pack('<Q', string_table_offset))  # string table offset
+    output.write(apps_buf.getvalue())
+    output.write(strings_buf.getvalue())
+
+    return output.getvalue()
+
+
+def _encode_vdf_sections_indexed(sections: Dict, string_to_idx: Dict) -> bytes:
+    """Encode VDF sections using string-table-indexed keys (v29 format)."""
+    import io
+    buf = io.BytesIO()
+
+    for key, value in sections.items():
+        if isinstance(key, bytes):
+            continue  # Skip internal keys
+
+        key_idx = string_to_idx.get(key, 0)
+
+        if isinstance(value, dict):
+            buf.write(struct.pack('<B', 0x00))  # TYPE_SECTION
+            buf.write(struct.pack('<I', key_idx))
+            buf.write(_encode_vdf_sections_indexed(value, string_to_idx))
+        elif isinstance(value, str):
+            buf.write(struct.pack('<B', 0x01))  # TYPE_STRING
+            buf.write(struct.pack('<I', key_idx))
+            buf.write(value.encode('utf-8', errors='replace'))
+            buf.write(b'\x00')
+        elif isinstance(value, int):
+            if value > 0xFFFFFFFF or value < 0:
+                buf.write(struct.pack('<B', 0x07))  # TYPE_INT64
+                buf.write(struct.pack('<I', key_idx))
+                buf.write(struct.pack('<Q', value & 0xFFFFFFFFFFFFFFFF))
+            else:
+                buf.write(struct.pack('<B', 0x02))  # TYPE_INT32
+                buf.write(struct.pack('<I', key_idx))
+                buf.write(struct.pack('<I', value))
+
+    buf.write(struct.pack('<B', 0x08))  # SECTION_END
+    return buf.getvalue()
+
+
+# ============================================================================
+# Single Game Injection (on-demand)
+# ============================================================================
+
+def inject_single_game_to_appinfo(shortcut_app_id: int) -> bool:
+    """
+    Inject a single Unifideck game into Steam's appinfo.vdf.
+    Called when user opens game details view for a shortcut.
+
+    IMPORTANT: We inject using the SHORTCUT's app ID (converted to unsigned),
+    not the real Steam app ID. This way when Steam looks up data for the shortcut,
+    it finds our injected metadata.
+
+    Args:
+        shortcut_app_id: The shortcut's app ID (negative number like -1404125384)
+
+    Returns:
+        True if injection successful or game already exists
+    """
+    try:
+        # Convert shortcut ID to unsigned 32-bit (how Steam stores it internally)
+        # Example: -1404125384 -> 2890841912
+        unsigned_shortcut_id = shortcut_app_id & 0xFFFFFFFF
+        logger.info(f"Injection request: shortcut {shortcut_app_id} -> unsigned {unsigned_shortcut_id}")
+
+        # Load mappings to get real Steam App ID (for metadata lookup)
+        steam_appid_cache = load_steam_appid_cache()
+        steam_app_id = steam_appid_cache.get(str(shortcut_app_id))
+
+        if not steam_app_id:
+            logger.debug(f"No Steam App ID mapping for shortcut {shortcut_app_id}")
+            return False
+
+        # Read existing appinfo.vdf
+        existing_apps = read_steam_appinfo_vdf()
+        if not existing_apps:
+            logger.warning("Could not read appinfo.vdf, skipping injection")
+            return False
+
+        # Check if shortcut is already in appinfo.vdf (using unsigned ID)
+        if unsigned_shortcut_id in existing_apps:
+            logger.debug(f"Shortcut {shortcut_app_id} (unsigned: {unsigned_shortcut_id}) already in appinfo.vdf")
+            return True  # Already exists, no need to inject
+
+        # Load metadata using the REAL Steam app ID
+        metadata_cache = load_steam_metadata_cache()
+        metadata = metadata_cache.get(str(steam_app_id))
+
+        if not metadata:
+            logger.warning(f"No metadata cached for Steam App {steam_app_id}")
+            return False
+
+        # Build appinfo entry using the SHORTCUT's unsigned ID
+        # This way Steam finds it when looking up the shortcut
+        app_entry = _build_appinfo_entry(unsigned_shortcut_id, metadata)
+
+        # Add to existing apps using shortcut's unsigned ID and write back
+        existing_apps[unsigned_shortcut_id] = app_entry
+        success = write_steam_appinfo_vdf(existing_apps)
+
+        if success:
+            logger.info(f"Injected shortcut {shortcut_app_id} (unsigned: {unsigned_shortcut_id}) with metadata from Steam App {steam_app_id} ({metadata.get('name', '?')})")
+
+        return success
+
+    except Exception as e:
+        logger.error(f"Failed to inject game {shortcut_app_id} to appinfo.vdf: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
+def _build_appinfo_entry(steam_app_id: int, metadata: Dict) -> Dict:
+    """Build an appinfo.vdf entry from cached metadata."""
+    platforms = metadata.get('platforms', {})
+    os_list = []
+    if platforms.get('windows'):
+        os_list.append('windows')
+    if platforms.get('mac'):
+        os_list.append('macos')
+    if platforms.get('linux'):
+        os_list.append('linux')
+
+    developers = metadata.get('developers', [])
+    publishers = metadata.get('publishers', [])
+
+    return {
+        'appinfo': {
+            'appid': steam_app_id,
+            'common': {
+                'name': metadata.get('name', 'Unknown'),
+                'type': 'game',
+                'oslist': ','.join(os_list) if os_list else 'windows',
+                'controller_support': metadata.get('controller_support', 'none'),
+                'metacritic_score': metadata.get('metacritic', {}).get('score', 0),
+            },
+            'extended': {
+                'developer': ', '.join(developers) if developers else '',
+                'publisher': ', '.join(publishers) if publishers else '',
+                'homepage': metadata.get('website') or '',
+            }
+        }
+    }
+
+
+def convert_appinfo_to_web_api_format(app_id: int, appinfo: Dict) -> Dict:
+    """Convert appinfo.vdf format to Steam web API format for compatibility with frontend."""
+    try:
+        common = appinfo.get('appinfo', {}).get('common', {})
+        extended = appinfo.get('appinfo', {}).get('extended', {})
+
+        # Extract developer/publisher (can be string or list)
+        developer = extended.get('developer', '')
+        developers = developer.split(',') if isinstance(developer, str) and developer else (developer if isinstance(developer, list) else [])
+
+        publisher = extended.get('publisher', '')
+        publishers = publisher.split(',') if isinstance(publisher, str) and publisher else (publisher if isinstance(publisher, list) else [])
+
+        return {
+            'type': common.get('type', 'game'),
+            'name': common.get('name', ''),
+            'steam_appid': app_id,
+            'required_age': common.get('required_age', 0),
+            'is_free': common.get('is_free', False),
+            'controller_support': common.get('controller_support', 'none'),
+            'detailed_description': extended.get('description', ''),
+            'short_description': common.get('short_description', ''),
+            'supported_languages': common.get('languages', ''),
+            'header_image': common.get('header_image', {}).get('english') if isinstance(common.get('header_image'), dict) else common.get('header_image', ''),
+            'capsule_image': common.get('library_assets', {}).get('library_capsule', '') if isinstance(common.get('library_assets'), dict) else '',
+            'website': extended.get('homepage', ''),
+            'developers': [d.strip() for d in developers if d.strip()],
+            'publishers': [p.strip() for p in publishers if p.strip()],
+            'platforms': {
+                'windows': 'oslist' in common and 'windows' in str(common.get('oslist', '')).lower(),
+                'mac': 'oslist' in common and 'macos' in str(common.get('oslist', '')).lower(),
+                'linux': 'oslist' in common and 'linux' in str(common.get('oslist', '')).lower(),
+            },
+            'metacritic': {'score': common.get('metacritic_score', 0)},
+            'categories': common.get('category', {}) if isinstance(common.get('category'), dict) else [],
+            'genres': common.get('genre', {}) if isinstance(common.get('genre'), dict) else [],
+            'release_date': {
+                'coming_soon': False,
+                'date': str(common.get('steam_release_date', ''))
+            },
+        }
+    except Exception as e:
+        logger.error(f"Error converting appinfo for {app_id}: {e}")
+        return {}
+
+
+async def extract_metadata_from_appinfo(games: List, appinfo_data: Dict[int, Dict]) -> Tuple[Dict[int, int], Dict[int, Dict]]:
+    """
+    Extract metadata for our games from appinfo data by matching titles.
+
+    Returns:
+        Tuple of (shortcut_appid_to_steam_appid mapping, steam_appid_to_metadata mapping)
+    """
+    appid_mapping = {}  # shortcut_appid -> steam_appid
+    metadata_results = {}  # steam_appid -> metadata (converted to web API format)
+
+    for game in games:
+        if not game.app_id or not game.title:
+            continue
+
+        try:
+            # Search for Steam App ID by title in appinfo data
+            search_lower = game.title.lower().strip()
+            steam_app_id = None
+
+            for app_id, app_data in appinfo_data.items():
+                try:
+                    # Get app name from common section
+                    app_common = app_data.get('appinfo', {}).get('common', {})
+                    app_name = app_common.get('name', '').lower().strip()
+
+                    if app_name == search_lower:
+                        steam_app_id = app_id
+                        break
+                except:
+                    continue
+
+            if not steam_app_id:
+                continue
+
+            appid_mapping[game.app_id] = steam_app_id
+
+            # Convert appinfo data to web API format
+            if steam_app_id not in metadata_results:
+                converted = convert_appinfo_to_web_api_format(steam_app_id, appinfo_data[steam_app_id])
+                if converted:
+                    metadata_results[steam_app_id] = converted
+                    logger.debug(f"Extracted metadata for '{game.title}' (Steam ID: {steam_app_id})")
+
+        except Exception as e:
+            logger.debug(f"Failed to extract metadata for '{game.title}': {e}")
+
+    return appid_mapping, metadata_results
 
 
 # Shortcuts Registry - maps game launch options to appid for reconciliation after plugin reinstall
@@ -3193,6 +3817,66 @@ class Plugin:
                     if steam_appid_cache:
                         save_steam_appid_cache(steam_appid_cache)
 
+                    # Extract Steam metadata from appinfo.vdf (Steam's local cache)
+                    if all_games:
+                        self.sync_progress.current_game = {
+                            "label": "sync.extractingSteamMetadata",
+                            "values": {"count": len(all_games)}
+                        }
+
+                        # Read appinfo.vdf once (fast - local file)
+                        appinfo_data = read_steam_appinfo_vdf()
+
+                        if appinfo_data:
+                            existing_metadata = load_steam_metadata_cache()
+                            appid_mapping, new_metadata = await extract_metadata_from_appinfo(all_games, appinfo_data)
+
+                            # Update metadata cache
+                            if new_metadata:
+                                existing_metadata.update(new_metadata)
+                                save_steam_metadata_cache(existing_metadata)
+
+                            # Save the shortcut->steam appid mapping for frontend store patching
+                            if appid_mapping:
+                                steam_appid_cache.update(appid_mapping)
+                                save_steam_appid_cache(steam_appid_cache)
+                                logger.info(f"Extracted metadata for {len(new_metadata)} games from appinfo.vdf, mapped {len(appid_mapping)} shortcuts to Steam IDs")
+
+                    # === RAWG METADATA PRE-FETCH ===
+                    # Pre-populate RAWG cache for games that don't have entries yet
+                    # This makes GameInfoPanel load instantly instead of fetching per-view
+                    if all_games:
+                        rawg_cache = load_rawg_metadata_cache()
+                        games_needing_rawg = [g for g in all_games if g.title.lower() not in rawg_cache]
+
+                        if games_needing_rawg:
+                            logger.info(f"Sync: Pre-fetching RAWG metadata for {len(games_needing_rawg)} games")
+                            self.sync_progress.current_game = {
+                                "label": "sync.fetchingEnhancedMetadata",
+                                "values": {"count": len(games_needing_rawg)}
+                            }
+
+                            async def prefetch_rawg_for_game(game, semaphore):
+                                async with semaphore:
+                                    try:
+                                        rawg_data = await self.fetch_rawg_metadata(game.title)
+                                        if rawg_data:
+                                            return (game.title.lower(), rawg_data)
+                                    except Exception as e:
+                                        logger.debug(f"[RAWG Prefetch] Error for {game.title}: {e}")
+                                    return None
+
+                            semaphore = asyncio.Semaphore(5)
+                            tasks = [prefetch_rawg_for_game(g, semaphore) for g in games_needing_rawg]
+                            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+                            for result in results:
+                                if isinstance(result, tuple) and result is not None:
+                                    rawg_cache[result[0]] = result[1]
+
+                            save_rawg_metadata_cache(rawg_cache)
+                            logger.info(f"Sync: Cached RAWG metadata for {sum(1 for r in results if isinstance(r, tuple) and r)} games")
+
                     # Cleanup orphaned artwork before sync (prevents duplicate files)
                     if self.steamgriddb:
                         self.sync_progress.current_game = {
@@ -3602,6 +4286,133 @@ class Plugin:
                     # Save updated cache
                     if steam_appid_cache:
                         save_steam_appid_cache(steam_appid_cache)
+
+                    # Extract Steam metadata from appinfo.vdf (Steam's local cache)
+                    if all_games:
+                        self.sync_progress.current_game = {
+                            "label": "sync.extractingSteamMetadata",
+                            "values": {"count": len(all_games)}
+                        }
+
+                        # Read appinfo.vdf once (fast - local file)
+                        appinfo_data = read_steam_appinfo_vdf()
+
+                        if appinfo_data:
+                            existing_metadata = load_steam_metadata_cache()
+                            appid_mapping, new_metadata = await extract_metadata_from_appinfo(all_games, appinfo_data)
+
+                            # Update metadata cache
+                            if new_metadata:
+                                existing_metadata.update(new_metadata)
+                                save_steam_metadata_cache(existing_metadata)
+
+                            # Save the shortcut->steam appid mapping for frontend store patching
+                            if appid_mapping:
+                                steam_appid_cache.update(appid_mapping)
+                                save_steam_appid_cache(steam_appid_cache)
+                                logger.info(f"Force Sync: Extracted metadata for {len(new_metadata)} games from appinfo.vdf, mapped {len(appid_mapping)} shortcuts to Steam IDs")
+
+                    # === ENHANCED METADATA: RAWG fallback + Deck Compatibility ===
+                    # Fetch metadata from RAWG for games missing data, and deck compat from Steam
+                    if all_games:
+                        self.sync_progress.current_game = {
+                            "label": "sync.fetchingEnhancedMetadata",
+                            "values": {"count": len(all_games)}
+                        }
+                        
+                        # Reload metadata cache after appinfo update
+                        existing_metadata = load_steam_metadata_cache()
+                        rawg_cache = load_rawg_metadata_cache()
+                        updated_count = 0
+
+                        # Process in batches with limited concurrency
+                        async def fetch_enhanced_metadata_for_game(game, semaphore):
+                            """Fetch RAWG + deck compat for a single game"""
+                            async with semaphore:
+                                try:
+                                    # Get signed app_id for cache lookup
+                                    app_id = game.app_id
+                                    if app_id > 2**31:
+                                        app_id_signed = app_id - 2**32
+                                    else:
+                                        app_id_signed = app_id
+
+                                    # Get Steam App ID from mapping
+                                    steam_app_id = steam_appid_cache.get(app_id_signed, 0)
+
+                                    # Get existing metadata for this Steam app
+                                    game_meta = existing_metadata.get(steam_app_id, {}) if steam_app_id else {}
+                                    updated = False
+
+                                    # Check what's missing - field-level fallback
+                                    needs_rawg = (
+                                        not game_meta.get('short_description') or
+                                        not game_meta.get('developers') or
+                                        game_meta.get('metacritic') is None
+                                    )
+                                    needs_deck = steam_app_id > 0 and game_meta.get('deck_category', 0) == 0
+
+                                    # Fetch RAWG data if needed (check RAWG cache first)
+                                    rawg_cache_key = game.title.lower()
+                                    if needs_rawg:
+                                        rawg_data = rawg_cache.get(rawg_cache_key)
+                                        if not rawg_data:
+                                            rawg_data = await self.fetch_rawg_metadata(game.title)
+                                            if rawg_data:
+                                                rawg_cache[rawg_cache_key] = rawg_data
+                                        if rawg_data:
+                                            if not game_meta.get('short_description') and rawg_data.get('description'):
+                                                game_meta['short_description'] = rawg_data['description'][:500]
+                                                updated = True
+                                            if not game_meta.get('developers') and rawg_data.get('developers'):
+                                                game_meta['developers'] = rawg_data['developers']
+                                                updated = True
+                                            if not game_meta.get('publishers') and rawg_data.get('publishers'):
+                                                game_meta['publishers'] = rawg_data['publishers']
+                                                updated = True
+                                            if game_meta.get('metacritic') is None and rawg_data.get('metacritic'):
+                                                game_meta['metacritic'] = rawg_data['metacritic']
+                                                updated = True
+                                            if not game_meta.get('tags') and rawg_data.get('tags'):
+                                                game_meta['tags'] = rawg_data['tags'][:5]
+                                                updated = True
+                                            if not game_meta.get('genres') and rawg_data.get('genres'):
+                                                game_meta['genres'] = [{'description': g} for g in rawg_data['genres'][:4]]
+                                                updated = True
+                                    
+                                    # Fetch deck compat if needed
+                                    if needs_deck:
+                                        deck_info = await self.fetch_steam_deck_compatibility(steam_app_id)
+                                        if deck_info.get('category', 0) > 0:
+                                            game_meta['deck_category'] = deck_info['category']
+                                            game_meta['deck_test_results'] = deck_info.get('testResults', [])
+                                            updated = True
+                                    
+                                    return (steam_app_id, game_meta, updated)
+                                except Exception as e:
+                                    logger.debug(f"[EnhancedMeta] Error for {game.title}: {e}")
+                                    return (None, None, False)
+                        
+                        # Run with limited concurrency (5 parallel for API rate limits)
+                        semaphore = asyncio.Semaphore(5)
+                        tasks = [fetch_enhanced_metadata_for_game(game, semaphore) for game in all_games]
+                        results = await asyncio.gather(*tasks, return_exceptions=True)
+                        
+                        # Update cache with new metadata
+                        for result in results:
+                            if isinstance(result, tuple) and result[2]:  # updated=True
+                                steam_app_id, game_meta, _ = result
+                                if steam_app_id and game_meta:
+                                    existing_metadata[steam_app_id] = game_meta
+                                    updated_count += 1
+                        
+                        if updated_count > 0:
+                            save_steam_metadata_cache(existing_metadata)
+                            logger.info(f"Force Sync: Enhanced metadata for {updated_count} games (RAWG + deck compat)")
+
+                        # Save RAWG cache (populated during batch fetch above)
+                        if rawg_cache:
+                            save_rawg_metadata_cache(rawg_cache)
 
                     # Cleanup orphaned artwork before sync (prevents duplicate files)
                     if self.steamgriddb:
@@ -4170,6 +4981,388 @@ class Plugin:
             logger.error(f"Error getting game info for app {app_id}: {e}")
             return {'error': str(e)}
 
+    # Steam Deck compatibility test result token -> human readable text mapping
+    DECK_TEST_RESULT_TOKENS = {
+        '#SteamDeckVerified_TestResult_DefaultControllerConfigFullyFunctional': 'All functionality is accessible when using the default controller configuration',
+        '#SteamDeckVerified_TestResult_ControllerGlyphsMatchDeckDevice': 'This game shows Steam Deck controller icons',
+        '#SteamDeckVerified_TestResult_InterfaceTextIsLegible': 'In-game interface text is legible on Steam Deck',
+        '#SteamDeckVerified_TestResult_DefaultConfigurationIsPerformant': "This game's default graphics configuration performs well on Steam Deck",
+        '#SteamDeckVerified_TestResult_LauncherInteractionIssues': "This game's launcher/setup tool may require the touchscreen or virtual keyboard, or have difficult to read text",
+        '#SteamDeckVerified_TestResult_NativeResolutionNotDefault': "This game supports Steam Deck's native display resolution but does not set it by default and may require you to configure the display resolution manually",
+        '#SteamDeckVerified_TestResult_ControllerGlyphsDoNotMatchDeckDevice': 'This game sometimes shows non-Steam-Deck controller icons',
+        '#SteamDeckVerified_TestResult_ExternalControllersNotSupportedLocalMultiplayer': 'This game does not default to external Bluetooth/USB controllers on Deck, and may require manually switching the active controller via the Quick Access Menu',
+        '#SteamOS_TestResult_GameStartupFunctional': 'This game runs successfully on SteamOS',
+    }
+
+    # RAWG.io API key for fallback metadata
+    RAWG_API_KEY = 'ba1f3b6abe404ba993d6ac12479f2977'
+
+    async def fetch_rawg_metadata(self, game_name: str) -> Dict[str, Any]:
+        """Fetch game metadata from RAWG.io as fallback.
+        
+        Args:
+            game_name: Name of the game to search for
+            
+        Returns:
+            Dict with: description, genres, tags, developers, publishers, metacritic, website
+        """
+        try:
+            import aiohttp
+            import urllib.parse
+            
+            # Search for game by name
+            search_url = f"https://api.rawg.io/api/games?key={self.RAWG_API_KEY}&search={urllib.parse.quote(game_name)}&page_size=1"
+            
+            connector = aiohttp.TCPConnector(ssl=False)
+            async with aiohttp.ClientSession(connector=connector) as session:
+                async with session.get(search_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                    if response.status != 200:
+                        logger.debug(f"[RAWG] Search failed with status {response.status}")
+                        return {}
+                    
+                    search_data = await response.json()
+                    
+            results = search_data.get('results', [])
+            if not results:
+                logger.debug(f"[RAWG] No results for '{game_name}'")
+                return {}
+            
+            game = results[0]
+            game_id = game.get('id')
+            
+            # Get detailed game info
+            detail_url = f"https://api.rawg.io/api/games/{game_id}?key={self.RAWG_API_KEY}"
+            
+            connector2 = aiohttp.TCPConnector(ssl=False)
+            async with aiohttp.ClientSession(connector=connector2) as session:
+                async with session.get(detail_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                    if response.status != 200:
+                        # Return basic info from search if detail fails
+                        return {
+                            'name': game.get('name', ''),
+                            'description': '',
+                            'genres': [g.get('name', '') for g in game.get('genres', [])],
+                            'tags': [t.get('name', '') for t in game.get('tags', [])[:10]],
+                            'metacritic': game.get('metacritic'),
+                            'released': game.get('released', ''),
+                        }
+                    
+                    detail = await response.json()
+            
+            result = {
+                'name': detail.get('name', ''),
+                'description': detail.get('description_raw', ''),
+                'genres': [g.get('name', '') for g in detail.get('genres', [])],
+                'tags': [t.get('name', '') for t in detail.get('tags', [])[:10]],
+                'developers': [d.get('name', '') for d in detail.get('developers', [])],
+                'publishers': [p.get('name', '') for p in detail.get('publishers', [])],
+                'metacritic': detail.get('metacritic'),
+                'website': detail.get('website', ''),
+                'released': detail.get('released', ''),
+            }
+            
+            logger.info(f"[RAWG] Got metadata for '{game_name}': metacritic={result.get('metacritic')}, {len(result.get('tags', []))} tags")
+            return result
+            
+        except Exception as e:
+            logger.warning(f"[RAWG] Failed to fetch metadata for '{game_name}': {e}")
+            return {}
+
+    async def fetch_steam_deck_compatibility(self, steam_app_id: int) -> Dict[str, Any]:
+        """Fetch Steam Deck compatibility info from Steam's API.
+        
+        Args:
+            steam_app_id: The Steam App ID to look up
+            
+        Returns:
+            Dict with:
+                'category': int (0=Unknown, 1=Unsupported, 2=Playable, 3=Verified)
+                'testResults': List of human-readable test result strings
+        """
+        if not steam_app_id:
+            return {'category': 0, 'testResults': []}
+        
+        try:
+            import aiohttp
+            url = f"https://store.steampowered.com/saleaction/ajaxgetdeckappcompatibilityreport?nAppID={steam_app_id}"
+            
+            connector = aiohttp.TCPConnector(ssl=False)
+            async with aiohttp.ClientSession(connector=connector) as session:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                    if response.status != 200:
+                        logger.warning(f"[DeckCompat] API returned status {response.status} for app {steam_app_id}")
+                        return {'category': 0, 'testResults': []}
+                    
+                    data = await response.json()
+            
+            # Handle edge case where API returns a list instead of dict
+            if not isinstance(data, dict):
+                logger.debug(f"[DeckCompat] Unexpected response type for app {steam_app_id}: {type(data).__name__}")
+                return {'category': 0, 'testResults': []}
+                    
+            if not data.get('success'):
+                return {'category': 0, 'testResults': []}
+            
+            results = data.get('results', {})
+            if not isinstance(results, dict):
+                logger.debug(f"[DeckCompat] 'results' is {type(results).__name__}, not dict, for app {steam_app_id}")
+                return {'category': 0, 'testResults': []}
+            category = results.get('resolved_category', 0)
+            
+            # Convert test result tokens to human-readable strings
+            test_results = []
+            for item in results.get('resolved_items', []):
+                token = item.get('loc_token', '')
+                display_type = item.get('display_type', 0)  # 4=pass, 3=warning
+                text = self.DECK_TEST_RESULT_TOKENS.get(token, token.replace('#SteamDeckVerified_TestResult_', '').replace('#SteamOS_TestResult_', ''))
+                if text:
+                    test_results.append({
+                        'text': text,
+                        'passed': display_type == 4  # 4 = checkmark, 3 = warning
+                    })
+            
+            logger.info(f"[DeckCompat] App {steam_app_id}: category={category}, {len(test_results)} test results")
+            return {'category': category, 'testResults': test_results}
+
+        except Exception as e:
+            logger.warning(f"[DeckCompat] Failed to fetch for app {steam_app_id}: {e}")
+            return {'category': 0, 'testResults': []}
+
+    async def _get_gog_slug(self, game_id: str) -> Optional[str]:
+        """Get GOG slug via GOG client for store URL generation."""
+        try:
+            if hasattr(self, 'gog') and self.gog:
+                return await self.gog.get_game_slug(game_id)
+        except Exception as e:
+            logger.warning(f"[StoreURL] GOG slug fetch failed for {game_id}: {e}")
+        return None
+
+    def _get_amazon_official_url(self, game_id: str) -> Optional[str]:
+        """Get Amazon official URL via Amazon connector."""
+        try:
+            if hasattr(self, 'amazon') and self.amazon:
+                return self.amazon.get_game_official_url(game_id)
+        except Exception as e:
+            logger.warning(f"[StoreURL] Amazon URL fetch failed for {game_id}: {e}")
+        return None
+
+    async def get_game_metadata_display(self, app_id: int) -> Optional[Dict[str, Any]]:
+
+        """Get formatted metadata for display in GameInfoPanel component.
+
+        Args:
+            app_id: Steam shortcut app ID (can be signed or unsigned)
+
+        Returns:
+            Dict with metadata for UI display, or None if not available:
+            {
+                'steamAppId': int,
+                'store': str ('epic', 'gog', 'amazon'),
+                'storeUrl': str (original store page URL),
+                'title': str,
+                'developer': str,
+                'publisher': str,
+                'releaseDate': str,
+                'description': str,
+                'deckCompatibility': int (0=Unknown, 1=Unsupported, 2=Playable, 3=Verified),
+                'protonVersion': str | None,
+                'homepageUrl': str | None
+            }
+        """
+        try:
+            # Convert unsigned to signed for lookup
+            if app_id > 2**31:
+                app_id_signed = app_id - 2**32
+            else:
+                app_id_signed = app_id
+
+            # Get basic game info first (store, game_id, title)
+            game_info = await self.get_game_info(app_id)
+            if 'error' in game_info:
+                logger.warning(f"[MetadataDisplay] Could not get game info for {app_id}: {game_info.get('error')}")
+                return None
+
+            store = game_info.get('store')
+            game_id = game_info.get('game_id')
+            title = game_info.get('title', 'Unknown')
+
+            # Get Steam App ID from cache (for ProtonDB and Steam community links)
+            steam_appid_cache = load_steam_appid_cache()
+            # Cache has int keys (load_steam_appid_cache converts them)
+            steam_app_id = steam_appid_cache.get(app_id_signed, 0)
+            logger.info(f"[MetadataDisplay] Cache lookup: app_id={app_id}, signed={app_id_signed}, cache_size={len(steam_appid_cache)}, steam_app_id={steam_app_id}")
+
+            # Load Steam metadata cache for detailed info
+            # This cache only contains data from appinfo.vdf (games that exist on Steam).
+            # If steam_app_id is a SteamGridDB ID (used for artwork), it won't be here.
+            metadata_cache = load_steam_metadata_cache()
+            # Metadata cache also has int keys
+            steam_metadata = metadata_cache.get(steam_app_id, {}) if steam_app_id else {}
+
+            # Determine if this game has a real Steam store presence.
+            # steam_appid_cache stores both SteamGridDB IDs (for artwork) and real Steam
+            # App IDs (from appinfo.vdf). Only IDs with entries in steam_metadata_cache
+            # are confirmed real Steam App IDs with working store/community pages.
+            #
+            # Additional validation: The metadata must have:
+            # 1. A valid 'type' field ('game' for games)
+            # 2. A matching 'steam_appid' field to confirm it's the right game
+            # 3. A 'name' field (all real Steam games have this)
+            has_steam_store_page = False
+            if steam_metadata:
+                meta_type = steam_metadata.get('type', '')
+                meta_appid = steam_metadata.get('steam_appid', 0)
+                meta_name = steam_metadata.get('name', '')
+                # Only consider it a valid Steam store page if:
+                # - Type is 'game' (not 'dlc', 'demo', etc.)
+                # - The steam_appid in metadata matches what we're looking up
+                # - The game has a name
+                if meta_type == 'game' and meta_appid == steam_app_id and meta_name:
+                    has_steam_store_page = True
+                    logger.debug(f"[MetadataDisplay] Valid Steam store page: {meta_name} (ID: {steam_app_id})")
+                else:
+                    logger.debug(f"[MetadataDisplay] Invalid Steam metadata for {steam_app_id}: type={meta_type}, appid_match={meta_appid == steam_app_id}, has_name={bool(meta_name)}")
+
+            # Build store-specific URL with proper fallbacks
+            # Epic game_id is a catalog ID (not a URL slug), GOG game_id is numeric (not a slug)
+            # Use search-based URLs that always work, with optional direct links where available
+            import urllib.parse
+            encoded_title = urllib.parse.quote(title)
+
+            if store == 'epic':
+                # Epic: Use search URL (game_id is catalog ID, not URL slug)
+                store_url = f"https://store.epicgames.com/en-US/browse?q={encoded_title}&sortBy=relevancy"
+            elif store == 'gog':
+                # GOG: Try to get slug from API for direct link, fallback to search
+                gog_slug = await self._get_gog_slug(game_id)
+                if gog_slug:
+                    store_url = f"https://www.gog.com/en/game/{gog_slug}"
+                else:
+                    store_url = f"https://www.gog.com/games?query={encoded_title}"
+            elif store == 'amazon':
+                # Amazon: Use official website from metadata if available, otherwise gaming portal
+                official_url = self._get_amazon_official_url(game_id)
+                store_url = official_url or "https://gaming.amazon.com/intro"
+            else:
+                store_url = ''
+
+            # Track data sources for debugging
+            sources = {}
+
+            # Initialize metadata variables
+            developer = ''
+            publisher = ''
+            description = ''
+            release_date = ''
+            rawg_genres = []
+
+            # First try Steam metadata for basic info (developer, publisher, description, release date)
+            # NOTE: We do NOT use Steam for Metacritic or genres
+            if steam_metadata:
+                developers = steam_metadata.get('developers', [])
+                publishers = steam_metadata.get('publishers', [])
+                developer = ', '.join(developers) if developers else ''
+                publisher = ', '.join(publishers) if publishers else ''
+                description = steam_metadata.get('short_description', '') or steam_metadata.get('detailed_description', '')
+                release_info = steam_metadata.get('release_date', {})
+                release_date = release_info.get('date', '') if isinstance(release_info, dict) else ''
+                if developer:
+                    sources['developer'] = 'steam_cache'
+                if publisher:
+                    sources['publisher'] = 'steam_cache'
+                if description:
+                    sources['description'] = 'steam_cache'
+                if release_date:
+                    sources['release_date'] = 'steam_cache'
+
+            # Check RAWG cache first, then fetch if missing
+            rawg_cache = load_rawg_metadata_cache()
+            rawg_cache_key = title.lower()
+            rawg_data = rawg_cache.get(rawg_cache_key)
+            rawg_source = None
+
+            if rawg_data:
+                rawg_source = 'rawg_cache'
+                logger.info(f"[MetadataDisplay] RAWG source=cache for '{title}' (key='{rawg_cache_key}')")
+            else:
+                logger.info(f"[MetadataDisplay] RAWG cache miss for '{title}' (key='{rawg_cache_key}', cache_size={len(rawg_cache)})")
+                rawg_data = await self.fetch_rawg_metadata(title)
+                if rawg_data:
+                    rawg_source = 'rawg_api'
+                    rawg_cache[rawg_cache_key] = rawg_data
+                    save_rawg_metadata_cache(rawg_cache)
+                    logger.info(f"[MetadataDisplay] RAWG source=api_fetch for '{title}' - saved to cache")
+                else:
+                    logger.info(f"[MetadataDisplay] RAWG returned no data for '{title}'")
+
+            metacritic = None  # Always from RAWG, never from Steam
+
+            if rawg_data:
+                if not description:
+                    description = rawg_data.get('description', '')
+                    if description:
+                        sources['description'] = rawg_source
+                if not developer:
+                    developer = ', '.join(rawg_data.get('developers', []))
+                    if developer:
+                        sources['developer'] = rawg_source
+                if not publisher:
+                    publisher = ', '.join(rawg_data.get('publishers', []))
+                    if publisher:
+                        sources['publisher'] = rawg_source
+                if not release_date:
+                    release_date = rawg_data.get('released', '')
+                    if release_date:
+                        sources['release_date'] = rawg_source
+                metacritic = rawg_data.get('metacritic')
+                sources['metacritic'] = rawg_source
+                rawg_genres = rawg_data.get('genres', [])[:4]
+                if rawg_genres:
+                    sources['genres'] = rawg_source
+
+            genres = rawg_genres
+
+            # Fetch Steam Deck compatibility - use cached if available
+            cached_deck_category = steam_metadata.get('deck_category', 0) if steam_metadata else 0
+            cached_deck_results = steam_metadata.get('deck_test_results', []) if steam_metadata else []
+
+            if cached_deck_category > 0:
+                deck_category = cached_deck_category
+                deck_test_results = cached_deck_results
+                sources['deck_compat'] = 'steam_cache'
+            else:
+                deck_info = await self.fetch_steam_deck_compatibility(steam_app_id)
+                deck_category = deck_info.get('category', 0)
+                deck_test_results = deck_info.get('testResults', [])
+                sources['deck_compat'] = 'steam_api' if deck_category > 0 else 'none'
+
+            result = {
+                'steamAppId': steam_app_id,
+                'hasSteamStorePage': has_steam_store_page,
+                'store': store,
+                'storeUrl': store_url,
+                'title': title,
+                'developer': developer,
+                'publisher': publisher,
+                'releaseDate': release_date,
+                'metacritic': metacritic,
+                'description': sanitize_description(description),
+                'deckCompatibility': deck_category,
+                'deckTestResults': deck_test_results,
+                'genres': genres,
+                'homepageUrl': steam_metadata.get('website', '') if steam_metadata else ''
+            }
+
+            # Log full source summary for debugging
+            logger.info(f"[MetadataDisplay] '{title}' (appId={app_id}, steamId={steam_app_id}) sources: {sources}")
+            return result
+
+        except Exception as e:
+            logger.error(f"Error getting metadata display for app {app_id}: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
     async def install_game_by_appid(self, app_id: int) -> Dict[str, Any]:
         """Install game by Steam shortcut app ID
 
@@ -4701,7 +5894,7 @@ class Plugin:
             Dict with 'mappings' key containing { shortcutAppId: realSteamAppId }
         """
         try:
-            cache = load_real_steam_appid_cache()  # Uses existing function from line 162
+            cache = load_steam_appid_cache()  # Returns {shortcut_appid: steam_appid}
             return {
                 "success": True,
                 "mappings": cache  # Dict[int, int]
@@ -4713,6 +5906,46 @@ class Plugin:
                 "error": str(e),
                 "mappings": {}
             }
+
+    async def get_steam_metadata_cache(self) -> Dict[str, Any]:
+        """
+        Get cached Steam metadata for frontend store patching.
+        Returns pre-fetched Steam API data for all mapped games.
+
+        Returns:
+            Dict with 'metadata' key containing { steamAppId: gameMetadata }
+        """
+        try:
+            cache = load_steam_metadata_cache()
+            return {
+                "success": True,
+                "metadata": cache
+            }
+        except Exception as e:
+            logging.error(f"Error loading Steam metadata cache: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "metadata": {}
+            }
+
+    async def inject_game_to_appinfo(self, shortcut_app_id: int) -> Dict[str, Any]:
+        """
+        Inject a single game into Steam's appinfo.vdf.
+        Called by frontend when user opens game details view for a Unifideck shortcut.
+
+        Args:
+            shortcut_app_id: The shortcut's app ID (negative number)
+
+        Returns:
+            Dict with 'success' key indicating if injection succeeded
+        """
+        try:
+            success = inject_single_game_to_appinfo(shortcut_app_id)
+            return {"success": success}
+        except Exception as e:
+            logger.error(f"inject_game_to_appinfo failed for {shortcut_app_id}: {e}")
+            return {"success": False, "error": str(e)}
 
     async def start_epic_auth(self) -> Dict[str, Any]:
         """Start Epic Games OAuth authentication"""
