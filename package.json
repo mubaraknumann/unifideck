@@ -1,6 +1,6 @@
 {
   "name": "unifideck-decky",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Unified game library for Steam Deck - Epic, GOG, and Steam in one place",
   "type": "module",
   "scripts": {
