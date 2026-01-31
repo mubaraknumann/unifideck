@@ -32,6 +32,10 @@ except ImportError:
 
 # Import Download Manager (modular backend)
 from backend.download.manager import get_download_queue, DownloadQueue
+from backend.cache.steam_appid import (
+    load_steam_appid_cache,
+    save_steam_appid_cache,
+)
 from backend.cache.game_sizes import (
     load_game_sizes_cache,
     save_game_sizes_cache,
