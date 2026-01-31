@@ -105,3 +105,6 @@ antigravity-dashboard/*
 !test_gog_invalid.py
 task.md
 .claude/*
+
+# Local refactor plan (keep out of repo)
+REFACTOR_PLAN.md
