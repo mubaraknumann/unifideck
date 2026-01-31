@@ -41,9 +41,14 @@ jobs:
       - name: Build plugin with Decky CLI
         run: cli/decky plugin build .
 
+      - name: Extract plugin zip for artifact
+        run: |
+          mkdir -p out/Unifideck
+          unzip out/Unifideck.zip -d out/Unifideck
+
       - name: Upload plugin artifact
         uses: actions/upload-artifact@v4
         with:
           name: Unifideck
-          path: out/Unifideck.zip
+          path: out/Unifideck/
           if-no-files-found: error
