@@ -99,11 +99,8 @@ from backend.stores import (
     GOGAPIClient as BackendGOGAPIClient
 )
 from backend.auth import CDPOAuthMonitor
-from backend.compat import (
-    BackgroundCompatFetcher,
-    load_compat_cache, save_compat_cache, prefetch_compat
-)
-from backend.services import InstallService, ArtworkService
+from backend.compat import BackgroundCompatFetcher
+from backend.services import InstallService, ArtworkService, MetadataService
 
 # Use Decky's logger for proper integration
 logger = decky.logger
@@ -235,6 +232,13 @@ class Plugin:
         # Initialize background compatibility fetcher (ProtonDB/Deck Verified)
         logger.info("[INIT] Initializing BackgroundCompatFetcher")
         self.compat_fetcher = BackgroundCompatFetcher()
+
+        # Initialize MetadataService
+        logger.info("[INIT] Initializing MetadataService")
+        self.metadata_service = MetadataService(
+            compat_fetcher=self.compat_fetcher,
+            sync_progress=self.sync_progress
+        )
 
         # Initialize SteamGridDB client with hardcoded API key
         self.steamgriddb_api_key = "1a410cb7c288b8f21016c2df4c81df74"
@@ -511,8 +515,7 @@ class Plugin:
 
                 # Queue games for background compat fetching (ProtonDB/Deck Verified)
                 logger.info("Sync: Queueing games for compatibility lookup...")
-                self.compat_fetcher.queue_games(all_games)
-                self.compat_fetcher.start()  # Non-blocking background fetch
+                self.metadata_service.queue_compat_fetch(all_games)
 
                 # Update progress: Checking installed status
                 self.sync_progress.status = "checking_installed"
@@ -945,8 +948,7 @@ class Plugin:
 
                 # Queue games for background compat fetching (ProtonDB/Deck Verified)
                 logger.info("Force sync: Queueing games for compatibility lookup...")
-                self.compat_fetcher.queue_games(all_games)
-                self.compat_fetcher.start()  # Non-blocking background fetch
+                self.metadata_service.queue_compat_fetch(all_games)
 
                 # Update progress: Checking installed status
                 self.sync_progress.status = "checking_installed"
@@ -2709,7 +2711,7 @@ class Plugin:
             Dict: {normalized_title: {tier, deckVerified, steamAppId, timestamp}}
         """
         try:
-            cache = load_compat_cache()
+            cache = self.metadata_service.get_compat_cache()
             logger.info(f"Loaded {len(cache)} entries from compat cache for frontend")
             return cache
         except Exception as e:
