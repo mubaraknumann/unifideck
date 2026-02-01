@@ -199,15 +199,6 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
     flex: "none",
   };
 
-  // Absolute positioning wrapper - controls visual position via CSS, not DOM order
-  const wrapperStyle: React.CSSProperties = {
-    position: "absolute",
-    top: "320px",      // Below hero image and play button area - adjust as needed
-    left: "35px",
-    right: "35px",
-    zIndex: 100,
-  };
-
   const containerStyle: React.CSSProperties = {
     display: "flex",
     flexDirection: "column",
@@ -335,11 +326,9 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
 
   if (loading) {
     return (
-      <div style={wrapperStyle}>
-        <div style={containerStyle}>
-          <div style={{ color: "#8f98a0", fontSize: "14px" }}>
-            {t("gameInfoPanel.loading")}
-          </div>
+      <div style={containerStyle}>
+        <div style={{ color: "#8f98a0", fontSize: "14px" }}>
+          {t("gameInfoPanel.loading")}
         </div>
       </div>
     );
@@ -347,11 +336,9 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
 
   if (error || !metadata) {
     return (
-      <div style={wrapperStyle}>
-        <div style={containerStyle}>
-          <div style={{ color: "#8f98a0", fontSize: "14px" }}>
-            {error || t("gameInfoPanel.noMetadata")}
-          </div>
+      <div style={containerStyle}>
+        <div style={{ color: "#8f98a0", fontSize: "14px" }}>
+          {error || t("gameInfoPanel.noMetadata")}
         </div>
       </div>
     );
@@ -362,7 +349,6 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
   const hasValidSteamId = metadata.hasSteamStorePage;
 
   return (
-    <div style={wrapperStyle}>
     <div style={containerStyle}>
       {/* Steam Deck Compatibility Section - Focusable row for gamepad nav */}
       <style>{focusStyles}</style>
@@ -597,7 +583,6 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
           {t("gameInfoPanel.buttons.support")}
         </DialogButton>
       </Focusable>
-    </div>
     </div>
   );
 };

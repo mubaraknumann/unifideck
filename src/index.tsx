@@ -735,21 +735,21 @@ function patchGameDetailsRoute() {
           // ========== GAME INFO PANEL INJECTION ==========
           // For non-Steam games, inject our custom GameInfoPanel to display metadata
           // Non-Steam shortcuts have appId > 2000000000
-          // GameInfoPanel uses position: absolute for visual placement, so DOM order doesn't matter
+          // ProtonDB pattern: Insert at index 1 (between PlaySection and tabs)
+          // This lets the flex container handle positioning naturally
           const isNonSteamGame = appId > 2000000000;
           if (isNonSteamGame && !alreadyHasGameInfo) {
             try {
-              // Inject at index 2 (like InstallInfoDisplay) - CSS controls visual position
-              const insertIndex = Math.min(2, container.props.children.length);
+              // Insert at index 1: between PlaySection [0] and Tabs [1+]
               container.props.children.splice(
-                insertIndex,
+                1,
                 0,
                 React.createElement(GameInfoPanel, {
                   key: gameInfoKey,
                   appId,
                 })
               );
-              console.log(`[Unifideck] Injected GameInfoPanel at index ${insertIndex}`);
+              console.log(`[Unifideck] Injected GameInfoPanel at index 1 (ProtonDB pattern)`);
             } catch (panelError) {
               console.error(
                 `[Unifideck] Error creating GameInfoPanel:`,
