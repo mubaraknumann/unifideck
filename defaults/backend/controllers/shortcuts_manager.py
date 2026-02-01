@@ -8,6 +8,7 @@ import time
 import logging
 from typing import Dict, Any, Optional, List, Tuple
 
+from backend.stores.base import Game
 from backend.utils.steam_user import get_logged_in_steam_user
 from backend.cache.shortcuts_registry import (
     load_shortcuts_registry,
