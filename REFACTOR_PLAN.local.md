@@ -72,17 +72,27 @@ Gates maintained after each commit:
 - npm run build
 - All gates passing ✅
 
-## Phase 3 — Frontend split (src/index.tsx)
+## Phase 3 — Frontend split (src/index.tsx) 🚧 IN PROGRESS
 
 **Goal:** Separate concerns in the React frontend
 
-**Work:**
+**Completed:**
 
-- Extract Steam patching logic to dedicated module
-- Split UI components from state management
-- Organize data hooks and API calls
-- Separate presentation from business logic
-- Improve component reusability and testability
+- ✅ Extract Steam patching logic → src/patching/GameDetailsPatching.tsx (~192 lines)
+- ✅ Extract data hooks → src/hooks/useGameInfo.ts & useDownloadState.ts (~206 lines)
+
+**Results:**
+
+- index.tsx reduced from 1834 → 1522 lines (312 lines / 17.0% reduction)
+- Created src/patching/ with 1 module (192 lines)
+- Created src/hooks/ with 2 custom hooks (206 lines)
+- Improved code reusability and testability
+
+**Remaining work:**
+
+- Extract InstallButton component (use extracted hooks)
+- Extract remaining settings components
+- Further UI/state separation
 
 **Target:** Cleaner component structure, easier to maintain and extend
 
