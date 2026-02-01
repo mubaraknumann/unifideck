@@ -90,7 +90,9 @@ vc_redist.x64.exe
 # Downloaded by build-plugin.sh prebuild step
 bin/legendary
 bin/gogdl
-bin/cabextract
+bin/nile
+bin/winetricks
+bin/comet
 
 # EpicGamesLauncher stub (should be committed if custom)
 # bin/EpicGamesLauncher.exe
@@ -107,3 +109,5 @@ antigravity-dashboard/*
 !test_gog_invalid.py
 task.md
 .claude/*
+build-plugin_old.sh
+.github/copilot-instructions.md

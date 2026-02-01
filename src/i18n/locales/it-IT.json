@@ -234,6 +234,8 @@
     "cancelledByUser": "Sync annullata dall’utente",
     "checkingInstalledGames": "Controllo giochi installati...",
     "sgdbLookup": "Ricerca di {{count}} giochi su SteamGridDB...",
+    "extractingSteamMetadata": "Estrazione metadati Steam per {{count}} giochi...",
+    "fetchingEnhancedMetadata": "Recupero metadati migliorati per {{count}} giochi...",
     "checkingExistingArtwork": "Controllo artwork esistente...",
     "cleaningOrphanedArtwork": "Pulizia delle immagini orfane...",
     "retryingMissingArtwork": "Riprovo {{count}} giochi con immagini mancanti...",

@@ -233,6 +233,8 @@
     "cancelledByUser": "Синхронизация отменена",
     "checkingInstalledGames": "Проверка установленных игр...",
     "sgdbLookup": "Поиск {{count}} игр в SteamGridDB...",
+    "extractingSteamMetadata": "Извлечение метаданных Steam для {{count}} игр...",
+    "fetchingEnhancedMetadata": "Получение дополнительных метаданных для {{count}} игр...",
     "checkingExistingArtwork": "Проверка существующего арта...",
     "cleaningOrphanedArtwork": "Очистка оставшихся без привязки обложек...",
     "retryingMissingArtwork": "Повторная попытка для {{count}} игр с отсутствующими обложками...",

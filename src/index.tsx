@@ -738,20 +738,25 @@ function patchGameDetailsRoute() {
           const isNonSteamGame = appId > 2000000000;
           if (isNonSteamGame && !alreadyHasGameInfo) {
             try {
-              // Add GameInfoPanel to the same container, after InstallInfoDisplay
-              // If InstallInfo wasn't injected this cycle, still use spliceIndex + 1
-              const gameInfoIndex = alreadyHasInstallInfo ? spliceIndex : spliceIndex + 1;
+              // Container structure (after InstallInfo injection):
+              // [0] = Header/hero
+              // [1] = PlayerCount
+              // [2] = InstallInfo (our component)
+              // [3] = ProtonMedal
+              // [4] = Play button row
+              // [5] = Tabs
+              //
+              // Index 4 places GameInfoPanel ABOVE the play button (between hero and play)
+              const insertIndex = 4;
               container.props.children.splice(
-                gameInfoIndex,
+                insertIndex,
                 0,
                 React.createElement(GameInfoPanel, {
                   key: gameInfoKey,
                   appId,
-                }),
+                })
               );
-              console.log(
-                `[Unifideck] Injected GameInfoPanel for non-Steam game ${appId}`,
-              );
+              console.log(`[Unifideck] Injected GameInfoPanel at index ${insertIndex}`);
             } catch (panelError) {
               console.error(
                 `[Unifideck] Error creating GameInfoPanel:`,

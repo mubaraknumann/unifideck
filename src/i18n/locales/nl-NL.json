@@ -234,6 +234,8 @@
     "cancelledByUser": "Sync geannuleerd",
     "checkingInstalledGames": "Geïnstalleerde games controleren...",
     "sgdbLookup": "{{count}} games op SteamGridDB zoeken...",
+    "extractingSteamMetadata": "Steam-metadata extraheren voor {{count}} games...",
+    "fetchingEnhancedMetadata": "Verbeterde metadata ophalen voor {{count}} games...",
     "checkingExistingArtwork": "Bestaande artwork controleren...",
     "cleaningOrphanedArtwork": "Wees-artwork opruimen...",
     "retryingMissingArtwork": "{{count}} spellen met ontbrekend artwork opnieuw proberen...",

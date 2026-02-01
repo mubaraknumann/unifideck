@@ -225,7 +225,11 @@
     "uninstallFailed": "Kaldırma başarısız",
     "lockConflict": "Kilit çakışması - tekrar deneyin",
     "unknownStore": "Bilinmeyen mağaza",
-    "shortcutWriteFailed": "Kısayollar yazılamadı"
+    "shortcutWriteFailed": "Kısayollar yazılamadı",
+    "backgroundSyncDisabled": "Arka plan senkronizasyonu devre dışı",
+    "steamGridDbUnavailable": "SteamGridDB kütüphanesi kullanılamıyor",
+    "deleteSyncInProgress": "Senkronizasyon devam ederken silinemiyor",
+    "alreadyInQueue": "Zaten kuyrukta"
   },
   "sync": {
     "downloadingArtwork": "{{game}} için görsel indiriliyor...",
@@ -233,6 +237,8 @@
     "cancelledByUser": "Senkronizasyon iptal edildi",
     "checkingInstalledGames": "Yüklü oyunlar kontrol ediliyor...",
     "sgdbLookup": "SteamGridDB'de {{count}} oyun aranıyor...",
+    "extractingSteamMetadata": "{{count}} oyun için Steam meta verileri çıkarılıyor...",
+    "fetchingEnhancedMetadata": "{{count}} oyun için gelişmiş meta veriler getiriliyor...",
     "checkingExistingArtwork": "Mevcut görseller kontrol ediliyor...",
     "cleaningOrphanedArtwork": "Sahipsiz görseller temizleniyor...",
     "retryingMissingArtwork": "Eksik görselleri olan {{count}} oyun tekrar deneniyor...",

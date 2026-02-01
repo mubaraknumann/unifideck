@@ -234,6 +234,8 @@
     "cancelledByUser": "Sincronização cancelada",
     "checkingInstalledGames": "Verificando jogos instalados...",
     "sgdbLookup": "Buscando {{count}} jogos no SteamGridDB...",
+    "extractingSteamMetadata": "Extraindo metadados do Steam para {{count}} jogos...",
+    "fetchingEnhancedMetadata": "Buscando metadados aprimorados para {{count}} jogos...",
     "checkingExistingArtwork": "Verificando arte existente...",
     "cleaningOrphanedArtwork": "Limpando arte órfã...",
     "retryingMissingArtwork": "Tentando novamente {{count}} jogos com arte ausente...",

@@ -233,6 +233,8 @@
     "cancelledByUser": "Synchronizacja anulowana",
     "checkingInstalledGames": "Sprawdzanie zainstalowanych gier...",
     "sgdbLookup": "Wyszukiwanie {{count}} gier w SteamGridDB...",
+    "extractingSteamMetadata": "Wyodrębnianie metadanych Steam dla {{count}} gier...",
+    "fetchingEnhancedMetadata": "Pobieranie ulepszonych metadanych dla {{count}} gier...",
     "checkingExistingArtwork": "Sprawdzanie istniejącej grafiki...",
     "cleaningOrphanedArtwork": "Czyszczenie osieroconych grafik...",
     "retryingMissingArtwork": "Ponawianie {{count}} gier z brakującymi grafikami...",

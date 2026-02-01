@@ -235,6 +235,7 @@
     "checkingInstalledGames": "Checking installed games...",
     "sgdbLookup": "Looking up {{count}} games on SteamGridDB...",
     "extractingSteamMetadata": "Extracting Steam metadata for {{count}} games...",
+    "fetchingEnhancedMetadata": "Fetching enhanced metadata for {{count}} games...",
     "checkingExistingArtwork": "Checking existing artwork...",
     "cleaningOrphanedArtwork": "Cleaning up orphaned artwork...",
     "retryingMissingArtwork": "Retrying {{count}} games with missing artwork...",

@@ -7,6 +7,7 @@ import binascii
 import struct
 import json
 import aiohttp.web
+from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass, asdict
@@ -239,6 +240,55 @@ def sanitize_description(text: str, max_length: int = 1000) -> str:
     if len(text) > max_length:
         text = text[:max_length].rsplit(' ', 1)[0] + '...'
     return text
+
+
+def normalize_release_date(value: Any) -> str:
+    """Normalize release date to YYYY-MM-DD when possible."""
+    if value is None:
+        return ''
+
+    if isinstance(value, (int, float)):
+        try:
+            ts = int(value)
+            if ts > 10**12:  # milliseconds
+                ts = ts // 1000
+            return datetime.utcfromtimestamp(ts).strftime('%Y-%m-%d')
+        except Exception:
+            return ''
+
+    value_str = str(value).strip()
+    if not value_str:
+        return ''
+
+    if re.match(r'^\d{4}-\d{2}-\d{2}$', value_str):
+        return value_str
+
+    if value_str.isdigit():
+        try:
+            ts = int(value_str)
+            if ts > 10**12:
+                ts = ts // 1000
+            return datetime.utcfromtimestamp(ts).strftime('%Y-%m-%d')
+        except Exception:
+            return ''
+
+    for fmt in ("%d %b, %Y", "%b %d, %Y", "%d %B, %Y", "%B %d, %Y"):
+        try:
+            return datetime.strptime(value_str, fmt).strftime('%Y-%m-%d')
+        except Exception:
+            continue
+
+    for fmt in ("%b %Y", "%B %Y"):
+        try:
+            parsed = datetime.strptime(value_str, fmt)
+            return parsed.replace(day=1).strftime('%Y-%m-%d')
+        except Exception:
+            continue
+
+    if re.match(r'^\d{4}$', value_str):
+        return f"{value_str}-01-01"
+
+    return ''
 
 
 def read_steam_appinfo_vdf() -> Dict[int, Dict]:
@@ -5210,14 +5260,18 @@ class Plugin:
             # 3. A 'name' field (all real Steam games have this)
             has_steam_store_page = False
             if steam_metadata:
-                meta_type = steam_metadata.get('type', '')
-                meta_appid = steam_metadata.get('steam_appid', 0)
-                meta_name = steam_metadata.get('name', '')
+                meta_type = str(steam_metadata.get('type', '')).lower()
+                meta_appid_raw = steam_metadata.get('steam_appid', 0)
+                try:
+                    meta_appid = int(meta_appid_raw)
+                except Exception:
+                    meta_appid = 0
+                meta_name = str(steam_metadata.get('name', '')).strip()
                 # Only consider it a valid Steam store page if:
-                # - Type is 'game' (not 'dlc', 'demo', etc.)
+                # - Type is 'game' or 'application' (not 'dlc', 'demo', etc.)
                 # - The steam_appid in metadata matches what we're looking up
                 # - The game has a name
-                if meta_type == 'game' and meta_appid == steam_app_id and meta_name:
+                if meta_type in ('game', 'application') and meta_appid == steam_app_id and meta_name:
                     has_steam_store_page = True
                     logger.debug(f"[MetadataDisplay] Valid Steam store page: {meta_name} (ID: {steam_app_id})")
                 else:
@@ -5265,7 +5319,8 @@ class Plugin:
                 publisher = ', '.join(publishers) if publishers else ''
                 description = steam_metadata.get('short_description', '') or steam_metadata.get('detailed_description', '')
                 release_info = steam_metadata.get('release_date', {})
-                release_date = release_info.get('date', '') if isinstance(release_info, dict) else ''
+                steam_release_raw = release_info.get('date', '') if isinstance(release_info, dict) else ''
+                release_date = normalize_release_date(steam_release_raw)
                 if developer:
                     sources['developer'] = 'steam_cache'
                 if publisher:
@@ -5311,7 +5366,7 @@ class Plugin:
                     if publisher:
                         sources['publisher'] = rawg_source
                 if not release_date:
-                    release_date = rawg_data.get('released', '')
+                    release_date = normalize_release_date(rawg_data.get('released', ''))
                     if release_date:
                         sources['release_date'] = rawg_source
                 metacritic = rawg_data.get('metacritic')

@@ -233,6 +233,8 @@
     "cancelledByUser": "同期がキャンセルされました",
     "checkingInstalledGames": "インストール済み確認中...",
     "sgdbLookup": "SteamGridDBで{{count}}件検索中...",
+    "extractingSteamMetadata": "{{count}}個のゲームのSteamメタデータを抽出中...",
+    "fetchingEnhancedMetadata": "{{count}}個のゲームの拡張メタデータを取得中...",
     "checkingExistingArtwork": "既存アート確認中...",
     "cleaningOrphanedArtwork": "孤立したアートワークをクリーンアップしています...",
     "retryingMissingArtwork": "アートワークが不足しているゲーム {{count}} 個を再試行しています...",

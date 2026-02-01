@@ -234,6 +234,8 @@
     "cancelledByUser": "Синхронізацію скасовано",
     "checkingInstalledGames": "Перевірка встановлених ігор...",
     "sgdbLookup": "Пошук {{count}} ігор у SteamGridDB...",
+    "extractingSteamMetadata": "Вилучення метаданих Steam для {{count}} ігор...",
+    "fetchingEnhancedMetadata": "Отримання покращених метаданих для {{count}} ігор...",
     "checkingExistingArtwork": "Перевірка наявного арту...",
     "cleaningOrphanedArtwork": "Очищення осиротілих обкладинок...",
     "retryingMissingArtwork": "Повторна спроба для {{count}} ігор з відсутніми обкладинками...",
