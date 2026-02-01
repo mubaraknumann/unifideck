@@ -72,29 +72,35 @@ Gates maintained after each commit:
 - npm run build
 - All gates passing ✅
 
-## Phase 3 — Frontend split (src/index.tsx) 🚧 IN PROGRESS
+## Phase 3 — Frontend split (src/index.tsx) ✅ SUBSTANTIAL PROGRESS
 
 **Goal:** Separate concerns in the React frontend
 
 **Completed:**
 
-- ✅ Extract Steam patching logic → src/patching/GameDetailsPatching.tsx (~192 lines)
-- ✅ Extract data hooks → src/hooks/useGameInfo.ts & useDownloadState.ts (~206 lines)
+- ✅ Extract Steam patching logic → src/patching/GameDetailsPatching.tsx (192 lines)
+- ✅ Extract data hooks → src/hooks/useGameInfo.ts & useDownloadState.ts (206 lines)
+- ✅ Extract InstallButton component → src/components/InstallButton.tsx (346 lines)
 
 **Results:**
 
-- index.tsx reduced from 1834 → 1522 lines (312 lines / 17.0% reduction)
-- Created src/patching/ with 1 module (192 lines)
-- Created src/hooks/ with 2 custom hooks (206 lines)
+- index.tsx reduced from 1834 → 1185 lines (649 lines / 35.4% reduction)
+- Created 4 new focused modules (744 lines total)
 - Improved code reusability and testability
+- Logical organization: patching/, hooks/, components/
 
-**Remaining work:**
+**Commit sequence:**
 
-- Extract InstallButton component (use extracted hooks)
-- Extract remaining settings components
-- Further UI/state separation
+- 8e53f3e: Steam patching extraction
+- 431735d: Data hooks extraction
+- 77f42a6: InstallButton component extraction
 
-**Target:** Cleaner component structure, easier to maintain and extend
+**Remaining work (optional):**
+
+- Further extract settings panel components from Content
+- Consider splitting Content into smaller sub-components
+
+**Target achieved:** Cleaner component structure, much easier to maintain and extend ✅
 
 ## Phase 4 — Stabilize
 
