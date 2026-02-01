@@ -74,7 +74,7 @@ class SyncService:
         self._is_syncing = False
         self._cancel_sync = False
     
-    def cancel_sync(self):
+    def cancel_sync(self) -> None:
         """Request cancellation of current sync operation."""
         if self._is_syncing:
             self._cancel_sync = True
@@ -247,7 +247,7 @@ class SyncService:
         gog_installed: Dict,
         amazon_games: List[Game],
         amazon_installed: Dict
-    ):
+    ) -> None:
         """Update installed status for all games and sync games.map."""
         # Handle Epic games
         for game in epic_games:
@@ -404,7 +404,7 @@ class SyncService:
         logger.info(f"SteamGridDB lookup complete: {sum(1 for r in results if r)} found")
         return cache
 
-    async def _extract_steam_metadata(self, all_games: List[Game], steam_appid_cache: Dict):
+    async def _extract_steam_metadata(self, all_games: List[Game], steam_appid_cache: Dict) -> None:
         """Extract metadata from Steam's appinfo.vdf."""
         self.sync_progress.current_game = {
             "label": "sync.extractingSteamMetadata",
@@ -427,7 +427,7 @@ class SyncService:
                 save_steam_appid_cache(steam_appid_cache)
                 logger.info(f"Extracted metadata for {len(new_metadata)} games from appinfo.vdf")
 
-    async def _prefetch_rawg_metadata(self, all_games: List[Game]):
+    async def _prefetch_rawg_metadata(self, all_games: List[Game]) -> None:
         """Pre-fetch RAWG metadata for games not in cache."""
         rawg_cache = load_rawg_metadata_cache()
         games_needing_rawg = [g for g in all_games if g.title.lower() not in rawg_cache]
@@ -538,7 +538,7 @@ class SyncService:
             self.sync_progress.artwork_synced += 1
             return result
 
-    def _update_game_icons(self, all_games: List[Game]):
+    def _update_game_icons(self, all_games: List[Game]) -> None:
         """Update game objects with local icon paths if available."""
         grid_path = self.artwork_service.get_grid_path()
         if not grid_path:
