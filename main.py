@@ -70,6 +70,12 @@ from backend.utils.artwork import (
     delete_game_artwork,
     get_artwork_paths,
 )
+from backend.utils.deck_compat import (
+    fetch_steam_deck_compatibility,
+)
+from backend.utils.rawg_metadata import (
+    fetch_rawg_metadata,
+)
 
 # Import Cloud Save Manager
 from cloud_save_manager import CloudSaveManager
@@ -723,7 +729,7 @@ class Plugin:
                             async def prefetch_rawg_for_game(game, semaphore):
                                 async with semaphore:
                                     try:
-                                        rawg_data = await self.fetch_rawg_metadata(game.title)
+                                        rawg_data = await fetch_rawg_metadata(game.title)
                                         if rawg_data:
                                             return (game.title.lower(), rawg_data)
                                     except Exception as e:
@@ -1221,7 +1227,7 @@ class Plugin:
                                     if needs_rawg:
                                         rawg_data = rawg_cache.get(rawg_cache_key)
                                         if not rawg_data:
-                                            rawg_data = await self.fetch_rawg_metadata(game.title)
+                                            rawg_data = await fetch_rawg_metadata(game.title)
                                             if rawg_data:
                                                 rawg_cache[rawg_cache_key] = rawg_data
                                         if rawg_data:
@@ -1246,7 +1252,7 @@ class Plugin:
                                     
                                     # Fetch deck compat if needed
                                     if needs_deck:
-                                        deck_info = await self.fetch_steam_deck_compatibility(steam_app_id)
+                                        deck_info = await fetch_steam_deck_compatibility(steam_app_id)
                                         if deck_info.get('category', 0) > 0:
                                             game_meta['deck_category'] = deck_info['category']
                                             game_meta['deck_test_results'] = deck_info.get('testResults', [])
@@ -1845,153 +1851,6 @@ class Plugin:
             logger.error(f"Error getting game info for app {app_id}: {e}")
             return {'error': str(e)}
 
-    # Steam Deck compatibility test result token -> human readable text mapping
-    DECK_TEST_RESULT_TOKENS = {
-        '#SteamDeckVerified_TestResult_DefaultControllerConfigFullyFunctional': 'All functionality is accessible when using the default controller configuration',
-        '#SteamDeckVerified_TestResult_ControllerGlyphsMatchDeckDevice': 'This game shows Steam Deck controller icons',
-        '#SteamDeckVerified_TestResult_InterfaceTextIsLegible': 'In-game interface text is legible on Steam Deck',
-        '#SteamDeckVerified_TestResult_DefaultConfigurationIsPerformant': "This game's default graphics configuration performs well on Steam Deck",
-        '#SteamDeckVerified_TestResult_LauncherInteractionIssues': "This game's launcher/setup tool may require the touchscreen or virtual keyboard, or have difficult to read text",
-        '#SteamDeckVerified_TestResult_NativeResolutionNotDefault': "This game supports Steam Deck's native display resolution but does not set it by default and may require you to configure the display resolution manually",
-        '#SteamDeckVerified_TestResult_ControllerGlyphsDoNotMatchDeckDevice': 'This game sometimes shows non-Steam-Deck controller icons',
-        '#SteamDeckVerified_TestResult_ExternalControllersNotSupportedLocalMultiplayer': 'This game does not default to external Bluetooth/USB controllers on Deck, and may require manually switching the active controller via the Quick Access Menu',
-        '#SteamOS_TestResult_GameStartupFunctional': 'This game runs successfully on SteamOS',
-    }
-
-    # RAWG.io API key for fallback metadata
-    RAWG_API_KEY = 'ba1f3b6abe404ba993d6ac12479f2977'
-
-    async def fetch_rawg_metadata(self, game_name: str) -> Dict[str, Any]:
-        """Fetch game metadata from RAWG.io as fallback.
-        
-        Args:
-            game_name: Name of the game to search for
-            
-        Returns:
-            Dict with: description, genres, tags, developers, publishers, metacritic, website
-        """
-        try:
-            import aiohttp
-            import urllib.parse
-            
-            # Search for game by name
-            search_url = f"https://api.rawg.io/api/games?key={self.RAWG_API_KEY}&search={urllib.parse.quote(game_name)}&page_size=1"
-            
-            connector = aiohttp.TCPConnector(ssl=False)
-            async with aiohttp.ClientSession(connector=connector) as session:
-                async with session.get(search_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
-                    if response.status != 200:
-                        logger.debug(f"[RAWG] Search failed with status {response.status}")
-                        return {}
-                    
-                    search_data = await response.json()
-                    
-            results = search_data.get('results', [])
-            if not results:
-                logger.debug(f"[RAWG] No results for '{game_name}'")
-                return {}
-            
-            game = results[0]
-            game_id = game.get('id')
-            
-            # Get detailed game info
-            detail_url = f"https://api.rawg.io/api/games/{game_id}?key={self.RAWG_API_KEY}"
-            
-            connector2 = aiohttp.TCPConnector(ssl=False)
-            async with aiohttp.ClientSession(connector=connector2) as session:
-                async with session.get(detail_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
-                    if response.status != 200:
-                        # Return basic info from search if detail fails
-                        return {
-                            'name': game.get('name', ''),
-                            'description': '',
-                            'genres': [g.get('name', '') for g in game.get('genres', [])],
-                            'tags': [t.get('name', '') for t in game.get('tags', [])[:10]],
-                            'metacritic': game.get('metacritic'),
-                            'released': game.get('released', ''),
-                        }
-                    
-                    detail = await response.json()
-            
-            result = {
-                'name': detail.get('name', ''),
-                'description': detail.get('description_raw', ''),
-                'genres': [g.get('name', '') for g in detail.get('genres', [])],
-                'tags': [t.get('name', '') for t in detail.get('tags', [])[:10]],
-                'developers': [d.get('name', '') for d in detail.get('developers', [])],
-                'publishers': [p.get('name', '') for p in detail.get('publishers', [])],
-                'metacritic': detail.get('metacritic'),
-                'website': detail.get('website', ''),
-                'released': detail.get('released', ''),
-            }
-            
-            logger.info(f"[RAWG] Got metadata for '{game_name}': metacritic={result.get('metacritic')}, {len(result.get('tags', []))} tags")
-            return result
-            
-        except Exception as e:
-            logger.warning(f"[RAWG] Failed to fetch metadata for '{game_name}': {e}")
-            return {}
-
-    async def fetch_steam_deck_compatibility(self, steam_app_id: int) -> Dict[str, Any]:
-        """Fetch Steam Deck compatibility info from Steam's API.
-        
-        Args:
-            steam_app_id: The Steam App ID to look up
-            
-        Returns:
-            Dict with:
-                'category': int (0=Unknown, 1=Unsupported, 2=Playable, 3=Verified)
-                'testResults': List of human-readable test result strings
-        """
-        if not steam_app_id:
-            return {'category': 0, 'testResults': []}
-        
-        try:
-            import aiohttp
-            url = f"https://store.steampowered.com/saleaction/ajaxgetdeckappcompatibilityreport?nAppID={steam_app_id}"
-            
-            connector = aiohttp.TCPConnector(ssl=False)
-            async with aiohttp.ClientSession(connector=connector) as session:
-                async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as response:
-                    if response.status != 200:
-                        logger.warning(f"[DeckCompat] API returned status {response.status} for app {steam_app_id}")
-                        return {'category': 0, 'testResults': []}
-                    
-                    data = await response.json()
-            
-            # Handle edge case where API returns a list instead of dict
-            if not isinstance(data, dict):
-                logger.debug(f"[DeckCompat] Unexpected response type for app {steam_app_id}: {type(data).__name__}")
-                return {'category': 0, 'testResults': []}
-                    
-            if not data.get('success'):
-                return {'category': 0, 'testResults': []}
-            
-            results = data.get('results', {})
-            if not isinstance(results, dict):
-                logger.debug(f"[DeckCompat] 'results' is {type(results).__name__}, not dict, for app {steam_app_id}")
-                return {'category': 0, 'testResults': []}
-            category = results.get('resolved_category', 0)
-            
-            # Convert test result tokens to human-readable strings
-            test_results = []
-            for item in results.get('resolved_items', []):
-                token = item.get('loc_token', '')
-                display_type = item.get('display_type', 0)  # 4=pass, 3=warning
-                text = self.DECK_TEST_RESULT_TOKENS.get(token, token.replace('#SteamDeckVerified_TestResult_', '').replace('#SteamOS_TestResult_', ''))
-                if text:
-                    test_results.append({
-                        'text': text,
-                        'passed': display_type == 4  # 4 = checkmark, 3 = warning
-                    })
-            
-            logger.info(f"[DeckCompat] App {steam_app_id}: category={category}, {len(test_results)} test results")
-            return {'category': category, 'testResults': test_results}
-
-        except Exception as e:
-            logger.warning(f"[DeckCompat] Failed to fetch for app {steam_app_id}: {e}")
-            return {'category': 0, 'testResults': []}
-
     async def _get_gog_slug(self, game_id: str) -> Optional[str]:
         """Get GOG slug via GOG client for store URL generation."""
         try:
@@ -2150,7 +2009,7 @@ class Plugin:
                 logger.info(f"[MetadataDisplay] RAWG source=cache for '{title}' (key='{rawg_cache_key}')")
             else:
                 logger.info(f"[MetadataDisplay] RAWG cache miss for '{title}' (key='{rawg_cache_key}', cache_size={len(rawg_cache)})")
-                rawg_data = await self.fetch_rawg_metadata(title)
+                rawg_data = await fetch_rawg_metadata(title)
                 if rawg_data:
                     rawg_source = 'rawg_api'
                     rawg_cache[rawg_cache_key] = rawg_data
@@ -2195,7 +2054,7 @@ class Plugin:
                 deck_test_results = cached_deck_results
                 sources['deck_compat'] = 'steam_cache'
             else:
-                deck_info = await self.fetch_steam_deck_compatibility(steam_app_id)
+                deck_info = await fetch_steam_deck_compatibility(steam_app_id)
                 deck_category = deck_info.get('category', 0)
                 deck_test_results = deck_info.get('testResults', [])
                 sources['deck_compat'] = 'steam_api' if deck_category > 0 else 'none'
