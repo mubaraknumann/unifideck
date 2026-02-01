@@ -338,3 +338,76 @@ def _encode_vdf_sections_indexed(sections: Dict, string_to_idx: Dict) -> bytes:
 
     buf.write(struct.pack('<B', 0x08))  # SECTION_END
     return buf.getvalue()
+
+
+def inject_single_game_to_appinfo(shortcut_app_id: int) -> bool:
+    """
+    Inject a single Unifideck game into Steam's appinfo.vdf.
+    Called when user opens game details view for a shortcut.
+
+    IMPORTANT: We inject using the SHORTCUT's app ID (converted to unsigned),
+    not the real Steam app ID. This way when Steam looks up data for the shortcut,
+    it finds our injected metadata.
+
+    Args:
+        shortcut_app_id: The shortcut's app ID (negative number like -1404125384)
+
+    Returns:
+        True if injection successful or game already exists
+    """
+    # Import here to avoid circular imports
+    from backend.cache.steam_appid import load_steam_appid_cache
+    from backend.cache.steam_metadata import load_steam_metadata_cache
+    from backend.utils.metadata import build_appinfo_entry
+    
+    try:
+        # Convert shortcut ID to unsigned 32-bit (how Steam stores it internally)
+        # Example: -1404125384 -> 2890841912
+        unsigned_shortcut_id = shortcut_app_id & 0xFFFFFFFF
+        logger.info(f"Injection request: shortcut {shortcut_app_id} -> unsigned {unsigned_shortcut_id}")
+
+        # Load mappings to get real Steam App ID (for metadata lookup)
+        steam_appid_cache = load_steam_appid_cache()
+        steam_app_id = steam_appid_cache.get(str(shortcut_app_id))
+
+        if not steam_app_id:
+            logger.debug(f"No Steam App ID mapping for shortcut {shortcut_app_id}")
+            return False
+
+        # Read existing appinfo.vdf
+        existing_apps = read_steam_appinfo_vdf()
+        if not existing_apps:
+            logger.warning("Could not read appinfo.vdf, skipping injection")
+            return False
+
+        # Check if shortcut is already in appinfo.vdf (using unsigned ID)
+        if unsigned_shortcut_id in existing_apps:
+            logger.debug(f"Shortcut {shortcut_app_id} (unsigned: {unsigned_shortcut_id}) already in appinfo.vdf")
+            return True  # Already exists, no need to inject
+
+        # Load metadata using the REAL Steam app ID
+        metadata_cache = load_steam_metadata_cache()
+        metadata = metadata_cache.get(str(steam_app_id))
+
+        if not metadata:
+            logger.warning(f"No metadata cached for Steam App {steam_app_id}")
+            return False
+
+        # Build appinfo entry using the SHORTCUT's unsigned ID
+        # This way Steam finds it when looking up the shortcut
+        app_entry = build_appinfo_entry(unsigned_shortcut_id, metadata)
+
+        # Add to existing apps using shortcut's unsigned ID and write back
+        existing_apps[unsigned_shortcut_id] = app_entry
+        success = write_steam_appinfo_vdf(existing_apps)
+
+        if success:
+            logger.info(f"Injected shortcut {shortcut_app_id} (unsigned: {unsigned_shortcut_id}) with metadata from Steam App {steam_app_id} ({metadata.get('name', '?')})")
+
+        return success
+
+    except Exception as e:
+        logger.error(f"Failed to inject game {shortcut_app_id} to appinfo.vdf: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
