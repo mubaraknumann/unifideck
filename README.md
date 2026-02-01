@@ -155,7 +155,7 @@ To add a new language, create a JSON file in `src/i18n/locales/` using `en-US.js
 
 ## Support
 
-If you enjoy this plugin and want to support its development, you can:
+(Since I have received multiple donation queries) If you enjoy this plugin and want to support its development, you can:
 
 - [Become a GitHub Sponsor](https://github.com/sponsors/mubaraknumann)
 - [Buy me a coffee on Ko-fi](https://ko-fi.com/mubaraknumann)
@@ -177,7 +177,7 @@ This project builds upon numerous open source projects, libraries, and tools. We
 
 - **[legendary](https://github.com/derrod/legendary)** - For authenticating, syncing library, downloading, and launching Epic Games Store titles
 - **[umu-launcher](https://github.com/Open-Wine-Components/umu-launcher)** - For running Windows games (.exe) with Proton compatibility layer
-- **[innoextract](https://constexpr.org/innoextract/)** - For extracting GOG Windows game installers without Wine
+- **[comet](https://github.com/imLinguin/comet)** - GOG Galaxy SDK replacement for achievements and multiplayer features
 
 ### Python Libraries
 
