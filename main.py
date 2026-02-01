@@ -35,7 +35,6 @@ from backend.download.manager import get_download_queue, DownloadQueue
 from backend.controllers.background_sync_service import BackgroundSyncService
 from backend.controllers.size_service import BackgroundSizeFetcher
 from backend.controllers.sync_progress import SyncProgress
-from backend.cache.compat_cache import load_compat_cache, save_compat_cache
 from backend.cache.steam_appid import (
     load_steam_appid_cache,
     save_steam_appid_cache,

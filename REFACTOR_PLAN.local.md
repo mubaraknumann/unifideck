@@ -19,7 +19,13 @@ This file is intentionally **not committed**. Keep it local-only.
 
 ## Phase 1 — Backend helper extraction (shrink main.py)
 
+**Progress:** main.py reduced from 4171 → 3545 lines (626 lines / 15% reduction)
+
 - ~~extract cache helpers (game sizes, steam_appid, etc.)~~
+- ~~extract metadata cache functions (steam_metadata, rawg_metadata)~~
+- ~~extract Steam appinfo.vdf utilities~~
+- ~~extract shortcuts registry~~
+- ~~extract metadata utilities (description sanitization, format conversion)~~
 - extract self-contained classes (size fetcher, sync progress, etc.)
 - remove compat cache duplication carefully (source of truth: defaults/backend/compat)
 
