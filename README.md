@@ -73,10 +73,10 @@ To build the plugin from source (for development or local testing):
 **Steps:**
 
 1. Install dependencies: `pnpm i`
-2. Build the plugin: run `./.vscode/build.sh` from the project root.
+2. Build the frontend bundle: `pnpm run build` (this ensures `dist/index.js` exists).
+3. Build the plugin package: run `./.vscode/build.sh` from the project root.
 
-The build script (1) builds the frontend with `pnpm run build` so `dist/index.js` exists, (2) copies `defaults/backend` to a temporary `backend/` at the project root so the packaged zip contains the Python `backend` package required by `main.py`, (3) runs `cli/decky plugin build .`, and (4) removes the temporary `backend/` afterward. The output zip is written to `out/` (e.g. `out/Unifideck.zip`).
-
+The build script wraps the Decky CLI (e.g. `cli/decky plugin build .`) to produce a Decky-compatible plugin zip in `out/` (for example, `out/Unifideck.zip`). It assumes the frontend has already been built (step 2) and that any required backend files are present in the repository.
 For the expected plugin zip layout (dist, package.json, plugin.json, main.py, LICENSE, bin, backend, etc.), see the [Decky Plugin Template](https://github.com/SteamDeckHomebrew/decky-plugin-template) [distribution section](https://github.com/SteamDeckHomebrew/decky-plugin-template#distribution).
 
 ## Getting Started
