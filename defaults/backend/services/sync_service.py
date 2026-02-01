@@ -15,7 +15,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, List, Set, Optional
 
-from backend.models import Game
+from backend.stores.base import Game
 from backend.cache import (
     load_steam_appid_cache,
     save_steam_appid_cache,
@@ -24,8 +24,9 @@ from backend.cache import (
     load_rawg_metadata_cache,
     save_rawg_metadata_cache,
 )
-from backend.metadata import extract_metadata_from_appinfo, fetch_rawg_metadata
-from backend.steam_utils import read_steam_appinfo_vdf
+from backend.utils.metadata import extract_metadata_from_appinfo
+from backend.utils.rawg_metadata import fetch_rawg_metadata
+from backend.utils.steam_appinfo import read_steam_appinfo_vdf
 
 logger = logging.getLogger(__name__)
 
