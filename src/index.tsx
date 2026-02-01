@@ -9,7 +9,7 @@ import {
   showModal,
   ConfirmModal,
 } from "@decky/ui";
-import React, { FC, useState, useEffect } from "react";
+import React, { FC, useState, useEffect, useRef } from "react";
 import { FaGamepad } from "react-icons/fa";
 import { loadTranslations, t, changeLanguage } from "./i18n";
 import { I18nextProvider, useTranslation } from "react-i18next";
