@@ -13,9 +13,6 @@ yarn-error.log*
 # pnpm store (local cache, not lockfile)
 .pnpm-store/
 
-# NOTE: pnpm-lock.yaml should be COMMITTED for reproducible builds
-# Do NOT add pnpm-lock.yaml here
-
 # ===========================================
 # Python
 # ===========================================
@@ -68,11 +65,6 @@ test_cloud_saves/
 # Decky CLI tool (downloaded by setup script)
 cli/
 
-# Build script - should be tracked for collaboration
-# build-plugin.sh
-
-# Agent/AI assistant configs
-.agent/
 
 # Research notes
 research/
@@ -90,21 +82,3 @@ bin/winetricks
 bin/nile
 bin/comet
 
-# EpicGamesLauncher stub (should be committed if custom)
-# bin/EpicGamesLauncher.exe
-
-# Stubs directory (Galaxy stubs - should be committed)
-# bin/stubs/
-
-# Prefetch/installer scripts (should be committed)
-# bin/prefetch_winetricks.py
-# bin/winetricks_installer.py
-antigravity-dashboard/*
-!test_gog_lang.py
-!test_gog_dynamic.py
-!test_gog_invalid.py
-task.md
-.claude/*
-
-# Local refactor plan (keep out of repo)
-REFACTOR_PLAN.md

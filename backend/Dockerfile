@@ -4,5 +4,6 @@
 # FROM ghcr.io/steamdeckhomebrew/holo-toolchain-go:latest
 FROM ghcr.io/steamdeckhomebrew/holo-base:latest
 
-# entrypoint.sh should always be located in the backend folder
-ENTRYPOINT [ "/backend/entrypoint.sh" ]
+# No backend build needed - modules are in py_modules/backend/
+# Use true as no-op entrypoint
+ENTRYPOINT [ "true" ]
