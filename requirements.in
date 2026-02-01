@@ -1,0 +1,20 @@
+# Unifideck Python Dependencies
+
+# Core dependencies (should already be available in Decky environment)
+# asyncio - stdlib
+# logging - stdlib
+# json - stdlib
+
+# Store integrations
+legendary-gl>=0.20.34  # Epic Games Store CLI
+
+# Steam Grid DB integration (for cover art)
+python-steamgriddb>=1.0.5
+aiohttp>=3.8.0
+aiofiles>=23.0.0
+
+# CDP WebSocket for Epic OAuth (read browser page content)
+websockets>=11.0
+
+# Optional: For better async file operations
+# Note: These may need to be installed via pip on Steam Deck

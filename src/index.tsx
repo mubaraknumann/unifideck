@@ -687,6 +687,18 @@ function patchGameDetailsRoute() {
             container.props.children = [container.props.children];
           }
 
+          // DEDUPLICATION: Check if we've already injected our components
+          // React re-renders can cause the patcher to run multiple times
+          const installInfoKey = `unifideck-install-info-${appId}`;
+          const gameInfoKey = `unifideck-game-info-${appId}`;
+
+          const alreadyHasInstallInfo = container.props.children.some(
+            (child: any) => child?.key === installInfoKey
+          );
+          const alreadyHasGameInfo = container.props.children.some(
+            (child: any) => child?.key === gameInfoKey
+          );
+
           // ProtonDB COMPATIBILITY: Insert at index 2
           // ProtonDB inserts at index 1. By inserting at index 2, we:
           // 1. Avoid overwriting ProtonDB's element
@@ -694,51 +706,50 @@ function patchGameDetailsRoute() {
           // Since InstallInfoDisplay uses position: absolute, its visual position is CSS-controlled.
           const spliceIndex = Math.min(2, container.props.children.length);
 
-          // Inject our install info display after play button
-          container.props.children.splice(
-            spliceIndex,
-            0,
-            React.createElement(InstallInfoDisplay, {
-              key: `unifideck-install-info-${appId}`,
-              appId,
-            }),
-          );
+          // Inject our install info display after play button (only if not already present)
+          if (!alreadyHasInstallInfo) {
+            container.props.children.splice(
+              spliceIndex,
+              0,
+              React.createElement(InstallInfoDisplay, {
+                key: installInfoKey,
+                appId,
+              }),
+            );
 
-          console.log(
-            `[Unifideck] Injected install info for app ${appId} in ${
-              innerContainer
-                ? "InnerContainer"
-                : headerContainer
-                  ? "Header"
-                  : playSection
-                    ? "PlaySection"
-                    : buttonsContainer
-                      ? "ButtonsContainer"
-                      : "GameInfoRow"
-            } at index ${spliceIndex}`,
-          );
+            console.log(
+              `[Unifideck] Injected install info for app ${appId} in ${
+                innerContainer
+                  ? "InnerContainer"
+                  : headerContainer
+                    ? "Header"
+                    : playSection
+                      ? "PlaySection"
+                      : buttonsContainer
+                        ? "ButtonsContainer"
+                        : "GameInfoRow"
+              } at index ${spliceIndex}`,
+            );
+          }
 
           // ========== GAME INFO PANEL INJECTION ==========
           // For non-Steam games, inject our custom GameInfoPanel to display metadata
           // Non-Steam shortcuts have appId > 2000000000
+          // ProtonDB pattern: Insert at index 1 (between PlaySection and tabs)
+          // This lets the flex container handle positioning naturally
           const isNonSteamGame = appId > 2000000000;
-          console.log(
-            `[Unifideck] Checking GameInfoPanel injection: appId=${appId}, isNonSteamGame=${isNonSteamGame}`,
-          );
-          if (isNonSteamGame) {
+          if (isNonSteamGame && !alreadyHasGameInfo) {
             try {
-              // Add GameInfoPanel to the same container, after InstallInfoDisplay
+              // Insert at index 1: between PlaySection [0] and Tabs [1+]
               container.props.children.splice(
-                spliceIndex + 1, // Insert after InstallInfoDisplay
+                1,
                 0,
                 React.createElement(GameInfoPanel, {
-                  key: `unifideck-game-info-${appId}`,
+                  key: gameInfoKey,
                   appId,
-                }),
+                })
               );
-              console.log(
-                `[Unifideck] Injected GameInfoPanel for non-Steam game ${appId}`,
-              );
+              console.log(`[Unifideck] Injected GameInfoPanel at index 1 (ProtonDB pattern)`);
             } catch (panelError) {
               console.error(
                 `[Unifideck] Error creating GameInfoPanel:`,

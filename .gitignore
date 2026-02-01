@@ -32,11 +32,15 @@ coverage.xml
 .venv/
 venv/
 env/
+py_modules/*
 
 # ===========================================
 # Build Output
 # ===========================================
 out/
+
+# Build-time copy of defaults/backend for packaging (do not commit)
+backend/
 
 # ===========================================
 # Environment and Secrets
@@ -83,11 +87,11 @@ research/
 # Visual C++ redistributable
 vc_redist.x64.exe
 
-# Downloaded by Decky CLI via remote_binary in package.json
+# Downloaded by build-plugin.sh prebuild step
 bin/legendary
 bin/gogdl
-bin/winetricks
 bin/nile
+bin/winetricks
 bin/comet
 
 # EpicGamesLauncher stub (should be committed if custom)
@@ -105,3 +109,5 @@ antigravity-dashboard/*
 !test_gog_invalid.py
 task.md
 .claude/*
+build-plugin_old.sh
+.github/copilot-instructions.md

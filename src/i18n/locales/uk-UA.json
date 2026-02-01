@@ -90,7 +90,9 @@
     "cancelSync": "Скасувати синхронізацію",
     "retryStatusCheck": "Повторити перевірку статусу",
     "gamesSynced": "{{synced}} / {{total}} ігор синхронізовано",
-    "artworkDownloaded": "{{synced}} / {{total}} обкладинок завантажено"
+    "artworkDownloaded": "{{synced}} / {{total}} обкладинок завантажено",
+    "steamMetadataDownloaded": "Метадані Steam: {{synced}} / {{total}}",
+    "rawgMetadataDownloaded": "Метадані RAWG: {{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "Очищення",
@@ -234,9 +236,11 @@
     "cancelledByUser": "Синхронізацію скасовано",
     "checkingInstalledGames": "Перевірка встановлених ігор...",
     "sgdbLookup": "Пошук {{count}} ігор у SteamGridDB...",
+    "extractingSteamMetadata": "Вилучення метаданих Steam для {{synced}}/{{total}} ігор...",
+    "fetchingEnhancedMetadata": "Отримання покращених метаданих для {{synced}}/{{total}} ігор...",
     "checkingExistingArtwork": "Перевірка наявного арту...",
     "cleaningOrphanedArtwork": "Очищення осиротілих обкладинок...",
-    "retryingMissingArtwork": "Повторна спроба для {{count}} ігор з відсутніми обкладинками...",
+    "retryingMissingArtwork": "Повторна спроба для {{synced}}/{{total}} ігор з відсутніми обкладинками...",
     "savingShortcuts": "Збереження ярликів...",
     "completed": "Синхронізацію завершено! {{added}} додано, арт {{artwork}}."
   },
@@ -271,5 +275,37 @@
     "allStores": "Всі Магазини",
     "searchPlaceholder": "Пошук ігор...",
     "library": "Бібліотека"
+  },
+  "gameInfoPanel": {
+    "loading": "Завантаження інформації гри...",
+    "noMetadata": "Немає метаданих для цієї гри.",
+    "noTestResults": "Немає деталізованих результатів тесту.",
+    "buttons": {
+      "details": "Навдання",
+      "synopsis": "Синопсис",
+      "storePage": "Сторінка магазину",
+      "dlc": "DLC",
+      "communityHub": "Місто діяльності спільноти",
+      "pointsShop": "Магазин балів",
+      "discussions": "Обговорення",
+      "guides": "Поради",
+      "support": "Підтримка"
+    },
+    "labels": {
+      "developer": "Розробник:",
+      "publisher": "Видавець:",
+      "released": "Вийшла:",
+      "metacritic": "Metacritic:",
+      "status": "Стан:"
+    },
+    "compatibility": {
+      "modalTitle": "Смисність Steam Deck",
+      "viewOnProtonDb": "Подивитися на ProtonDB",
+      "close": "Закрити",
+      "verified": "ПОТВЕРДЖЕНО",
+      "playable": "ІГРІЙТЕ",
+      "unsupported": "НЕ ПІДТРИМУЄТЬСЯ",
+      "unknown": "НЕВІДОМА"
+    }
   }
 }

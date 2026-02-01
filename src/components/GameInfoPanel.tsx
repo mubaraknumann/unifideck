@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { DialogButton, Focusable, showModal, ConfirmModal } from "@decky/ui";
 import { call } from "@decky/api";
+import { useTranslation } from "react-i18next";
 import { StoreFinal } from "../types/store";
 
 // Steam Deck compatibility categories
@@ -29,13 +30,6 @@ const COMPAT_COLORS: Record<
     text: "#ffffff",
   },
   [ESteamDeckCompatibilityCategory.Unknown]: { bg: "#666666", text: "#ffffff" },
-};
-
-const COMPAT_LABELS: Record<ESteamDeckCompatibilityCategory, string> = {
-  [ESteamDeckCompatibilityCategory.Verified]: "VERIFIED",
-  [ESteamDeckCompatibilityCategory.Playable]: "PLAYABLE",
-  [ESteamDeckCompatibilityCategory.Unsupported]: "UNSUPPORTED",
-  [ESteamDeckCompatibilityCategory.Unknown]: "UNKNOWN",
 };
 
 // Support URLs per store
@@ -83,15 +77,11 @@ interface GameInfoPanelProps {
  * Matches Steam's GAME INFO tab layout with functional navigation buttons
  */
 const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
+  const { t } = useTranslation();
   const [metadata, setMetadata] = useState<GameMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
-
-  // Debug: Log when component mounts
-  console.log(
-    `[Unifideck GameInfoPanel] Component mounted for appId: ${appId}`,
-  );
 
   useEffect(() => {
     let cancelled = false;
@@ -231,10 +221,10 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
 
     showModal(
       <ConfirmModal
-        strTitle="Steam Deck Compatibility"
+        strTitle={t("gameInfoPanel.compatibility.modalTitle")}
         strDescription=""
-        strOKButtonText="View on ProtonDB"
-        strCancelButtonText="Close"
+        strOKButtonText={t("gameInfoPanel.compatibility.viewOnProtonDb")}
+        strCancelButtonText={t("gameInfoPanel.compatibility.close")}
         onOK={() => meta.steamAppId > 0 && openUrl(protonDbUrl)}
         onCancel={() => {}}
       >
@@ -248,7 +238,9 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
               marginBottom: "16px",
             }}
           >
-            <span style={{ color: "#c7d5e0", fontSize: "14px" }}>Status:</span>
+            <span style={{ color: "#c7d5e0", fontSize: "14px" }}>
+              {t("gameInfoPanel.labels.status")}
+            </span>
             <div
               style={{
                 backgroundColor: COMPAT_COLORS[meta.deckCompatibility].bg,
@@ -259,7 +251,7 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
                 fontSize: "12px",
               }}
             >
-              {COMPAT_LABELS[meta.deckCompatibility]}
+              {getCompatLabel(meta.deckCompatibility)}
             </div>
           </div>
 
@@ -305,7 +297,7 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
                 fontSize: "13px",
               }}
             >
-              No detailed test results available.
+              {t("gameInfoPanel.noTestResults")}
             </div>
           )}
         </div>
@@ -313,11 +305,30 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
     );
   };
 
+  // Helper to get localized compat labels
+  const getCompatLabel = (category: ESteamDeckCompatibilityCategory) => {
+    const labels: Record<ESteamDeckCompatibilityCategory, string> = {
+      [ESteamDeckCompatibilityCategory.Verified]: t(
+        "gameInfoPanel.compatibility.verified",
+      ),
+      [ESteamDeckCompatibilityCategory.Playable]: t(
+        "gameInfoPanel.compatibility.playable",
+      ),
+      [ESteamDeckCompatibilityCategory.Unsupported]: t(
+        "gameInfoPanel.compatibility.unsupported",
+      ),
+      [ESteamDeckCompatibilityCategory.Unknown]: t(
+        "gameInfoPanel.compatibility.unknown",
+      ),
+    };
+    return labels[category];
+  };
+
   if (loading) {
     return (
       <div style={containerStyle}>
         <div style={{ color: "#8f98a0", fontSize: "14px" }}>
-          Loading game information...
+          {t("gameInfoPanel.loading")}
         </div>
       </div>
     );
@@ -327,14 +338,14 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
     return (
       <div style={containerStyle}>
         <div style={{ color: "#8f98a0", fontSize: "14px" }}>
-          {error || "No metadata available for this game."}
+          {error || t("gameInfoPanel.noMetadata")}
         </div>
       </div>
     );
   }
 
   const compatColor = COMPAT_COLORS[metadata.deckCompatibility];
-  const compatLabel = COMPAT_LABELS[metadata.deckCompatibility];
+  const compatLabel = getCompatLabel(metadata.deckCompatibility);
   const hasValidSteamId = metadata.hasSteamStorePage;
 
   return (
@@ -370,7 +381,7 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
           }}
           className="unifideck-nav-button"
         >
-          Details
+          {t("gameInfoPanel.buttons.details")}
         </DialogButton>
 
         {/* Synopsis Button - toggles description, turns blue when active */}
@@ -390,7 +401,7 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
             }}
             className="unifideck-nav-button"
           >
-            Synopsis
+            {t("gameInfoPanel.buttons.synopsis")}
           </DialogButton>
         )}
 
@@ -403,7 +414,10 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
       </Focusable>
 
       {/* Game Info Row */}
-      {(metadata.developer || metadata.publisher || metadata.releaseDate || metadata.metacritic) && (
+      {(metadata.developer ||
+        metadata.publisher ||
+        metadata.releaseDate ||
+        metadata.metacritic) && (
         <div
           style={{
             backgroundColor: "rgba(0, 0, 0, 0.3)",
@@ -424,7 +438,7 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
             {metadata.developer && (
               <div>
                 <span style={{ fontWeight: 600, color: "#c7d5e0" }}>
-                  Developer:{" "}
+                  {t("gameInfoPanel.labels.developer")}{" "}
                 </span>
                 {metadata.developer}
               </div>
@@ -432,7 +446,7 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
             {metadata.publisher && (
               <div>
                 <span style={{ fontWeight: 600, color: "#c7d5e0" }}>
-                  Publisher:{" "}
+                  {t("gameInfoPanel.labels.publisher")}{" "}
                 </span>
                 {metadata.publisher}
               </div>
@@ -440,7 +454,7 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
             {metadata.releaseDate && (
               <div>
                 <span style={{ fontWeight: 600, color: "#c7d5e0" }}>
-                  Released:{" "}
+                  {t("gameInfoPanel.labels.released")}{" "}
                 </span>
                 {metadata.releaseDate}
               </div>
@@ -450,7 +464,7 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
                 style={{ display: "flex", alignItems: "center", gap: "6px" }}
               >
                 <span style={{ fontWeight: 600, color: "#c7d5e0" }}>
-                  Metacritic:
+                  {t("gameInfoPanel.labels.metacritic")}
                 </span>
                 <span
                   style={{
@@ -458,8 +472,8 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
                       metadata.metacritic >= 75
                         ? "#66cc33"
                         : metadata.metacritic >= 50
-                          ? "#ffcc33"
-                          : "#ff0000",
+                        ? "#ffcc33"
+                        : "#ff0000",
                     color: "#000",
                     padding: "2px 8px",
                     borderRadius: "3px",
@@ -497,16 +511,12 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
         {/* Store Page - uses steam:// when available, falls back to store URL */}
         <DialogButton
           onClick={() =>
-            openUrl(
-              hasValidSteamId
-                ? getSteamUrl("store")
-                : metadata.storeUrl,
-            )
+            openUrl(hasValidSteamId ? getSteamUrl("store") : metadata.storeUrl)
           }
           style={buttonStyle}
           className="unifideck-nav-button"
         >
-          Store Page
+          {t("gameInfoPanel.buttons.storePage")}
         </DialogButton>
 
         {/* DLC - only when game exists on Steam */}
@@ -516,7 +526,7 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
             style={buttonStyle}
             className="unifideck-nav-button"
           >
-            DLC
+            {t("gameInfoPanel.buttons.dlc")}
           </DialogButton>
         )}
 
@@ -527,7 +537,7 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
             style={buttonStyle}
             className="unifideck-nav-button"
           >
-            Community Hub
+            {t("gameInfoPanel.buttons.communityHub")}
           </DialogButton>
         )}
 
@@ -538,7 +548,7 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
             style={buttonStyle}
             className="unifideck-nav-button"
           >
-            Points Shop
+            {t("gameInfoPanel.buttons.pointsShop")}
           </DialogButton>
         )}
 
@@ -549,7 +559,7 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
             style={buttonStyle}
             className="unifideck-nav-button"
           >
-            Discussions
+            {t("gameInfoPanel.buttons.discussions")}
           </DialogButton>
         )}
 
@@ -560,7 +570,7 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
             style={buttonStyle}
             className="unifideck-nav-button"
           >
-            Guides
+            {t("gameInfoPanel.buttons.guides")}
           </DialogButton>
         )}
 
@@ -570,7 +580,7 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
           style={buttonStyle}
           className="unifideck-nav-button"
         >
-          Support
+          {t("gameInfoPanel.buttons.support")}
         </DialogButton>
       </Focusable>
     </div>

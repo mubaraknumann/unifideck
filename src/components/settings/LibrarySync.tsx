@@ -162,6 +162,22 @@ const LibrarySync: React.FC<LibrarySyncProps> = ({
                   synced: syncProgress.synced_games || 0,
                   total: syncProgress.total_games || 0,
                 })}
+                {(syncProgress.steam_total || 0) > 0 && (
+                  <div>
+                    {t("librarySync.steamMetadataDownloaded", {
+                      synced: syncProgress.steam_synced || 0,
+                      total: syncProgress.steam_total || 0,
+                    })}
+                  </div>
+                )}
+                {(syncProgress.rawg_total || 0) > 0 && (
+                  <div>
+                    {t("librarySync.rawgMetadataDownloaded", {
+                      synced: syncProgress.rawg_synced || 0,
+                      total: syncProgress.rawg_total || 0,
+                    })}
+                  </div>
+                )}
               </>
             )}
           </div>

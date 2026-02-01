@@ -90,7 +90,9 @@
     "cancelSync": "同期をキャンセル",
     "retryStatusCheck": "ステータスチェックを再試行",
     "gamesSynced": "{{synced}} / {{total}} 件のゲームを同期済み",
-    "artworkDownloaded": "{{synced}} / {{total}} 件のアートをダウンロード済み"
+    "artworkDownloaded": "{{synced}} / {{total}} 件のアートをダウンロード済み",
+    "steamMetadataDownloaded": "Steamメタデータ: {{synced}} / {{total}}",
+    "rawgMetadataDownloaded": "RAWGメタデータ: {{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "クリーンアップ",
@@ -233,9 +235,11 @@
     "cancelledByUser": "同期がキャンセルされました",
     "checkingInstalledGames": "インストール済み確認中...",
     "sgdbLookup": "SteamGridDBで{{count}}件検索中...",
+    "extractingSteamMetadata": "{{synced}}/{{total}}個のゲームのSteamメタデータを抽出中...",
+    "fetchingEnhancedMetadata": "{{synced}}/{{total}}個のゲームの拡張メタデータを取得中...",
     "checkingExistingArtwork": "既存アート確認中...",
     "cleaningOrphanedArtwork": "孤立したアートワークをクリーンアップしています...",
-    "retryingMissingArtwork": "アートワークが不足しているゲーム {{count}} 個を再試行しています...",
+    "retryingMissingArtwork": "アートワークが不足している{{synced}}/{{total}}個のゲームを再試行しています...",
     "savingShortcuts": "ショートカット保存中...",
     "completed": "同期完了！{{added}}追加、アート{{artwork}}。"
   },
@@ -270,5 +274,37 @@
     "allStores": "すべてのストア",
     "searchPlaceholder": "ゲームを検索...",
     "library": "ライブラリ"
+  },
+  "gameInfoPanel": {
+    "loading": "ゲーム情報を読み込み中...",
+    "noMetadata": "このゲームのメタデータは利用できません。",
+    "noTestResults": "詳細なテスト結果はありません。",
+    "buttons": {
+      "details": "詳細",
+      "synopsis": "概要",
+      "storePage": "ストアページ",
+      "dlc": "DLC",
+      "communityHub": "コミュニティ",
+      "pointsShop": "ポイントショップ",
+      "discussions": "ディスカッション",
+      "guides": "ガイド",
+      "support": "サポート"
+    },
+    "labels": {
+      "developer": "開発者:",
+      "publisher": "パブリッシャー:",
+      "released": "発売日:",
+      "metacritic": "Metacritic:",
+      "status": "ステータス:"
+    },
+    "compatibility": {
+      "modalTitle": "Steam Deck互換性",
+      "viewOnProtonDb": "ProtonDBで表示",
+      "close": "閉じる",
+      "verified": "検証済み",
+      "playable": "プレイ可能",
+      "unsupported": "非対応",
+      "unknown": "不明"
+    }
   }
 }

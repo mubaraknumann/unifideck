@@ -8,8 +8,8 @@
     "watch": "rollup -c -w",
     "test": "echo \"Error: no test specified\" && exit 1",
     "check:prettier": "prettier --config .prettierrc --check",
-    "fix:prettier": "prettier --config .prettierrc --write",
-    "prepare": "husky"
+    "fix:prettier": "prettier --config .prettierrc --write"
+
   },
   "lint-staged": {
     "*.{js,ts,jsx,tsx,json,md}": "npm run fix:prettier"
@@ -37,7 +37,7 @@
     "@types/webpack": "^5.28.5",
     "eslint-config-prettier": "^8.5.0",
     "eslint-plugin-prettier": "^4.0.0",
-    "husky": "^9.1.7",
+
     "lint-staged": "^16.2.7",
     "prettier": "^2.8.8",
     "rollup": "^4.53.3",

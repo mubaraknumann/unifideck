@@ -14,4 +14,9 @@ export type SyncProgress = {
   artwork_total?: number;
   artwork_synced?: number;
   current_phase?: string;
+  // Steam/RAWG metadata tracking fields
+  steam_total?: number;
+  steam_synced?: number;
+  rawg_total?: number;
+  rawg_synced?: number;
 };

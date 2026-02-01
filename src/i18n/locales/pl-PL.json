@@ -90,7 +90,9 @@
     "cancelSync": "Anuluj Synchronizację",
     "retryStatusCheck": "Ponów Sprawdzenie Statusu",
     "gamesSynced": "{{synced}} / {{total}} gier zsynchronizowanych",
-    "artworkDownloaded": "{{synced}} / {{total}} grafik pobranych"
+    "artworkDownloaded": "{{synced}} / {{total}} grafik pobranych",
+    "steamMetadataDownloaded": "Metadane Steam: {{synced}} / {{total}}",
+    "rawgMetadataDownloaded": "Metadane RAWG: {{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "Czyszczenie",
@@ -233,9 +235,11 @@
     "cancelledByUser": "Synchronizacja anulowana",
     "checkingInstalledGames": "Sprawdzanie zainstalowanych gier...",
     "sgdbLookup": "Wyszukiwanie {{count}} gier w SteamGridDB...",
+    "extractingSteamMetadata": "Wyodrębnianie metadanych Steam dla {{synced}}/{{total}} gier...",
+    "fetchingEnhancedMetadata": "Pobieranie ulepszonych metadanych dla {{synced}}/{{total}} gier...",
     "checkingExistingArtwork": "Sprawdzanie istniejącej grafiki...",
     "cleaningOrphanedArtwork": "Czyszczenie osieroconych grafik...",
-    "retryingMissingArtwork": "Ponawianie {{count}} gier z brakującymi grafikami...",
+    "retryingMissingArtwork": "Ponawianie {{synced}}/{{total}} gier z brakującymi grafikami...",
     "savingShortcuts": "Zapisywanie skrótów...",
     "completed": "Sync zakończony! {{added}} dodano, grafika {{artwork}}."
   },
@@ -270,5 +274,37 @@
     "allStores": "Wszystkie Sklepy",
     "searchPlaceholder": "Szukaj gier...",
     "library": "Biblioteka"
+  },
+  "gameInfoPanel": {
+    "loading": "Ładowanie informacji o grze...",
+    "noMetadata": "Brak metadanych dla tej gry.",
+    "noTestResults": "Brak szczegółowych wyników testów.",
+    "buttons": {
+      "details": "Szczegóły",
+      "synopsis": "Streszczenie",
+      "storePage": "Strona sklepu",
+      "dlc": "DLC",
+      "communityHub": "Hub społeczności",
+      "pointsShop": "Sklep punktów",
+      "discussions": "Dyskusje",
+      "guides": "Poradniki",
+      "support": "Wsparcie"
+    },
+    "labels": {
+      "developer": "Deweloper:",
+      "publisher": "Wydawca:",
+      "released": "Wydana:",
+      "metacritic": "Metacritic:",
+      "status": "Status:"
+    },
+    "compatibility": {
+      "modalTitle": "Kompatybilność Steam Deck",
+      "viewOnProtonDb": "Pokaż na ProtonDB",
+      "close": "Zamknij",
+      "verified": "ZWERYFIKOWANA",
+      "playable": "GRYWALNA",
+      "unsupported": "NIEOBSŁUGIWANA",
+      "unknown": "NIEZNANA"
+    }
   }
 }
