@@ -64,12 +64,6 @@ from backend.utils.metadata import (
     convert_appinfo_to_web_api_format,
     extract_metadata_from_appinfo,
 )
-from backend.utils.artwork import (
-    check_artwork_exists,
-    get_missing_artwork_types as get_missing_artwork_types_util,
-    delete_game_artwork,
-    get_artwork_paths,
-)
 from backend.utils.deck_compat import (
     fetch_steam_deck_compatibility,
 )
@@ -109,7 +103,7 @@ from backend.compat import (
     BackgroundCompatFetcher,
     load_compat_cache, save_compat_cache, prefetch_compat
 )
-from backend.services import InstallService
+from backend.services import InstallService, ArtworkService
 
 # Use Decky's logger for proper integration
 logger = decky.logger
@@ -118,10 +112,6 @@ logger = decky.logger
 if not STEAMGRIDDB_AVAILABLE:
     logger.warning("SteamGridDB client not available")
 logger.info("Modular backend package loaded successfully")
-
-
-# Artwork sync timeout (seconds per game)
-ARTWORK_FETCH_TIMEOUT = 90
 
 
 class Plugin:
@@ -260,6 +250,13 @@ class Plugin:
         else:
             logger.warning("[INIT] SteamGridDB not available - skipping")
             self.steamgriddb = None
+
+        # Initialize ArtworkService
+        logger.info("[INIT] Initializing ArtworkService")
+        self.artwork_service = ArtworkService(
+            steamgriddb_client=self.steamgriddb,
+            sync_progress=self.sync_progress
+        )
 
         # Global lock to prevent concurrent syncs
         self._sync_lock = asyncio.Lock()
@@ -415,10 +412,7 @@ class Plugin:
 
     async def has_artwork(self, app_id: int) -> bool:
         """Check if artwork files exist for this app_id"""
-        if not self.steamgriddb or not self.steamgriddb.grid_path:
-            return False
-        
-        return check_artwork_exists(Path(self.steamgriddb.grid_path), app_id)
+        return await self.artwork_service.has_artwork(app_id)
 
     async def get_missing_artwork_types(self, app_id: int) -> set:
         """Check which specific artwork types are missing for this app_id
@@ -426,10 +420,7 @@ class Plugin:
         Returns:
             set: Set of missing artwork types (e.g., {'grid', 'hero', 'logo', 'icon'})
         """
-        if not self.steamgriddb or not self.steamgriddb.grid_path:
-            return {'grid', 'hero', 'logo', 'icon'}
-        
-        return get_missing_artwork_types_util(Path(self.steamgriddb.grid_path), app_id)
+        return await self.artwork_service.get_missing_artwork_types(app_id)
 
     async def fetch_artwork_with_progress(self, game, semaphore):
         """Fetch artwork for a single game with concurrency control and timeout
@@ -437,51 +428,7 @@ class Plugin:
         Returns:
             dict: {success: bool, timed_out: bool, game: Game, error: str}
         """
-        async with semaphore:
-            try:
-                # Update status to show we're working on this game (before download)
-                self.sync_progress.current_game = {
-                    "label": "sync.downloadingArtwork",
-                    "values": {"game": game.title}
-                }
-
-                # Wrap with timeout to prevent sync from hanging
-                try:
-                    result = await asyncio.wait_for(
-                        self.steamgriddb.fetch_game_art(
-                            game.title,
-                            game.app_id,
-                            store=game.store,      # 'epic', 'gog', or 'amazon'
-                            store_id=game.id       # Store-specific game ID
-                        ),
-                        timeout=ARTWORK_FETCH_TIMEOUT
-                    )
-                except asyncio.TimeoutError:
-                    logger.warning(f"Artwork fetch timed out for {game.title} after {ARTWORK_FETCH_TIMEOUT}s")
-                    await self.sync_progress.increment_artwork(game.title)
-                    return {'success': False, 'timed_out': True, 'game': game}
-
-                # Store steam_app_id from search (for ProtonDB lookups)
-                if result.get('steam_app_id'):
-                    game.steam_app_id = result['steam_app_id']
-
-                # Update progress (thread-safe)
-                count = await self.sync_progress.increment_artwork(game.title)
-
-                # Build detailed source log
-                sources = result.get('sources', [])
-                art_count = result.get('artwork_count', 0)
-                sgdb = '+SGDB' if result.get('sgdb_filled') else ''
-                source_str = ' '.join(sources) if sources else 'NO_SOURCE'
-
-                # Log format: [progress] STORE: Title [sources] (artwork_count)
-                logger.info(f"  [{count}/{self.sync_progress.artwork_total}] {game.store.upper()}: {game.title} [{source_str}{sgdb}] ({art_count}/4)")
-
-                return {'success': result.get('success', False), 'game': game, 'artwork_count': art_count}
-            except Exception as e:
-                logger.error(f"Error fetching artwork for {game.title}: {e}")
-                await self.sync_progress.increment_artwork(game.title)
-                return {'success': False, 'error': str(e), 'game': game}
+        return await self.artwork_service.fetch_artwork_with_progress(game, semaphore)
 
     async def sync_libraries(self, fetch_artwork: bool = True) -> Dict[str, Any]:
         """Sync all game libraries to shortcuts.vdf and optionally fetch artwork - with global lock protection"""
@@ -2887,10 +2834,7 @@ class Plugin:
 
     async def _delete_game_artwork(self, app_id: int) -> Dict[str, bool]:
         """Delete artwork files for a single game"""
-        if not self.steamgriddb or not self.steamgriddb.grid_path:
-            return {}
-        
-        return delete_game_artwork(Path(self.steamgriddb.grid_path), app_id)
+        return await self.artwork_service.delete_game_artwork(app_id)
 
     async def perform_full_cleanup(self, delete_files: bool = False) -> Dict[str, Any]:
         """
