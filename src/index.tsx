@@ -540,10 +540,12 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
     }
   `;
 
+  const DeckButton = (DialogButton as any).render({}).type;
+
   return (
     <>
       <style>{focusStyles}</style>
-      {/* Install/Uninstall/Cancel Button - ProtonDB pattern (no Focusable wrapper) */}
+      {/* Install/Uninstall/Cancel Button - ProtonDB pattern with proper focus handling */}
       <div
         style={{
           position: "absolute",
@@ -553,11 +555,12 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
         }}
         className="unifideck-install-button-container"
       >
-        <DialogButton
+        <DeckButton
           onClick={buttonAction}
           disabled={processing}
           style={buttonStyle}
           className="unifideck-install-button"
+          type="button"
         >
           {processing ? (
             t("installButton.processing")
@@ -567,7 +570,7 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
               {buttonText}
             </>
           )}
-        </DialogButton>
+        </DeckButton>
       </div>
     </>
   );
