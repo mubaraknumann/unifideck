@@ -35,7 +35,7 @@ if [[ "$DOCKER_INSTALLED" =~ "which" ]]; then
 fi
 
 if ! test -f "$CLI_INSTALLED"; then
-    echo "The Decky CLI tool (binary file is just called \"decky\") is used to build your plugin as a zip file which you can then install on your Steam Deck to perform testing. We highly recommend you install it. Hitting enter now will run the script to install Decky CLI and extract it to a folder called cli in the current plugin directory. You can also type 'no' and hit enter to skip this but keep in mind you will not have a usable plugin without building it."
+    echo "The Decky CLI tool (binary file is just called "decky") is used to build your plugin as a zip file which you can then install on your Steam Deck to perform testing. We highly recommend you install it. Hitting enter now will run the script to install Decky CLI and extract it to a folder called cli in the current plugin directory. You can also type 'no' and hit enter to skip this but keep in mind you will not have a usable plugin without building it."
     read run_cli_script
     if [[ "$run_cli_script" =~ "n" ]]; then
         echo "You have chosen to not install the Decky CLI tool to build your plugins. Please install this tool to build and test your plugin before submitting it to the Plugin Database."
@@ -68,6 +68,6 @@ if ! test -f "$CLI_INSTALLED"; then
         fi
         
         chmod +x "$(pwd)"/cli/decky
-        echo "Decky CLI tool is now installed and you can build plugins into easy zip files using the \"Build Zip\" Task in vscodium."
+        echo "Decky CLI tool is now installed and you can build plugins into easy zip files using the "Build Zip" Task in vscodium."
     fi
 fi
