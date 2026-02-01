@@ -64,7 +64,6 @@ from backend.utils.metadata import (
     convert_appinfo_to_web_api_format,
     extract_metadata_from_appinfo,
 )
-from helpers.cache_helpers import get_steam_appid, calculate_game_size, read_cache_entry, write_cache_entry
 
 # Import Cloud Save Manager
 from cloud_save_manager import CloudSaveManager
