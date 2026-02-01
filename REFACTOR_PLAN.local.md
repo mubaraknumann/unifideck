@@ -102,6 +102,16 @@ Gates maintained after each commit:
 
 **Target achieved:** Cleaner component structure, much easier to maintain and extend ✅
 
-## Phase 4 — Stabilize
+## Phase 4 — Stabilize & Final Cleanup
 
-- more tests, type tightening, error normalization
+**Goals:**
+
+1. Complete remaining extractions (SyncService, settings panel components)
+2. Organize project structure (move misplaced root files)
+3. Remove dead code and unused files
+4. Delete REFACTOR_PLAN.local.md (no longer needed)
+5. Add tests for new modules
+6. Tighten TypeScript/Python types
+7. Normalize error handling patterns
+
+**Target:** Production-ready, maintainable codebase

@@ -57,6 +57,10 @@ class ArtworkService:
         
         return any((grid_path / art).exists() for art in artwork_types)
     
+    async def get_missing_types(self, app_id: int) -> Set[str]:
+        """Alias for get_missing_artwork_types for consistency."""
+        return await self.get_missing_artwork_types(app_id)
+    
     async def get_missing_artwork_types(self, app_id: int) -> Set[str]:
         """Check which specific artwork types are missing for this app_id.
         
@@ -202,3 +206,158 @@ class ArtworkService:
             art_type: path if path.exists() else None
             for art_type, path in paths.items()
         }
+    
+    async def fetch_for_game(self, game) -> Dict[str, Any]:
+        """Fetch artwork for a game (without semaphore - caller manages concurrency).
+        
+        Args:
+            game: Game object with title, app_id, store, and id attributes
+            
+        Returns:
+            dict: {success: bool, game: Game, error: str, artwork_count: int}
+        """
+        try:
+            result = await asyncio.wait_for(
+                self.steamgriddb.fetch_game_art(
+                    game.title,
+                    game.app_id,
+                    store=game.store,
+                    store_id=game.id
+                ),
+                timeout=ARTWORK_FETCH_TIMEOUT
+            )
+            
+            if result.get('steam_app_id'):
+                game.steam_app_id = result['steam_app_id']
+            
+            return {
+                'success': result.get('success', False),
+                'game': game,
+                'artwork_count': result.get('artwork_count', 0)
+            }
+        except asyncio.TimeoutError:
+            logger.warning(f"Artwork fetch timed out for {game.title}")
+            return {'success': False, 'timed_out': True, 'game': game}
+        except Exception as e:
+            logger.error(f"Error fetching artwork for {game.title}: {e}")
+            return {'success': False, 'error': str(e), 'game': game}
+    
+    async def search_game(self, title: str) -> Optional[int]:
+        """Search for a game on SteamGridDB and return its ID.
+        
+        Args:
+            title: Game title to search for
+            
+        Returns:
+            SteamGridDB game ID or None if not found
+        """
+        if not self.steamgriddb:
+            return None
+        
+        try:
+            return await self.steamgriddb.search_game(title)
+        except Exception as e:
+            logger.debug(f"SGDB search failed for {title}: {e}")
+            return None
+    
+    async def cleanup_orphaned(self) -> Dict[str, int]:
+        """Clean up orphaned artwork files.
+        
+        Returns:
+            Dict with removed_count
+        """
+        if not self.steamgriddb:
+            return {'removed_count': 0}
+        
+        try:
+            result = await self.steamgriddb.cleanup_orphaned_artwork()
+            return result
+        except Exception as e:
+            logger.error(f"Error cleaning up orphaned artwork: {e}")
+            return {'removed_count': 0}
+    
+    def get_grid_path(self) -> Optional[str]:
+        """Get the grid path for artwork storage.
+        
+        Returns:
+            Grid path string or None
+        """
+        if not self.steamgriddb:
+            return None
+        return self.steamgriddb.grid_path
+    
+    async def clear_cache(self):
+        """Clear all artwork cache (used for force resync)."""
+        if not self.steamgriddb or not self.steamgriddb.grid_path:
+            return
+        
+        grid_path = Path(self.steamgriddb.grid_path)
+        if not grid_path.exists():
+            return
+        
+        # Delete all artwork files
+        count = 0
+        for file in grid_path.glob("*"):
+            if file.is_file():
+                try:
+                    file.unlink()
+                    count += 1
+                except Exception as e:
+                    logger.error(f"Failed to delete {file}: {e}")
+        
+        logger.info(f"Cleared {count} artwork files from cache")
+    
+    async def cleanup_orphaned(self, shortcuts_manager) -> Dict[str, int]:
+        """Clean up orphaned artwork files that don't match any current shortcut.
+        
+        Args:
+            shortcuts_manager: ShortcutsManager instance to get valid app IDs
+            
+        Returns:
+            Dict with removed_count and removed_files
+        """
+        if not self.steamgriddb or not self.steamgriddb.grid_path:
+            return {'removed_count': 0, 'removed_files': []}
+
+        grid_path = Path(self.steamgriddb.grid_path)
+        if not grid_path.exists():
+            return {'removed_count': 0, 'removed_files': []}
+
+        # Get valid app_ids from shortcuts
+        shortcuts = await shortcuts_manager.read_shortcuts()
+        valid_ids = set()
+        for shortcut in shortcuts.get('shortcuts', {}).values():
+            app_id = shortcut.get('appid')
+            if app_id is not None:
+                unsigned_id = app_id if app_id >= 0 else app_id + 2**32
+                valid_ids.add(str(unsigned_id))
+
+        # Patterns for artwork files
+        patterns = ['p.jpg', '_hero.jpg', '_logo.png', '_icon.jpg', '.jpg']
+
+        # Scan and remove orphans
+        removed = []
+        try:
+            for filepath in grid_path.iterdir():
+                if not filepath.is_file():
+                    continue
+                filename = filepath.name
+
+                for pattern in patterns:
+                    if filename.endswith(pattern):
+                        extracted_id = filename[:-len(pattern)]
+                        # Only remove if it looks like a numeric app_id and is orphaned
+                        if extracted_id.isdigit() and extracted_id not in valid_ids:
+                            try:
+                                filepath.unlink()
+                                removed.append(filename)
+                            except Exception as e:
+                                logger.error(f"Error removing orphaned artwork {filename}: {e}")
+                        break
+        except Exception as e:
+            logger.error(f"Error scanning grid path for orphaned artwork: {e}")
+
+        if removed:
+            logger.info(f"[Cleanup] Removed {len(removed)} orphaned artwork files")
+
+        return {'removed_count': len(removed), 'removed_files': removed}
