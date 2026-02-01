@@ -37,6 +37,16 @@ import {
 // Import Steam patching utilities
 import { patchGameDetailsRoute } from "./patching/GameDetailsPatching";
 
+// Import hooks
+import {
+  useGameInfo,
+  invalidateGameInfoCache,
+  refreshGameInfo,
+  clearGameInfoCache,
+  GameInfo,
+} from "./hooks/useGameInfo";
+import { useDownloadState } from "./hooks/useDownloadState";
+
 // Import Downloads feature components
 import { DownloadsTab } from "./components/DownloadsTab";
 import { StorageSettings } from "./components/StorageSettings";
@@ -93,10 +103,6 @@ import { SyncProgress } from "./types/syncProgress";
 //
 // ================================================
 
-// Global cache for game info (5-second TTL for faster updates after installation)
-const gameInfoCache = new Map<number, { info: any; timestamp: number }>();
-const CACHE_TTL = 5000; // 5 seconds - reduced from 30s for faster button state updates
-
 // ========== END INSTALL BUTTON FEATURE ==========
 
 // ========== NATIVE PLAY BUTTON OVERRIDE ==========
@@ -109,174 +115,52 @@ const CACHE_TTL = 5000; // 5 seconds - reduced from 30s for faster button state 
 
 // Install Info Display Component - shows download size next to play section
 const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
-  const [gameInfo, setGameInfo] = useState<any>(null);
   const [processing, setProcessing] = useState(false);
-  const [downloadState, setDownloadState] = useState<{
-    isDownloading: boolean;
-    progress?: number;
-    downloadId?: string;
-  }>({ isDownloading: false });
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [localGameInfo, setLocalGameInfo] = useState<GameInfo | null>(null);
 
   const { t } = useTranslation();
 
-  // Fetch game info on mount
-  useEffect(() => {
-    const cached = gameInfoCache.get(appId);
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-      setGameInfo(cached.info);
-      return;
-    }
+  // Use custom hooks for data fetching
+  const gameInfo = useGameInfo(appId);
 
-    call<[number], any>("get_game_info", appId)
-      .then((info) => {
-        const processedInfo = info?.error ? null : info;
-        setGameInfo(processedInfo);
-        gameInfoCache.set(appId, {
-          info: processedInfo,
-          timestamp: Date.now(),
-        });
-      })
-      .catch(() => setGameInfo(null));
-  }, [appId]);
-
-  // Poll for download state when we have game info
-  useEffect(() => {
+  // Handle download completion
+  const handleDownloadComplete = async () => {
     if (!gameInfo) return;
 
-    const checkDownloadState = async () => {
-      try {
-        const result = await call<
-          [string, string],
-          {
-            success: boolean;
-            is_downloading: boolean;
-            download_info?: {
-              id: string;
-              progress_percent: number;
-              status: string;
-            };
-          }
-        >("is_game_downloading", gameInfo.game_id, gameInfo.store);
+    // Show installation complete toast
+    toaster.toast({
+      title: t("toasts.installComplete"),
+      body: t("toasts.installCompleteMessage", {
+        title: gameInfo.title || "Game",
+      }),
+      duration: 10000,
+      critical: true,
+    });
 
-        setDownloadState((prevState) => {
-          const newState = {
-            isDownloading: false,
-            progress: 0,
-            downloadId: undefined as string | undefined,
-          };
+    // Refresh game info to update button state
+    const updatedInfo = await refreshGameInfo(appId);
+    if (updatedInfo) {
+      setLocalGameInfo(updatedInfo);
+      // Update tab cache immediately so UI reflects change
+      updateSingleGameStatus({
+        appId,
+        store: updatedInfo.store,
+        isInstalled: updatedInfo.is_installed,
+      });
+    }
+  };
 
-          if (result.success && result.is_downloading && result.download_info) {
-            const status = result.download_info.status;
-            // Only show as downloading if status is actively downloading or queued
-            // Cancelled/error items should not be shown as active downloads
-            if (status === "downloading" || status === "queued") {
-              newState.isDownloading = true;
-              newState.progress = result.download_info.progress_percent;
-              newState.downloadId = result.download_info.id;
-            }
-            // If status is cancelled/error/completed, isDownloading stays false
-          }
+  const downloadState = useDownloadState(gameInfo, handleDownloadComplete);
 
-          // Detect transition from Downloading -> Not Downloading (Completion)
-          if (prevState.isDownloading && !newState.isDownloading) {
-            console.log(
-              "[InstallInfoDisplay] Download stopped, checking status...",
-            );
+  // Sync local state with hook-provided gameInfo
+  useEffect(() => {
+    setLocalGameInfo(gameInfo);
+  }, [gameInfo]);
 
-            // Check the status from the download info to determine actual completion
-            // result.download_info might be available even if is_downloading is false
-            const finalStatus = result.download_info?.status;
-
-            if (finalStatus === "completed") {
-              console.log(
-                "[InstallInfoDisplay] Download successfully finished",
-              );
-
-              // Show installation complete toast
-              toaster.toast({
-                title: t("toasts.installComplete"),
-                body: t("toasts.installCompleteMessage", {
-                  title: gameInfo?.title || "Game",
-                }),
-                duration: 10000,
-                critical: true,
-              });
-
-              // Invalidate cache first to ensure fresh data
-              gameInfoCache.delete(appId);
-
-              // Refresh game info to update button state (Install -> Play/Uninstall)
-              call<[number], any>("get_game_info", appId).then((info) => {
-                const processedInfo = info?.error ? null : info;
-                setGameInfo(processedInfo);
-                if (processedInfo) {
-                  gameInfoCache.set(appId, {
-                    info: processedInfo,
-                    timestamp: Date.now(),
-                  });
-                  // Update tab cache immediately so UI reflects change
-                  updateSingleGameStatus({
-                    appId,
-                    store: processedInfo.store,
-                    isInstalled: processedInfo.is_installed,
-                  });
-                }
-              });
-            } else if (finalStatus === "cancelled") {
-              console.log(
-                "[InstallInfoDisplay] Download was cancelled - suppressing success message",
-              );
-            } else if (finalStatus === "error") {
-              console.log(
-                "[InstallInfoDisplay] Download failed - suppressing success message",
-              );
-            } else {
-              // Fallback: If no status info (legacy behavior or edge case), verify installation again
-              console.log(
-                "[InstallInfoDisplay] No final status, verifying installation...",
-              );
-              call<[number], any>("get_game_info", appId).then((info) => {
-                if (info && info.is_installed) {
-                  // It is installed, likely success
-                  toaster.toast({
-                    title: t("toasts.installComplete"),
-                    body: t("toasts.installCompleteMessage", {
-                      title: gameInfo?.title || "Game",
-                    }),
-                    duration: 10000,
-                  });
-                  setGameInfo(info);
-                }
-              });
-            }
-          }
-
-          return newState;
-        });
-      } catch (error) {
-        console.error(
-          "[InstallInfoDisplay] Error checking download state:",
-          error,
-        );
-      }
-    };
-
-    // Initial check
-    checkDownloadState();
-
-    // Poll every second when displaying
-    pollIntervalRef.current = setInterval(checkDownloadState, 1000);
-
-    return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-      }
-    };
-  }, [gameInfo, appId]);
+  const displayInfo = localGameInfo || gameInfo;
 
   const handleInstall = async () => {
-    if (!gameInfo) return;
+    if (!displayInfo) return;
     setProcessing(true);
 
     // Queue download instead of direct install
@@ -288,7 +172,7 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
     if (result.success) {
       toaster.toast({
         title: t("toasts.downloadStarted"),
-        body: t("toasts.downloadQueued", { title: gameInfo.title }),
+        body: t("toasts.downloadQueued", { title: displayInfo.title }),
         duration: 5000,
       });
 
@@ -302,11 +186,7 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
       }
 
       // Force immediate state check to update UI to "Cancel" faster
-      setDownloadState((prev) => ({
-        ...prev,
-        isDownloading: true,
-        progress: 0,
-      }));
+      // Note: downloadState is managed by hook, no manual setting needed
     } else {
       toaster.toast({
         title: t("toasts.downloadFailed"),
@@ -321,9 +201,11 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
   };
 
   const handleCancel = async () => {
+    if (!displayInfo) return;
+
     // If we don't have a specific download ID yet (race condition at start), try to construct it
     const dlId =
-      downloadState.downloadId || `${gameInfo.store}:${gameInfo.game_id}`;
+      downloadState.downloadId || `${displayInfo.store}:${displayInfo.game_id}`;
 
     setProcessing(true);
 
@@ -335,10 +217,12 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
     if (result.success) {
       toaster.toast({
         title: t("toasts.downloadCancelled"),
-        body: t("toasts.downloadCancelledMessage", { title: gameInfo?.title }),
+        body: t("toasts.downloadCancelledMessage", {
+          title: displayInfo?.title,
+        }),
         duration: 5000,
       });
-      setDownloadState({ isDownloading: false, progress: 0 });
+      // Note: downloadState is managed by hook, will update automatically
     } else {
       toaster.toast({
         title: t("toasts.cancelFailed"),
@@ -351,14 +235,14 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
   };
 
   const handleUninstall = async (deletePrefix: boolean = false) => {
-    if (!gameInfo) return;
+    if (!displayInfo) return;
     setProcessing(true);
 
     toaster.toast({
       title: t("toasts.uninstalling"),
       body: deletePrefix
-        ? t("toasts.uninstallingMessageProton", { title: gameInfo.title })
-        : t("toasts.uninstallingMessage", { title: gameInfo.title }),
+        ? t("toasts.uninstallingMessageProton", { title: displayInfo.title })
+        : t("toasts.uninstallingMessage", { title: displayInfo.title }),
       duration: 5000,
     });
 
@@ -369,8 +253,9 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
     );
 
     if (result.success) {
-      setGameInfo({ ...gameInfo, is_installed: false });
-      gameInfoCache.delete(appId);
+      // Update local state to reflect uninstallation
+      setLocalGameInfo({ ...displayInfo, is_installed: false });
+      invalidateGameInfoCache(appId);
 
       // Update tab cache immediately so UI reflects change without restart
       if (result.game_update) {
@@ -381,9 +266,9 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
         title: t("toasts.uninstallComplete"),
         body: deletePrefix
           ? t("toasts.uninstallCompleteMessageProton", {
-              title: gameInfo.title,
+              title: displayInfo.title,
             })
-          : t("toasts.uninstallCompleteMessage", { title: gameInfo.title }),
+          : t("toasts.uninstallCompleteMessage", { title: displayInfo.title }),
         duration: 10000,
       });
     }
@@ -400,7 +285,7 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
       <ConfirmModal
         strTitle={t("confirmModals.installTitle")}
         strDescription={t("confirmModals.installDescription", {
-          title: gameInfo?.title,
+          title: displayInfo?.title,
         })}
         strOKButtonText={t("confirmModals.yes")}
         strCancelButtonText={t("confirmModals.no")}
@@ -412,7 +297,7 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
   const showUninstallConfirmation = () => {
     showModal(
       <UninstallConfirmModal
-        gameTitle={gameInfo?.title || "this game"}
+        gameTitle={displayInfo?.title || "this game"}
         onConfirm={(deletePrefix) => handleUninstall(deletePrefix)}
       />,
     );
@@ -423,7 +308,7 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
       <ConfirmModal
         strTitle={t("confirmModals.cancelTitle")}
         strDescription={t("confirmModals.cancelDescription", {
-          title: gameInfo?.title,
+          title: displayInfo?.title,
         })}
         strOKButtonText={t("confirmModals.yes")}
         strCancelButtonText={t("confirmModals.no")}
@@ -434,9 +319,9 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
   };
 
   // Not a Unifideck game - return null
-  if (!gameInfo || gameInfo.error) return null;
+  if (!displayInfo || displayInfo.error) return null;
 
-  const isInstalled = gameInfo.is_installed;
+  const isInstalled = displayInfo.is_installed;
 
   // Determine button display based on state
   let buttonText: string;
@@ -484,11 +369,11 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
     };
   } else if (isInstalled) {
     // Show size for installed games if available
-    const sizeText = gameInfo.size_formatted
-      ? ` (${gameInfo.size_formatted})`
+    const sizeText = displayInfo.size_formatted
+      ? ` (${displayInfo.size_formatted})`
       : " (- GB)";
     buttonText =
-      t("installButton.uninstall", { title: gameInfo.title }) + sizeText;
+      t("installButton.uninstall", { title: displayInfo.title }) + sizeText;
     buttonAction = showUninstallConfirmation;
 
     buttonStyle = {
@@ -501,11 +386,11 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
     };
   } else {
     // Show size in Install button
-    const sizeText = gameInfo.size_formatted
-      ? ` (${gameInfo.size_formatted})`
+    const sizeText = displayInfo.size_formatted
+      ? ` (${displayInfo.size_formatted})`
       : " (- GB)";
     buttonText =
-      t("installButton.install", { title: gameInfo.title }) + sizeText;
+      t("installButton.install", { title: displayInfo.title }) + sizeText;
     buttonAction = showInstallConfirmation;
 
     buttonStyle = {
@@ -559,7 +444,11 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
             t("installButton.processing")
           ) : (
             <>
-              <StoreIcon store={gameInfo.store} size="16px" color="#ffffff" />
+              <StoreIcon
+                store={displayInfo.store}
+                size="16px"
+                color="#ffffff"
+              />
               {buttonText}
             </>
           )}
@@ -1634,7 +1523,7 @@ export default definePlugin(() => {
       routerHook.removePatch("/library/app/:appid", patchGameDetails);
 
       // Clear game info cache
-      gameInfoCache.clear();
+      clearGameInfoCache();
 
       // Stop background sync service
       call("stop_background_sync").catch((error) =>
