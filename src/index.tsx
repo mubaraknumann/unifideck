@@ -45,6 +45,7 @@ import { DownloadsTab } from "./components/DownloadsTab";
 import { StorageSettings } from "./components/StorageSettings";
 import { UninstallConfirmModal } from "./components/UninstallConfirmModal";
 import { LanguageSelector } from "./components/LanguageSelector";
+import { SettingsTab } from "./components/settings/SettingsTab";
 import { InstallButton } from "./components/InstallButton";
 import StoreConnections from "./components/settings/StoreConnections";
 import { Store } from "./types/store";
@@ -130,9 +131,6 @@ const Content: FC = () => {
   const [syncing, setSyncing] = useState(false);
   const [syncCooldown, setSyncCooldown] = useState(false);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
-  const [deleting, setDeleting] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deleteFiles, setDeleteFiles] = useState(false);
 
   // Auto-focus ref
   const mountRef = useRef<HTMLDivElement>(null);
@@ -782,61 +780,6 @@ const Content: FC = () => {
     }
   };
 
-  const handleDeleteAll = async () => {
-    if (!showDeleteConfirm) {
-      setShowDeleteConfirm(true);
-      return;
-    }
-
-    setDeleting(true);
-    setShowDeleteConfirm(false);
-
-    try {
-      const result = await call<
-        [{ delete_files: boolean }],
-        {
-          success: boolean;
-          deleted_games: number;
-          deleted_artwork: number;
-          deleted_files_count: number;
-          preserved_shortcuts: number;
-          error?: string;
-        }
-      >("perform_full_cleanup", { delete_files: deleteFiles });
-
-      // Reset checkbox
-      setDeleteFiles(false);
-
-      if (result.success) {
-        console.log(
-          `[Unifideck] Cleanup complete: ${result.deleted_games} games, ` +
-            `${result.deleted_artwork} artwork sets, ${result.deleted_files_count} files deleted`,
-        );
-
-        toaster.toast({
-          title: t("toasts.cleanupSuccessful"),
-          body: t("toasts.cleanupSuccessfulMessage", {
-            games: result.deleted_games,
-            artwork: result.deleted_artwork,
-            files: result.deleted_files_count,
-          }),
-          duration: 8000,
-        });
-      } else {
-        console.error(`[Unifideck] Delete failed: ${result.error}`);
-        toaster.toast({
-          title: t("toasts.deleteFailed"),
-          body: result.error ? t(result.error) : "Unknown error",
-          duration: 5000,
-        });
-      }
-    } catch (error) {
-      console.error("[Unifideck] Delete error:", error);
-    } finally {
-      setDeleting(false);
-    }
-  };
-
   const handleCancelSync = async () => {
     try {
       // Clear polling interval immediately when user cancels
@@ -907,97 +850,19 @@ const Content: FC = () => {
 
       {/* Settings Tab */}
       {activeTab === "settings" && (
-        <>
-          {/* Store Connections - Compact View */}
-          <StoreConnections
-            storeStatus={storeStatus}
-            onStartAuth={startAuth}
-            onLogout={handleLogout}
-          />
-
-          {/* Library Sync Section */}
-          <LibrarySync
-            syncing={syncing}
-            syncCooldown={syncCooldown}
-            cooldownSeconds={cooldownSeconds}
-            syncProgress={syncProgress}
-            storeStatus={storeStatus}
-            handleManualSync={handleManualSync}
-            handleCancelSync={handleCancelSync}
-            showModal={showModal}
-            checkStoreStatus={checkStoreStatus}
-          />
-
-          {/* Language Settings - centralized language control */}
-          <LanguageSelector />
-
-          {/* Cleanup Section */}
-          <PanelSection title={t("cleanup.title")}>
-            {!showDeleteConfirm ? (
-              <PanelSectionRow>
-                <ButtonItem
-                  layout="below"
-                  onClick={handleDeleteAll}
-                  disabled={syncing || deleting || syncCooldown}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "2px",
-                      fontSize: "0.85em",
-                      padding: "2px",
-                    }}
-                  >
-                    {t("cleanup.deleteAll")}
-                  </div>
-                </ButtonItem>
-              </PanelSectionRow>
-            ) : (
-              <>
-                <PanelSectionRow>
-                  <Field
-                    label={t("cleanup.warningTitle")}
-                    description={t("cleanup.warningDescription")}
-                  />
-                </PanelSectionRow>
-
-                {/* Delete Files Checkbox */}
-                <PanelSectionRow>
-                  <ToggleField
-                    label={t("cleanup.deleteFilesLabel")}
-                    checked={deleteFiles}
-                    onChange={(checked) => setDeleteFiles(checked)}
-                  />
-                </PanelSectionRow>
-
-                <PanelSectionRow>
-                  <ButtonItem
-                    layout="below"
-                    onClick={handleDeleteAll}
-                    disabled={deleting}
-                  >
-                    {deleting
-                      ? t("cleanup.deleting")
-                      : t("cleanup.confirmDelete")}
-                  </ButtonItem>
-                </PanelSectionRow>
-                <PanelSectionRow>
-                  <ButtonItem
-                    layout="below"
-                    onClick={() => {
-                      setShowDeleteConfirm(false);
-                      setDeleteFiles(false);
-                    }}
-                    disabled={deleting}
-                  >
-                    {t("cleanup.cancel")}
-                  </ButtonItem>
-                </PanelSectionRow>
-              </>
-            )}
-          </PanelSection>
-        </>
+        <SettingsTab
+          storeStatus={storeStatus}
+          onStartAuth={startAuth}
+          onLogout={handleLogout}
+          syncing={syncing}
+          syncCooldown={syncCooldown}
+          cooldownSeconds={cooldownSeconds}
+          syncProgress={syncProgress}
+          handleManualSync={handleManualSync}
+          handleCancelSync={handleCancelSync}
+          showModal={showModal}
+          checkStoreStatus={checkStoreStatus}
+        />
       )}
     </>
   );
