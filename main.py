@@ -64,6 +64,12 @@ from backend.utils.metadata import (
     convert_appinfo_to_web_api_format,
     extract_metadata_from_appinfo,
 )
+from backend.utils.artwork import (
+    check_artwork_exists,
+    get_missing_artwork_types as get_missing_artwork_types_util,
+    delete_game_artwork,
+    get_artwork_paths,
+)
 
 # Import Cloud Save Manager
 from cloud_save_manager import CloudSaveManager
@@ -385,21 +391,8 @@ class Plugin:
         """Check if artwork files exist for this app_id"""
         if not self.steamgriddb or not self.steamgriddb.grid_path:
             return False
-
-        # Convert signed int32 to unsigned for filename check (same as download logic)
-        # Steam artwork files use unsigned app IDs even though shortcuts.vdf stores signed
-        # Example: -1257913040 (signed) -> 3037054256 (unsigned)
-        unsigned_id = app_id if app_id >= 0 else app_id + 2**32
-
-        # Check for any of the 4 artwork types
-        grid_path = Path(self.steamgriddb.grid_path)
-        artwork_files = [
-            grid_path / f"{unsigned_id}p.jpg",     # Vertical grid (460x215)
-            grid_path / f"{unsigned_id}_hero.jpg", # Hero image (1920x620)
-            grid_path / f"{unsigned_id}_logo.png", # Logo
-            grid_path / f"{unsigned_id}_icon.jpg"  # Icon
-        ]
-        return any(f.exists() for f in artwork_files)
+        
+        return check_artwork_exists(Path(self.steamgriddb.grid_path), app_id)
 
     async def get_missing_artwork_types(self, app_id: int) -> set:
         """Check which specific artwork types are missing for this app_id
@@ -409,18 +402,8 @@ class Plugin:
         """
         if not self.steamgriddb or not self.steamgriddb.grid_path:
             return {'grid', 'hero', 'logo', 'icon'}
-
-        unsigned_id = app_id if app_id >= 0 else app_id + 2**32
-        grid_path = Path(self.steamgriddb.grid_path)
-
-        artwork_checks = {
-            'grid': grid_path / f"{unsigned_id}p.jpg",
-            'hero': grid_path / f"{unsigned_id}_hero.jpg",
-            'logo': grid_path / f"{unsigned_id}_logo.png",
-            'icon': grid_path / f"{unsigned_id}_icon.jpg"
-        }
-
-        return {art_type for art_type, path in artwork_checks.items() if not path.exists()}
+        
+        return get_missing_artwork_types_util(Path(self.steamgriddb.grid_path), app_id)
 
     async def fetch_artwork_with_progress(self, game, semaphore):
         """Fetch artwork for a single game with concurrency control and timeout
@@ -3210,31 +3193,8 @@ class Plugin:
         """Delete artwork files for a single game"""
         if not self.steamgriddb or not self.steamgriddb.grid_path:
             return {}
-
-        # Convert to unsigned for filename
-        unsigned_id = app_id if app_id >= 0 else app_id + 2**32
-
-        deleted = {}
-        artwork_files = [
-            (f"{unsigned_id}p.jpg", 'grid'),
-            (f"{unsigned_id}_hero.jpg", 'hero'),
-            (f"{unsigned_id}_logo.png", 'logo'),
-            (f"{unsigned_id}_icon.jpg", 'icon'),
-            (f"{unsigned_id}.jpg", 'vertical')
-        ]
-
-        for filename, art_type in artwork_files:
-            filepath = os.path.join(self.steamgriddb.grid_path, filename)
-            try:
-                if os.path.exists(filepath):
-                    os.remove(filepath)
-                    deleted[art_type] = True
-                    logger.debug(f"Deleted {filename}")
-            except Exception as e:
-                logger.error(f"Error deleting {filename}: {e}")
-                deleted[art_type] = False
-
-        return deleted
+        
+        return delete_game_artwork(Path(self.steamgriddb.grid_path), app_id)
 
     async def perform_full_cleanup(self, delete_files: bool = False) -> Dict[str, Any]:
         """

@@ -19,7 +19,7 @@ This file is intentionally **not committed**. Keep it local-only.
 
 ## Phase 1 — Backend helper extraction (shrink main.py)
 
-**Progress:** main.py reduced from 4171 → 3433 lines (738 lines / 17.7% reduction)
+**Progress:** main.py reduced from 4171 → 3412 lines (759 lines / 18.2% reduction)
 
 - ~~extract cache helpers (game sizes, steam_appid, etc.)~~
 - ~~extract metadata cache functions (steam_metadata, rawg_metadata)~~
