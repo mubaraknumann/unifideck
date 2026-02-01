@@ -38,20 +38,39 @@ Gates after each commit:
 - npm run build
 - CI green
 
-## Phase 2 — Backend structure (controllers/services/adapters)
+## Phase 2 — Backend structure (controllers/services/adapters) ✅ PARTIAL COMPLETE
 
-**Goal:** Reorganize Plugin class into proper architecture
+**Status:** Core services extracted, Plugin is now primarily a wiring layer
 
-**Work:**
+**Completed:**
 
-- Extract InstallService (game installation/uninstallation logic)
-- Extract SyncService (library sync operations)
-- Extract ArtworkService (grid/hero/logo fetching and caching)
-- Extract MetadataService (ProtonDB, RAWG, Deck verification)
+- ✅ Extract InstallService (game installation/uninstallation logic)
+- ✅ Extract ArtworkService (grid/hero/logo fetching and caching)
+- ✅ Extract MetadataService (ProtonDB, RAWG, Deck verification)
+- ✅ Consolidate path constants (SETTINGS_PATH, LEGENDARY_CONFIG_DIR, etc.)
+
+**Results:**
+
+- main.py reduced from 3224 → 3001 lines (223 lines / 6.9% reduction)
+- Created backend/services/ with 3 service classes (632 total lines)
+- Plugin class now delegates to services for:
+  - Install/uninstall operations (InstallService)
+  - Artwork fetching and management (ArtworkService)
+  - Metadata fetching and compat lookups (MetadataService)
+
+**Remaining work:**
+
+- Extract SyncService (library sync operations) - COMPLEX, needs careful extraction
 - Reorganize store adapters (Epic/GOG/Amazon) for consistency
-- Plugin becomes wiring layer - instantiates services, delegates RPC calls
+- Further simplify Plugin to pure coordination layer
 
-**Target:** main.py ~1500-2000 lines (pure coordination, no business logic)
+**Target:** main.py ~1500-2000 lines (requires SyncService extraction)
+
+Gates maintained after each commit:
+
+- python3 -m compileall -q . -x "py_modules|node_modules|out|dist|bin"
+- npm run build
+- All gates passing ✅
 
 ## Phase 3 — Frontend split (src/index.tsx)
 
