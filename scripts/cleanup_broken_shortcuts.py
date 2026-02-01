@@ -24,7 +24,7 @@ from pathlib import Path
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, parent_dir)
 
-from vdf_utils import load_shortcuts_vdf, save_shortcuts_vdf
+from backend.utils.vdf import load_shortcuts_vdf, save_shortcuts_vdf
 
 def find_active_user() -> tuple:
     """Find the most recently active Steam user"""

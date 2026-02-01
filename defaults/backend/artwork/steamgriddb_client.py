@@ -13,7 +13,7 @@ from typing import Optional, List, Dict, Any
 from pathlib import Path
 
 # Import Steam user detection utility
-from steam_user_utils import get_logged_in_steam_user
+from backend.utils.steam_user import get_logged_in_steam_user
 
 logger = logging.getLogger(__name__)
 

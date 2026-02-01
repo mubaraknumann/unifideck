@@ -18,14 +18,14 @@ if DECKY_PLUGIN_DIR:
     sys.path.insert(0, DECKY_PLUGIN_DIR)
 
 # Import VDF utilities
-from vdf_utils import load_shortcuts_vdf, save_shortcuts_vdf
+from backend.utils.vdf import load_shortcuts_vdf, save_shortcuts_vdf
 
 # Import Steam user detection utilities
-from steam_user_utils import get_logged_in_steam_user, migrate_user0_to_logged_in_user
+from backend.utils.steam_user import get_logged_in_steam_user, migrate_user0_to_logged_in_user
 
 # Import SteamGridDB client
 try:
-    from steamgriddb_client import SteamGridDBClient
+    from backend.artwork import SteamGridDBClient
     STEAMGRIDDB_AVAILABLE = True
 except ImportError:
     STEAMGRIDDB_AVAILABLE = False
@@ -83,10 +83,10 @@ from backend.utils.paths import (
 )
 
 # Import Cloud Save Manager
-from cloud_save_manager import CloudSaveManager
+from backend.saves import CloudSaveManager
 
 # Import resilient launch options parser
-from launch_options_parser import extract_store_id, is_unifideck_shortcut, get_full_id, get_store_prefix
+from backend.utils.shortcuts import extract_store_id, is_unifideck_shortcut, get_full_id, get_store_prefix
 
 # ============================================================================
 # NEW MODULAR BACKEND IMPORTS (Phase 1: Available for use alongside old code)

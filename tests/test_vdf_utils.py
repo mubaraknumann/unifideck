@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vdf_utils import load_shortcuts_vdf, save_shortcuts_vdf
+from backend.utils.vdf import load_shortcuts_vdf, save_shortcuts_vdf
 
 
 def test_load_shortcuts_missing_file(tmp_path: Path) -> None:
