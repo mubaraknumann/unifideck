@@ -3,12 +3,13 @@ import StoreConnections from "./StoreConnections";
 import LibrarySync from "./LibrarySync";
 import { LanguageSelector } from "../LanguageSelector";
 import { CleanupSection } from "./CleanupSection";
-import type { SyncProgress } from "../../types";
+import type { SyncProgress } from "../../types/syncProgress";
+import type { Store } from "../../types/store";
 
 interface SettingsTabProps {
-  storeStatus: Record<string, string>;
-  onStartAuth: (store: string) => void;
-  onLogout: (store: string) => Promise<void>;
+  storeStatus: Record<Store, string>;
+  onStartAuth: (store: Store) => void;
+  onLogout: (store: Store) => Promise<void>;
   syncing: boolean;
   syncCooldown: boolean;
   cooldownSeconds: number;

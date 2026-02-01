@@ -6,6 +6,8 @@ Manages shortcuts.vdf file, games.map registry, and Steam appinfo injection.
 import os
 import time
 import logging
+import binascii
+import struct
 from typing import Dict, Any, Optional, List, Tuple
 
 from backend.stores.base import Game
@@ -15,6 +17,11 @@ from backend.cache.shortcuts_registry import (
     register_shortcut,
 )
 from backend.utils.vdf import load_shortcuts_vdf, save_shortcuts_vdf
+from backend.utils.shortcuts import (
+    get_full_id,
+    is_unifideck_shortcut,
+    get_store_prefix,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1737,29 +1744,3 @@ class ShortcutsManager:
         except Exception as e:
             logger.error(f"Error removing game: {e}")
             return False
-
-
-# ============================================================================
-# EpicConnector - Now imported from backend.stores.epic module
-# ============================================================================
-if BACKEND_AVAILABLE:
-    EpicConnector = BackendEpicConnector
-else:
-    raise ImportError("backend.stores.epic module is required but not available")
-
-# ============================================================================
-# AmazonConnector - Now imported from backend.stores.amazon module
-# ============================================================================
-if BACKEND_AVAILABLE:
-    AmazonConnector = BackendAmazonConnector
-else:
-    raise ImportError("backend.stores.amazon module is required but not available")
-
-# ============================================================================
-# GOGAPIClient - Now imported from backend.stores.gog module
-# ============================================================================
-if BACKEND_AVAILABLE:
-    GOGAPIClient = BackendGOGAPIClient
-else:
-    raise ImportError("backend.stores.gog module is required but not available")
-

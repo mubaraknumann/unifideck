@@ -153,9 +153,9 @@ const Content: FC = () => {
   }, []);
 
   const [storeStatus, setStoreStatus] = useState<Record<Store, string>>({
-    epic: "checking",
-    gog: "checking",
-    amazon: "checking",
+    epic: "not_connected",
+    gog: "not_connected",
+    amazon: "not_connected",
   });
 
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
@@ -176,7 +176,19 @@ const Content: FC = () => {
 
   useEffect(() => {
     // Check store connectivity on mount
-    checkStoreStatus();
+    console.log("[Unifideck] Component mounted, calling checkStoreStatus");
+    checkStoreStatus().catch((error) => {
+      console.error(
+        "[Unifideck] Failed to check store status on mount:",
+        error,
+      );
+      // Set to not_connected so buttons show even on error
+      setStoreStatus({
+        epic: "not_connected",
+        gog: "not_connected",
+        amazon: "not_connected",
+      });
+    });
   }, []);
 
   // Restore sync state on mount (in case user navigated away during sync)
@@ -326,6 +338,7 @@ const Content: FC = () => {
   }, []);
 
   const checkStoreStatus = async () => {
+    console.log("[Unifideck] Starting store status check...");
     try {
       // Add timeout wrapper
       const timeoutPromise = new Promise((_, reject) =>
@@ -350,12 +363,25 @@ const Content: FC = () => {
         timeoutPromise,
       ])) as any;
 
+      console.log("[Unifideck] Store status result:", result);
+
       if (result.success) {
-        setStoreStatus({
+        const newStatus = {
           epic: result.epic,
           gog: result.gog,
           amazon: result.amazon,
-        });
+        };
+        console.log("[Unifideck] Setting store status to:", newStatus);
+        setStoreStatus(newStatus);
+        // Cache the status in localStorage
+        try {
+          localStorage.setItem(
+            "unifideck_store_status",
+            JSON.stringify(newStatus),
+          );
+        } catch (e) {
+          console.error("[Unifideck] Failed to cache store status:", e);
+        }
 
         // Show warning if legendary not installed
         if (result.legendary_installed === false) {
@@ -371,18 +397,20 @@ const Content: FC = () => {
         }
       } else {
         console.error("[Unifideck] Status check failed:", result.error);
+        // Use not_connected instead of error so buttons show
         setStoreStatus({
-          epic: "error",
-          gog: "error",
-          amazon: "error",
+          epic: "not_connected",
+          gog: "not_connected",
+          amazon: "not_connected",
         });
       }
     } catch (error) {
       console.error("[Unifideck] Error checking store status:", error);
+      // Use not_connected instead of error so buttons show
       setStoreStatus({
-        epic: "error",
-        gog: "error",
-        amazon: "error",
+        epic: "not_connected",
+        gog: "not_connected",
+        amazon: "not_connected",
       });
     }
   };

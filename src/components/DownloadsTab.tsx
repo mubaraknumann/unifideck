@@ -44,14 +44,31 @@ export const DownloadsTab: FC = () => {
   // Fetch queue info
   const fetchQueueInfo = async () => {
     try {
-      const result = await call<[], DownloadQueueInfo>(
-        "get_download_queue_info",
+      console.log("[DownloadsTab] Fetching queue info...");
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Fetch queue timeout")), 5000),
       );
+
+      const result = (await Promise.race([
+        call<[], DownloadQueueInfo>("get_download_queue_info"),
+        timeoutPromise,
+      ])) as DownloadQueueInfo;
+
+      console.log("[DownloadsTab] Queue info result:", result);
       if (result.success) {
         setQueueInfo(result);
+      } else {
+        console.error("[DownloadsTab] Queue info returned success=false");
       }
     } catch (error) {
       console.error("[DownloadsTab] Error fetching queue info:", error);
+      // Set a default empty state on error
+      setQueueInfo({
+        success: true,
+        current: null,
+        queued: [],
+        completed: [],
+      });
     }
     setLoading(false);
   };

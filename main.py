@@ -35,9 +35,12 @@ from backend.download.manager import get_download_queue, DownloadQueue
 from backend.controllers.background_sync_service import BackgroundSyncService
 from backend.controllers.size_service import BackgroundSizeFetcher
 from backend.controllers.sync_progress import SyncProgress
+from backend.controllers.shortcuts_manager import ShortcutsManager
+from backend.controllers.install_handler import InstallHandler
 from backend.cache.steam_appid import (
     load_steam_appid_cache,
     save_steam_appid_cache,
+    get_steam_appid_cache_path,
 )
 from backend.cache.steam_metadata import (
     load_steam_metadata_cache,
@@ -52,6 +55,10 @@ from backend.cache.shortcuts_registry import (
     save_shortcuts_registry,
     register_shortcut,
     get_registered_appid,
+)
+from backend.cache.game_sizes import (
+    cache_game_size,
+    get_cached_game_size,
 )
 from backend.utils.steam_appinfo import (
     read_steam_appinfo_vdf,
@@ -179,10 +186,10 @@ class Plugin:
             logger.info(f"[INIT] Created {shortcut_reconcile['created']} missing shortcuts from games.map")
 
         logger.info("[INIT] Initializing EpicConnector")
-        self.epic = EpicConnector(plugin_dir=DECKY_PLUGIN_DIR, plugin_instance=self)
+        self.epic = BackendEpicConnector(plugin_dir=DECKY_PLUGIN_DIR, plugin_instance=self)
 
         logger.info("[INIT] Initializing GOGAPIClient")
-        self.gog = GOGAPIClient(plugin_dir=DECKY_PLUGIN_DIR, plugin_instance=self)
+        self.gog = BackendGOGAPIClient(plugin_dir=DECKY_PLUGIN_DIR, plugin_instance=self)
         
         # Validate and auto-correct GOG executable paths that point to installers
         logger.info("[INIT] Validating GOG executable paths")
@@ -191,7 +198,7 @@ class Plugin:
             logger.info(f"[INIT] Auto-corrected {gog_validation['corrected']} GOG installer paths")
 
         logger.info("[INIT] Initializing AmazonConnector")
-        self.amazon = AmazonConnector(plugin_dir=DECKY_PLUGIN_DIR, plugin_instance=self)
+        self.amazon = BackendAmazonConnector(plugin_dir=DECKY_PLUGIN_DIR, plugin_instance=self)
 
         # Repair games.map for Unifideck shortcuts missing entries (fixes "Game location not mapped" errors)
         logger.info("[INIT] Reconciling games.map from installed games")
@@ -343,7 +350,7 @@ class Plugin:
                         search_paths.append(DEFAULT_GOG_GAMES_PATH)
                         
                     primary_install_path = self.download_queue.get_install_path(item.storage_location)
-                    if primary_install_path != default_gog_path and os.path.exists(primary_install_path):
+                    if primary_install_path != DEFAULT_GOG_GAMES_PATH and os.path.exists(primary_install_path):
                         search_paths.append(primary_install_path)
                     
                     game_install_path = None
@@ -2009,8 +2016,8 @@ class Plugin:
                         logger.info("[Cleanup] Deleted Amazon auth token")
                         
                     # Reset in-memory states
-                    self.gog = GOGAPIClient(plugin_dir=DECKY_PLUGIN_DIR, plugin_instance=self) # Re-init to clear tokens
-                    self.amazon = AmazonConnector(plugin_dir=DECKY_PLUGIN_DIR, plugin_instance=self) # Re-init Amazon too
+                    self.gog = BackendGOGAPIClient(plugin_dir=DECKY_PLUGIN_DIR, plugin_instance=self) # Re-init to clear tokens
+                    self.amazon = BackendAmazonConnector(plugin_dir=DECKY_PLUGIN_DIR, plugin_instance=self) # Re-init Amazon too
                     # Epic relies on legendary CLI existence, which checks file, so it's auto-cleared
                     
                     stats['auth_deleted'] = True

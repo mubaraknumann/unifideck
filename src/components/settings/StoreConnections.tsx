@@ -38,6 +38,9 @@ const StoreConnections = ({
   onLogout,
   onStartAuth,
 }: StoreConnectionsProps) => {
+  // Debug logging
+  console.log("[StoreConnections] Rendering with storeStatus:", storeStatus);
+
   return (
     <PanelSection title={t("storeConnections.title")}>
       <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
@@ -49,6 +52,11 @@ const StoreConnections = ({
               status === "checking" ||
               status === "error" ||
               status === notInstalledStatus;
+
+            // Debug logging for each store
+            console.log(
+              `[StoreConnections] ${key}: status="${status}", isConnected=${isConnected}, isCheckingOrError=${isCheckingOrError}, showButton=${!isCheckingOrError}`,
+            );
 
             return (
               <div key={key}>

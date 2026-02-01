@@ -4,17 +4,14 @@ import { FaSync } from "react-icons/fa";
 import { t } from "../../i18n";
 import ForceSyncModal from "../ForceSyncModal";
 import { SyncProgress } from "../../types/syncProgress";
+import type { Store } from "../../types/store";
 
 interface LibrarySyncProps {
   syncing: boolean;
   syncCooldown: boolean;
   cooldownSeconds: number;
   syncProgress: SyncProgress | null;
-  storeStatus: {
-    epic: string;
-    gog: string;
-    amazon: string;
-  };
+  storeStatus: Record<Store, string>;
   handleManualSync: (force?: boolean, resyncArtwork?: boolean) => void;
   handleCancelSync: () => void;
   showModal: (content: React.ReactNode) => void;
