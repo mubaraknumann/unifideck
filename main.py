@@ -76,6 +76,17 @@ from backend.utils.deck_compat import (
 from backend.utils.rawg_metadata import (
     fetch_rawg_metadata,
 )
+from backend.utils.paths import (
+    GAMES_MAP_PATH,
+    SETTINGS_PATH,
+    LEGENDARY_CONFIG_DIR,
+    LEGENDARY_USER_JSON,
+    GOG_TOKEN_JSON,
+    NILE_USER_JSON,
+    DEFAULT_GOG_GAMES_PATH,
+    get_prefix_path,
+    is_safe_delete_path,
+)
 
 # Import Cloud Save Manager
 from cloud_save_manager import CloudSaveManager
@@ -302,9 +313,8 @@ class Plugin:
                     # Order matters: [fallback, primary] ensures primary wins if found in both
                     search_paths = []
                     
-                    default_gog_path = os.path.expanduser("~/GOG Games")
-                    if os.path.exists(default_gog_path):
-                        search_paths.append(default_gog_path)
+                    if os.path.exists(DEFAULT_GOG_GAMES_PATH):
+                        search_paths.append(DEFAULT_GOG_GAMES_PATH)
                         
                     primary_install_path = self.download_queue.get_install_path(item.storage_location)
                     if primary_install_path != default_gog_path and os.path.exists(primary_install_path):
@@ -2179,9 +2189,8 @@ class Plugin:
                     return {'success': False, 'error': 'errors.legendaryNotFound'}
                 
                 # Clean up stale legendary lock files (legendary returns 0 even when blocked by lock)
-                lock_dir = os.path.expanduser("~/.config/legendary")
                 for lock_file in ['installed.json.lock', 'user.json.lock']:
-                    lock_path = os.path.join(lock_dir, lock_file)
+                    lock_path = os.path.join(LEGENDARY_CONFIG_DIR, lock_file)
                     if os.path.exists(lock_path):
                         try:
                             os.remove(lock_path)
@@ -2250,7 +2259,7 @@ class Plugin:
             # Delete prefix if requested
             prefix_deleted = False
             if delete_prefix:
-                prefix_path = os.path.expanduser(f"~/.local/share/unifideck/prefixes/{game_id}")
+                prefix_path = get_prefix_path(game_id)
                 if os.path.exists(prefix_path):
                     try:
                         import shutil
@@ -2498,10 +2507,8 @@ class Plugin:
             Dict with success status and language code (or 'auto' for system detection)
         """
         try:
-            settings_path = os.path.expanduser("~/.local/share/unifideck/settings.json")
-            
-            if os.path.exists(settings_path):
-                with open(settings_path, 'r') as f:
+            if os.path.exists(SETTINGS_PATH):
+                with open(SETTINGS_PATH, 'r') as f:
                     settings = json.load(f)
                     language = settings.get('language', 'auto')
             else:
@@ -2523,15 +2530,14 @@ class Plugin:
             Dict with success status
         """
         try:
-            settings_path = os.path.expanduser("~/.local/share/unifideck/settings.json")
-            settings_dir = os.path.dirname(settings_path)
+            settings_dir = os.path.dirname(SETTINGS_PATH)
             
             # Ensure directory exists
             os.makedirs(settings_dir, exist_ok=True)
             
             # Load existing settings or create new
-            if os.path.exists(settings_path):
-                with open(settings_path, 'r') as f:
+            if os.path.exists(SETTINGS_PATH):
+                with open(SETTINGS_PATH, 'r') as f:
                     settings = json.load(f)
             else:
                 settings = {}
@@ -2540,7 +2546,7 @@ class Plugin:
             settings['language'] = language
             
             # Save
-            with open(settings_path, 'w') as f:
+            with open(SETTINGS_PATH, 'w') as f:
                 json.dump(settings, f, indent=2)
             
             logger.info(f"[Language] Saved language preference: {language}")
@@ -3091,26 +3097,16 @@ class Plugin:
                 if delete_files:
                     try:
                         import shutil
-                        map_file = os.path.expanduser("~/.local/share/unifideck/games.map")
-                        if os.path.exists(map_file):
+                        if os.path.exists(GAMES_MAP_PATH):
                             logger.info("[Cleanup] Deleting game files...")
-                            with open(map_file, 'r') as f:
+                            with open(GAMES_MAP_PATH, 'r') as f:
                                 for line in f:
                                     parts = line.strip().split('|')
                                     if len(parts) >= 3:
                                         # key|exe_path|work_dir
                                         install_dir = parts[2]
                                         
-                                        # Safety check: ensure we're deleting from expected locations
-                                        # Only delete if path contains "Games", "Epic", "GOG", or "unifideck"
-                                        # and is NOT root or home root
-                                        safe_keywords = ['/Games/', '/Epic', '/GOG', 'unifideck']
-                                        is_safe = any(k in install_dir for k in safe_keywords)
-                                        home_dir = os.path.expanduser("~")
-                                        games_dir = os.path.join(home_dir, "Games")
-                                        not_root = install_dir not in ['/', home_dir, games_dir]
-                                        
-                                        if is_safe and not_root and os.path.exists(install_dir):
+                                        if is_safe_delete_path(install_dir):
                                             logger.info(f"[Cleanup] Deleting install dir: {install_dir}")
                                             shutil.rmtree(install_dir, ignore_errors=True)
                                             stats['deleted_files_count'] += 1
@@ -3158,19 +3154,16 @@ class Plugin:
                 # GOG - ~/.config/unifideck/gog_token.json
                 # Amazon - ~/.config/nile/user.json
                 try:
-                    epic_auth = os.path.expanduser("~/.config/legendary/user.json")
-                    if os.path.exists(epic_auth):
-                        os.remove(epic_auth)
+                    if os.path.exists(LEGENDARY_USER_JSON):
+                        os.remove(LEGENDARY_USER_JSON)
                         logger.info("[Cleanup] Deleted Epic auth token")
                     
-                    gog_auth = os.path.expanduser("~/.config/unifideck/gog_token.json")
-                    if os.path.exists(gog_auth):
-                        os.remove(gog_auth)
+                    if os.path.exists(GOG_TOKEN_JSON):
+                        os.remove(GOG_TOKEN_JSON)
                         logger.info("[Cleanup] Deleted GOG auth token")
                     
-                    amazon_auth = os.path.expanduser("~/.config/nile/user.json")
-                    if os.path.exists(amazon_auth):
-                        os.remove(amazon_auth)
+                    if os.path.exists(NILE_USER_JSON):
+                        os.remove(NILE_USER_JSON)
                         logger.info("[Cleanup] Deleted Amazon auth token")
                         
                     # Reset in-memory states
@@ -3195,7 +3188,7 @@ class Plugin:
                 
                 # Only delete games.map and registry if we're also deleting game files (destructive mode)
                 if delete_files:
-                    files_to_delete.append("~/.local/share/unifideck/games.map")
+                    files_to_delete.append(GAMES_MAP_PATH)
                     files_to_delete.append("~/.local/share/unifideck/games_registry.json")
 
                 for file_path in files_to_delete:

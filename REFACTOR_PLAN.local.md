@@ -17,9 +17,9 @@ This file is intentionally **not committed**. Keep it local-only.
 - CI workflow green
 - Starter pytest tests for pure modules
 
-## Phase 1 — Backend helper extraction (shrink main.py)
+## Phase 1 — Backend helper extraction (shrink main.py) ✅ COMPLETE
 
-**Progress:** main.py reduced from 4171 → 3412 lines (759 lines / 18.2% reduction)
+**Final:** main.py reduced from 4171 → 3224 lines (947 lines / 22.7% reduction)
 
 - ~~extract cache helpers (game sizes, steam_appid, etc.)~~
 - ~~extract metadata cache functions (steam_metadata, rawg_metadata)~~
@@ -29,7 +29,8 @@ This file is intentionally **not committed**. Keep it local-only.
 - ~~extract self-contained functions (inject_single_game_to_appinfo)~~
 - ~~remove compat cache duplication (source of truth: backend/compat)~~
 - ~~simplify backend imports (remove redundant BACKEND_AVAILABLE checks)~~
-- Continue looking for more extractable helpers/utilities
+- ~~extract artwork utilities~~
+- ~~extract deck compat & RAWG metadata utilities~~
 
 Gates after each commit:
 
@@ -39,7 +40,18 @@ Gates after each commit:
 
 ## Phase 2 — Backend structure (controllers/services/adapters)
 
-- main.py becomes wiring
+**Goal:** Reorganize Plugin class into proper architecture
+
+**Work:**
+
+- Extract InstallService (game installation/uninstallation logic)
+- Extract SyncService (library sync operations)
+- Extract ArtworkService (grid/hero/logo fetching and caching)
+- Extract MetadataService (ProtonDB, RAWG, Deck verification)
+- Reorganize store adapters (Epic/GOG/Amazon) for consistency
+- Plugin becomes wiring layer - instantiates services, delegates RPC calls
+
+**Target:** main.py ~1500-2000 lines (pure coordination, no business logic)
 
 ## Phase 3 — Frontend split (src/index.tsx)
 
