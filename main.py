@@ -109,6 +109,7 @@ from backend.compat import (
     BackgroundCompatFetcher,
     load_compat_cache, save_compat_cache, prefetch_compat
 )
+from backend.services import InstallService
 
 # Use Decky's logger for proper integration
 logger = decky.logger
@@ -215,6 +216,15 @@ class Plugin:
 
         logger.info("[INIT] Initializing InstallHandler")
         self.install_handler = InstallHandler(self.shortcuts_manager, plugin_dir=DECKY_PLUGIN_DIR)
+
+        logger.info("[INIT] Initializing InstallService")
+        self.install_service = InstallService(
+            epic_connector=self.epic,
+            gog_connector=self.gog,
+            amazon_connector=self.amazon,
+            shortcuts_manager=self.shortcuts_manager,
+            install_handler=self.install_handler
+        )
 
         logger.info("[INIT] Initializing CloudSaveManager")
         self.cloud_save_manager = CloudSaveManager(plugin_dir=DECKY_PLUGIN_DIR)
@@ -2105,58 +2115,7 @@ class Plugin:
         Returns:
             Dict with success status and progress updates
         """
-        try:
-            # Get game info first
-            game_info = await self.get_game_info(app_id)
-
-            if 'error' in game_info:
-                return game_info
-
-            store = game_info['store']
-            game_id = game_info['game_id']
-            title = game_info['title']
-
-            logger.info(f"[Install] Starting installation: {title} ({store}:{game_id})")
-
-            # Start installation
-            if store == 'epic':
-                result = await self.epic.install_game(game_id)
-
-                # Get executable path after installation
-                if result.get('success'):
-                    exe_path = await self._get_epic_executable(game_id)
-                    if exe_path:
-                        result['exe_path'] = exe_path
-                        logger.info(f"[Install] Got Epic executable path: {exe_path}")
-                    else:
-                        logger.warning(f"[Install] Could not get executable path for {game_id}")
-
-            elif store == 'gog':
-                result = await self.gog.install_game(game_id)
-            elif store == 'amazon':
-                result = await self.amazon.install_game(game_id)
-            else:
-                return {'success': False, 'error': f'Unknown store: {store}'}
-
-            # If successful, update shortcut to mark as installed
-            if result.get('success'):
-                logger.info(f"[Install] Installation successful, updating shortcut for {title}")
-                # Handle both 'exe_path' (Epic) and 'executable' (GOG) keys
-                exe_path = result.get('exe_path') or result.get('executable')
-                await self.shortcuts_manager.mark_installed(
-                    game_id,
-                    store,
-                    result.get('install_path', ''),
-                    exe_path
-                )
-            else:
-                logger.error(f"[Install] Installation failed for {title}: {result.get('error')}")
-
-            return result
-
-        except Exception as e:
-            logger.error(f"Error installing game by app ID {app_id}: {e}")
-            return {'success': False, 'error': str(e)}
+        return await self.install_service.install_game_by_appid(app_id, self.get_game_info)
 
     async def uninstall_game_by_appid(self, app_id: int, delete_prefix: bool = False) -> Dict[str, Any]:
         """Uninstall game by Steam shortcut app ID
@@ -2165,135 +2124,7 @@ class Plugin:
             app_id: Steam shortcut app ID
             delete_prefix: If True, also delete the Wine/Proton prefix directory
         """
-        try:
-            # Get game info first
-            game_info = await self.get_game_info(app_id)
-
-            if 'error' in game_info:
-                return game_info
-
-            store = game_info['store']
-            game_id = game_info['game_id']
-            title = game_info['title']
-            
-            # Check if actually installed
-            if not game_info.get('is_installed'):
-                 return {'success': False, 'error': 'errors.gameNotInstalled'}
-
-            logger.info(f"[Uninstall] Starting uninstallation: {title} ({store}:{game_id}), delete_prefix={delete_prefix}")
-
-            # Perform store-specific uninstall
-            if store == 'epic':
-                # legendary uninstall <id> --yes
-                if not self.epic.legendary_bin:
-                    return {'success': False, 'error': 'errors.legendaryNotFound'}
-                
-                # Clean up stale legendary lock files (legendary returns 0 even when blocked by lock)
-                for lock_file in ['installed.json.lock', 'user.json.lock']:
-                    lock_path = os.path.join(LEGENDARY_CONFIG_DIR, lock_file)
-                    if os.path.exists(lock_path):
-                        try:
-                            os.remove(lock_path)
-                            logger.info(f"[Uninstall] Cleared stale lock: {lock_file}")
-                        except Exception as e:
-                            logger.warning(f"[Uninstall] Could not clear lock {lock_file}: {e}")
-                
-                cmd = [self.epic.legendary_bin, 'uninstall', game_id, '--yes']
-                logger.info(f"[Uninstall] Running: {' '.join(cmd)}")
-                
-                proc = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
-                )
-                stdout, stderr = await proc.communicate()
-                
-                stdout_str = stdout.decode() if stdout else ''
-                stderr_str = stderr.decode() if stderr else ''
-                
-                logger.info(f"[Uninstall] legendary return code: {proc.returncode}")
-                if stdout_str:
-                    logger.info(f"[Uninstall] stdout: {stdout_str[:500]}")
-                if stderr_str:
-                    logger.info(f"[Uninstall] stderr: {stderr_str[:500]}")
-                
-                # Check for lock failure (legendary returns 0 even when this happens!)
-                combined_output = stdout_str + stderr_str
-                if 'Failed to acquire installed data lock' in combined_output:
-                    logger.error("[Epic] Uninstall failed: Lock acquisition failed")
-                    return {'success': False, 'error': 'errors.lockConflict'}
-                
-                if proc.returncode != 0:
-                     logger.error(f"[Epic] Uninstall failed: {stderr_str}")
-                     # Still remove from games.map so UI shows Install button
-                     await self.shortcuts_manager._remove_from_game_map(store, game_id)
-                     logger.info(f"[Uninstall] Removed {store}:{game_id} from games.map despite uninstall failure")
-                     return {'success': False, 'error': f"Legendary uninstall failed: {stderr_str}"}
-            
-            elif store == 'gog':
-                # Get install path from games.map (same data used for launching)
-                install_path = self.shortcuts_manager._get_install_dir_from_game_map(store, game_id)
-                if install_path:
-                    logger.info(f"[Uninstall] Using games.map path for GOG: {install_path}")
-                    result = await self.gog.uninstall_game(game_id, install_path=install_path)
-                else:
-                    # Fallback to filesystem scan
-                    result = await self.gog.uninstall_game(game_id)
-                if not result['success']:
-                    # Still remove from games.map so UI shows Install button
-                    await self.shortcuts_manager._remove_from_game_map(store, game_id)
-                    logger.info(f"[Uninstall] Removed {store}:{game_id} from games.map despite uninstall failure")
-                    return result
-            
-            elif store == 'amazon':
-                result = await self.amazon.uninstall_game(game_id)
-                if not result['success']:
-                    # Still remove from games.map so UI shows Install button
-                    await self.shortcuts_manager._remove_from_game_map(store, game_id)
-                    logger.info(f"[Uninstall] Removed {store}:{game_id} from games.map despite uninstall failure")
-                    return result
-            
-            else:
-                return {'success': False, 'error': f"Unsupported store for uninstall: {store}"}
-
-            # Delete prefix if requested
-            prefix_deleted = False
-            if delete_prefix:
-                prefix_path = get_prefix_path(game_id)
-                if os.path.exists(prefix_path):
-                    try:
-                        import shutil
-                        shutil.rmtree(prefix_path)
-                        logger.info(f"[Uninstall] Deleted prefix directory: {prefix_path}")
-                        prefix_deleted = True
-                    except Exception as e:
-                        logger.warning(f"[Uninstall] Failed to delete prefix {prefix_path}: {e}")
-                else:
-                    logger.info(f"[Uninstall] No prefix to delete at: {prefix_path}")
-
-            # Update shortcut
-            logger.info(f"[Uninstall] Reverting shortcut for {title}...")
-            shortcut_updated = await self.shortcuts_manager.mark_uninstalled(title, store, game_id)
-            
-            if not shortcut_updated:
-                logger.warning(f"[Uninstall] Failed to revert shortcut for {title}")
-                return {
-                    'success': True, 
-                    'message': 'Game uninstalled, but shortcut could not be updated. Restart Steam to fix.',
-                    'prefix_deleted': prefix_deleted,
-                    'game_update': {'appId': app_id, 'store': store, 'isInstalled': False}
-                }
-
-            return {
-                'success': True,
-                'message': f'{title} uninstalled successfully',
-                'prefix_deleted': prefix_deleted,
-                'game_update': {'appId': app_id, 'store': store, 'isInstalled': False}
-            }
-
-        except Exception as e:
-            logger.error(f"[Uninstall] Error uninstalling game {app_id}: {e}", exc_info=True)
-            return {'success': False, 'error': str(e)}
+        return await self.install_service.uninstall_game_by_appid(app_id, delete_prefix, self.get_game_info)
 
 
     # ============== DOWNLOAD QUEUE API METHODS ==============
