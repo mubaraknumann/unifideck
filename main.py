@@ -7,6 +7,7 @@ import binascii
 import struct
 import json
 import aiohttp.web
+from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass, asdict
@@ -108,9 +109,12 @@ else:
     raise ImportError("backend.stores module is required but not available")
 
 
-# Steam App ID Cache - maps shortcut appId to real Steam appId for ProtonDB lookups
+# Steam App ID Cache - maps shortcut appId to SteamGridDB ID for artwork lookups
 # Stored as JSON file in plugin data directory
 STEAM_APPID_CACHE_FILE = "steam_appid_cache.json"
+
+# Real Steam App ID Cache - maps shortcut appId to real Steam appId for store/community links
+STEAM_REAL_APPID_CACHE_FILE = "steam_real_appid_cache.json"
 
 
 def get_steam_appid_cache_path() -> Path:
@@ -143,6 +147,38 @@ def save_steam_appid_cache(cache: Dict[int, int]) -> bool:
         return True
     except Exception as e:
         logger.error(f"Error saving steam_appid cache: {e}")
+        return False
+
+
+def get_steam_real_appid_cache_path() -> Path:
+    """Get path to real Steam app_id cache file"""
+    return Path.home() / ".local" / "share" / "unifideck" / STEAM_REAL_APPID_CACHE_FILE
+
+
+def load_steam_real_appid_cache() -> Dict[int, int]:
+    """Load real Steam app_id mappings. Returns {shortcut_appid: steam_appid}"""
+    cache_path = get_steam_real_appid_cache_path()
+    try:
+        if cache_path.exists():
+            with open(cache_path, 'r') as f:
+                data = json.load(f)
+                return {int(k): int(v) for k, v in data.items()}
+    except Exception as e:
+        logger.error(f"Error loading real steam appid cache: {e}")
+    return {}
+
+
+def save_steam_real_appid_cache(cache: Dict[int, int]) -> bool:
+    """Save real Steam app_id mappings"""
+    cache_path = get_steam_real_appid_cache_path()
+    try:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(cache_path, 'w') as f:
+            json.dump(cache, f)
+        logger.info(f"Saved {len(cache)} real steam app_id mappings to cache")
+        return True
+    except Exception as e:
+        logger.error(f"Error saving real steam appid cache: {e}")
         return False
 
 
@@ -239,6 +275,55 @@ def sanitize_description(text: str, max_length: int = 1000) -> str:
     if len(text) > max_length:
         text = text[:max_length].rsplit(' ', 1)[0] + '...'
     return text
+
+
+def normalize_release_date(value: Any) -> str:
+    """Normalize release date to YYYY-MM-DD when possible."""
+    if value is None:
+        return ''
+
+    if isinstance(value, (int, float)):
+        try:
+            ts = int(value)
+            if ts > 10**12:  # milliseconds
+                ts = ts // 1000
+            return datetime.utcfromtimestamp(ts).strftime('%Y-%m-%d')
+        except Exception:
+            return ''
+
+    value_str = str(value).strip()
+    if not value_str:
+        return ''
+
+    if re.match(r'^\d{4}-\d{2}-\d{2}$', value_str):
+        return value_str
+
+    if value_str.isdigit():
+        try:
+            ts = int(value_str)
+            if ts > 10**12:
+                ts = ts // 1000
+            return datetime.utcfromtimestamp(ts).strftime('%Y-%m-%d')
+        except Exception:
+            return ''
+
+    for fmt in ("%d %b, %Y", "%b %d, %Y", "%d %B, %Y", "%B %d, %Y"):
+        try:
+            return datetime.strptime(value_str, fmt).strftime('%Y-%m-%d')
+        except Exception:
+            continue
+
+    for fmt in ("%b %Y", "%B %Y"):
+        try:
+            parsed = datetime.strptime(value_str, fmt)
+            return parsed.replace(day=1).strftime('%Y-%m-%d')
+        except Exception:
+            continue
+
+    if re.match(r'^\d{4}$', value_str):
+        return f"{value_str}-01-01"
+
+    return ''
 
 
 def read_steam_appinfo_vdf() -> Dict[int, Dict]:
@@ -595,8 +680,8 @@ def inject_single_game_to_appinfo(shortcut_app_id: int) -> bool:
         logger.info(f"Injection request: shortcut {shortcut_app_id} -> unsigned {unsigned_shortcut_id}")
 
         # Load mappings to get real Steam App ID (for metadata lookup)
-        steam_appid_cache = load_steam_appid_cache()
-        steam_app_id = steam_appid_cache.get(str(shortcut_app_id))
+        steam_appid_cache = load_steam_real_appid_cache()
+        steam_app_id = steam_appid_cache.get(shortcut_app_id)
 
         if not steam_app_id:
             logger.debug(f"No Steam App ID mapping for shortcut {shortcut_app_id}")
@@ -615,7 +700,7 @@ def inject_single_game_to_appinfo(shortcut_app_id: int) -> bool:
 
         # Load metadata using the REAL Steam app ID
         metadata_cache = load_steam_metadata_cache()
-        metadata = metadata_cache.get(str(steam_app_id))
+        metadata = metadata_cache.get(steam_app_id)
 
         if not metadata:
             logger.warning(f"No metadata cached for Steam App {steam_app_id}")
@@ -720,6 +805,33 @@ def convert_appinfo_to_web_api_format(app_id: int, appinfo: Dict) -> Dict:
         return {}
 
 
+def normalize_title_for_matching(title: str) -> str:
+    """Normalize a game title for fuzzy matching.
+
+    Strips subtitles (after -/:), removes common suffixes, lowercases, removes punctuation.
+    """
+    if not title:
+        return ''
+    t = title.lower().strip()
+    # Remove subtitles after common separators
+    for sep in [' - ', ': ', ' – ']:
+        if sep in t:
+            t = t.split(sep)[0].strip()
+    # Remove common edition suffixes
+    for suffix in [
+        'the final cut', 'definitive edition', 'complete edition', 'goty edition',
+        'game of the year edition', 'enhanced edition', 'remastered', 'deluxe edition',
+        'ultimate edition', 'gold edition', 'special edition', 'anniversary edition',
+        'directors cut', "director's cut", 'legacy edition'
+    ]:
+        if t.endswith(suffix):
+            t = t[:-len(suffix)].strip()
+    # Remove punctuation and extra whitespace
+    t = re.sub(r'[^\w\s]', '', t)
+    t = re.sub(r'\s+', ' ', t).strip()
+    return t
+
+
 async def extract_metadata_from_appinfo(games: List, appinfo_data: Dict[int, Dict]) -> Tuple[Dict[int, int], Dict[int, Dict]]:
     """
     Extract metadata for our games from appinfo data by matching titles.
@@ -730,6 +842,19 @@ async def extract_metadata_from_appinfo(games: List, appinfo_data: Dict[int, Dic
     appid_mapping = {}  # shortcut_appid -> steam_appid
     metadata_results = {}  # steam_appid -> metadata (converted to web API format)
 
+    # Pre-build normalized lookup for appinfo titles
+    normalized_appinfo = {}  # normalized_name -> (app_id, original_name)
+    for app_id, app_data in appinfo_data.items():
+        try:
+            app_common = app_data.get('appinfo', {}).get('common', {})
+            app_name = app_common.get('name', '')
+            if app_name:
+                norm = normalize_title_for_matching(app_name)
+                if norm:
+                    normalized_appinfo[norm] = (app_id, app_name.lower().strip())
+        except:
+            continue
+
     for game in games:
         if not game.app_id or not game.title:
             continue
@@ -737,11 +862,12 @@ async def extract_metadata_from_appinfo(games: List, appinfo_data: Dict[int, Dic
         try:
             # Search for Steam App ID by title in appinfo data
             search_lower = game.title.lower().strip()
+            search_normalized = normalize_title_for_matching(game.title)
             steam_app_id = None
 
+            # Pass 1: Exact match on original title
             for app_id, app_data in appinfo_data.items():
                 try:
-                    # Get app name from common section
                     app_common = app_data.get('appinfo', {}).get('common', {})
                     app_name = app_common.get('name', '').lower().strip()
 
@@ -751,6 +877,13 @@ async def extract_metadata_from_appinfo(games: List, appinfo_data: Dict[int, Dic
                 except:
                     continue
 
+            # Pass 2: Fuzzy match on normalized title
+            if not steam_app_id and search_normalized:
+                match = normalized_appinfo.get(search_normalized)
+                if match:
+                    steam_app_id = match[0]
+                    logger.debug(f"Fuzzy matched '{game.title}' -> Steam ID {steam_app_id}")
+
             if not steam_app_id:
                 continue
 
@@ -759,6 +892,33 @@ async def extract_metadata_from_appinfo(games: List, appinfo_data: Dict[int, Dic
             # Convert appinfo data to web API format
             if steam_app_id not in metadata_results:
                 converted = convert_appinfo_to_web_api_format(steam_app_id, appinfo_data[steam_app_id])
+                if not converted:
+                    try:
+                        app_common = appinfo_data.get(steam_app_id, {}).get('appinfo', {}).get('common', {})
+                        app_extended = appinfo_data.get(steam_app_id, {}).get('appinfo', {}).get('extended', {})
+                        fallback_name = app_common.get('name') or game.title
+                        fallback_type = app_common.get('type', 'game')
+                        developer = app_extended.get('developer', '')
+                        developers = developer.split(',') if isinstance(developer, str) and developer else (developer if isinstance(developer, list) else [])
+                        publisher = app_extended.get('publisher', '')
+                        publishers = publisher.split(',') if isinstance(publisher, str) and publisher else (publisher if isinstance(publisher, list) else [])
+
+                        if fallback_name:
+                            converted = {
+                                'type': fallback_type,
+                                'name': fallback_name,
+                                'steam_appid': steam_app_id,
+                                'short_description': app_common.get('short_description', ''),
+                                'developers': [d.strip() for d in developers if d.strip()],
+                                'publishers': [p.strip() for p in publishers if p.strip()],
+                                'release_date': {
+                                    'coming_soon': False,
+                                    'date': str(app_common.get('steam_release_date', ''))
+                                }
+                            }
+                    except Exception:
+                        converted = {}
+
                 if converted:
                     metadata_results[steam_app_id] = converted
                     logger.debug(f"Extracted metadata for '{game.title}' (Steam ID: {steam_app_id})")
@@ -1159,6 +1319,12 @@ class SyncProgress:
         self.artwork_synced = 0
         self.current_phase = "sync"  # "sync" or "artwork"
 
+        # Steam/RAWG metadata tracking
+        self.steam_total = 0
+        self.steam_synced = 0
+        self.rawg_total = 0
+        self.rawg_synced = 0
+
         # Lock for thread-safe updates during parallel downloads
         self._lock = asyncio.Lock()
 
@@ -1175,6 +1341,34 @@ class SyncProgress:
                 }
             }
             return self.artwork_synced
+
+    async def increment_steam(self, game_title: str) -> int:
+        """Thread-safe Steam metadata counter increment"""
+        async with self._lock:
+            self.steam_synced += 1
+            self.current_game = {
+                "label": "sync.extractingSteamMetadata",
+                "values": {
+                    "synced": self.steam_synced,
+                    "total": self.steam_total,
+                    "game_title": game_title
+                }
+            }
+            return self.steam_synced
+
+    async def increment_rawg(self, game_title: str) -> int:
+        """Thread-safe RAWG metadata counter increment"""
+        async with self._lock:
+            self.rawg_synced += 1
+            self.current_game = {
+                "label": "sync.fetchingEnhancedMetadata",
+                "values": {
+                    "synced": self.rawg_synced,
+                    "total": self.rawg_total,
+                    "game_title": game_title
+                }
+            }
+            return self.rawg_synced
 
     def _calculate_progress(self) -> int:
         """Calculate progress based on current phase and its percentage allocation."""
@@ -1202,7 +1396,12 @@ class SyncProgress:
             # Artwork fields
             'artwork_total': self.artwork_total,
             'artwork_synced': self.artwork_synced,
-            'current_phase': self.current_phase
+            'current_phase': self.current_phase,
+            # Steam/RAWG fields
+            'steam_total': self.steam_total,
+            'steam_synced': self.steam_synced,
+            'rawg_total': self.rawg_total,
+            'rawg_synced': self.rawg_synced
         }
 
 
@@ -3672,6 +3871,16 @@ class Plugin:
                 self.sync_progress.total_games = len(all_games)
                 self.sync_progress.synced_games = 0
 
+                # Log library composition for debugging game count discrepancies
+                logger.info(f"Sync: Library composition - Epic: {len(epic_games)}, GOG: {len(gog_games)}, Amazon: {len(amazon_games)}, Total: {len(all_games)}")
+                logger.debug(f"  Total Unifideck games in all libraries: {len(all_games)} (these are from store APIs)")
+                logger.debug(f"  Note: Displayed game count may differ if some games fail shortcut registration or have invalid launch options")
+
+                # Force sync: overwrite metadata caches
+                save_steam_real_appid_cache({})
+                save_steam_metadata_cache({})
+                save_rawg_metadata_cache({})
+
                 # Queue games for background compat fetching (ProtonDB/Deck Verified)
                 logger.info("Sync: Queueing games for compatibility lookup...")
                 self.compat_fetcher.queue_games(all_games)
@@ -3761,6 +3970,90 @@ class Plugin:
                 for game in all_games:
                      game.app_id = self.shortcuts_manager.generate_app_id(game.title, launcher_script)
 
+                # Resolve Steam presence via Steam Store API (fallback to RAWG)
+                # CHANGE: Always fetch for ALL Unifideck games (not just missing cache)
+                # This ensures reliable fallback data and complete metadata coverage
+                if all_games:
+                    real_steam_cache = load_steam_real_appid_cache()
+                    steam_metadata_cache = load_steam_metadata_cache()
+
+                    # Fetch for ALL Unifideck games, regardless of cache status
+                    games_needing_steam = [g for g in all_games if g.title]
+
+                    self.sync_progress.steam_total = len(games_needing_steam)
+                    self.sync_progress.steam_synced = 0
+                    self.sync_progress.current_game = {
+                        "label": "sync.extractingSteamMetadata",
+                        "values": {"count": len(games_needing_steam)}
+                    }
+
+                    async def resolve_steam_for_game(game, semaphore):
+                        async with semaphore:
+                            try:
+                                result = await self.resolve_steam_presence(game.title)
+                                steam_app_id = result.get('steam_appid', 0)
+                                metadata = result.get('metadata', {})
+                                if steam_app_id:
+                                    real_steam_cache[game.app_id] = steam_app_id
+                                    if metadata:
+                                        steam_metadata_cache[steam_app_id] = metadata
+                                await self.sync_progress.increment_steam(game.title)
+                            except Exception as e:
+                                logger.debug(f"[SteamPresence] Error for {game.title}: {e}")
+
+                    if games_needing_steam:
+                        logger.info(f"Sync: Pre-fetching Steam metadata for {len(games_needing_steam)} games (ALL Unifideck games)")
+                        logger.debug(f"  Sample games: {', '.join([g.title for g in games_needing_steam[:5]])}")
+                        semaphore = asyncio.Semaphore(self.STEAM_STORE_MAX_CONCURRENCY)
+                        await asyncio.gather(*[resolve_steam_for_game(g, semaphore) for g in games_needing_steam])
+
+                    if real_steam_cache:
+                        save_steam_real_appid_cache(real_steam_cache)
+                        logger.info(f"Sync: Cached Steam presence for {len(real_steam_cache)} games")
+                    if steam_metadata_cache:
+                        save_steam_metadata_cache(steam_metadata_cache)
+                        logger.info(f"Sync: Cached Steam metadata for {len(steam_metadata_cache)} games")
+
+                # === RAWG METADATA PRE-FETCH ===
+                # CHANGE: Always fetch for ALL Unifideck games (not just missing cache)
+                # This ensures reliable fallback data and complete metadata coverage for all games
+                if all_games:
+                    rawg_cache = load_rawg_metadata_cache()
+                    # Fetch for ALL Unifideck games, regardless of cache status
+                    games_needing_rawg = [g for g in all_games if g.title]
+
+                    if games_needing_rawg:
+                        logger.info(f"Sync: Pre-fetching RAWG metadata for {len(games_needing_rawg)} games (ALL Unifideck games)")
+                        self.sync_progress.rawg_total = len(games_needing_rawg)
+                        self.sync_progress.rawg_synced = 0
+                        self.sync_progress.current_game = {
+                            "label": "sync.fetchingEnhancedMetadata",
+                            "values": {"count": len(games_needing_rawg)}
+                        }
+
+                        async def prefetch_rawg_for_game(game, semaphore):
+                            async with semaphore:
+                                try:
+                                    rawg_data = await self.fetch_rawg_metadata(game.title)
+                                    if rawg_data:
+                                        return (game.title.lower(), rawg_data)
+                                except Exception as e:
+                                    logger.debug(f"[RAWG Prefetch] Error for {game.title}: {e}")
+                                finally:
+                                    await self.sync_progress.increment_rawg(game.title)
+                                return None
+
+                        semaphore = asyncio.Semaphore(self.RAWG_MAX_CONCURRENCY)
+                        tasks = [prefetch_rawg_for_game(g, semaphore) for g in games_needing_rawg]
+                        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+                        for result in results:
+                            if isinstance(result, tuple) and result is not None:
+                                rawg_cache[result[0]] = result[1]
+
+                        save_rawg_metadata_cache(rawg_cache)
+                        logger.info(f"Sync: Cached RAWG metadata for {sum(1 for r in results if isinstance(r, tuple) and r)} games")
+
                 if fetch_artwork and self.steamgriddb:
                     # STEP 1: Identify games needing SGDB lookup (not in cache)
                     seen_app_ids = set()
@@ -3816,66 +4109,6 @@ class Plugin:
                     # Save updated cache
                     if steam_appid_cache:
                         save_steam_appid_cache(steam_appid_cache)
-
-                    # Extract Steam metadata from appinfo.vdf (Steam's local cache)
-                    if all_games:
-                        self.sync_progress.current_game = {
-                            "label": "sync.extractingSteamMetadata",
-                            "values": {"count": len(all_games)}
-                        }
-
-                        # Read appinfo.vdf once (fast - local file)
-                        appinfo_data = read_steam_appinfo_vdf()
-
-                        if appinfo_data:
-                            existing_metadata = load_steam_metadata_cache()
-                            appid_mapping, new_metadata = await extract_metadata_from_appinfo(all_games, appinfo_data)
-
-                            # Update metadata cache
-                            if new_metadata:
-                                existing_metadata.update(new_metadata)
-                                save_steam_metadata_cache(existing_metadata)
-
-                            # Save the shortcut->steam appid mapping for frontend store patching
-                            if appid_mapping:
-                                steam_appid_cache.update(appid_mapping)
-                                save_steam_appid_cache(steam_appid_cache)
-                                logger.info(f"Extracted metadata for {len(new_metadata)} games from appinfo.vdf, mapped {len(appid_mapping)} shortcuts to Steam IDs")
-
-                    # === RAWG METADATA PRE-FETCH ===
-                    # Pre-populate RAWG cache for games that don't have entries yet
-                    # This makes GameInfoPanel load instantly instead of fetching per-view
-                    if all_games:
-                        rawg_cache = load_rawg_metadata_cache()
-                        games_needing_rawg = [g for g in all_games if g.title.lower() not in rawg_cache]
-
-                        if games_needing_rawg:
-                            logger.info(f"Sync: Pre-fetching RAWG metadata for {len(games_needing_rawg)} games")
-                            self.sync_progress.current_game = {
-                                "label": "sync.fetchingEnhancedMetadata",
-                                "values": {"count": len(games_needing_rawg)}
-                            }
-
-                            async def prefetch_rawg_for_game(game, semaphore):
-                                async with semaphore:
-                                    try:
-                                        rawg_data = await self.fetch_rawg_metadata(game.title)
-                                        if rawg_data:
-                                            return (game.title.lower(), rawg_data)
-                                    except Exception as e:
-                                        logger.debug(f"[RAWG Prefetch] Error for {game.title}: {e}")
-                                    return None
-
-                            semaphore = asyncio.Semaphore(5)
-                            tasks = [prefetch_rawg_for_game(g, semaphore) for g in games_needing_rawg]
-                            results = await asyncio.gather(*tasks, return_exceptions=True)
-
-                            for result in results:
-                                if isinstance(result, tuple) and result is not None:
-                                    rawg_cache[result[0]] = result[1]
-
-                            save_rawg_metadata_cache(rawg_cache)
-                            logger.info(f"Sync: Cached RAWG metadata for {sum(1 for r in results if isinstance(r, tuple) and r)} games")
 
                     # Cleanup orphaned artwork before sync (prevents duplicate files)
                     if self.steamgriddb:
@@ -4056,6 +4289,12 @@ class Plugin:
             try:
                 logger.info("Force syncing libraries (rewriting all shortcuts and compatibility data)...")
 
+                # CRITICAL: Delete all metadata caches to force full re-fetch
+                logger.info("Force Sync: Clearing all metadata caches...")
+                get_steam_real_appid_cache_path().unlink(missing_ok=True)
+                get_steam_metadata_cache_path().unlink(missing_ok=True)
+                get_rawg_metadata_cache_path().unlink(missing_ok=True)
+
                 # Update progress: Fetching games
                 self.sync_progress.status = "fetching"
                 self.sync_progress.current_game = {
@@ -4228,6 +4467,43 @@ class Plugin:
                 for game in all_games:
                      game.app_id = self.shortcuts_manager.generate_app_id(game.title, launcher_script)
 
+                # Resolve Steam presence via Steam Store API (fallback to RAWG)
+                if all_games:
+                    real_steam_cache = load_steam_real_appid_cache()
+                    steam_metadata_cache = load_steam_metadata_cache()
+
+                    games_needing_steam = [g for g in all_games if g.title]
+
+                    self.sync_progress.steam_total = len(games_needing_steam)
+                    self.sync_progress.steam_synced = 0
+                    self.sync_progress.current_game = {
+                        "label": "sync.extractingSteamMetadata",
+                        "values": {"count": len(games_needing_steam)}
+                    }
+
+                    async def resolve_steam_for_game(game, semaphore):
+                        async with semaphore:
+                            try:
+                                result = await self.resolve_steam_presence(game.title)
+                                steam_app_id = result.get('steam_appid', 0)
+                                metadata = result.get('metadata', {})
+                                if steam_app_id:
+                                    real_steam_cache[game.app_id] = steam_app_id
+                                    if metadata:
+                                        steam_metadata_cache[steam_app_id] = metadata
+                                await self.sync_progress.increment_steam(game.title)
+                            except Exception as e:
+                                logger.debug(f"[SteamPresence] Error for {game.title}: {e}")
+
+                    if games_needing_steam:
+                        semaphore = asyncio.Semaphore(self.STEAM_STORE_MAX_CONCURRENCY)
+                        await asyncio.gather(*[resolve_steam_for_game(g, semaphore) for g in games_needing_steam])
+
+                    if real_steam_cache:
+                        save_steam_real_appid_cache(real_steam_cache)
+                    if steam_metadata_cache:
+                        save_steam_metadata_cache(steam_metadata_cache)
+
                 if self.steamgriddb:
                     # STEP 1: Identify games needing SGDB lookup (not in cache)
                     seen_app_ids = set()
@@ -4287,132 +4563,118 @@ class Plugin:
                     if steam_appid_cache:
                         save_steam_appid_cache(steam_appid_cache)
 
-                    # Extract Steam metadata from appinfo.vdf (Steam's local cache)
-                    if all_games:
-                        self.sync_progress.current_game = {
-                            "label": "sync.extractingSteamMetadata",
-                            "values": {"count": len(all_games)}
-                        }
+                # === ENHANCED METADATA: RAWG fallback + Deck Compatibility ===
+                # Fetch metadata from RAWG for games missing data, and deck compat from Steam
+                self.sync_progress.current_game = {
+                    "label": "sync.fetchingEnhancedMetadata",
+                    "values": {"count": len(all_games)}
+                }
+                
+                # Reload metadata cache after appinfo update
+                existing_metadata = load_steam_metadata_cache()
+                rawg_cache = load_rawg_metadata_cache()
+                updated_count = 0
 
-                        # Read appinfo.vdf once (fast - local file)
-                        appinfo_data = read_steam_appinfo_vdf()
+                # Process in batches with limited concurrency
+                async def fetch_enhanced_metadata_for_game(game, semaphore):
+                    """Fetch RAWG + deck compat for a single game"""
+                    async with semaphore:
+                        try:
+                            # Get signed app_id for cache lookup
+                            app_id = game.app_id
+                            if app_id > 2**31:
+                                app_id_signed = app_id - 2**32
+                            else:
+                                app_id_signed = app_id
 
-                        if appinfo_data:
-                            existing_metadata = load_steam_metadata_cache()
-                            appid_mapping, new_metadata = await extract_metadata_from_appinfo(all_games, appinfo_data)
+                            # Get Steam App ID from mapping
+                            steam_app_id = steam_appid_cache.get(app_id_signed, 0)
 
-                            # Update metadata cache
-                            if new_metadata:
-                                existing_metadata.update(new_metadata)
-                                save_steam_metadata_cache(existing_metadata)
+                            # Get existing metadata for this Steam app
+                            game_meta = existing_metadata.get(steam_app_id, {}) if steam_app_id else {}
+                            updated = False
 
-                            # Save the shortcut->steam appid mapping for frontend store patching
-                            if appid_mapping:
-                                steam_appid_cache.update(appid_mapping)
-                                save_steam_appid_cache(steam_appid_cache)
-                                logger.info(f"Force Sync: Extracted metadata for {len(new_metadata)} games from appinfo.vdf, mapped {len(appid_mapping)} shortcuts to Steam IDs")
+                            # Ensure core Steam fields exist for store page detection
+                            if steam_app_id > 0:
+                                if not game_meta.get('steam_appid'):
+                                    game_meta['steam_appid'] = steam_app_id
+                                    updated = True
+                                if not game_meta.get('name'):
+                                    game_meta['name'] = game.title
+                                    updated = True
+                                if not game_meta.get('type'):
+                                    game_meta['type'] = 'game'
+                                    updated = True
 
-                    # === ENHANCED METADATA: RAWG fallback + Deck Compatibility ===
-                    # Fetch metadata from RAWG for games missing data, and deck compat from Steam
-                    if all_games:
-                        self.sync_progress.current_game = {
-                            "label": "sync.fetchingEnhancedMetadata",
-                            "values": {"count": len(all_games)}
-                        }
-                        
-                        # Reload metadata cache after appinfo update
-                        existing_metadata = load_steam_metadata_cache()
-                        rawg_cache = load_rawg_metadata_cache()
-                        updated_count = 0
+                            # Check what's missing - field-level fallback
+                            needs_rawg = (
+                                not game_meta.get('short_description') or
+                                not game_meta.get('developers') or
+                                game_meta.get('metacritic') is None
+                            )
+                            needs_deck = steam_app_id > 0 and game_meta.get('deck_category', 0) == 0
 
-                        # Process in batches with limited concurrency
-                        async def fetch_enhanced_metadata_for_game(game, semaphore):
-                            """Fetch RAWG + deck compat for a single game"""
-                            async with semaphore:
-                                try:
-                                    # Get signed app_id for cache lookup
-                                    app_id = game.app_id
-                                    if app_id > 2**31:
-                                        app_id_signed = app_id - 2**32
-                                    else:
-                                        app_id_signed = app_id
+                            # Fetch RAWG data if needed (check RAWG cache first)
+                            rawg_cache_key = game.title.lower()
+                            if needs_rawg:
+                                rawg_data = rawg_cache.get(rawg_cache_key)
+                                if not rawg_data:
+                                    rawg_data = await self.fetch_rawg_metadata(game.title)
+                                    if rawg_data:
+                                        rawg_cache[rawg_cache_key] = rawg_data
+                                if rawg_data:
+                                    if not game_meta.get('short_description') and rawg_data.get('description'):
+                                        game_meta['short_description'] = rawg_data['description'][:500]
+                                        updated = True
+                                    if not game_meta.get('developers') and rawg_data.get('developers'):
+                                        game_meta['developers'] = rawg_data['developers']
+                                        updated = True
+                                    if not game_meta.get('publishers') and rawg_data.get('publishers'):
+                                        game_meta['publishers'] = rawg_data['publishers']
+                                        updated = True
+                                    if game_meta.get('metacritic') is None and rawg_data.get('metacritic'):
+                                        game_meta['metacritic'] = rawg_data['metacritic']
+                                        updated = True
+                                    if not game_meta.get('tags') and rawg_data.get('tags'):
+                                        game_meta['tags'] = rawg_data['tags'][:5]
+                                        updated = True
+                                    if not game_meta.get('genres') and rawg_data.get('genres'):
+                                        game_meta['genres'] = [{'description': g} for g in rawg_data['genres'][:4]]
+                                        updated = True
+                            
+                            # Fetch deck compat if needed
+                            if needs_deck:
+                                deck_info = await self.fetch_steam_deck_compatibility(steam_app_id)
+                                if deck_info.get('category', 0) > 0:
+                                    game_meta['deck_category'] = deck_info['category']
+                                    game_meta['deck_test_results'] = deck_info.get('testResults', [])
+                                    updated = True
+                            
+                            return (steam_app_id, game_meta, updated)
+                        except Exception as e:
+                            logger.debug(f"[EnhancedMeta] Error for {game.title}: {e}")
+                            return (None, None, False)
+                
+                # Run with limited concurrency (5 parallel for API rate limits)
+                semaphore = asyncio.Semaphore(5)
+                tasks = [fetch_enhanced_metadata_for_game(game, semaphore) for game in all_games]
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                
+                # Update cache with new metadata
+                for result in results:
+                    if isinstance(result, tuple) and result[2]:  # updated=True
+                        steam_app_id, game_meta, _ = result
+                        if steam_app_id and game_meta:
+                            existing_metadata[steam_app_id] = game_meta
+                            updated_count += 1
+                
+                if updated_count > 0:
+                    save_steam_metadata_cache(existing_metadata)
+                    logger.info(f"Force Sync: Enhanced metadata for {updated_count} games (RAWG + deck compat)")
 
-                                    # Get Steam App ID from mapping
-                                    steam_app_id = steam_appid_cache.get(app_id_signed, 0)
-
-                                    # Get existing metadata for this Steam app
-                                    game_meta = existing_metadata.get(steam_app_id, {}) if steam_app_id else {}
-                                    updated = False
-
-                                    # Check what's missing - field-level fallback
-                                    needs_rawg = (
-                                        not game_meta.get('short_description') or
-                                        not game_meta.get('developers') or
-                                        game_meta.get('metacritic') is None
-                                    )
-                                    needs_deck = steam_app_id > 0 and game_meta.get('deck_category', 0) == 0
-
-                                    # Fetch RAWG data if needed (check RAWG cache first)
-                                    rawg_cache_key = game.title.lower()
-                                    if needs_rawg:
-                                        rawg_data = rawg_cache.get(rawg_cache_key)
-                                        if not rawg_data:
-                                            rawg_data = await self.fetch_rawg_metadata(game.title)
-                                            if rawg_data:
-                                                rawg_cache[rawg_cache_key] = rawg_data
-                                        if rawg_data:
-                                            if not game_meta.get('short_description') and rawg_data.get('description'):
-                                                game_meta['short_description'] = rawg_data['description'][:500]
-                                                updated = True
-                                            if not game_meta.get('developers') and rawg_data.get('developers'):
-                                                game_meta['developers'] = rawg_data['developers']
-                                                updated = True
-                                            if not game_meta.get('publishers') and rawg_data.get('publishers'):
-                                                game_meta['publishers'] = rawg_data['publishers']
-                                                updated = True
-                                            if game_meta.get('metacritic') is None and rawg_data.get('metacritic'):
-                                                game_meta['metacritic'] = rawg_data['metacritic']
-                                                updated = True
-                                            if not game_meta.get('tags') and rawg_data.get('tags'):
-                                                game_meta['tags'] = rawg_data['tags'][:5]
-                                                updated = True
-                                            if not game_meta.get('genres') and rawg_data.get('genres'):
-                                                game_meta['genres'] = [{'description': g} for g in rawg_data['genres'][:4]]
-                                                updated = True
-                                    
-                                    # Fetch deck compat if needed
-                                    if needs_deck:
-                                        deck_info = await self.fetch_steam_deck_compatibility(steam_app_id)
-                                        if deck_info.get('category', 0) > 0:
-                                            game_meta['deck_category'] = deck_info['category']
-                                            game_meta['deck_test_results'] = deck_info.get('testResults', [])
-                                            updated = True
-                                    
-                                    return (steam_app_id, game_meta, updated)
-                                except Exception as e:
-                                    logger.debug(f"[EnhancedMeta] Error for {game.title}: {e}")
-                                    return (None, None, False)
-                        
-                        # Run with limited concurrency (5 parallel for API rate limits)
-                        semaphore = asyncio.Semaphore(5)
-                        tasks = [fetch_enhanced_metadata_for_game(game, semaphore) for game in all_games]
-                        results = await asyncio.gather(*tasks, return_exceptions=True)
-                        
-                        # Update cache with new metadata
-                        for result in results:
-                            if isinstance(result, tuple) and result[2]:  # updated=True
-                                steam_app_id, game_meta, _ = result
-                                if steam_app_id and game_meta:
-                                    existing_metadata[steam_app_id] = game_meta
-                                    updated_count += 1
-                        
-                        if updated_count > 0:
-                            save_steam_metadata_cache(existing_metadata)
-                            logger.info(f"Force Sync: Enhanced metadata for {updated_count} games (RAWG + deck compat)")
-
-                        # Save RAWG cache (populated during batch fetch above)
-                        if rawg_cache:
-                            save_rawg_metadata_cache(rawg_cache)
+                # Save RAWG cache (populated during batch fetch above)
+                if rawg_cache:
+                    save_rawg_metadata_cache(rawg_cache)
 
                     # Cleanup orphaned artwork before sync (prevents duplicate files)
                     if self.steamgriddb:
@@ -4997,6 +5259,12 @@ class Plugin:
     # RAWG.io API key for fallback metadata
     RAWG_API_KEY = 'ba1f3b6abe404ba993d6ac12479f2977'
 
+    # Steam Store API settings
+    STEAM_STORE_SEARCH_URL = "https://store.steampowered.com/api/storesearch"
+    STEAM_APPDETAILS_URL = "https://store.steampowered.com/api/appdetails"
+    STEAM_STORE_MAX_CONCURRENCY = 5
+    RAWG_MAX_CONCURRENCY = 5
+
     async def fetch_rawg_metadata(self, game_name: str) -> Dict[str, Any]:
         """Fetch game metadata from RAWG.io as fallback.
         
@@ -5006,6 +5274,7 @@ class Plugin:
         Returns:
             Dict with: description, genres, tags, developers, publishers, metacritic, website
         """
+        logger.info(f"[RAWG API] Fetching metadata for: {game_name}")
         try:
             import aiohttp
             import urllib.parse
@@ -5015,12 +5284,17 @@ class Plugin:
             
             connector = aiohttp.TCPConnector(ssl=False)
             async with aiohttp.ClientSession(connector=connector) as session:
-                async with session.get(search_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
-                    if response.status != 200:
-                        logger.debug(f"[RAWG] Search failed with status {response.status}")
-                        return {}
-                    
-                    search_data = await response.json()
+                for attempt in range(2):
+                    async with session.get(search_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                        if response.status == 429 and attempt == 0:
+                            await asyncio.sleep(2)
+                            continue
+                        if response.status != 200:
+                            logger.debug(f"[RAWG] Search failed with status {response.status}")
+                            return {}
+                        
+                        search_data = await response.json()
+                        break
                     
             results = search_data.get('results', [])
             if not results:
@@ -5035,20 +5309,38 @@ class Plugin:
             
             connector2 = aiohttp.TCPConnector(ssl=False)
             async with aiohttp.ClientSession(connector=connector2) as session:
-                async with session.get(detail_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
-                    if response.status != 200:
-                        # Return basic info from search if detail fails
-                        return {
-                            'name': game.get('name', ''),
-                            'description': '',
-                            'genres': [g.get('name', '') for g in game.get('genres', [])],
-                            'tags': [t.get('name', '') for t in game.get('tags', [])[:10]],
-                            'metacritic': game.get('metacritic'),
-                            'released': game.get('released', ''),
-                        }
-                    
-                    detail = await response.json()
+                detail = None
+                for attempt in range(2):
+                    async with session.get(detail_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                        if response.status == 429 and attempt == 0:
+                            await asyncio.sleep(2)
+                            continue
+                        if response.status != 200:
+                            # Return basic info from search if detail fails
+                            return {
+                                'name': game.get('name', ''),
+                                'description': '',
+                                'genres': [g.get('name', '') for g in game.get('genres', [])],
+                                'tags': [t.get('name', '') for t in game.get('tags', [])[:10]],
+                                'metacritic': game.get('metacritic'),
+                                'released': game.get('released', ''),
+                                'store_urls': {},
+                            }
+                        
+                        detail = await response.json()
+                        break
+
+                if detail is None:
+                    return {}
             
+            store_urls = {}
+            for entry in detail.get('stores', []) if isinstance(detail.get('stores'), list) else []:
+                store = entry.get('store', {}) if isinstance(entry, dict) else {}
+                slug = store.get('slug')
+                url = entry.get('url_en') or entry.get('url')
+                if slug and url:
+                    store_urls[slug] = url
+
             result = {
                 'name': detail.get('name', ''),
                 'description': detail.get('description_raw', ''),
@@ -5059,14 +5351,187 @@ class Plugin:
                 'metacritic': detail.get('metacritic'),
                 'website': detail.get('website', ''),
                 'released': detail.get('released', ''),
+                'store_urls': store_urls,
             }
             
-            logger.info(f"[RAWG] Got metadata for '{game_name}': metacritic={result.get('metacritic')}, {len(result.get('tags', []))} tags")
+            logger.info(f"[RAWG API] Metadata fetched for '{game_name}'")
             return result
             
         except Exception as e:
             logger.warning(f"[RAWG] Failed to fetch metadata for '{game_name}': {e}")
             return {}
+
+    async def fetch_steam_store_search(self, game_name: str) -> List[Dict[str, Any]]:
+        """Search Steam Store for a game by name."""
+        logger.info(f"[Steam Store API] Searching for game: {game_name}")
+        try:
+            import aiohttp
+            import urllib.parse
+
+            url = f"{self.STEAM_STORE_SEARCH_URL}?term={urllib.parse.quote(game_name)}&l=english&cc=US"
+
+            connector = aiohttp.TCPConnector(ssl=False)
+            async with aiohttp.ClientSession(connector=connector) as session:
+                for attempt in range(2):
+                    async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                        if response.status == 429 and attempt == 0:
+                            await asyncio.sleep(2)
+                            continue
+                        if response.status != 200:
+                            logger.debug(f"[SteamSearch] Search failed with status {response.status}")
+                            return []
+                        data = await response.json()
+                        results = data.get('items', []) if isinstance(data, dict) else []
+                        logger.info(f"[Steam Store API] Search for '{game_name}' returned {len(results)} results")
+                        return results
+        except Exception as e:
+            logger.debug(f"[SteamSearch] Error searching Steam for '{game_name}': {e}")
+            return []
+
+    async def fetch_steam_appdetails(self, steam_app_id: int) -> Dict[str, Any]:
+        """Fetch Steam appdetails for a given app ID."""
+        logger.info(f"[Steam Store API] Fetching app details for app_id={steam_app_id}")
+        try:
+            import aiohttp
+
+            url = f"{self.STEAM_APPDETAILS_URL}?appids={steam_app_id}&l=english&cc=US"
+            connector = aiohttp.TCPConnector(ssl=False)
+            async with aiohttp.ClientSession(connector=connector) as session:
+                for attempt in range(2):
+                    async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                        if response.status == 429 and attempt == 0:
+                            await asyncio.sleep(2)
+                            continue
+                        if response.status != 200:
+                            logger.debug(f"[SteamDetails] appdetails failed for {steam_app_id} status {response.status}")
+                            return {}
+                        data = await response.json()
+                        entry = data.get(str(steam_app_id), {}) if isinstance(data, dict) else {}
+                        if not entry.get('success'):
+                            return {}
+                        result = entry.get('data', {}) if isinstance(entry.get('data'), dict) else {}
+                        logger.info(f"[Steam Store API] App details fetched for app_id={steam_app_id}")
+                        return result
+        except Exception as e:
+            logger.debug(f"[SteamDetails] Error fetching appdetails for {steam_app_id}: {e}")
+            return {}
+
+    def _convert_steam_store_data_to_metadata(self, steam_app_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert Steam Store appdetails data to our metadata cache format."""
+        try:
+            return {
+                'type': data.get('type', 'game'),
+                'name': data.get('name', ''),
+                'steam_appid': steam_app_id,
+                'required_age': data.get('required_age', 0),
+                'is_free': data.get('is_free', False),
+                'controller_support': data.get('controller_support', 'none'),
+                'detailed_description': data.get('detailed_description', ''),
+                'short_description': data.get('short_description', ''),
+                'supported_languages': data.get('supported_languages', ''),
+                'header_image': data.get('header_image', ''),
+                'capsule_image': data.get('capsule_image', ''),
+                'website': data.get('website', ''),
+                'developers': data.get('developers', []) if isinstance(data.get('developers'), list) else [],
+                'publishers': data.get('publishers', []) if isinstance(data.get('publishers'), list) else [],
+                'platforms': data.get('platforms', {}) if isinstance(data.get('platforms'), dict) else {},
+                'metacritic': data.get('metacritic', {}),
+                'categories': data.get('categories', []),
+                'genres': data.get('genres', []),
+                'release_date': data.get('release_date', {'coming_soon': False, 'date': ''})
+            }
+        except Exception:
+            return {}
+
+    def _extract_steam_appid_from_rawg(self, rawg_data: Dict[str, Any]) -> int:
+        """Extract Steam app ID from RAWG store URLs if present."""
+        if not rawg_data:
+            return 0
+        try:
+            store_urls = rawg_data.get('store_urls', {}) if isinstance(rawg_data.get('store_urls'), dict) else {}
+            steam_url = store_urls.get('steam') or store_urls.get('steam_store')
+            if steam_url:
+                match = re.search(r"/app/(\d+)", steam_url)
+                if match:
+                    return int(match.group(1))
+        except Exception:
+            return 0
+        return 0
+
+    async def resolve_steam_presence(self, game_title: str) -> Dict[str, Any]:
+        """Resolve Steam presence using Steam Store API, fallback to RAWG.
+
+        Returns:
+            Dict with keys: steam_appid, metadata
+        """
+        logger.info(f"[Steam Presence] Resolving store for: {game_title}")
+        # Steam API first
+        results = await self.fetch_steam_store_search(game_title)
+        if results:
+            target_norm = normalize_title_for_matching(game_title)
+            top = None
+            for item in results:
+                item_name = item.get('name', '') if isinstance(item, dict) else ''
+                if item_name and normalize_title_for_matching(item_name) == target_norm:
+                    top = item
+                    break
+            if top is None:
+                top = results[0]
+            steam_app_id = top.get('id') or top.get('appid')
+            if steam_app_id:
+                try:
+                    steam_app_id = int(steam_app_id)
+                except Exception:
+                    steam_app_id = 0
+                if steam_app_id:
+                    details = await self.fetch_steam_appdetails(steam_app_id)
+                    if details:
+                        metadata = self._convert_steam_store_data_to_metadata(steam_app_id, details)
+                        logger.info(f"[Steam Presence] Resolved for '{game_title}': appid={steam_app_id}")
+                        return {
+                            'steam_appid': steam_app_id,
+                            'metadata': metadata
+                        }
+                    logger.info(f"[Steam Presence] Resolved for '{game_title}': appid={steam_app_id}")
+                    return {
+                        'steam_appid': steam_app_id,
+                        'metadata': {
+                            'type': 'game',
+                            'name': top.get('name', '') or game_title,
+                            'steam_appid': steam_app_id
+                        }
+                    }
+
+        # RAWG fallback
+        rawg_cache = load_rawg_metadata_cache()
+        rawg_key = game_title.lower()
+        rawg_data = rawg_cache.get(rawg_key)
+        if not rawg_data:
+            rawg_data = await self.fetch_rawg_metadata(game_title)
+            if rawg_data:
+                rawg_cache[rawg_key] = rawg_data
+                save_rawg_metadata_cache(rawg_cache)
+
+        if rawg_data:
+            steam_app_id = self._extract_steam_appid_from_rawg(rawg_data)
+            if steam_app_id:
+                details = await self.fetch_steam_appdetails(steam_app_id)
+                if details:
+                    metadata = self._convert_steam_store_data_to_metadata(steam_app_id, details)
+                    return {
+                        'steam_appid': steam_app_id,
+                        'metadata': metadata
+                    }
+                return {
+                    'steam_appid': steam_app_id,
+                    'metadata': {
+                        'type': 'game',
+                        'name': rawg_data.get('name', '') or game_title,
+                        'steam_appid': steam_app_id
+                    }
+                }
+
+        return {'steam_appid': 0, 'metadata': {}}
 
     async def fetch_steam_deck_compatibility(self, steam_app_id: int) -> Dict[str, Any]:
         """Fetch Steam Deck compatibility info from Steam's API.
@@ -5186,23 +5651,34 @@ class Plugin:
             game_id = game_info.get('game_id')
             title = game_info.get('title', 'Unknown')
 
-            # Get Steam App ID from cache (for ProtonDB and Steam community links)
-            steam_appid_cache = load_steam_appid_cache()
-            # Cache has int keys (load_steam_appid_cache converts them)
-            steam_app_id = steam_appid_cache.get(app_id_signed, 0)
-            logger.info(f"[MetadataDisplay] Cache lookup: app_id={app_id}, signed={app_id_signed}, cache_size={len(steam_appid_cache)}, steam_app_id={steam_app_id}")
+            # Get real Steam App ID from cache (for Steam store/community links)
+            steam_real_cache = load_steam_real_appid_cache()
+            steam_app_id = steam_real_cache.get(app_id_signed, 0)
+            logger.info(f"[MetadataDisplay] Cache lookup: app_id={app_id}, signed={app_id_signed}, cache_size={len(steam_real_cache)}, steam_app_id={steam_app_id}")
 
             # Load Steam metadata cache for detailed info
-            # This cache only contains data from appinfo.vdf (games that exist on Steam).
-            # If steam_app_id is a SteamGridDB ID (used for artwork), it won't be here.
+            # This cache contains data from Steam Store API (and RAWG fallback for Steam presence).
             metadata_cache = load_steam_metadata_cache()
             # Metadata cache also has int keys
             steam_metadata = metadata_cache.get(steam_app_id, {}) if steam_app_id else {}
 
+            # Resolve Steam presence if missing or invalid
+            if (not steam_app_id) or (not steam_metadata) or (not steam_metadata.get('name')):
+                presence = await self.resolve_steam_presence(title)
+                resolved_app_id = presence.get('steam_appid', 0)
+                resolved_metadata = presence.get('metadata', {})
+                if resolved_app_id:
+                    steam_app_id = resolved_app_id
+                    steam_real_cache[app_id_signed] = resolved_app_id
+                    save_steam_real_appid_cache(steam_real_cache)
+                    if resolved_metadata:
+                        metadata_cache[resolved_app_id] = resolved_metadata
+                        save_steam_metadata_cache(metadata_cache)
+                        steam_metadata = resolved_metadata
+
             # Determine if this game has a real Steam store presence.
-            # steam_appid_cache stores both SteamGridDB IDs (for artwork) and real Steam
-            # App IDs (from appinfo.vdf). Only IDs with entries in steam_metadata_cache
-            # are confirmed real Steam App IDs with working store/community pages.
+            # Only IDs with entries in steam_metadata_cache are confirmed real Steam App IDs
+            # with working store/community pages.
             #
             # Additional validation: The metadata must have:
             # 1. A valid 'type' field ('game' for games)
@@ -5210,14 +5686,18 @@ class Plugin:
             # 3. A 'name' field (all real Steam games have this)
             has_steam_store_page = False
             if steam_metadata:
-                meta_type = steam_metadata.get('type', '')
-                meta_appid = steam_metadata.get('steam_appid', 0)
-                meta_name = steam_metadata.get('name', '')
+                meta_type = str(steam_metadata.get('type', '')).lower()
+                meta_appid_raw = steam_metadata.get('steam_appid', 0)
+                try:
+                    meta_appid = int(meta_appid_raw)
+                except Exception:
+                    meta_appid = 0
+                meta_name = str(steam_metadata.get('name', '')).strip()
                 # Only consider it a valid Steam store page if:
-                # - Type is 'game' (not 'dlc', 'demo', etc.)
+                # - Type is 'game' or 'application' (not 'dlc', 'demo', etc.)
                 # - The steam_appid in metadata matches what we're looking up
                 # - The game has a name
-                if meta_type == 'game' and meta_appid == steam_app_id and meta_name:
+                if meta_type in ('game', 'application') and meta_appid == steam_app_id and meta_name:
                     has_steam_store_page = True
                     logger.debug(f"[MetadataDisplay] Valid Steam store page: {meta_name} (ID: {steam_app_id})")
                 else:
@@ -5265,7 +5745,8 @@ class Plugin:
                 publisher = ', '.join(publishers) if publishers else ''
                 description = steam_metadata.get('short_description', '') or steam_metadata.get('detailed_description', '')
                 release_info = steam_metadata.get('release_date', {})
-                release_date = release_info.get('date', '') if isinstance(release_info, dict) else ''
+                steam_release_raw = release_info.get('date', '') if isinstance(release_info, dict) else ''
+                release_date = normalize_release_date(steam_release_raw)
                 if developer:
                     sources['developer'] = 'steam_cache'
                 if publisher:
@@ -5311,7 +5792,7 @@ class Plugin:
                     if publisher:
                         sources['publisher'] = rawg_source
                 if not release_date:
-                    release_date = rawg_data.get('released', '')
+                    release_date = normalize_release_date(rawg_data.get('released', ''))
                     if release_date:
                         sources['release_date'] = rawg_source
                 metacritic = rawg_data.get('metacritic')
@@ -5894,7 +6375,7 @@ class Plugin:
             Dict with 'mappings' key containing { shortcutAppId: realSteamAppId }
         """
         try:
-            cache = load_steam_appid_cache()  # Returns {shortcut_appid: steam_appid}
+            cache = load_steam_real_appid_cache()  # Returns {shortcut_appid: steam_appid}
             return {
                 "success": True,
                 "mappings": cache  # Dict[int, int]
@@ -6490,7 +6971,10 @@ class Plugin:
                     "~/.local/share/unifideck/shortcuts_registry.json",
                     "~/.local/share/unifideck/download_queue.json",
                     "~/.local/share/unifideck/download_settings.json",
-                    os.path.join(get_steam_appid_cache_path()) # Steam AppID Cache
+                    os.path.join(get_steam_appid_cache_path()), # SteamGridDB AppID Cache
+                    os.path.join(get_steam_real_appid_cache_path()), # Real Steam AppID Cache
+                    os.path.join(get_steam_metadata_cache_path()), # Steam metadata cache
+                    os.path.join(get_rawg_metadata_cache_path()) # RAWG metadata cache
                 ]
                 
                 # Only delete games.map and registry if we're also deleting game files (destructive mode)
