@@ -57,6 +57,11 @@
         "react",
         "react-dom"
       ]
+    },
+    "supportedArchitectures": {
+      "os": ["current", "linux"],
+      "cpu": ["current", "x64"],
+      "libc": ["current", "musl", "glibc"]
     }
   },
   "remote_binary_bundling" : true,
