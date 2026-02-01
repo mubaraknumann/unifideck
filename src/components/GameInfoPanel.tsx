@@ -88,10 +88,6 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
 
-  // Debug: Log when component mounts
-  console.log(
-    `[Unifideck GameInfoPanel] Component mounted for appId: ${appId}`,
-  );
 
   useEffect(() => {
     let cancelled = false;

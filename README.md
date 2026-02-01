@@ -13,6 +13,7 @@ A Decky Loader plugin that brings together games from Steam, Epic Games Store, G
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
 - [Getting Started](#getting-started)
+- [Building](#building)
 - [Known Limitations](#known-limitations)
 - [Troubleshooting](#troubleshooting)
 - [License](#license)
@@ -62,6 +63,21 @@ That's it! All other tools and dependencies are bundled with the plugin.
 7. The plugin will install automatically
 
 https://www.youtube.com/watch?v=lP-90uYd72w
+
+## Building
+
+To build the plugin from source (for development or local testing):
+
+**Prerequisites:** Node.js 16.14+, [pnpm](https://pnpm.io/) v9, the [Decky CLI](https://github.com/SteamDeckHomebrew/cli) (run `.vscode/setup.sh`), and **Docker or Podman** for the plugin build step. The build script will use Podman if Docker is not installed (e.g. on Steam Deck).
+
+**Steps:**
+
+1. Install dependencies: `pnpm i`
+2. Build the plugin: run `./.vscode/build.sh` from the project root.
+
+The build script (1) builds the frontend with `pnpm run build` so `dist/index.js` exists, (2) copies `defaults/backend` to a temporary `backend/` at the project root so the packaged zip contains the Python `backend` package required by `main.py`, (3) runs `cli/decky plugin build .`, and (4) removes the temporary `backend/` afterward. The output zip is written to `out/` (e.g. `out/Unifideck.zip`).
+
+For the expected plugin zip layout (dist, package.json, plugin.json, main.py, LICENSE, bin, backend, etc.), see the [Decky Plugin Template](https://github.com/SteamDeckHomebrew/decky-plugin-template) [distribution section](https://github.com/SteamDeckHomebrew/decky-plugin-template#distribution).
 
 ## Getting Started
 

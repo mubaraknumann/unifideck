@@ -32,11 +32,15 @@ coverage.xml
 .venv/
 venv/
 env/
+py_modules/*
 
 # ===========================================
 # Build Output
 # ===========================================
 out/
+
+# Build-time copy of defaults/backend for packaging (do not commit)
+backend/
 
 # ===========================================
 # Environment and Secrets
@@ -86,7 +90,6 @@ vc_redist.x64.exe
 # Downloaded by build-plugin.sh prebuild step
 bin/legendary
 bin/gogdl
-bin/winetricks
 bin/cabextract
 
 # EpicGamesLauncher stub (should be committed if custom)
