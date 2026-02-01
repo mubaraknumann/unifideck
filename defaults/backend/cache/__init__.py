@@ -10,6 +10,12 @@ from .compat_cache import load_compat_cache, save_compat_cache
 from .steam_appid import load_steam_appid_cache, save_steam_appid_cache
 from .steam_metadata import load_steam_metadata_cache, save_steam_metadata_cache
 from .rawg_metadata import load_rawg_metadata_cache, save_rawg_metadata_cache
+from .shortcuts_registry import (
+    load_shortcuts_registry,
+    save_shortcuts_registry,
+    register_shortcut,
+    get_registered_appid,
+)
 
 __all__ = [
     "load_game_sizes_cache",
@@ -24,4 +30,8 @@ __all__ = [
     "save_steam_metadata_cache",
     "load_rawg_metadata_cache",
     "save_rawg_metadata_cache",
+    "load_shortcuts_registry",
+    "save_shortcuts_registry",
+    "register_shortcut",
+    "get_registered_appid",
 ]

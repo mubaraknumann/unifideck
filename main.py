@@ -48,6 +48,12 @@ from backend.cache.rawg_metadata import (
     load_rawg_metadata_cache,
     save_rawg_metadata_cache,
 )
+from backend.cache.shortcuts_registry import (
+    load_shortcuts_registry,
+    save_shortcuts_registry,
+    register_shortcut,
+    get_registered_appid,
+)
 from backend.utils.steam_appinfo import (
     read_steam_appinfo_vdf,
     write_steam_appinfo_vdf,
@@ -351,67 +357,6 @@ async def extract_metadata_from_appinfo(games: List, appinfo_data: Dict[int, Dic
             logger.debug(f"Failed to extract metadata for '{game.title}': {e}")
 
     return appid_mapping, metadata_results
-
-
-# Shortcuts Registry - maps game launch options to appid for reconciliation after plugin reinstall
-# Stored in user data directory (survives plugin uninstall/reinstall)
-SHORTCUTS_REGISTRY_FILE = "shortcuts_registry.json"
-
-
-def get_shortcuts_registry_path() -> Path:
-    """Get path to shortcuts registry file (in user data, not plugin dir)"""
-    return Path.home() / ".local" / "share" / "unifideck" / SHORTCUTS_REGISTRY_FILE
-
-
-def load_shortcuts_registry() -> Dict[str, Dict]:
-    """Load shortcuts registry. Returns {launch_options: {appid, appid_unsigned, title, created}}"""
-    registry_path = get_shortcuts_registry_path()
-    try:
-        if registry_path.exists():
-            with open(registry_path, 'r') as f:
-                return json.load(f)
-    except Exception as e:
-        logger.error(f"Error loading shortcuts registry: {e}")
-    return {}
-
-
-def save_shortcuts_registry(registry: Dict[str, Dict]) -> bool:
-    """Save shortcuts registry to file"""
-    registry_path = get_shortcuts_registry_path()
-    try:
-        registry_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(registry_path, 'w') as f:
-            json.dump(registry, f, indent=2)
-        logger.info(f"Saved {len(registry)} entries to shortcuts registry")
-        return True
-    except Exception as e:
-        logger.error(f"Error saving shortcuts registry: {e}")
-        return False
-
-
-def register_shortcut(launch_options: str, appid: int, title: str) -> bool:
-    """Register a shortcut's appid for future reconciliation"""
-    registry = load_shortcuts_registry()
-    
-    # Calculate unsigned appid for logging/debugging
-    appid_unsigned = appid if appid >= 0 else appid + 2**32
-    
-    registry[launch_options] = {
-        'appid': appid,
-        'appid_unsigned': appid_unsigned,
-        'title': title,
-        'created': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
-    }
-    
-    logger.debug(f"Registered shortcut: {launch_options} -> appid={appid} (unsigned={appid_unsigned})")
-    return save_shortcuts_registry(registry)
-
-
-def get_registered_appid(launch_options: str) -> Optional[int]:
-    """Get the registered appid for a game, or None if not registered"""
-    registry = load_shortcuts_registry()
-    entry = registry.get(launch_options)
-    return entry.get('appid') if entry else None
 
 
 # ============================================================================
