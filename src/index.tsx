@@ -3,13 +3,9 @@ import {
   PanelSection,
   PanelSectionRow,
   ButtonItem,
-  Field,
-  DialogButton,
-  ToggleField,
   showModal,
-  ConfirmModal,
 } from "@decky/ui";
-import React, { FC, useState, useEffect, useRef } from "react";
+import { FC, useState, useEffect, useRef } from "react";
 import { FaGamepad } from "react-icons/fa";
 import { loadTranslations, t, changeLanguage } from "./i18n";
 import { I18nextProvider, useTranslation } from "react-i18next";
@@ -21,18 +17,9 @@ loadTranslations();
 // Import views
 
 // Import tab system
-import {
-  patchLibrary,
-  loadCompatCacheFromBackend,
-  updateSingleGameStatus,
-} from "./tabs";
+import { patchLibrary, loadCompatCacheFromBackend } from "./tabs";
 
 import { syncUnifideckCollections } from "./spoofing/CollectionManager";
-import {
-  loadSteamAppIdMappings,
-  patchSteamStores,
-  injectGameToAppinfo,
-} from "./spoofing/SteamStorePatcher";
 
 // Import Steam patching utilities
 import { patchGameDetailsRoute } from "./patching/GameDetailsPatching";
@@ -43,14 +30,9 @@ import { clearGameInfoCache } from "./hooks/useGameInfo";
 // Import Downloads feature components
 import { DownloadsTab } from "./components/DownloadsTab";
 import { StorageSettings } from "./components/StorageSettings";
-import { UninstallConfirmModal } from "./components/UninstallConfirmModal";
-import { LanguageSelector } from "./components/LanguageSelector";
 import { SettingsTab } from "./components/settings/SettingsTab";
 import { InstallButton } from "./components/InstallButton";
-import StoreConnections from "./components/settings/StoreConnections";
 import { Store } from "./types/store";
-import LibrarySync from "./components/settings/LibrarySync";
-import StoreIcon from "./components/StoreIcon";
 import GameInfoPanel from "./components/GameInfoPanel";
 import { SyncProgress } from "./types/syncProgress";
 
