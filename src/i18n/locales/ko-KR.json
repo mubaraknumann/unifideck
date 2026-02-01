@@ -91,7 +91,9 @@
     "cancelSync": "동기화 취소",
     "retryStatusCheck": "상태 확인 재시도",
     "gamesSynced": "{{synced}} / {{total}}개 게임 동기화됨",
-    "artworkDownloaded": "{{synced}} / {{total}}개 아트워크 다운로드됨"
+    "artworkDownloaded": "{{synced}} / {{total}}개 아트워크 다운로드됨",
+    "steamMetadataDownloaded": "Steam 메타데이터: {{synced}} / {{total}}",
+    "rawgMetadataDownloaded": "RAWG 메타데이터: {{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "정리",
@@ -234,11 +236,11 @@
     "cancelledByUser": "사용자가 동기화 취소",
     "checkingInstalledGames": "설치된 게임 확인 중...",
     "sgdbLookup": "SteamGridDB에서 {{count}}개 검색 중...",
-    "extractingSteamMetadata": "{{count}}개 게임에 대한 Steam 메타데이터 추출 중...",
-    "fetchingEnhancedMetadata": "{{count}}개 게임의 향상된 메타데이터 가져오는 중...",
+    "extractingSteamMetadata": "{{synced}}/{{total}}개 게임에 대한 Steam 메타데이터 추출 중...",
+    "fetchingEnhancedMetadata": "{{synced}}/{{total}}개 게임의 향상된 메타데이터 가져오는 중...",
     "checkingExistingArtwork": "기존 아트워크 확인 중...",
     "cleaningOrphanedArtwork": "고아 아트워크 정리 중...",
-    "retryingMissingArtwork": "아트웍이 누락된 게임 {{count}}개를 다시 시도하는 중...",
+    "retryingMissingArtwork": "아트웍이 누락된 {{synced}}/{{total}}개 게임을 다시 시도하는 중...",
     "savingShortcuts": "바로가기 저장 중...",
     "completed": "동기화 완료! {{added}} 추가, 아트워크 {{artwork}}."
   },
@@ -273,5 +275,37 @@
     "allStores": "모든 스토어",
     "searchPlaceholder": "게임 검색...",
     "library": "라이브러리"
+  },
+  "gameInfoPanel": {
+    "loading": "게임 정보 로드 중...",
+    "noMetadata": "이 게임에 대한 메타데이터가 없습니다.",
+    "noTestResults": "상세 테스트 결과가 없습니다.",
+    "buttons": {
+      "details": "세부 사항",
+      "synopsis": "싱놉시스",
+      "storePage": "스토어 페이지",
+      "dlc": "DLC",
+      "communityHub": "커뮤니티 허브",
+      "pointsShop": "포인트샵",
+      "discussions": "스레드",
+      "guides": "가이드",
+      "support": "지원"
+    },
+    "labels": {
+      "developer": "개발사:",
+      "publisher": "발행사:",
+      "released": "출시 날짜:",
+      "metacritic": "Metacritic:",
+      "status": "상태:"
+    },
+    "compatibility": {
+      "modalTitle": "Steam Deck 호환성",
+      "viewOnProtonDb": "ProtonDB에서 보기",
+      "close": "닫기",
+      "verified": "검용됨",
+      "playable": "플레이가능",
+      "unsupported": "비지원",
+      "unknown": "미알려짐"
+    }
   }
 }

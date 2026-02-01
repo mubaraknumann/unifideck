@@ -735,19 +735,12 @@ function patchGameDetailsRoute() {
           // ========== GAME INFO PANEL INJECTION ==========
           // For non-Steam games, inject our custom GameInfoPanel to display metadata
           // Non-Steam shortcuts have appId > 2000000000
+          // GameInfoPanel uses position: absolute for visual placement, so DOM order doesn't matter
           const isNonSteamGame = appId > 2000000000;
           if (isNonSteamGame && !alreadyHasGameInfo) {
             try {
-              // Container structure (after InstallInfo injection):
-              // [0] = Header/hero
-              // [1] = PlayerCount
-              // [2] = InstallInfo (our component)
-              // [3] = ProtonMedal
-              // [4] = Play button row
-              // [5] = Tabs
-              //
-              // Index 4 places GameInfoPanel ABOVE the play button (between hero and play)
-              const insertIndex = 4;
+              // Inject at index 2 (like InstallInfoDisplay) - CSS controls visual position
+              const insertIndex = Math.min(2, container.props.children.length);
               container.props.children.splice(
                 insertIndex,
                 0,

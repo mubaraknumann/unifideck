@@ -90,7 +90,9 @@
     "cancelSync": "Отменить синхр.",
     "retryStatusCheck": "Повторить проверку статуса",
     "gamesSynced": "{{synced}} / {{total}} игр синхронизировано",
-    "artworkDownloaded": "{{synced}} / {{total}} артов загружено"
+    "artworkDownloaded": "{{synced}} / {{total}} артов загружено",
+    "steamMetadataDownloaded": "Метаданные Steam: {{synced}} / {{total}}",
+    "rawgMetadataDownloaded": "Метаданные RAWG: {{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "Очистка",
@@ -233,11 +235,11 @@
     "cancelledByUser": "Синхронизация отменена",
     "checkingInstalledGames": "Проверка установленных игр...",
     "sgdbLookup": "Поиск {{count}} игр в SteamGridDB...",
-    "extractingSteamMetadata": "Извлечение метаданных Steam для {{count}} игр...",
-    "fetchingEnhancedMetadata": "Получение дополнительных метаданных для {{count}} игр...",
+    "extractingSteamMetadata": "Извлечение метаданных Steam для {{synced}}/{{total}} игр...",
+    "fetchingEnhancedMetadata": "Получение дополнительных метаданных для {{synced}}/{{total}} игр...",
     "checkingExistingArtwork": "Проверка существующего арта...",
     "cleaningOrphanedArtwork": "Очистка оставшихся без привязки обложек...",
-    "retryingMissingArtwork": "Повторная попытка для {{count}} игр с отсутствующими обложками...",
+    "retryingMissingArtwork": "Повторная попытка для {{synced}}/{{total}} игр с отсутствующими обложками...",
     "savingShortcuts": "Сохранение ярлыков...",
     "completed": "Синхронизация завершена! {{added}} добавлено, арт {{artwork}}."
   },
@@ -272,5 +274,37 @@
     "allStores": "Все Магазины",
     "searchPlaceholder": "Поиск игр...",
     "library": "Библиотека"
+  },
+  "gameInfoPanel": {
+    "loading": "Загрузка информации об игре...",
+    "noMetadata": "Нет метаданных для этой игры.",
+    "noTestResults": "Нет детальных результатов теста.",
+    "buttons": {
+      "details": "Подробности",
+      "synopsis": "Синопсис",
+      "storePage": "Страница магазина",
+      "dlc": "DLC",
+      "communityHub": "Центр сообщества",
+      "pointsShop": "Магазин точек",
+      "discussions": "Обсуждения",
+      "guides": "Приготнения",
+      "support": "Поддержка"
+    },
+    "labels": {
+      "developer": "Разработчик:",
+      "publisher": "Издатель:",
+      "released": "Выпущена:",
+      "metacritic": "Metacritic:",
+      "status": "Статус:"
+    },
+    "compatibility": {
+      "modalTitle": "Совместимость Steam Deck",
+      "viewOnProtonDb": "Смотреть в ProtonDB",
+      "close": "Закрыть",
+      "verified": "ПОДТВЕРЖДЕНО",
+      "playable": "ИГРАЕМА",
+      "unsupported": "НОЕ ПОДДЕРЖИВАЕМА",
+      "unknown": "НЕИЗВЕСТНА"
+    }
   }
 }

@@ -90,7 +90,9 @@
     "cancelSync": "Synchronisierung abbrechen",
     "retryStatusCheck": "Statusprüfung erneut versuchen",
     "gamesSynced": "{{synced}} / {{total}} Spiele synchronisiert",
-    "artworkDownloaded": "{{synced}} / {{total}} Illustrationen heruntergeladen"
+    "artworkDownloaded": "{{synced}} / {{total}} Illustrationen heruntergeladen",
+    "steamMetadataDownloaded": "Steam-Metadaten: {{synced}} / {{total}}",
+    "rawgMetadataDownloaded": "RAWG-Metadaten: {{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "Aufräumen",
@@ -234,11 +236,11 @@
     "cancelledByUser": "Sync vom Nutzer abgebrochen",
     "checkingInstalledGames": "Installierte Spiele prüfen...",
     "sgdbLookup": "{{count}} Spiele bei SteamGridDB suchen...",
-    "extractingSteamMetadata": "Steam-Metadaten für {{count}} Spiele extrahieren...",
-    "fetchingEnhancedMetadata": "Erweiterte Metadaten für {{count}} Spiele abrufen...",
+    "extractingSteamMetadata": "Steam-Metadaten für {{synced}}/{{total}} Spiele extrahieren...",
+    "fetchingEnhancedMetadata": "Erweiterte Metadaten für {{synced}}/{{total}} Spiele abrufen...",
     "checkingExistingArtwork": "Vorhandenes Artwork prüfen...",
     "cleaningOrphanedArtwork": "Verwaiste Grafiken werden bereinigt...",
-    "retryingMissingArtwork": "{{count}} Spiele werden mit fehlenden Grafiken erneut versucht...",
+    "retryingMissingArtwork": "{{synced}}/{{total}} Spiele werden mit fehlenden Grafiken erneut versucht...",
     "savingShortcuts": "Verknüpfungen speichern...",
     "completed": "Sync fertig! {{added}} hinzugefügt, {{artwork}} Artwork."
   },
@@ -273,5 +275,37 @@
     "allStores": "Alle Stores",
     "searchPlaceholder": "Spiele suchen...",
     "library": "Bibliothek"
+  },
+  "gameInfoPanel": {
+    "loading": "Lade Spielinformationen...",
+    "noMetadata": "Keine Metadaten für dieses Spiel verfügbar.",
+    "noTestResults": "Keine detaillierten Testergebnisse verfügbar.",
+    "buttons": {
+      "details": "Details",
+      "synopsis": "Zusammenfassung",
+      "storePage": "Store-Seite",
+      "dlc": "DLC",
+      "communityHub": "Community Hub",
+      "pointsShop": "Points Shop",
+      "discussions": "Diskussionen",
+      "guides": "Leitfäden",
+      "support": "Support"
+    },
+    "labels": {
+      "developer": "Entwickler:",
+      "publisher": "Herausgeber:",
+      "released": "Veröffentlicht:",
+      "metacritic": "Metacritic:",
+      "status": "Status:"
+    },
+    "compatibility": {
+      "modalTitle": "Steam Deck-Kompatibilität",
+      "viewOnProtonDb": "Auf ProtonDB anschauen",
+      "close": "Schließen",
+      "verified": "VERIFIZIERT",
+      "playable": "SPIELBAR",
+      "unsupported": "NICHT UNTERSTÜTZT",
+      "unknown": "UNBEKANNT"
+    }
   }
 }

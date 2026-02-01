@@ -90,7 +90,9 @@
     "cancelSync": "Cancel Sync",
     "retryStatusCheck": "Retry Status Check",
     "gamesSynced": "{{synced}} / {{total}} games synced",
-    "artworkDownloaded": "{{synced}} / {{total}} artwork downloaded"
+    "artworkDownloaded": "{{synced}} / {{total}} artwork downloaded",
+    "steamMetadataDownloaded": "Steam metadata: {{synced}} / {{total}}",
+    "rawgMetadataDownloaded": "RAWG metadata: {{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "Cleanup",
@@ -234,11 +236,11 @@
     "cancelledByUser": "Sync cancelled by user",
     "checkingInstalledGames": "Checking installed games...",
     "sgdbLookup": "Looking up {{count}} games on SteamGridDB...",
-    "extractingSteamMetadata": "Extracting Steam metadata for {{count}} games...",
-    "fetchingEnhancedMetadata": "Fetching enhanced metadata for {{count}} games...",
+    "extractingSteamMetadata": "Extracting Steam metadata for {{synced}} / {{total}} games...",
+    "fetchingEnhancedMetadata": "Fetching enhanced metadata for {{synced}} / {{total}} games...",
     "checkingExistingArtwork": "Checking existing artwork...",
     "cleaningOrphanedArtwork": "Cleaning up orphaned artwork...",
-    "retryingMissingArtwork": "Retrying {{count}} games with missing artwork...",
+    "retryingMissingArtwork": "Retrying {{synced}} / {{total}} games with missing artwork...",
     "savingShortcuts": "Saving shortcuts...",
     "completed": "Sync completed! Added {{added}}, Art {{artwork}}."
   },
@@ -273,5 +275,37 @@
     "allStores": "All Stores",
     "searchPlaceholder": "Search games...",
     "library": "Library"
+  },
+  "gameInfoPanel": {
+    "loading": "Loading game information...",
+    "noMetadata": "No metadata available for this game.",
+    "noTestResults": "No detailed test results available.",
+    "buttons": {
+      "details": "Details",
+      "synopsis": "Synopsis",
+      "storePage": "Store Page",
+      "dlc": "DLC",
+      "communityHub": "Community Hub",
+      "pointsShop": "Points Shop",
+      "discussions": "Discussions",
+      "guides": "Guides",
+      "support": "Support"
+    },
+    "labels": {
+      "developer": "Developer:",
+      "publisher": "Publisher:",
+      "released": "Released:",
+      "metacritic": "Metacritic:",
+      "status": "Status:"
+    },
+    "compatibility": {
+      "modalTitle": "Steam Deck Compatibility",
+      "viewOnProtonDb": "View on ProtonDB",
+      "close": "Close",
+      "verified": "VERIFIED",
+      "playable": "PLAYABLE",
+      "unsupported": "UNSUPPORTED",
+      "unknown": "UNKNOWN"
+    }
   }
 }

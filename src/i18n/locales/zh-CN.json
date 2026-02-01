@@ -95,7 +95,9 @@
     "cancelSync": "取消同步",
     "retryStatusCheck": "重试状态检查",
     "gamesSynced": "{{synced}} / {{total}} 个游戏已同步",
-    "artworkDownloaded": "{{synced}} / {{total}} 个封面已下载"
+    "artworkDownloaded": "{{synced}} / {{total}} 个封面已下载",
+    "steamMetadataDownloaded": "Steam 元数据：{{synced}} / {{total}}",
+    "rawgMetadataDownloaded": "RAWG 元数据：{{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "清理",
@@ -239,8 +241,8 @@
     "cancelledByUser": "同步已取消",
     "checkingInstalledGames": "检查已安装游戏...",
     "sgdbLookup": "在 SteamGridDB 查找 {{count}} 个游戏...",
-    "extractingSteamMetadata": "正在提取 {{count}} 个游戏的 Steam 元数据...",
-    "fetchingEnhancedMetadata": "正在获取 {{count}} 个游戏的增强元数据...",
+    "extractingSteamMetadata": "正在提取 {{synced}}/{{total}} 个游戏的 Steam 元数据...",
+    "fetchingEnhancedMetadata": "正在获取 {{synced}}/{{total}} 个游戏的增强元数据...",
     "checkingExistingArtwork": "检查已有封面...",
     "cleaningOrphanedArtwork": "正在清理孤立的封面...",
     "retryingMissingArtwork": "正在重试 {{count}} 个缺少封面的游戏...",
@@ -278,5 +280,37 @@
     "allStores": "所有商店",
     "searchPlaceholder": "搜索游戏...",
     "library": "游戏库"
+  },
+  "gameInfoPanel": {
+    "loading": "正在加载游戏信息...",
+    "noMetadata": "此游戏没有可用的元数据。",
+    "noTestResults": "没有可用的详细测试结果。",
+    "buttons": {
+      "details": "详细信息",
+      "synopsis": "概述",
+      "storePage": "商店页面",
+      "dlc": "DLC",
+      "communityHub": "社区中心",
+      "pointsShop": "积分店",
+      "discussions": "讨论",
+      "guides": "指南",
+      "support": "支持"
+    },
+    "labels": {
+      "developer": "开发者:",
+      "publisher": "发行商:",
+      "released": "发行日期:",
+      "metacritic": "Metacritic:",
+      "status": "状态:"
+    },
+    "compatibility": {
+      "modalTitle": "Steam Deck 兼容性",
+      "viewOnProtonDb": "在 ProtonDB 上查看",
+      "close": "关闭",
+      "verified": "已验证",
+      "playable": "可玩",
+      "unsupported": "不支持",
+      "unknown": "未知"
+    }
   }
 }
