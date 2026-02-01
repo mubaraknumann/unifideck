@@ -96,16 +96,6 @@ if not STEAMGRIDDB_AVAILABLE:
 logger.info("Modular backend package loaded successfully")
 
 
-# Global caches for legendary CLI results (performance optimization)
-import time
-import re
-
-_legendary_installed_cache = {
-    'data': None,
-    'timestamp': 0,
-    'ttl': 30  # 30 second cache
-}
-
 # Artwork sync timeout (seconds per game)
 ARTWORK_FETCH_TIMEOUT = 90
 
@@ -289,11 +279,6 @@ class Plugin:
                         )
                         logger.info(f"[DownloadComplete] Marked {item.game_title} as installed")
                         registration_success = True
-                        
-                        # Invalidate legendary cache to ensure fresh status on next query
-                        global _legendary_installed_cache
-                        _legendary_installed_cache['data'] = None
-                        logger.debug("[DownloadComplete] Invalidated legendary installed cache")
                     else:
                         error_message = "Could not find Epic game executable"
                         logger.error(f"[DownloadComplete] {error_message} for {item.game_title}")
@@ -3404,11 +3389,6 @@ class Plugin:
                         logger.error(f"[Cleanup] Error deleting {file_path}: {e}")
                 
                 stats['cache_deleted'] = True
-                
-                # Clear in-memory caches
-                global _legendary_installed_cache, _legendary_info_cache
-                _legendary_installed_cache = {'data': None, 'timestamp': 0, 'ttl': 30}
-                _legendary_info_cache = {}
 
                 logger.info(f"Cleanup complete! Stats: {stats}")
                 return {
