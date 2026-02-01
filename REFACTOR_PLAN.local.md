@@ -74,7 +74,17 @@ Gates maintained after each commit:
 
 ## Phase 3 — Frontend split (src/index.tsx)
 
-- isolate Steam patching vs UI vs data hooks
+**Goal:** Separate concerns in the React frontend
+
+**Work:**
+
+- Extract Steam patching logic to dedicated module
+- Split UI components from state management
+- Organize data hooks and API calls
+- Separate presentation from business logic
+- Improve component reusability and testability
+
+**Target:** Cleaner component structure, easier to maintain and extend
 
 ## Phase 4 — Stabilize
 
