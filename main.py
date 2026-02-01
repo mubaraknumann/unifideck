@@ -40,12 +40,7 @@ from backend.cache.steam_appid import (
     load_steam_appid_cache,
     save_steam_appid_cache,
 )
-from backend.cache.game_sizes import (
-    load_game_sizes_cache,
-    save_game_sizes_cache,
-    cache_game_size,
-    get_cached_game_size,
-)
+from helpers.cache_helpers import get_steam_appid, calculate_game_size, read_cache_entry, write_cache_entry
 
 # Import Cloud Save Manager
 from cloud_save_manager import CloudSaveManager
