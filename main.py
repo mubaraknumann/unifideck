@@ -76,22 +76,17 @@ from launch_options_parser import extract_store_id, is_unifideck_shortcut, get_f
 # NEW MODULAR BACKEND IMPORTS (Phase 1: Available for use alongside old code)
 # These will eventually replace the inline class definitions below.
 # ============================================================================
-try:
-    from backend.stores import (
-        Store, Game as BackendGame, StoreManager,
-        EpicConnector as BackendEpicConnector,
-        AmazonConnector as BackendAmazonConnector,
-        GOGAPIClient as BackendGOGAPIClient
-    )
-    from backend.auth import CDPOAuthMonitor as BackendCDPOAuthMonitor
-    from backend.compat import (
-        BackgroundCompatFetcher as BackendCompatFetcher,
-        load_compat_cache, save_compat_cache, prefetch_compat
-    )
-    BACKEND_AVAILABLE = True
-except ImportError as e:
-    BACKEND_AVAILABLE = False
-    # Will fall back to inline implementations
+from backend.stores import (
+    Store, Game, StoreManager,
+    EpicConnector as BackendEpicConnector,
+    AmazonConnector as BackendAmazonConnector,
+    GOGAPIClient as BackendGOGAPIClient
+)
+from backend.auth import CDPOAuthMonitor
+from backend.compat import (
+    BackgroundCompatFetcher,
+    load_compat_cache, save_compat_cache, prefetch_compat
+)
 
 # Use Decky's logger for proper integration
 logger = decky.logger
@@ -99,8 +94,7 @@ logger = decky.logger
 # Log import status
 if not STEAMGRIDDB_AVAILABLE:
     logger.warning("SteamGridDB client not available")
-if BACKEND_AVAILABLE:
-    logger.info("Modular backend package loaded successfully")
+logger.info("Modular backend package loaded successfully")
 
 
 # Global caches for legendary CLI results (performance optimization)
@@ -113,42 +107,8 @@ _legendary_installed_cache = {
     'ttl': 30  # 30 second cache
 }
 
-_legendary_info_cache = {}  # Per-game info cache
-
 # Artwork sync timeout (seconds per game)
 ARTWORK_FETCH_TIMEOUT = 90
-
-
-# ============================================================================
-# CDPOAuthMonitor - Now imported from backend.auth module
-# ============================================================================
-if BACKEND_AVAILABLE:
-    CDPOAuthMonitor = BackendCDPOAuthMonitor
-    logger.info("Using CDPOAuthMonitor from backend.auth module")
-else:
-    # Fallback: Define inline if backend not available (should not happen in production)
-    logger.warning("Backend not available, CDPOAuthMonitor would need inline definition")
-    # The inline class was here but has been removed - backend should always be available
-    raise ImportError("backend.auth module is required but not available")
-
-
-# ============================================================================
-# Game dataclass - Now imported from backend.stores.base module
-# ============================================================================
-if BACKEND_AVAILABLE:
-    Game = BackendGame
-else:
-    raise ImportError("backend.stores module is required but not available")
-
-
-# ============================================================================
-# BackgroundCompatFetcher - Now imported from backend.compat.library module
-# ============================================================================
-if BACKEND_AVAILABLE:
-    BackgroundCompatFetcher = BackendCompatFetcher
-else:
-    raise ImportError("backend.compat module is required but not available")
-
 
 
 class Plugin:
