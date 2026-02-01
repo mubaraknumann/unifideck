@@ -45,9 +45,7 @@ export const GameGrid: FC<GameGridProps> = ({ games, loading }) => {
         }}
       >
         <div>{t("gameGrid.noGamesFound")}</div>
-        <div style={{ fontSize: "12px" }}>
-          {t("gameGrid.noGamesHint")}
-        </div>
+        <div style={{ fontSize: "12px" }}>{t("gameGrid.noGamesHint")}</div>
       </div>
     );
   }
@@ -178,8 +176,7 @@ const GameCard: FC<{ game: UnifideckGame }> = ({ game }) => {
 
       {(game.playtimeMinutes ?? 0) > 0 && (
         <div style={{ marginTop: "8px", fontSize: "11px", opacity: 0.7 }}>
-          {Math.floor((game.playtimeMinutes ?? 0) / 60)}h{" "}
-          {(game.playtimeMinutes ?? 0) % 60}m played
+          {t("gameGrid.playtime", { hours: Math.floor((game.playtimeMinutes ?? 0) / 60), minutes: (game.playtimeMinutes ?? 0) % 60 })}
         </div>
       )}
     </div>

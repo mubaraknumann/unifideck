@@ -89,7 +89,11 @@ class SteamGridDBClient:
         return grid_path
 
     async def search_game(self, title: str) -> Optional[int]:
-        """Search for game by title and return game ID"""
+        """Search for game by title and return game ID.
+        
+        Validates results to prefer exact title matches, avoiding issues
+        where series games get wrong artwork.
+        """
         if not self.client:
             return None
 
@@ -98,10 +102,43 @@ class SteamGridDBClient:
             # Run blocking synchronous call in thread pool
             results = await loop.run_in_executor(None, self.client.search_game, title)
             
-            if results and len(results) > 0:
-                game_id = results[0].id
-                logger.debug(f"Found SteamGridDB ID {game_id} for '{title}'")
-                return game_id
+            if not results or len(results) == 0:
+                return None
+            
+            # Normalize search title for comparison
+            search_lower = title.lower().strip()
+            
+            # First pass: look for exact match
+            for result in results:
+                result_name = getattr(result, 'name', '').lower().strip()
+                if result_name == search_lower:
+                    logger.debug(f"Found SteamGridDB ID {result.id} for '{title}' (exact match)")
+                    return result.id
+            
+            # Second pass: look for close match (search title is prefix or vice versa)
+            for result in results:
+                result_name = getattr(result, 'name', '').lower().strip()
+                # Check if one is a prefix of the other, but avoid series confusion
+                # "Dawn of War" should NOT match "Dawn of War II"
+                if search_lower in result_name or result_name in search_lower:
+                    # Check for series indicators (Roman numerals, numbers)
+                    import re
+                    series_pattern = r'\b(I{1,3}|IV|V|VI{0,3}|[2-9]|10)\b'
+                    search_has_series = bool(re.search(series_pattern, title))
+                    result_has_series = bool(re.search(series_pattern, getattr(result, 'name', '')))
+                    
+                    # If one has series indicator and other doesn't, skip
+                    if search_has_series != result_has_series:
+                        continue
+                    
+                    logger.debug(f"Found SteamGridDB ID {result.id} for '{title}' (partial match)")
+                    return result.id
+            
+            # Fallback to first result if no validated match
+            game_id = results[0].id
+            logger.debug(f"Found SteamGridDB ID {game_id} for '{title}' (first result fallback)")
+            return game_id
+            
         except Exception as e:
             logger.error(f"Error searching for game '{title}': {e}")
             
@@ -136,13 +173,20 @@ class SteamGridDBClient:
 
         return sorted_assets[0]
 
-    async def download_image(self, url: str, save_path: str) -> bool:
-        """Download image from URL to local path"""
+    async def download_image(self, url: str, save_path: str, timeout: int = 30) -> bool:
+        """Download image from URL to local path
+
+        Args:
+            url: URL to download from
+            save_path: Local path to save the image
+            timeout: Timeout in seconds for the download (default 30s)
+        """
         try:
             # Temporarily disable SSL verification to work around certificate validation issues
             # TODO: Fix properly by updating system CA certificates or certifi package
             connector = aiohttp.TCPConnector(ssl=False)
-            async with aiohttp.ClientSession(connector=connector) as session:
+            client_timeout = aiohttp.ClientTimeout(total=timeout)
+            async with aiohttp.ClientSession(connector=connector, timeout=client_timeout) as session:
                 async with session.get(url) as response:
                     if response.status == 200:
                         content = await response.read()
@@ -152,15 +196,23 @@ class SteamGridDBClient:
                         return True
                     else:
                         logger.error(f"Failed to download image: HTTP {response.status}")
+        except asyncio.TimeoutError:
+            logger.warning(f"Timeout downloading image from {url}")
+            return False
         except Exception as e:
             logger.error(f"Error downloading image: {e}")
 
         return False
 
-    async def get_grid_images(self, sgdb_game_id: int, app_id: int) -> Dict[str, bool]:
+    async def get_grid_images(self, sgdb_game_id: int, app_id: int, 
+                               only_types: set = None) -> Dict[str, bool]:
         """
         Fetch and download grid images for a game - ALL IN PARALLEL
         Returns dict of image type -> success status
+        
+        Args:
+            only_types: If specified, only download these art types (e.g., {'logo', 'icon'}).
+                       This prevents overwriting existing artwork from other sources.
         """
         if not self.client or not self.grid_path:
             return {}
@@ -169,6 +221,10 @@ class SteamGridDBClient:
         unsigned_id = app_id if app_id >= 0 else app_id + 2**32
 
         results = {'grid': False, 'hero': False, 'logo': False, 'icon': False}
+        
+        # Default to all types if not specified
+        if only_types is None:
+            only_types = {'grid', 'hero', 'logo', 'icon'}
 
         try:
             loop = asyncio.get_running_loop()
@@ -183,12 +239,12 @@ class SteamGridDBClient:
             
             grids, heroes, logos, icons = await asyncio.gather(*api_tasks, return_exceptions=True)
             
-            # PHASE 2: Select best artwork and prepare downloads
+            # PHASE 2: Select best artwork and prepare downloads (only for requested types)
             download_tasks = []
             task_types = []
             
-            # Grid
-            if grids and not isinstance(grids, Exception):
+            # Grid - only if requested
+            if 'grid' in only_types and grids and not isinstance(grids, Exception):
                 best_grid = self.select_best_artwork(grids)
                 if best_grid:
                     grid_file = os.path.join(self.grid_path, f"{unsigned_id}p.jpg")
@@ -200,24 +256,24 @@ class SteamGridDBClient:
                         download_tasks.append(self.download_image(best_grid.url, vertical_file))
                         task_types.append('vertical')
             
-            # Hero
-            if heroes and not isinstance(heroes, Exception):
+            # Hero - only if requested
+            if 'hero' in only_types and heroes and not isinstance(heroes, Exception):
                 best_hero = self.select_best_artwork(heroes)
                 if best_hero:
                     hero_file = os.path.join(self.grid_path, f"{unsigned_id}_hero.jpg")
                     download_tasks.append(self.download_image(best_hero.url, hero_file))
                     task_types.append('hero')
             
-            # Logo
-            if logos and not isinstance(logos, Exception):
+            # Logo - only if requested
+            if 'logo' in only_types and logos and not isinstance(logos, Exception):
                 best_logo = self.select_best_artwork(logos)
                 if best_logo:
                     logo_file = os.path.join(self.grid_path, f"{unsigned_id}_logo.png")
                     download_tasks.append(self.download_image(best_logo.url, logo_file))
                     task_types.append('logo')
             
-            # Icon
-            if icons and not isinstance(icons, Exception):
+            # Icon - only if requested
+            if 'icon' in only_types and icons and not isinstance(icons, Exception):
                 best_icon = self.select_best_artwork(icons)
                 if best_icon:
                     icon_file = os.path.join(self.grid_path, f"{unsigned_id}_icon.jpg")
@@ -581,10 +637,18 @@ class SteamGridDBClient:
             store_urls = store_res.get('urls', {})
             store_label = store.upper() if store else 'STORE'
             
+            # Skip artwork types not available or poor quality from official sources:
+            # - GOG/Amazon logos from GamesDB are thumbnails, not proper logos
+            # - Icons are not available from any store's official metadata
+            if store in ('gog', 'amazon'):
+                store_urls.pop('logo', None)  # Force from Steam/SGDB instead
+                logger.debug(f"[Artwork] Skipping {store.upper()} logo (thumbnail quality)")
+            store_urls.pop('icon', None)  # Icons never available from stores, use SGDB
+            
             selected_urls = {}
             source_map = {}
             
-            # Add all store URLs first (they are authoritative for this game)
+            # Add remaining store URLs (they are authoritative for this game)
             for k, url in store_urls.items():
                 if url:
                     selected_urls[k] = url
@@ -657,15 +721,16 @@ class SteamGridDBClient:
             final_result['artwork_count'] = len([k for k in downloaded if k != 'grid_vertical'])
 
             # === PHASE 4: FALLBACK (SGDB) ===
-            # If significant art is missing (Grid or Hero), use SGDB to fill gaps
-            needed = {'grid', 'hero', 'logo'}
+            # If significant art is missing, use SGDB to fill gaps
+            # Include icon since no store provides proper icons
+            needed = {'grid', 'hero', 'logo', 'icon'}
             missing = needed - downloaded
             
             if missing and self.client:
                 try:
                     gid = await self.search_game(title)
                     if gid:
-                        sgdb_results = await self.get_grid_images(gid, app_id)
+                        sgdb_results = await self.get_grid_images(gid, app_id, only_types=missing)
                         # Track SGDB downloads that succeeded
                         for art_type, success in sgdb_results.items():
                             if success and art_type not in downloaded:

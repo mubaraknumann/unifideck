@@ -83,11 +83,12 @@ research/
 # Visual C++ redistributable
 vc_redist.x64.exe
 
-# Downloaded by build-plugin.sh prebuild step
+# Downloaded by Decky CLI via remote_binary in package.json
 bin/legendary
 bin/gogdl
 bin/winetricks
-bin/cabextract
+bin/nile
+bin/comet
 
 # EpicGamesLauncher stub (should be committed if custom)
 # bin/EpicGamesLauncher.exe
@@ -98,3 +99,9 @@ bin/cabextract
 # Prefetch/installer scripts (should be committed)
 # bin/prefetch_winetricks.py
 # bin/winetricks_installer.py
+antigravity-dashboard/*
+!test_gog_lang.py
+!test_gog_dynamic.py
+!test_gog_invalid.py
+task.md
+.claude/*

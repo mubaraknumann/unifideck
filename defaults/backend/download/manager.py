@@ -103,6 +103,8 @@ class DownloadQueue:
         self._progress_callback: Optional[Callable] = None
         self._on_complete_callback: Optional[Callable] = None
         self._gog_install_callback: Optional[Callable] = None  # For GOG API-based downloads
+        self._size_cache_callback: Optional[Callable] = None  # For updating game size cache
+        self._size_cached_items: set = set()  # Track which items have had size cached (store:game_id)
         
         # Store plugin directory for finding binaries
         self.plugin_dir = plugin_dir
@@ -110,10 +112,25 @@ class DownloadQueue:
         # Ensure directories exist
         os.makedirs(os.path.dirname(self.QUEUE_FILE), exist_ok=True)
         
+        # CLEANUP: Kill any orphaned download processes from previous session
+        self.cleanup_processes()
+        
         # Load persisted queue
         self._load()
         
         logger.info(f"[DownloadQueue] Initialized with {len(self.queue)} queued items, plugin_dir={plugin_dir}")
+
+    def cleanup_processes(self):
+        """Kill any lingering gogdl/legendary/nile processes from previous session"""
+        try:
+            # Simple kill by name - safer than PID which might be reused
+            # We want to kill these specific binaries that might be hung
+            subprocess.run(['pkill', '-f', 'gogdl'], capture_output=True)
+            subprocess.run(['pkill', '-f', 'legendary'], capture_output=True)
+            subprocess.run(['pkill', '-f', 'nile'], capture_output=True)
+            logger.info("[DownloadQueue] Cleaned up orphaned download processes")
+        except Exception as e:
+            logger.warning(f"[DownloadQueue] Error cleaning orphaned processes: {e}")
 
     def _load(self) -> None:
         """Load queue from persistent storage"""
@@ -122,20 +139,58 @@ class DownloadQueue:
                 with open(self.QUEUE_FILE, 'r') as f:
                     data = json.load(f)
                 
-                self.queue = [DownloadItem.from_dict(item) for item in data.get('queue', [])]
+                raw_queue = [DownloadItem.from_dict(item) for item in data.get('queue', [])]
                 self.finished = [DownloadItem.from_dict(item) for item in data.get('finished', [])]
                 
-                # Reset any "downloading" items to "queued" (from previous crash)
-                for item in self.queue:
-                    if item.status == DownloadStatus.DOWNLOADING:
+                # Clean up stale items from the queue on startup
+                # Items with error/cancelled status should move to finished, not block new downloads
+                self.queue = []
+                stale_count = 0
+                for item in raw_queue:
+                    if item.status in (DownloadStatus.ERROR, DownloadStatus.CANCELLED):
+                        # Move stale error/cancelled items to finished list
+                        item.end_time = item.end_time or time.time()
+                        self.finished.append(item)
+                        stale_count += 1
+                        logger.info(f"[DownloadQueue] Moved stale {item.status} item to finished: {item.game_title}")
+                    elif item.status == DownloadStatus.DOWNLOADING:
+                        # Reset interrupted downloads to queued so they can retry
                         item.status = DownloadStatus.QUEUED
                         item.progress_percent = 0
+                        item.is_preparing = True
+                        self.queue.append(item)
+                        logger.info(f"[DownloadQueue] Reset interrupted download to queued: {item.game_title}")
+                    else:
+                        self.queue.append(item)
+                
+                if stale_count > 0:
+                    logger.info(f"[DownloadQueue] Cleaned up {stale_count} stale entries from queue")
+                    self._save()  # Persist the cleanup
                         
                 logger.info(f"[DownloadQueue] Loaded {len(self.queue)} queue, {len(self.finished)} finished")
+                
+                # Auto-start processing if queue is not empty
+                # Note: We also expose start_queue() for explicit calling from main.py
+                if self.queue and self.state == "idle":
+                    logger.info("[DownloadQueue] Auto-starting download queue on init load")
+                    asyncio.create_task(self._process_queue())
         except Exception as e:
             logger.error(f"[DownloadQueue] Error loading queue: {e}")
             self.queue = []
             self.finished = []
+
+    def start_queue(self):
+        """Explicitly start the download queue logic if it contains items and is idle.
+        
+        Called from main.py on plugin load to ensure resumption.
+        """
+        if self.queue and self.state == "idle":
+             logger.info("[DownloadQueue] Explicitly starting queue processing")
+             asyncio.create_task(self._process_queue())
+        elif self.queue:
+             logger.info(f"[DownloadQueue] Queue has items but state is {self.state}, not starting")
+        else:
+             logger.info("[DownloadQueue] Queue is empty, nothing to start")
 
     def _save(self) -> None:
         """Save queue to persistent storage"""
@@ -208,7 +263,7 @@ class DownloadQueue:
             
             locations.append({
                 'id': loc,
-                'label': 'Internal Storage' if loc == StorageLocation.INTERNAL else 'SD Card',
+                'label': 'downloadsTab.internalStorage' if loc == StorageLocation.INTERNAL else 'downloadsTab.sdCard',
                 'path': path,
                 'available': available,
                 'free_space_gb': round(free_space_gb, 1) if available else 0
@@ -279,10 +334,20 @@ class DownloadQueue:
         download_id = f"{store}:{game_id}"
         
         # Check if already in queue
-        for item in self.queue:
+        for i, item in enumerate(self.queue):
             if item.id == download_id:
-                logger.warning(f"[DownloadQueue] {download_id} already in queue")
-                return {'success': False, 'error': 'Already in queue'}
+                # Auto-clean stale entries (error/cancelled should not block new downloads)
+                if item.status in (DownloadStatus.ERROR, DownloadStatus.CANCELLED):
+                    logger.info(f"[DownloadQueue] Auto-cleaning stale {item.status} entry: {download_id}")
+                    self.queue.pop(i)
+                    item.end_time = item.end_time or time.time()
+                    self.finished.append(item)
+                    self._save()
+                    # Continue to add the new download below
+                    break
+                else:
+                    logger.warning(f"[DownloadQueue] {download_id} already in queue with status {item.status}")
+                    return {'success': False, 'error': 'errors.alreadyInQueue'}
         
         # Create new download item with installation guardrail
         item = DownloadItem(
@@ -319,14 +384,83 @@ class DownloadQueue:
         return False
 
     def remove_finished(self, download_id: str) -> bool:
-        """Remove a finished download from the finished list"""
+        """Remove a finished download from the finished list.
+        
+        Also clears any lingering queue entries for the same ID to ensure
+        the game can be re-downloaded without 'already in queue' errors.
+        """
+        removed = False
+        
+        # Remove from finished list
+        for i, item in enumerate(self.finished):
+            if item.id == download_id:
+                self.finished.pop(i)
+                removed = True
+                logger.info(f"[DownloadQueue] Cleared finished download {download_id}")
+                break
+        
+        # Also check queue for stale entries (shouldn't normally be there, but safety check)
+        for i, item in enumerate(self.queue):
+            if item.id == download_id and item.status in (DownloadStatus.ERROR, DownloadStatus.CANCELLED):
+                self.queue.pop(i)
+                removed = True
+                logger.info(f"[DownloadQueue] Also cleared stale queue entry {download_id}")
+                break
+        
+        if removed:
+            self._save()
+        
+        return removed
+
+    def force_clear_entry(self, download_id: str) -> bool:
+        """Force-remove a stuck entry from the queue regardless of status.
+        
+        This is a recovery method for when entries get stuck (e.g., cancelled at 99%
+        but not properly cleaned up). Use with caution.
+        """
+        # Check active queue
+        for i, item in enumerate(self.queue):
+            if item.id == download_id:
+                self.queue.pop(i)
+                item.status = DownloadStatus.CANCELLED
+                item.end_time = time.time()
+                self.finished.append(item)
+                self._save()
+                logger.info(f"[DownloadQueue] Force-cleared stuck entry from queue: {download_id}")
+                return True
+        
+        # Check finished (to allow cleanup there too)
         for i, item in enumerate(self.finished):
             if item.id == download_id:
                 self.finished.pop(i)
                 self._save()
-                logger.info(f"[DownloadQueue] Cleared finished download {download_id}")
+                logger.info(f"[DownloadQueue] Force-cleared entry from finished: {download_id}")
                 return True
+        
         return False
+
+    def clear_all_stale(self) -> int:
+        """Clear all stale (error/cancelled) entries from the queue.
+        
+        Returns the number of entries cleared. Useful for force-sync recovery.
+        """
+        stale_items = []
+        clean_queue = []
+        
+        for item in self.queue:
+            if item.status in (DownloadStatus.ERROR, DownloadStatus.CANCELLED):
+                item.end_time = item.end_time or time.time()
+                stale_items.append(item)
+            else:
+                clean_queue.append(item)
+        
+        if stale_items:
+            self.queue = clean_queue
+            self.finished.extend(stale_items)
+            self._save()
+            logger.info(f"[DownloadQueue] Cleared {len(stale_items)} stale entries from queue")
+        
+        return len(stale_items)
 
     async def cancel_current(self) -> bool:
         """Cancel the currently downloading item and clean up downloaded files"""
@@ -423,6 +557,25 @@ class DownloadQueue:
                 return item.to_dict()
         return None
 
+    def get_download_item(self, game_id: str, store: str) -> Optional[Dict[str, Any]]:
+        """
+        Get a download item by game_id and store, checking both active queue and finished list.
+        Useful for checking status of recently finished/cancelled items.
+        """
+        download_id = f"{store}:{game_id}"
+        
+        # Check active queue first
+        for item in self.queue:
+            if item.id == download_id:
+                return item.to_dict()
+                
+        # Check finished list (reversed to get most recent)
+        for item in reversed(self.finished):
+            if item.id == download_id:
+                return item.to_dict()
+                
+        return None
+
     async def _process_queue(self) -> None:
         """Process downloads in the queue sequentially"""
         self.state = "running"
@@ -457,16 +610,19 @@ class DownloadQueue:
                     continue
                 
                 if success:
-                    item.status = DownloadStatus.COMPLETED
-                    item.progress_percent = 100
-                    logger.info(f"[DownloadQueue] Completed: {item.game_title}")
-                    
-                    # Trigger on-complete callback
+                    # Trigger on-complete callback BEFORE setting status to COMPLETED
+                    # This ensures games.map is updated before frontend sees completion
+                    # (prevents "Game not found in map" race condition on immediate launch)
                     if self._on_complete_callback:
                         try:
                             await self._on_complete_callback(item)
                         except Exception as e:
                             logger.error(f"[DownloadQueue] On-complete callback error: {e}")
+                    
+                    # Only set COMPLETED after callback finishes (games.map is now updated)
+                    item.status = DownloadStatus.COMPLETED
+                    item.progress_percent = 100
+                    logger.info(f"[DownloadQueue] Completed: {item.game_title}")
                 else:
                     item.status = DownloadStatus.ERROR
                     logger.error(f"[DownloadQueue] Failed: {item.game_title}")
@@ -575,6 +731,7 @@ class DownloadQueue:
         try:
             # Progress callback to update download item
             # Can receive float (percentage) or dict (full stats)
+            outer_self = self  # For nested function to access DownloadQueue methods
             async def progress_callback(progress: Any):
                 # Check if cancelled before processing more progress
                 # This allows early exit from long-running downloads
@@ -593,7 +750,10 @@ class DownloadQueue:
                     
                     item.progress_percent = progress.get('progress_percent', 0)
                     item.downloaded_bytes = int(progress.get('downloaded_bytes', 0))
-                    item.total_bytes = int(progress.get('total_bytes', 0))
+                    new_total = int(progress.get('total_bytes', 0))
+                    item.total_bytes = new_total
+                    # Update size cache for Install button accuracy (use self from outer scope)
+                    outer_self._update_size_cache_if_needed(item, new_total)
                     
                     # Update phase message during download if provided
                     if 'phase_message' in progress:
@@ -780,6 +940,32 @@ class DownloadQueue:
         """Set callback for GOG game installation (uses GOGAPIClient)"""
         self._gog_install_callback = callback
 
+    def set_size_cache_callback(self, callback: Callable) -> None:
+        """Set callback for updating game size cache when accurate size is determined
+        
+        Callback signature: callback(store: str, game_id: str, size_bytes: int)
+        """
+        self._size_cache_callback = callback
+
+    def _update_size_cache_if_needed(self, item: DownloadItem, new_total_bytes: int) -> None:
+        """Update game size cache if this is the first accurate size for this download
+        
+        Only updates once per download to avoid redundant cache writes.
+        """
+        if new_total_bytes <= 0:
+            return
+        
+        cache_key = f"{item.store}:{item.game_id}"
+        
+        # Only update if we haven't already cached this item's size AND size is new
+        if cache_key not in self._size_cached_items and self._size_cache_callback:
+            logger.info(f"[DownloadQueue] Updating size cache for {cache_key}: {new_total_bytes} bytes ({new_total_bytes/1024/1024:.1f} MB)")
+            try:
+                self._size_cache_callback(item.store, item.game_id, new_total_bytes)
+                self._size_cached_items.add(cache_key)
+            except Exception as e:
+                logger.warning(f"[DownloadQueue] Failed to update size cache: {e}")
+
     async def _parse_legendary_output(self, item: DownloadItem) -> None:
         """Parse legendary output for progress updates with ETA smoothing"""
         # Regex patterns from Junkstore's epic.py
@@ -853,7 +1039,10 @@ class DownloadQueue:
                         size = float(match.group(1))
                         if match.group(2) == 'GiB':
                             size *= 1024
-                        item.total_bytes = int(size * 1024 * 1024)
+                        new_total = int(size * 1024 * 1024)
+                        item.total_bytes = new_total
+                        # Update size cache for Install button accuracy
+                        self._update_size_cache_if_needed(item, new_total)
                     
                     # Save progress periodically
                     self._save()

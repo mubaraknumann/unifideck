@@ -12,7 +12,8 @@
     "toastUpdatedTitle": "저장소 위치 업데이트됨",
     "toastUpdatedBody": "새 게임은 {{location}}에 설치됩니다",
     "toastFailedTitle": "업데이트 실패",
-    "toastFailedBody": "{{error}}"
+    "toastFailedBody": "{{error}}",
+    "unknown": "알 수 없음"
   },
   "gameGrid": {
     "loading": "게임 불러오는 중...",
@@ -20,7 +21,8 @@
     "noGamesHint": "Unifideck 설정에서 라이브러리를 동기화해 보세요",
     "showingGames": "{{count}}개의 게임 표시 중",
     "installed": "설치됨",
-    "notInstalled": "설치 안 됨"
+    "notInstalled": "설치 안 됨",
+    "playtime": "{{hours}}시간 {{minutes}}분 플레이"
   },
   "launcher": {
     "networkError": "네트워크 오류",
@@ -44,7 +46,9 @@
     "dependenciesStatus": "종속성",
     "checkLogs": "설정 완료 (세부 정보는 로그 확인)",
     "installingProton": "Proton 설치 중",
-    "attemptingInstall": "{{version}} 설치 시도 중..."
+    "attemptingInstall": "{{version}} 설치 시도 중...",
+    "epicAuthRequired": "Epic 로그인 필요",
+    "epicAuthRequiredMessage": "Unifideck 설정에서 Epic Games에 로그인하십시오"
   },
   "downloadsTab": {
     "currentDownload": "현재 다운로드",
@@ -58,6 +62,7 @@
     "confirmCancelDescription": "{{game}}의 다운로드를 취소하시겠습니까?",
     "confirmCancelYes": "예",
     "confirmCancelNo": "아니요",
+    "cancelDownload": "취소",
     "toastDownloadCancelledTitle": "다운로드 취소됨",
     "toastDownloadCancelledBody": "다운로드가 대기열에서 제거되었습니다.",
     "toastCancelFailedTitle": "취소 실패",
@@ -71,7 +76,9 @@
     },
     "preparingDownload": "다운로드 준비 중...",
     "phaseExtracting": "{{game}} 압축 해제 중...",
-    "phaseVerifying": "{{game}} 검증 중..."
+    "phaseVerifying": "{{game}} 검증 중...",
+    "internalStorage": "내부 저장소 (여유 {{freeSpace}}GB)",
+    "sdCard": "SD 카드 (여유 {{freeSpace}}GB)"
   },
   "cloudSave": {
     "title": "클라우드 저장 충돌",
@@ -96,8 +103,7 @@
     "amazonGames": "Amazon Games",
     "connected": "연결됨",
     "checking": "확인 중...",
-    "authenticate": "{{store}} 인증",
-    "logout": "{{store}}에서 로그아웃",
+    "authenticate": "로그인",
     "legendaryNotInstalled": "⚠️ Epic Games CLI 설치 중...",
     "nileNotInstalled": "⚠️ Amazon Games CLI를 찾을 수 없습니다",
     "error": "오류 - 로그 확인"
@@ -123,7 +129,7 @@
     "deleting": "삭제 중..."
   },
   "installButton": {
-    "install": "⬇ {{title}} 설치",
+    "install": "{{title}} 설치",
     "uninstall": "{{title}} 제거",
     "cancel": "✖ 취소",
     "processing": "처리 중...",
@@ -177,7 +183,13 @@
     "cleanupSuccessful": "정리 성공",
     "cleanupSuccessfulMessage": "{{games}}개 게임, {{artwork}}개 아트워크 세트, {{files}}개 파일 디렉토리가 제거되었습니다. 인증 및 캐시가 지워졌습니다.",
     "deleteFailed": "삭제 실패",
-    "unifideck": "Unifideck:"
+    "unifideck": "Unifideck:",
+    "launcher": {
+      "installingRedist": "재배포 패키지 설치 중",
+      "installingRedistMessage": "GOG 재배포 패키지 초기 설치 실행 중...",
+      "setupFailed": "설치 실패",
+      "setupFailedMessage": "설치에 실패했습니다. 자세한 내용은 로그를 확인하세요."
+    }
   },
   "uninstallModal": {
     "title": "제거 확인",
@@ -216,5 +228,49 @@
     "steamGridDbUnavailable": "SteamGridDB 라이브러리를 사용할 수 없습니다",
     "deleteSyncInProgress": "동기화 중에는 삭제할 수 없습니다",
     "alreadyInQueue": "이미 대기열에 있습니다"
+  },
+  "sync": {
+    "downloadingArtwork": "{{game}} 아트워크 다운로드 중...",
+    "fetchingGameLists": "게임 목록 불러오는 중...",
+    "cancelledByUser": "사용자가 동기화 취소",
+    "checkingInstalledGames": "설치된 게임 확인 중...",
+    "sgdbLookup": "SteamGridDB에서 {{count}}개 검색 중...",
+    "checkingExistingArtwork": "기존 아트워크 확인 중...",
+    "cleaningOrphanedArtwork": "고아 아트워크 정리 중...",
+    "retryingMissingArtwork": "아트웍이 누락된 게임 {{count}}개를 다시 시도하는 중...",
+    "savingShortcuts": "바로가기 저장 중...",
+    "completed": "동기화 완료! {{added}} 추가, 아트워크 {{artwork}}."
+  },
+  "force_sync": {
+    "migratingOldInstallations": "강제 동기화: 설치 이전 중...",
+    "fetchingGameLists": "강제 동기화: 목록 불러오는 중...",
+    "checkingInstalledGames": "강제 동기화: 게임 확인 중...",
+    "rewritingShortcuts": "강제 동기화: 바로가기 재작성...",
+    "cancelledShortcutsSaved": "강제 동기화 취소 – 바로가기 저장됨",
+    "writingShortcuts": "강제 동기화: 바로가기 작성 중...",
+    "clearingProton": "강제 동기화: Proton 호환성 제거...",
+    "completed": "강제 동기화 완료! {{updated}} 업데이트, 아트워크 {{artwork}}."
+  },
+  "artwork": {
+    "checking": "아트워크 확인 중...",
+    "queueRefresh": "모든 게임 아트워크 새로고침 대기열...",
+    "downloadProgress": "아트워크 {{synced}}/{{total}} 다운로드됨 ({{game}})"
+  },
+  "deckTabs": {
+    "greatOnDeck": "Steam Deck에 최적화됨",
+    "allGames": "모든 게임",
+    "installed": "설치됨",
+    "nonSteam": "비Steam"
+  },
+  "unifiedLibrary": {
+    "error": "Unifideck 오류",
+    "errorLoadingView": "라이브러리 뷰를 불러올 수 없습니다",
+    "checkConsole": "자세한 내용은 브라우저 콘솔을 확인하세요",
+    "errorLoadingGames": "게임 로딩 오류",
+    "tryReloading": "플러그인을 다시 로드하거나 콘솔을 확인하세요",
+    "storeLabel": "스토어:",
+    "allStores": "모든 스토어",
+    "searchPlaceholder": "게임 검색...",
+    "library": "라이브러리"
   }
 }

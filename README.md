@@ -4,8 +4,10 @@ A Decky Loader plugin that brings together games from Steam, Epic Games Store, G
 
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Steam%20Deck-orange.svg)
+[![Sponsor](https://img.shields.io/badge/Sponsor-GitHub-ea4aaa?logo=github&logoColor=white)](https://github.com/sponsors/mubaraknumann) [![Ko-fi](https://img.shields.io/badge/Ko--fi-F16061?logo=ko-fi&logoColor=white)](https://ko-fi.com/mubaraknumann)
 
 ## Table of Contents
+
 - [Features](#features)
 - [Screenshots](#screenshots)
 - [Prerequisites](#prerequisites)
@@ -20,23 +22,22 @@ A Decky Loader plugin that brings together games from Steam, Epic Games Store, G
 
 ## Features
 
-- **Unified Game Library** - Epic Games, GOG and Amazon games appear directly in your Steam library*
+- **Unified Game Library** - Epic Games, GOG and Amazon games appear directly in your Steam library\*
 - **Great On Deck for All** - Great on Deck tab will show all games in your connected libraries that are platinum rated or verified by Steam.
 - **One-Click Installation** - Install Third Party games directly from Steam's interface
 - **Cloud Saves** - Currenly available for Epic and GOG. Not all games supported.
 - **Automatic Artwork** - Game covers, banners, and logos fetched automatically from SteamGridDB
 - **In-App Authentication** - Log into supported Third Party stores without leaving Gaming Mode
-- **No Restart Required** - Installed games are playable immediately without restarting Steam**
+- **No Restart Required** - Installed games are playable immediately without restarting Steam\*\*
 
-*Yes, other game store integrations are planned but depends on solutions available and our development pipeline
-**Still needs one time restart after libraries have been synced
+\*Yes, other game store integrations are planned but depends on solutions available and our development pipeline
+\*\*Still needs one time restart after libraries have been synced
 
 ## Screenshots
 
 ### Unified Game Library
 
 <img width="1920" height="1080" alt="Screenshot_20260109_123258" src="https://github.com/user-attachments/assets/58aafad6-5c54-475d-a309-c44f77895b72" />
-
 
 ### Game Details
 
@@ -45,6 +46,7 @@ A Decky Loader plugin that brings together games from Steam, Epic Games Store, G
 ## Prerequisites
 
 **Decky Loader** must be installed on your Steam Deck
+
 - [Decky Loader Installation Guide](https://github.com/SteamDeckHomebrew/decky-loader)
 
 That's it! All other tools and dependencies are bundled with the plugin.
@@ -72,8 +74,7 @@ Your games will now appear in your Steam library!
 ## Known Limitations
 
 - The plugin creates custom tabs that replace the standard Great on Deck, All Games and Installed tabs so standard filtering and sorting will not work (for now).
-- Some GOG games come as multiple download files - these are handled automatically but may take longer to install
-- The plugin handles proton/winetricks automatically, so no compatibiltiy config changes possible.
+- The plugin handles proton/winetricks automatically, but you can use any proton version of your choice. See compatibiity docs.
 - Game download paths (local and sd card) are fixed (for now)
 - Not all games have artwork available - some may show default images. Suggest using SteamGridDB.
 - Cloud saves implemented, but may not work for all games
@@ -90,6 +91,7 @@ Your games will now appear in your Steam library!
 Apps and plugins that use the Epic API often get "locked out" when Epic updates its legal agreements. Because the plugin can’t display the full legal window, the login request simply fails until you manually agree to the terms on the official website or desktop app.
 
 ### Force Use of Compatibility Tool
+
 DO NOT select this option for Unifideck games. Proton/Wine compatibiltiy is handled automatically and is not configurable right now.
 
 ### Games Don't Appear After Syncing
@@ -131,8 +133,16 @@ Added support for multiple languages. The following translations are now include
 - Dutch — nl-NL
 - Polish — pl-PL
 - Turkish — tr-TR
+- Ukrainian - uk-UA
 
 To add a new language, create a JSON file in `src/i18n/locales/` using `en-US.json` as a template and provide translations for each key.
+
+## Support
+
+(Since I have received multiple donation queries) If you enjoy this plugin and want to support its development, you can:
+
+- [Become a GitHub Sponsor](https://github.com/sponsors/mubaraknumann)
+- [Buy me a coffee on Ko-fi](https://ko-fi.com/mubaraknumann)
 
 ## License
 
@@ -143,15 +153,18 @@ GNU General Public License v3.0 - see [LICENSE](./LICENSE) file for details
 This project builds upon numerous open source projects, libraries, and tools. We are grateful to all contributors and maintainers.
 
 ### Core Framework
+
 - **[Decky Loader](https://github.com/SteamDeckHomebrew/decky-loader)** - For plugin runtime environment and backend API integration
 - **[decky-frontend-lib](https://github.com/SteamDeckHomebrew/decky-frontend-lib)** - For Steam UI components, routing, and Deck-specific React hooks
 
 ### Game Store Integration (Binaries)
+
 - **[legendary](https://github.com/derrod/legendary)** - For authenticating, syncing library, downloading, and launching Epic Games Store titles
 - **[umu-launcher](https://github.com/Open-Wine-Components/umu-launcher)** - For running Windows games (.exe) with Proton compatibility layer
-- **[innoextract](https://constexpr.org/innoextract/)** - For extracting GOG Windows game installers without Wine
+- **[comet](https://github.com/imLinguin/comet)** - GOG Galaxy SDK replacement for achievements and multiplayer features
 
 ### Python Libraries
+
 - **[websockets](https://github.com/python-websockets/websockets)** - For real-time communication with Steam client
 - **[python-vdf](https://github.com/ValvePython/vdf)** - For reading/writing Steam's shortcuts.vdf and config files
 - **[Requests](https://github.com/psf/requests)** - For GOG API authentication and game metadata fetching
@@ -163,12 +176,15 @@ This project builds upon numerous open source projects, libraries, and tools. We
 - **[pip](https://github.com/pypa/pip)** - For managing Python dependencies in isolated environment (bundled)
 
 ### APIs & Services
+
 - **[SteamGridDB](https://www.steamgriddb.com/)** - For automatically downloading cover art, banners, and logos for non-Steam games
 - **Epic Games API** - For fetching Epic library data and game metadata via legendary
 - **GOG API** - For authenticating users, fetching game library, and retrieving installer URLs
 
 ### Decky Plugins (Code Reference)
+
 The following Decky plugins were studied as reference during development:
+
 - **[TabMaster](https://github.com/CEbbinghaus/TabMaster)** - For library tab replacement and Steam UI patching techniques
 - **[CSSLoader](https://github.com/DeckThemes/SDH-CssLoader)** - For plugin architecture and settings management patterns
 - **[SteamGridDB Decky](https://github.com/SteamGridDB/decky-steamgriddb)** - For SteamGridDB API integration and artwork downloading
@@ -177,6 +193,7 @@ The following Decky plugins were studied as reference during development:
 - **[Junkstore](https://github.com/ebenbruyns/junkstore)** - For non-Steam game management and authentication references
 
 ### Special Thanks
+
 - **Valve** - For the Steam Deck platform and Steam OS
 - **SteamDeckHomebrew Community** - For Decky Loader and extensive documentation
 - **derrod** - For legendary and Epic Games integration insights

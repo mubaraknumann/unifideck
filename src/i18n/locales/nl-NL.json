@@ -12,7 +12,8 @@
     "toastUpdatedTitle": "Opslaglocatie Bijgewerkt",
     "toastUpdatedBody": "Nieuwe games worden geïnstalleerd op {{location}}",
     "toastFailedTitle": "Bijwerken Mislukt",
-    "toastFailedBody": "{{error}}"
+    "toastFailedBody": "{{error}}",
+    "unknown": "Onbekend"
   },
   "gameGrid": {
     "loading": "Games laden...",
@@ -20,7 +21,8 @@
     "noGamesHint": "Probeer je bibliotheken te synchroniseren vanuit de Unifideck-instellingen",
     "showingGames": "{{count}} games weergegeven",
     "installed": "Geïnstalleerd",
-    "notInstalled": "Niet Geïnstalleerd"
+    "notInstalled": "Niet Geïnstalleerd",
+    "playtime": "{{hours}}u {{minutes}}m gespeeld"
   },
   "downloadsTab": {
     "currentDownload": "HUIDIGE DOWNLOAD",
@@ -34,6 +36,7 @@
     "confirmCancelDescription": "Weet je zeker dat je de download van {{game}} wilt annuleren?",
     "confirmCancelYes": "Ja",
     "confirmCancelNo": "Nee",
+    "cancelDownload": "Annuleren",
     "toastDownloadCancelledTitle": "Download Geannuleerd",
     "toastDownloadCancelledBody": "De download is uit de wachtrij verwijderd.",
     "toastCancelFailedTitle": "Annuleren Mislukt",
@@ -47,7 +50,9 @@
     },
     "preparingDownload": "Download voorbereiden...",
     "phaseExtracting": "{{game}} uitpakken...",
-    "phaseVerifying": "{{game}} verifiëren..."
+    "phaseVerifying": "{{game}} verifiëren...",
+    "internalStorage": "Interne opslag ({{freeSpace}} GB vrij)",
+    "sdCard": "SD-kaart ({{freeSpace}} GB vrij)"
   },
   "cloudSave": {
     "title": "Cloud Save Conflict",
@@ -72,8 +77,7 @@
     "amazonGames": "Amazon Games",
     "connected": "Verbonden",
     "checking": "Controleren...",
-    "authenticate": "{{store}} Authenticeren",
-    "logout": "Uitloggen bij {{store}}",
+    "authenticate": "Inloggen",
     "legendaryNotInstalled": "⚠️ Epic Games CLI installeren...",
     "nileNotInstalled": "⚠️ Amazon Games CLI niet gevonden",
     "error": "Fout - Controleer logs"
@@ -99,7 +103,7 @@
     "deleting": "Verwijderen..."
   },
   "installButton": {
-    "install": "⬇ {{title}} Installeren",
+    "install": "{{title}} Installeren",
     "uninstall": "{{title}} Verwijderen",
     "cancel": "✖ Annuleren",
     "processing": "Verwerken...",
@@ -136,6 +140,7 @@
     "uninstallingMessageProton": "{{title}} en Proton-bestanden verwijderen...",
     "uninstallComplete": "Verwijderen voltooid",
     "uninstallCompleteMessage": "{{title}} verwijderd.",
+    "uninstallCompleteMessageProton": "{{title}} verwijderd (inclusief Proton-bestanden).",
     "installComplete": "Installatie Voltooid!",
     "installCompleteMessage": "{{title}} is klaar om te spelen. Herstart Steam om het in je bibliotheek te zien.",
     "syncComplete": "Synchronisatie Voltooid!",
@@ -176,7 +181,13 @@
       "dependenciesStatus": "Afhankelijkheden",
       "checkLogs": "Installatie voltooid (zie logs voor details)",
       "installingProton": "Proton installeren",
-      "attemptingInstall": "Proberen {{version}} te installeren..."
+      "attemptingInstall": "Proberen {{version}} te installeren...",
+      "epicAuthRequired": "Epic-login vereist",
+      "epicAuthRequiredMessage": "Log in bij Epic Games in de Unifideck-instellingen",
+      "installingRedist": "Redistributables installeren",
+      "installingRedistMessage": "Eerste GOG redistributable installatie uitvoeren...",
+      "setupFailed": "Installatie mislukt",
+      "setupFailedMessage": "Installatie mislukt, zie logs voor details"
     }
   },
   "uninstallModal": {
@@ -216,5 +227,49 @@
     "steamGridDbUnavailable": "SteamGridDB-bibliotheek niet beschikbaar",
     "deleteSyncInProgress": "Kan niet verwijderen terwijl synchronisatie bezig is",
     "alreadyInQueue": "Reeds in wachtrij"
+  },
+  "sync": {
+    "downloadingArtwork": "Artwork downloaden voor {{game}}...",
+    "fetchingGameLists": "Gamelijsten ophalen...",
+    "cancelledByUser": "Sync geannuleerd",
+    "checkingInstalledGames": "Geïnstalleerde games controleren...",
+    "sgdbLookup": "{{count}} games op SteamGridDB zoeken...",
+    "checkingExistingArtwork": "Bestaande artwork controleren...",
+    "cleaningOrphanedArtwork": "Wees-artwork opruimen...",
+    "retryingMissingArtwork": "{{count}} spellen met ontbrekend artwork opnieuw proberen...",
+    "savingShortcuts": "Snelkoppelingen opslaan...",
+    "completed": "Sync klaar! {{added}} toegevoegd, artwork {{artwork}}."
+  },
+  "force_sync": {
+    "migratingOldInstallations": "Geforceerde sync: Migreren...",
+    "fetchingGameLists": "Geforceerde sync: Lijsten ophalen...",
+    "checkingInstalledGames": "Geforceerde sync: Games controleren...",
+    "rewritingShortcuts": "Geforceerde sync: Snelkoppelingen herschrijven...",
+    "cancelledShortcutsSaved": "Geforceerde sync geannuleerd – opgeslagen",
+    "writingShortcuts": "Geforceerde sync: Snelkoppelingen schrijven...",
+    "clearingProton": "Geforceerde sync: Proton opschonen...",
+    "completed": "Geforceerde sync klaar! {{updated}} bijgewerkt, artwork {{artwork}}."
+  },
+  "artwork": {
+    "checking": "Artwork controleren...",
+    "queueRefresh": "Alle games in wachtrij voor artwork...",
+    "downloadProgress": "Artwork {{synced}}/{{total}} gedownload ({{game}})"
+  },
+  "deckTabs": {
+    "greatOnDeck": "Perfect voor Steam Deck",
+    "allGames": "Alle games",
+    "installed": "Geïnstalleerd",
+    "nonSteam": "Niet-Steam"
+  },
+  "unifiedLibrary": {
+    "error": "Unifideck Fout",
+    "errorLoadingView": "Kan bibliotheekweergave niet laden",
+    "checkConsole": "Controleer de browserconsole voor details",
+    "errorLoadingGames": "Fout bij het laden van games",
+    "tryReloading": "Probeer de plugin opnieuw te laden of controleer de console",
+    "storeLabel": "Winkel:",
+    "allStores": "Alle Winkels",
+    "searchPlaceholder": "Games zoeken...",
+    "library": "Bibliotheek"
   }
 }

@@ -254,6 +254,51 @@ class AmazonConnector(Store):
             logger.error(f"[Amazon] Error syncing library: {e}")
             return False
 
+    def get_game_official_url(self, game_id: str) -> Optional[str]:
+        """Get official website URL from Amazon library metadata.
+
+        Amazon games don't have individual store pages, but the library
+        metadata includes a 'websites' dict with OFFICIAL, STEAM, etc.
+
+        Args:
+            game_id: Amazon game ID (e.g., 'amzn1.adg.product.xxx')
+
+        Returns:
+            The official website URL, or None if unavailable
+        """
+        nile_config = os.path.expanduser("~/.config/nile")
+        library_file = os.path.join(nile_config, "library.json")
+
+        if not os.path.exists(library_file):
+            return None
+
+        try:
+            with open(library_file, 'r') as f:
+                games_data = json.load(f)
+
+            for game_data in games_data:
+                product = game_data.get('product', {})
+                if product.get('id') == game_id:
+                    details = product.get('productDetail', {}).get('details', {})
+                    websites = details.get('websites', {})
+
+                    # Priority: OFFICIAL > STEAM
+                    official = websites.get('OFFICIAL')
+                    if official:
+                        logger.debug(f"[Amazon] Got official URL for {game_id}: {official}")
+                        return official
+
+                    steam = websites.get('STEAM')
+                    if steam:
+                        logger.debug(f"[Amazon] Got Steam URL for {game_id}: {steam}")
+                        return steam
+
+            return None
+
+        except Exception as e:
+            logger.warning(f"[Amazon] Could not get official URL for {game_id}: {e}")
+            return None
+
     async def get_library(self) -> List[Game]:
         """Get Amazon Games library via nile"""
         if not self.nile_bin:

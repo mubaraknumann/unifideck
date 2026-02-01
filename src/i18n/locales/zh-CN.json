@@ -12,7 +12,8 @@
     "toastUpdatedTitle": "存储位置已更新",
     "toastUpdatedBody": "新游戏将安装到 {{location}}",
     "toastFailedTitle": "更新失败",
-    "toastFailedBody": "{{error}}"
+    "toastFailedBody": "{{error}}",
+    "unknown": "未知"
   },
   "gameGrid": {
     "loading": "正在加载游戏...",
@@ -20,7 +21,8 @@
     "noGamesHint": "尝试从 Unifideck 设置同步您的库",
     "showingGames": "显示 {{count}} 个游戏",
     "installed": "已安装",
-    "notInstalled": "未安装"
+    "notInstalled": "未安装",
+    "playtime": "{{hours}}小时{{minutes}}分钟游玩"
   },
   "downloadsTab": {
     "currentDownload": "当前下载",
@@ -39,6 +41,7 @@
     "confirmCancelDescription": "您确定要取消 {{game}} 的下载吗?",
     "confirmCancelYes": "是",
     "confirmCancelNo": "否",
+    "cancelDownload": "取消",
     "toastDownloadCancelledTitle": "下载已取消",
     "toastDownloadCancelledBody": "下载已从队列中删除。",
     "toastCancelFailedTitle": "取消失败",
@@ -52,7 +55,9 @@
     },
     "preparingDownload": "正在准备下载...",
     "phaseExtracting": "正在解压 {{game}}...",
-    "phaseVerifying": "正在验证 {{game}}..."
+    "phaseVerifying": "正在验证 {{game}}...",
+    "internalStorage": "内置存储（剩余 {{freeSpace}} GB）",
+    "sdCard": "SD 卡（剩余 {{freeSpace}} GB）"
   },
   "cloudSave": {
     "title": "云存档冲突",
@@ -77,8 +82,7 @@
     "amazonGames": "Amazon Games",
     "connected": "已连接",
     "checking": "正在检查...",
-    "authenticate": "验证 {{store}}",
-    "logout": "从 {{store}} 注销",
+    "authenticate": "登录",
     "legendaryNotInstalled": "⚠️ 正在安装 Epic Games CLI...",
     "nileNotInstalled": "⚠️ 未找到 Amazon Games CLI",
     "error": "错误 - 检查日志"
@@ -104,7 +108,7 @@
     "deleting": "正在删除..."
   },
   "installButton": {
-    "install": "⬇ 安装 {{title}}",
+    "install": "安装 {{title}}",
     "uninstall": "卸载 {{title}}",
     "cancel": "✖ 取消",
     "processing": "正在处理...",
@@ -140,7 +144,8 @@
     "uninstallingMessage": "正在删除 {{title}}...",
     "uninstallingMessageProton": "正在卸载 {{title}} 和 Proton 文件...",
     "uninstallComplete": "卸载完成",
-    "uninstallCompleteMessage": "{{title}} 已删除。",
+    "uninstallCompleteMessage": "{{title}} 已删除.",
+    "uninstallCompleteMessageProton": "{{title}} 已删除（包括 Proton 文件）。",
     "installComplete": "安装完成!",
     "installCompleteMessage": "{{title}} 已准备好游玩。重启 Steam 以在您的库中看到它。",
     "syncComplete": "同步完成!",
@@ -158,7 +163,15 @@
     "cleanupSuccessful": "清理成功",
     "cleanupSuccessfulMessage": "已删除 {{games}} 个游戏、{{artwork}} 个封面集和 {{files}} 个文件目录。认证和缓存已清除。",
     "deleteFailed": "删除失败",
-    "unifideck": "Unifideck:"
+    "unifideck": "Unifideck:",
+    "launcher": {
+      "installingRedist": "正在安装运行库",
+      "installingRedistMessage": "正在运行首次 GOG 运行库安装...",
+      "epicAuthRequired": "需要 Epic 登录",
+      "epicAuthRequiredMessage": "请在 Unifideck 设置中登录 Epic Games",
+      "setupFailed": "设置失败",
+      "setupFailedMessage": "安装失败，请查看日志详情"
+    }
   },
   "uninstallModal": {
     "title": "确认卸载",
@@ -197,5 +210,49 @@
     "steamGridDbUnavailable": "SteamGridDB 库不可用",
     "deleteSyncInProgress": "同步进行时无法删除",
     "alreadyInQueue": "已在队列中"
+  },
+  "sync": {
+    "downloadingArtwork": "正在下载 {{game}} 的封面...",
+    "fetchingGameLists": "获取游戏列表中...",
+    "cancelledByUser": "同步已取消",
+    "checkingInstalledGames": "检查已安装游戏...",
+    "sgdbLookup": "在 SteamGridDB 查找 {{count}} 个游戏...",
+    "checkingExistingArtwork": "检查已有封面...",
+    "cleaningOrphanedArtwork": "正在清理孤立的封面...",
+    "retryingMissingArtwork": "正在重试 {{count}} 个缺少封面的游戏...",
+    "savingShortcuts": "保存快捷方式...",
+    "completed": "同步完成！新增 {{added}}，封面 {{artwork}}。"
+  },
+  "force_sync": {
+    "migratingOldInstallations": "强制同步：迁移安装...",
+    "fetchingGameLists": "强制同步：获取列表...",
+    "checkingInstalledGames": "强制同步：检查游戏...",
+    "rewritingShortcuts": "强制同步：重写快捷方式...",
+    "cancelledShortcutsSaved": "强制同步已取消 – 快捷方式已保存",
+    "writingShortcuts": "强制同步：写入快捷方式...",
+    "clearingProton": "强制同步：清除 Proton 兼容性...",
+    "completed": "强制同步完成！更新 {{updated}}，封面 {{artwork}}。"
+  },
+  "artwork": {
+    "checking": "检查封面...",
+    "queueRefresh": "将所有游戏加入封面刷新队列...",
+    "downloadProgress": "已下载 {{synced}}/{{total}}（{{game}}）"
+  },
+  "deckTabs": {
+    "greatOnDeck": "适用于 Steam Deck",
+    "allGames": "所有游戏",
+    "installed": "已安装",
+    "nonSteam": "非Steam"
+  },
+  "unifiedLibrary": {
+    "error": "Unifideck 错误",
+    "errorLoadingView": "无法加载库视图",
+    "checkConsole": "请查看浏览器控制台了解详情",
+    "errorLoadingGames": "加载游戏时出错",
+    "tryReloading": "请尝试重新加载插件或查看控制台",
+    "storeLabel": "商店:",
+    "allStores": "所有商店",
+    "searchPlaceholder": "搜索游戏...",
+    "library": "游戏库"
   }
 }

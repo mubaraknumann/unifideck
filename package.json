@@ -1,12 +1,18 @@
 {
   "name": "unifideck-decky",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Unified game library for Steam Deck - Epic, GOG, and Steam in one place",
   "type": "module",
   "scripts": {
     "build": "rollup -c rollup.config.mjs",
     "watch": "rollup -c -w",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "check:prettier": "prettier --config .prettierrc --check",
+    "fix:prettier": "prettier --config .prettierrc --write",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{js,ts,jsx,tsx,json,md}": "npm run fix:prettier"
   },
   "keywords": [
     "decky",
@@ -21,14 +27,19 @@
   "license": "LGPL-3.0-or-later",
   "devDependencies": {
     "@decky/rollup": "^1.0.2",
-    "@rollup/plugin-commonjs": "^21.1.0",
-    "@rollup/plugin-json": "^4.1.0",
-    "@rollup/plugin-node-resolve": "^13.3.0",
-    "@rollup/plugin-replace": "^4.0.0",
-    "@rollup/plugin-typescript": "^8.3.3",
+    "@rollup/plugin-commonjs": "^29.0.0",
+    "@rollup/plugin-json": "^6.1.0",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-replace": "^6.0.3",
+    "@rollup/plugin-typescript": "^12.3.0",
     "@types/react": "^19.1.1",
     "@types/react-dom": "^19.1.1",
     "@types/webpack": "^5.28.5",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-plugin-prettier": "^4.0.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "prettier": "^2.8.8",
     "rollup": "^4.53.3",
     "typescript": "^5.6.2"
   },
@@ -47,5 +58,33 @@
         "react-dom"
       ]
     }
-  }
+  },
+  "remote_binary_bundling" : true,
+  "remote_binary": [
+    {
+      "sha256hash": "5663b221d46ffd98ed4ca1bbaa803af9ac22b371fa1af8261b11758cb9b20893",
+      "url": "https://github.com/Heroic-Games-Launcher/legendary/releases/download/0.20.38/legendary_linux_x86_64",
+      "name": "legendary"
+    },
+    {
+      "sha256hash": "01d7e42821d5310cdc59f09d1b573af7a1e2e35f56741a1076dab9da05fd0cd8",
+      "url": "https://github.com/Heroic-Games-Launcher/heroic-gogdl/releases/download/v1.1.2/gogdl_linux_x86_64",
+      "name": "gogdl"
+    },
+    {
+      "sha256hash": "431f82fc74000e6c864409f1d8fb495d696c03928808e3e8acffc45179312a7b",
+      "url": "https://raw.githubusercontent.com/Winetricks/winetricks/20260125/src/winetricks",
+      "name": "winetricks"
+    },
+    {
+      "sha256hash": "3a8c080c864a5952a01d7661693c60727b34a355ae21e9eab2047096b606c1df",
+      "url": "https://github.com/imLinguin/nile/releases/download/v1.1.2/nile_linux_x86_64",
+      "name": "nile"
+    },
+    {
+      "sha256hash": "0019dfc4b32d63c1392aa264aed2253c1e0c2fb09216f8e2cc269bbfb8bb49b5",
+      "url": "https://github.com/imLinguin/comet/releases/download/v0.3.2/comet-linux-x86_64",
+      "name": "comet"
+    }
+  ]
 }

@@ -2,6 +2,7 @@ import React, { FC, useMemo, useState } from "react";
 import { useSteamLibrary, useUnifideckGames } from "../hooks/useSteamLibrary";
 import { GameGrid } from "../components/GameGrid";
 import { StoreType } from "../types/steam";
+import { t } from "../i18n";
 
 export type LibraryFilter = "all" | "installed" | "great-on-deck";
 
@@ -24,20 +25,20 @@ class ErrorBoundary extends React.Component<
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('[Unifideck] UnifiedLibraryView error:', error, errorInfo);
+    console.error("[Unifideck] UnifiedLibraryView error:", error, errorInfo);
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ padding: '20px', color: '#ff6b6b' }}>
-          <h3>Unifideck Error</h3>
-          <p>Failed to load unified library view</p>
-          <pre style={{ fontSize: '11px', opacity: 0.7 }}>
+        <div style={{ padding: "20px", color: "#ff6b6b" }}>
+          <h3>{t("unifiedLibrary.error")}</h3>
+          <p>{t("unifiedLibrary.errorLoadingView")}</p>
+          <pre style={{ fontSize: "11px", opacity: 0.7 }}>
             {this.state.error?.message}
           </pre>
-          <p style={{ fontSize: '12px', opacity: 0.7, marginTop: '10px' }}>
-            Check browser console for details
+          <p style={{ fontSize: "12px", opacity: 0.7, marginTop: "10px" }}>
+            {t("unifiedLibrary.checkConsole")}
           </p>
         </div>
       );
@@ -51,10 +52,10 @@ class ErrorBoundary extends React.Component<
  * Unified library view that shows games from all stores
  * Replaces Steam's default All Games, Installed, and Great on Deck tabs
  */
-const UnifiedLibraryViewInner: FC<UnifiedLibraryViewProps> = ({
-  filter,
-}) => {
-  console.log(`[Unifideck] Rendering UnifiedLibraryView with filter: ${filter}`);
+const UnifiedLibraryViewInner: FC<UnifiedLibraryViewProps> = ({ filter }) => {
+  console.log(
+    `[Unifideck] Rendering UnifiedLibraryView with filter: ${filter}`,
+  );
   const { games, loading, error } = useSteamLibrary();
   const { gameMetadata, getStoreForApp } = useUnifideckGames();
   const [storeFilter, setStoreFilter] = useState<StoreType | "all">("all");
@@ -70,15 +71,19 @@ const UnifiedLibraryViewInner: FC<UnifiedLibraryViewProps> = ({
 
       // Log games without metadata
       if (game.store === "unknown" || !game.store) {
-        console.log(`[Unifideck] No metadata for game ${game.appId}: ${game.title} (original store: ${game.store})`);
+        console.log(
+          `[Unifideck] No metadata for game ${game.appId}: ${game.title} (original store: ${game.store})`,
+        );
       }
 
       return game;
     });
 
-    console.log(`[Unifideck] Enhanced ${enhanced.length} games. Store breakdown:`);
+    console.log(
+      `[Unifideck] Enhanced ${enhanced.length} games. Store breakdown:`,
+    );
     const storeCounts = enhanced.reduce((acc, g) => {
-      acc[g.store || 'undefined'] = (acc[g.store || 'undefined'] || 0) + 1;
+      acc[g.store || "undefined"] = (acc[g.store || "undefined"] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
     console.log("[Unifideck]", storeCounts);
@@ -96,8 +101,10 @@ const UnifiedLibraryViewInner: FC<UnifiedLibraryViewProps> = ({
         result = result.filter((game) => game.isInstalled);
         break;
       case "great-on-deck":
-        result = result.filter((game) =>
-          game.deckVerified === "verified" || game.deckVerified === "playable"
+        result = result.filter(
+          (game) =>
+            game.deckVerified === "verified" ||
+            game.deckVerified === "playable",
         );
         break;
       case "all":
@@ -115,7 +122,7 @@ const UnifiedLibraryViewInner: FC<UnifiedLibraryViewProps> = ({
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       result = result.filter((game) =>
-        game.title.toLowerCase().includes(query)
+        game.title.toLowerCase().includes(query),
       );
     }
 
@@ -134,10 +141,12 @@ const UnifiedLibraryViewInner: FC<UnifiedLibraryViewProps> = ({
           color: "#ff6b6b",
         }}
       >
-        <div style={{ marginBottom: "10px", fontSize: "16px" }}>Error loading games</div>
+        <div style={{ marginBottom: "10px", fontSize: "16px" }}>
+          {t("unifiedLibrary.errorLoadingGames")}
+        </div>
         <div style={{ fontSize: "12px", opacity: 0.7 }}>{error}</div>
         <div style={{ marginTop: "15px", fontSize: "11px", opacity: 0.5 }}>
-          Try reloading the plugin or checking the console for details
+          {t("unifiedLibrary.tryReloading")}
         </div>
       </div>
     );
@@ -174,10 +183,12 @@ const UnifiedLibraryViewInner: FC<UnifiedLibraryViewProps> = ({
 
           {/* Store filter */}
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-            <span style={{ fontSize: "12px", opacity: 0.7 }}>Store:</span>
+            <span style={{ fontSize: "12px", opacity: 0.7 }}>{t("unifiedLibrary.storeLabel")}</span>
             <select
               value={storeFilter}
-              onChange={(e) => setStoreFilter(e.target.value as StoreType | "all")}
+              onChange={(e) =>
+                setStoreFilter(e.target.value as StoreType | "all")
+              }
               style={{
                 background: "rgba(255, 255, 255, 0.1)",
                 border: "1px solid rgba(255, 255, 255, 0.2)",
@@ -187,7 +198,7 @@ const UnifiedLibraryViewInner: FC<UnifiedLibraryViewProps> = ({
                 fontSize: "12px",
               }}
             >
-              <option value="all">All Stores</option>
+              <option value="all">{t("unifiedLibrary.allStores")}</option>
               <option value="steam">Steam</option>
               <option value="epic">Epic Games</option>
               <option value="gog">GOG</option>
@@ -198,7 +209,7 @@ const UnifiedLibraryViewInner: FC<UnifiedLibraryViewProps> = ({
           {/* Search */}
           <input
             type="text"
-            placeholder="Search games..."
+            placeholder={t("unifiedLibrary.searchPlaceholder")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{
@@ -235,12 +246,12 @@ export const UnifiedLibraryView: FC<UnifiedLibraryViewProps> = (props) => {
 function getFilterTitle(filter: LibraryFilter): string {
   switch (filter) {
     case "all":
-      return "All Games";
+      return t("deckTabs.allGames");
     case "installed":
-      return "Installed";
+      return t("deckTabs.installed");
     case "great-on-deck":
-      return "Great on Deck";
+      return t("deckTabs.greatOnDeck");
     default:
-      return "Library";
+      return t("unifiedLibrary.library");
   }
 }

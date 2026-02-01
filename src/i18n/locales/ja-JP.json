@@ -12,7 +12,8 @@
     "toastUpdatedTitle": "ストレージ場所を更新しました",
     "toastUpdatedBody": "新しいゲームは {{location}} にインストールされます",
     "toastFailedTitle": "更新に失敗しました",
-    "toastFailedBody": "{{error}}"
+    "toastFailedBody": "{{error}}",
+    "unknown": "不明"
   },
   "gameGrid": {
     "loading": "ゲームを読み込み中...",
@@ -20,7 +21,8 @@
     "noGamesHint": "Unifideck設定からライブラリを同期してみてください",
     "showingGames": "{{count}} 件のゲームを表示",
     "installed": "インストール済み",
-    "notInstalled": "未インストール"
+    "notInstalled": "未インストール",
+    "playtime": "{{hours}}時間{{minutes}}分プレイ"
   },
   "downloadsTab": {
     "currentDownload": "現在のダウンロード",
@@ -34,6 +36,7 @@
     "confirmCancelDescription": "{{game}} のダウンロードをキャンセルしてもよろしいですか？",
     "confirmCancelYes": "はい",
     "confirmCancelNo": "いいえ",
+    "cancelDownload": "キャンセル",
     "toastDownloadCancelledTitle": "ダウンロードがキャンセルされました",
     "toastDownloadCancelledBody": "ダウンロードはキューから削除されました。",
     "toastCancelFailedTitle": "キャンセルに失敗",
@@ -47,7 +50,9 @@
     },
     "preparingDownload": "ダウンロードを準備中...",
     "phaseExtracting": "{{game}} を展開中...",
-    "phaseVerifying": "{{game}} を検証中..."
+    "phaseVerifying": "{{game}} を検証中...",
+    "internalStorage": "内部ストレージ（空き {{freeSpace}}GB）",
+    "sdCard": "SDカード（空き {{freeSpace}}GB）"
   },
   "cloudSave": {
     "title": "クラウドセーブの競合",
@@ -72,8 +77,7 @@
     "amazonGames": "Amazon Games",
     "connected": "接続済み",
     "checking": "確認中...",
-    "authenticate": "{{store}} 認証",
-    "logout": "{{store}} からログアウト",
+    "authenticate": "ログイン",
     "legendaryNotInstalled": "⚠️ Epic Games CLI をインストール中...",
     "nileNotInstalled": "⚠️ Amazon Games CLI が見つかりません",
     "error": "エラー - ログを確認してください"
@@ -99,7 +103,7 @@
     "deleting": "削除中..."
   },
   "installButton": {
-    "install": "⬇ インストール {{title}}",
+    "install": "インストール {{title}}",
     "uninstall": "{{title}} をアンインストール",
     "cancel": "✖ キャンセル",
     "processing": "処理中...",
@@ -176,7 +180,13 @@
       "dependenciesStatus": "依存関係",
       "checkLogs": "セットアップ完了 (詳細はログを確認)",
       "installingProton": "Protonをインストール中",
-      "attemptingInstall": "{{version}} のインストールを試行中..."
+      "attemptingInstall": "{{version}} のインストールを試行中...",
+      "epicAuthRequired": "Epicログインが必要です",
+      "epicAuthRequiredMessage": "Unifideck設定でEpic Gamesにサインインしてください",
+      "installingRedist": "再頒布可能パッケージをインストール中",
+      "installingRedistMessage": "GOG再頒布可能パッケージの初回インストールを実行中...",
+      "setupFailed": "セットアップに失敗しました",
+      "setupFailedMessage": "インストールに失敗しました。詳細はログを確認してください"
     }
   },
   "uninstallModal": {
@@ -216,5 +226,49 @@
     "steamGridDbUnavailable": "SteamGridDBライブラリが利用できません",
     "deleteSyncInProgress": "同期中は削除できません",
     "alreadyInQueue": "すでにキューにあります"
+  },
+  "sync": {
+    "downloadingArtwork": "{{game}} のアートをDL中...",
+    "fetchingGameLists": "ゲーム一覧取得中...",
+    "cancelledByUser": "同期がキャンセルされました",
+    "checkingInstalledGames": "インストール済み確認中...",
+    "sgdbLookup": "SteamGridDBで{{count}}件検索中...",
+    "checkingExistingArtwork": "既存アート確認中...",
+    "cleaningOrphanedArtwork": "孤立したアートワークをクリーンアップしています...",
+    "retryingMissingArtwork": "アートワークが不足しているゲーム {{count}} 個を再試行しています...",
+    "savingShortcuts": "ショートカット保存中...",
+    "completed": "同期完了！{{added}}追加、アート{{artwork}}。"
+  },
+  "force_sync": {
+    "migratingOldInstallations": "強制同期：移行中...",
+    "fetchingGameLists": "強制同期：一覧取得中...",
+    "checkingInstalledGames": "強制同期：ゲーム確認中...",
+    "rewritingShortcuts": "強制同期：ショートカット再生成...",
+    "cancelledShortcutsSaved": "強制同期中止 – 保存済み",
+    "writingShortcuts": "強制同期：書き込み中...",
+    "clearingProton": "強制同期：Proton互換性削除...",
+    "completed": "強制同期完了！{{updated}}更新、アート{{artwork}}。"
+  },
+  "artwork": {
+    "checking": "アート確認中...",
+    "queueRefresh": "全ゲームを更新キューに追加...",
+    "downloadProgress": "アート {{synced}}/{{total}} DL（{{game}}）"
+  },
+  "deckTabs": {
+    "greatOnDeck": "Steam Deckに最適",
+    "allGames": "すべてのゲーム",
+    "installed": "インストール済み",
+    "nonSteam": "非Steam"
+  },
+  "unifiedLibrary": {
+    "error": "Unifideckエラー",
+    "errorLoadingView": "ライブラリビューの読み込みに失敗しました",
+    "checkConsole": "詳細はブラウザコンソールをご確認ください",
+    "errorLoadingGames": "ゲームの読み込みエラー",
+    "tryReloading": "プラグインの再読み込みまたはコンソールをご確認ください",
+    "storeLabel": "ストア:",
+    "allStores": "すべてのストア",
+    "searchPlaceholder": "ゲームを検索...",
+    "library": "ライブラリ"
   }
 }

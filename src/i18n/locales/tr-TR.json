@@ -12,7 +12,8 @@
     "toastUpdatedTitle": "Depolama Konumu Güncellendi",
     "toastUpdatedBody": "Yeni oyunlar {{location}} konumuna kurulacak",
     "toastFailedTitle": "Güncelleme Başarısız",
-    "toastFailedBody": "{{error}}"
+    "toastFailedBody": "{{error}}",
+    "unknown": "Bilinmiyor"
   },
   "gameGrid": {
     "loading": "Oyunlar yükleniyor...",
@@ -20,7 +21,8 @@
     "noGamesHint": "Unifideck ayarlarından kütüphanelerinizi senkronize etmeyi deneyin",
     "showingGames": "{{count}} oyun gösteriliyor",
     "installed": "Kurulu",
-    "notInstalled": "Kurulu Değil"
+    "notInstalled": "Kurulu Değil",
+    "playtime": "{{hours}}s {{minutes}}d oynandı"
   },
   "downloadsTab": {
     "currentDownload": "MEVCUT İNDİRME",
@@ -34,6 +36,7 @@
     "confirmCancelDescription": "{{game}} için indirmeyi iptal etmek istediğinizden emin misiniz?",
     "confirmCancelYes": "Evet",
     "confirmCancelNo": "Hayır",
+    "cancelDownload": "İptal",
     "toastDownloadCancelledTitle": "İndirme İptal Edildi",
     "toastDownloadCancelledBody": "İndirme kuyruktan kaldırıldı.",
     "toastCancelFailedTitle": "İptal Başarısız",
@@ -47,7 +50,9 @@
     },
     "preparingDownload": "İndirme hazırlanıyor...",
     "phaseExtracting": "{{game}} çıkarılıyor...",
-    "phaseVerifying": "{{game}} doğrulanıyor..."
+    "phaseVerifying": "{{game}} doğrulanıyor...",
+    "internalStorage": "Dahili depolama ({{freeSpace}} GB boş)",
+    "sdCard": "SD Kart ({{freeSpace}} GB boş)"
   },
   "cloudSave": {
     "title": "Bulut Kayıt Çakışması",
@@ -72,8 +77,7 @@
     "amazonGames": "Amazon Games",
     "connected": "Bağlı",
     "checking": "Kontrol ediliyor...",
-    "authenticate": "{{store}} Kimlik Doğrula",
-    "logout": "{{store}} Oturumunu Kapat",
+    "authenticate": "Giriş yap",
     "legendaryNotInstalled": "⚠️ Epic Games CLI kuruluyor...",
     "nileNotInstalled": "⚠️ Amazon Games CLI bulunamadı",
     "error": "Hata - Günlükleri kontrol edin"
@@ -102,7 +106,7 @@
     "deleting": "Siliniyor..."
   },
   "installButton": {
-    "install": "⬇ {{title}} Kur",
+    "install": "{{title}} Kur",
     "uninstall": "{{title}} Kaldır",
     "cancel": "✖ İptal",
     "processing": "İşleniyor...",
@@ -139,6 +143,7 @@
     "uninstallingMessageProton": "{{title}} ve Proton dosyaları kaldırılıyor...",
     "uninstallComplete": "Kaldırma Tamamlandı!",
     "uninstallCompleteMessage": "{{title}} kaldırıldı.",
+    "uninstallCompleteMessageProton": "{{title}} kaldırıldı (Proton dosyaları dahil).",
     "installComplete": "Kurulum Tamamlandı!",
     "installCompleteMessage": "{{title}} oynamaya hazır. Kütüphanenizde görmek için Steam'i yeniden başlatın.",
     "syncComplete": "Senkronizasyon Tamamlandı!",
@@ -179,7 +184,13 @@
       "dependenciesStatus": "Bağımlılıklar",
       "checkLogs": "Kurulum tamamlandı (detaylar için günlüklere bakın)",
       "installingProton": "Proton Yükleniyor",
-      "attemptingInstall": "{{version}} yüklenmeye çalışılıyor..."
+      "attemptingInstall": "{{version}} yüklenmeye çalışılıyor...",
+      "epicAuthRequired": "Epic Girişi Gerekli",
+      "epicAuthRequiredMessage": "Lütfen Unifideck ayarlarında Epic Games'e giriş yapın",
+      "installingRedist": "Yeniden Dağıtılabilir Paketler Yükleniyor",
+      "installingRedistMessage": "İlk GOG paket kurulumu çalıştırılıyor...",
+      "setupFailed": "Kurulum Başarısız",
+      "setupFailedMessage": "Kurulum başarısız, ayrıntılar için günlüklere bakın"
     }
   },
   "uninstallModal": {
@@ -215,5 +226,49 @@
     "lockConflict": "Kilit çakışması - tekrar deneyin",
     "unknownStore": "Bilinmeyen mağaza",
     "shortcutWriteFailed": "Kısayollar yazılamadı"
+  },
+  "sync": {
+    "downloadingArtwork": "{{game}} için görsel indiriliyor...",
+    "fetchingGameLists": "Oyun listeleri alınıyor...",
+    "cancelledByUser": "Senkronizasyon iptal edildi",
+    "checkingInstalledGames": "Yüklü oyunlar kontrol ediliyor...",
+    "sgdbLookup": "SteamGridDB'de {{count}} oyun aranıyor...",
+    "checkingExistingArtwork": "Mevcut görseller kontrol ediliyor...",
+    "cleaningOrphanedArtwork": "Sahipsiz görseller temizleniyor...",
+    "retryingMissingArtwork": "Eksik görselleri olan {{count}} oyun tekrar deneniyor...",
+    "savingShortcuts": "Kısayollar kaydediliyor...",
+    "completed": "Sync tamamlandı! {{added}} eklendi, görsel {{artwork}}."
+  },
+  "force_sync": {
+    "migratingOldInstallations": "Zorla sync: Kurulumlar taşınıyor...",
+    "fetchingGameLists": "Zorla sync: Listeler alınıyor...",
+    "checkingInstalledGames": "Zorla sync: Oyunlar kontrol ediliyor...",
+    "rewritingShortcuts": "Zorla sync: Kısayollar yeniden yazılıyor...",
+    "cancelledShortcutsSaved": "Zorla sync iptal – kısayollar kaydedildi",
+    "writingShortcuts": "Zorla sync: Kısayollar yazılıyor...",
+    "clearingProton": "Zorla sync: Proton temizleniyor...",
+    "completed": "Zorla sync tamamlandı! {{updated}} güncellendi, görsel {{artwork}}."
+  },
+  "artwork": {
+    "checking": "Görseller kontrol ediliyor...",
+    "queueRefresh": "Tüm oyunlar görsel yenilemeye alınıyor...",
+    "downloadProgress": "Görsel {{synced}}/{{total}} indirildi ({{game}})"
+  },
+  "deckTabs": {
+    "greatOnDeck": "Steam Deck için Mükemmel",
+    "allGames": "Tüm Oyunlar",
+    "installed": "Yüklendi",
+    "nonSteam": "Steam Dışı"
+  },
+  "unifiedLibrary": {
+    "error": "Unifideck Hatası",
+    "errorLoadingView": "Kütüphane görünümü yüklenemedi",
+    "checkConsole": "Ayrıntılar için tarayıcı konsolunu kontrol edin",
+    "errorLoadingGames": "Oyunlar yüklenirken hata oluştu",
+    "tryReloading": "Eklentiyi yeniden yüklemeyi deneyin veya konsolu kontrol edin",
+    "storeLabel": "Mağaza:",
+    "allStores": "Tüm Mağazalar",
+    "searchPlaceholder": "Oyun ara...",
+    "library": "Kütüphane"
   }
 }

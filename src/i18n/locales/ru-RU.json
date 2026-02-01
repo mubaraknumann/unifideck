@@ -5,22 +5,24 @@
   },
   "storageSettings": {
     "title": "Настройки загрузки",
-    "installLocationLabel": "Место установки",
-    "installLocationDescription": "Куда будут загружаться новые игры",
+    "installLocationLabel": "Установливать в:",
+    "installLocationDescription": "Место, куда будут устанавливатся новые игры",
     "pathLabel": "Путь",
     "loading": "Загрузка параметров хранилища...",
-    "toastUpdatedTitle": "Место хранения обновлено",
-    "toastUpdatedBody": "Новые игры будут установлены в {{location}}",
+    "toastUpdatedTitle": "Хранилище обновлено",
+    "toastUpdatedBody": "Новые игры будут устанавливаться в {{location}}",
     "toastFailedTitle": "Не удалось обновить",
-    "toastFailedBody": "{{error}}"
+    "toastFailedBody": "{{error}}",
+    "unknown": "Неизвестно"
   },
   "gameGrid": {
     "loading": "Загрузка игр...",
-    "noGamesFound": "Игры не найдены",
+    "noGamesFound": "Игр не найдено",
     "noGamesHint": "Попробуйте синхронизировать библиотеки в настройках Unifideck",
     "showingGames": "Показано {{count}} игр",
     "installed": "Установлено",
-    "notInstalled": "Не установлено"
+    "notInstalled": "Не установлено",
+    "playtime": "{{hours}}ч {{minutes}}м сыграно"
   },
   "downloadsTab": {
     "currentDownload": "ТЕКУЩАЯ ЗАГРУЗКА",
@@ -30,10 +32,11 @@
     "noDownloads": "Нет загрузок. Установите игры из вашей библиотеки, чтобы увидеть их здесь.",
     "loadingLabel": "Загрузка...",
     "loadingMessage": "Получение очереди загрузок...",
-    "confirmCancelTitle": "Подтвердите отмену",
+    "confirmCancelTitle": "Подтверждение отмены",
     "confirmCancelDescription": "Вы уверены, что хотите отменить загрузку {{game}}?",
     "confirmCancelYes": "Да",
     "confirmCancelNo": "Нет",
+    "cancelDownload": "Отменить",
     "toastDownloadCancelledTitle": "Загрузка отменена",
     "toastDownloadCancelledBody": "Загрузка была удалена из очереди.",
     "toastCancelFailedTitle": "Не удалось отменить",
@@ -47,7 +50,9 @@
     },
     "preparingDownload": "Подготовка загрузки...",
     "phaseExtracting": "Распаковка {{game}}...",
-    "phaseVerifying": "Проверка {{game}}..."
+    "phaseVerifying": "Проверка {{game}}...",
+    "internalStorage": "Внутренняя память ({{freeSpace}} ГБ свободно)",
+    "sdCard": "SD-карта ({{freeSpace}} ГБ свободно)"
   },
   "cloudSave": {
     "title": "Конфликт облачного сохранения",
@@ -72,18 +77,17 @@
     "amazonGames": "Amazon Games",
     "connected": "Подключено",
     "checking": "Проверка...",
-    "authenticate": "Аутентификация {{store}}",
-    "logout": "Выйти из {{store}}",
+    "authenticate": "Войти",
     "legendaryNotInstalled": "⚠️ Установка Epic Games CLI...",
     "nileNotInstalled": "⚠️ CLI Amazon Games не найден",
     "error": "Ошибка - Проверьте логи"
   },
   "librarySync": {
     "title": "СИНХРОНИЗАЦИЯ БИБЛИОТЕКИ",
-    "syncLibraries": "Синхронизировать библиотеки",
-    "forceSync": "Принудительная синхронизация",
+    "syncLibraries": "Синхр. библиотеки",
+    "forceSync": "Синхр. принудительно",
     "syncing": "Синхронизация...",
-    "cancelSync": "Отменить синхронизацию",
+    "cancelSync": "Отменить синхр.",
     "retryStatusCheck": "Повторить проверку статуса",
     "gamesSynced": "{{synced}} / {{total}} игр синхронизировано",
     "artworkDownloaded": "{{synced}} / {{total}} артов загружено"
@@ -99,7 +103,7 @@
     "deleting": "Удаление..."
   },
   "installButton": {
-    "install": "⬇ Установить {{title}}",
+    "install": "Установить {{title}}",
     "uninstall": "Удалить {{title}}",
     "cancel": "✖ Отмена",
     "processing": "Обработка...",
@@ -107,16 +111,16 @@
     "size": "{{size}} GB"
   },
   "confirmModals": {
-    "installTitle": "Подтвердите установку",
+    "installTitle": "Подтверждение установки",
     "installDescription": "Вы уверены, что хотите установить {{title}}?",
-    "uninstallTitle": "Подтвердите удаление",
+    "uninstallTitle": "Подтверждение удаления",
     "uninstallDescription": "Вы уверены, что хотите удалить {{title}}?",
-    "cancelTitle": "Подтвердите отмену",
+    "cancelTitle": "Подтверждение отмены",
     "cancelDescription": "Вы уверены, что хотите отменить загрузку {{title}}?",
     "forceSyncTitle": "Принудительная синхронизация",
-    "forceSyncDescription": "Хотите пересинхронизировать все арты? Это перезапишет любые ручные изменения. Выберите 'Сохранить арты', чтобы скачать только отсутствующие.",
-    "resyncArtwork": "Пересинхронизировать арты",
-    "keepArtwork": "Сохранить арты",
+    "forceSyncDescription": "Хотите пересинхронизировать все обложки? Это перезапишет любые ручные изменения. Выберите 'Сохранить обложки', чтобы скачать только отсутствующие.",
+    "resyncArtwork": "Пересинхр. обложки",
+    "keepArtwork": "Сохранить обложки",
     "yes": "Да",
     "no": "Нет"
   },
@@ -176,7 +180,13 @@
       "dependenciesStatus": "Зависимости",
       "checkLogs": "Настройка завершена (см. логи)",
       "installingProton": "Установка Proton",
-      "attemptingInstall": "Попытка установки {{version}}..."
+      "attemptingInstall": "Попытка установки {{version}}...",
+      "epicAuthRequired": "Требуется вход в Epic",
+      "epicAuthRequiredMessage": "Пожалуйста, войдите в Epic Games в настройках Unifideck",
+      "installingRedist": "Установка зависимостей",
+      "installingRedistMessage": "Первичный запуск установки пакетов GOG...",
+      "setupFailed": "Ошибка настройки",
+      "setupFailedMessage": "Установка не удалась, см. логи"
     }
   },
   "uninstallModal": {
@@ -216,5 +226,49 @@
     "steamGridDbUnavailable": "Библиотека SteamGridDB недоступна",
     "deleteSyncInProgress": "Невозможно удалить во время синхронизации",
     "alreadyInQueue": "Уже в очереди"
+  },
+  "sync": {
+    "downloadingArtwork": "Загрузка арта для {{game}}...",
+    "fetchingGameLists": "Получение списков игр...",
+    "cancelledByUser": "Синхронизация отменена",
+    "checkingInstalledGames": "Проверка установленных игр...",
+    "sgdbLookup": "Поиск {{count}} игр в SteamGridDB...",
+    "checkingExistingArtwork": "Проверка существующего арта...",
+    "cleaningOrphanedArtwork": "Очистка оставшихся без привязки обложек...",
+    "retryingMissingArtwork": "Повторная попытка для {{count}} игр с отсутствующими обложками...",
+    "savingShortcuts": "Сохранение ярлыков...",
+    "completed": "Синхронизация завершена! {{added}} добавлено, арт {{artwork}}."
+  },
+  "force_sync": {
+    "migratingOldInstallations": "Принудит. синхр.: Миграция установок...",
+    "fetchingGameLists": "Принудит. синхр.: Загрузка списков...",
+    "checkingInstalledGames": "Принудит. синхр.: Проверка игр...",
+    "rewritingShortcuts": "Принудит. синхр.: Перезапись ярлыков...",
+    "cancelledShortcutsSaved": "Принудит. синхр. отменена – ярлыки сохранены",
+    "writingShortcuts": "Принудит. синхр.: Запись ярлыков...",
+    "clearingProton": "Принудит. синхр.: Очистка Proton...",
+    "completed": "Принудит. синхр. завершена! {{updated}} обновл., арт {{artwork}}."
+  },
+  "artwork": {
+    "checking": "Проверка арта...",
+    "queueRefresh": "Очередь обновления арта для всех игр...",
+    "downloadProgress": "Загружено {{synced}}/{{total}} ({{game}})"
+  },
+  "deckTabs": {
+    "greatOnDeck": "Идеально для Steam Deck",
+    "allGames": "Все игры",
+    "installed": "Установлено",
+    "nonSteam": "Не Steam"
+  },
+  "unifiedLibrary": {
+    "error": "Ошибка Unifideck",
+    "errorLoadingView": "Не удалось загрузить представление библиотеки",
+    "checkConsole": "Проверьте консоль браузера для подробностей",
+    "errorLoadingGames": "Ошибка загрузки игр",
+    "tryReloading": "Попробуйте перезагрузить плагин или проверьте консоль",
+    "storeLabel": "Магазин:",
+    "allStores": "Все Магазины",
+    "searchPlaceholder": "Поиск игр...",
+    "library": "Библиотека"
   }
 }

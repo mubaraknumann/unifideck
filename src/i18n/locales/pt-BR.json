@@ -12,7 +12,8 @@
     "toastUpdatedTitle": "Local de Armazenamento Atualizado",
     "toastUpdatedBody": "Novos jogos serão instalados em {{location}}",
     "toastFailedTitle": "Falha ao Atualizar",
-    "toastFailedBody": "{{error}}"
+    "toastFailedBody": "{{error}}",
+    "unknown": "Desconhecido"
   },
   "gameGrid": {
     "loading": "Carregando jogos...",
@@ -20,7 +21,8 @@
     "noGamesHint": "Tente sincronizar suas bibliotecas nas configurações do Unifideck",
     "showingGames": "Mostrando {{count}} jogos",
     "installed": "Instalado",
-    "notInstalled": "Não instalado"
+    "notInstalled": "Não instalado",
+    "playtime": "{{hours}}h {{minutes}}m jogado"
   },
   "downloadsTab": {
     "currentDownload": "DOWNLOAD ATUAL",
@@ -34,6 +36,7 @@
     "confirmCancelDescription": "Tem certeza que deseja cancelar o download de {{game}}?",
     "confirmCancelYes": "Sim",
     "confirmCancelNo": "Não",
+    "cancelDownload": "Cancelar",
     "toastDownloadCancelledTitle": "Download Cancelado",
     "toastDownloadCancelledBody": "O download foi removido da fila.",
     "toastCancelFailedTitle": "Falha ao Cancelar",
@@ -47,7 +50,9 @@
     },
     "preparingDownload": "Preparando download...",
     "phaseExtracting": "Extraindo {{game}}...",
-    "phaseVerifying": "Verificando {{game}}..."
+    "phaseVerifying": "Verificando {{game}}...",
+    "internalStorage": "Armazenamento interno ({{freeSpace}} GB livres)",
+    "sdCard": "Cartão SD ({{freeSpace}} GB livres)"
   },
   "cloudSave": {
     "title": "Conflito de Save na Nuvem",
@@ -72,8 +77,7 @@
     "amazonGames": "Amazon Games",
     "connected": "Conectado",
     "checking": "Verificando...",
-    "authenticate": "Autenticar {{store}}",
-    "logout": "Sair do {{store}}",
+    "authenticate": "Entrar",
     "legendaryNotInstalled": "⚠️ Instalando Epic Games CLI...",
     "nileNotInstalled": "⚠️ CLI da Amazon Games não encontrado",
     "error": "Erro - Verifique os logs"
@@ -99,7 +103,7 @@
     "deleting": "Excluindo..."
   },
   "installButton": {
-    "install": "⬇ Instalar {{title}}",
+    "install": "Instalar {{title}}",
     "uninstall": "Desinstalar {{title}}",
     "cancel": "✖ Cancelar",
     "processing": "Processando...",
@@ -136,6 +140,7 @@
     "uninstallingMessageProton": "Desinstalando {{title}} e arquivos Proton...",
     "uninstallComplete": "Desinstalação Concluída!",
     "uninstallCompleteMessage": "{{title}} removido.",
+    "uninstallCompleteMessageProton": "{{title}} removido (incluindo arquivos Proton).",
     "installComplete": "Instalação Concluída!",
     "installCompleteMessage": "{{title}} está pronto para jogar. Reinicie o Steam para vê-lo na biblioteca.",
     "syncComplete": "Sincronização Concluída!",
@@ -176,7 +181,13 @@
       "dependenciesStatus": "Dependências",
       "checkLogs": "Configuração concluída (verifique os logs)",
       "installingProton": "Instalando Proton",
-      "attemptingInstall": "Tentando instalar {{version}}..."
+      "attemptingInstall": "Tentando instalar {{version}}...",
+      "epicAuthRequired": "Login da Epic necessário",
+      "epicAuthRequiredMessage": "Faça login na Epic Games nas configurações do Unifideck",
+      "installingRedist": "Instalando Redistribuíveis",
+      "installingRedistMessage": "Executando instalação inicial de redistribuíveis GOG...",
+      "setupFailed": "Falha na Configuração",
+      "setupFailedMessage": "Instalação falhou, veja logs para detalhes"
     }
   },
   "uninstallModal": {
@@ -216,5 +227,49 @@
     "steamGridDbUnavailable": "Biblioteca SteamGridDB indisponível",
     "deleteSyncInProgress": "Não é possível excluir enquanto a sincronização está em andamento",
     "alreadyInQueue": "Já na fila"
+  },
+  "sync": {
+    "downloadingArtwork": "Baixando arte de {{game}}...",
+    "fetchingGameLists": "Carregando listas de jogos...",
+    "cancelledByUser": "Sincronização cancelada",
+    "checkingInstalledGames": "Verificando jogos instalados...",
+    "sgdbLookup": "Buscando {{count}} jogos no SteamGridDB...",
+    "checkingExistingArtwork": "Verificando arte existente...",
+    "cleaningOrphanedArtwork": "Limpando arte órfã...",
+    "retryingMissingArtwork": "Tentando novamente {{count}} jogos com arte ausente...",
+    "savingShortcuts": "Salvando atalhos...",
+    "completed": "Sync concluída! {{added}} adicionados, arte {{artwork}}."
+  },
+  "force_sync": {
+    "migratingOldInstallations": "Sync forçada: Migrando instalações...",
+    "fetchingGameLists": "Sync forçada: Carregando listas...",
+    "checkingInstalledGames": "Sync forçada: Verificando jogos...",
+    "rewritingShortcuts": "Sync forçada: Regravando atalhos...",
+    "cancelledShortcutsSaved": "Sync forçada cancelada – atalhos salvos",
+    "writingShortcuts": "Sync forçada: Gravando atalhos...",
+    "clearingProton": "Sync forçada: Limpando Proton...",
+    "completed": "Sync forçada pronta! {{updated}} atualizados, arte {{artwork}}."
+  },
+  "artwork": {
+    "checking": "Verificando arte...",
+    "queueRefresh": "Enfileirando jogos para atualizar arte...",
+    "downloadProgress": "Arte {{synced}}/{{total}} baixada ({{game}})"
+  },
+  "deckTabs": {
+    "greatOnDeck": "Perfeitos para Steam Deck",
+    "allGames": "Todos os Jogos",
+    "installed": "Instalados",
+    "nonSteam": "Não Steam"
+  },
+  "unifiedLibrary": {
+    "error": "Erro do Unifideck",
+    "errorLoadingView": "Falha ao carregar a visualização da biblioteca",
+    "checkConsole": "Verifique o console do navegador para detalhes",
+    "errorLoadingGames": "Erro ao carregar jogos",
+    "tryReloading": "Tente recarregar o plugin ou verifique o console",
+    "storeLabel": "Loja:",
+    "allStores": "Todas as Lojas",
+    "searchPlaceholder": "Buscar jogos...",
+    "library": "Biblioteca"
   }
 }

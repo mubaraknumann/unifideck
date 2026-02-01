@@ -12,7 +12,8 @@
     "toastUpdatedTitle": "Storage Location Updated",
     "toastUpdatedBody": "New games will be installed to {{location}}",
     "toastFailedTitle": "Failed to Update",
-    "toastFailedBody": "{{error}}"
+    "toastFailedBody": "{{error}}",
+    "unknown": "Unknown"
   },
   "gameGrid": {
     "loading": "Loading games...",
@@ -20,7 +21,8 @@
     "noGamesHint": "Try syncing your libraries from the Unifideck settings",
     "showingGames": "Showing {{count}} games",
     "installed": "Installed",
-    "notInstalled": "Not Installed"
+    "notInstalled": "Not Installed",
+    "playtime": "{{hours}}h {{minutes}}m played"
   },
   "downloadsTab": {
     "currentDownload": "CURRENT DOWNLOAD",
@@ -34,6 +36,7 @@
     "confirmCancelDescription": "Are you sure you want to cancel the download for {{game}}?",
     "confirmCancelYes": "Yes",
     "confirmCancelNo": "No",
+    "cancelDownload": "Cancel",
     "toastDownloadCancelledTitle": "Download Cancelled",
     "toastDownloadCancelledBody": "The download has been removed from the queue.",
     "toastCancelFailedTitle": "Cancel Failed",
@@ -47,7 +50,9 @@
     },
     "preparingDownload": "Preparing download...",
     "phaseExtracting": "Extracting {{game}}...",
-    "phaseVerifying": "Verifying {{game}}..."
+    "phaseVerifying": "Verifying {{game}}...",
+    "internalStorage": "Internal Storage ({{freeSpace}} GB free)",
+    "sdCard": "SD Card ({{freeSpace}} GB free)"
   },
   "cloudSave": {
     "title": "Cloud Save Conflict",
@@ -72,8 +77,7 @@
     "amazonGames": "Amazon Games",
     "connected": "Connected",
     "checking": "Checking...",
-    "authenticate": "Authenticate {{store}}",
-    "logout": "Logout of {{store}}",
+    "authenticate": "Sign in",
     "legendaryNotInstalled": "⚠️ Installing Epic Games CLI...",
     "nileNotInstalled": "⚠️ Amazon Games CLI not found",
     "error": "Error - Check logs"
@@ -99,7 +103,7 @@
     "deleting": "Deleting..."
   },
   "installButton": {
-    "install": "⬇ Install {{title}}",
+    "install": "Install {{title}}",
     "uninstall": "Uninstall {{title}}",
     "cancel": "✖ Cancel",
     "processing": "Processing...",
@@ -136,6 +140,7 @@
     "uninstallingMessageProton": "Uninstalling {{title}} and Proton files...",
     "uninstallComplete": "Uninstall Complete",
     "uninstallCompleteMessage": "{{title}} removed.",
+    "uninstallCompleteMessageProton": "{{title}} removed (including Proton files).",
     "installComplete": "Installation Complete!",
     "installCompleteMessage": "{{title}} is ready to play. Restart Steam to see it in your library.",
     "syncComplete": "Sync Complete!",
@@ -176,7 +181,13 @@
       "dependenciesStatus": "Dependencies",
       "checkLogs": "Setup complete (check logs for details)",
       "installingProton": "Installing Proton",
-      "attemptingInstall": "Attempting to install {{version}}..."
+      "attemptingInstall": "Attempting to install {{version}}...",
+      "epicAuthRequired": "Epic Login Required",
+      "epicAuthRequiredMessage": "Please sign in to Epic Games in Unifideck settings",
+      "installingRedist": "Installing Redistributables",
+      "installingRedistMessage": "Running first-time GOG redistributable installation...",
+      "setupFailed": "Setup Failed",
+      "setupFailedMessage": "Installation failed, see logs for details"
     }
   },
   "uninstallModal": {
@@ -216,5 +227,50 @@
     "steamGridDbUnavailable": "SteamGridDB library not available",
     "deleteSyncInProgress": "Cannot delete while sync is in progress",
     "alreadyInQueue": "Already in queue"
+  },
+  "sync": {
+    "downloadingArtwork": "Downloading artwork for {{game}}...",
+    "fetchingGameLists": "Fetching game lists...",
+    "cancelledByUser": "Sync cancelled by user",
+    "checkingInstalledGames": "Checking installed games...",
+    "sgdbLookup": "Looking up {{count}} games on SteamGridDB...",
+    "extractingSteamMetadata": "Extracting Steam metadata for {{count}} games...",
+    "checkingExistingArtwork": "Checking existing artwork...",
+    "cleaningOrphanedArtwork": "Cleaning up orphaned artwork...",
+    "retryingMissingArtwork": "Retrying {{count}} games with missing artwork...",
+    "savingShortcuts": "Saving shortcuts...",
+    "completed": "Sync completed! Added {{added}}, Art {{artwork}}."
+  },
+  "force_sync": {
+    "migratingOldInstallations": "Force sync: Migrating old installations...",
+    "fetchingGameLists": "Force sync: Fetching game lists...",
+    "checkingInstalledGames": "Force sync: Checking installed games...",
+    "rewritingShortcuts": "Force sync: Rewriting shortcuts...",
+    "cancelledShortcutsSaved": "Force sync cancelled - shortcuts saved",
+    "writingShortcuts": "Force Sync: Writing shortcuts...",
+    "clearingProton": "Force sync: Clearing Proton compatibility (launcher manages internally)...",
+    "completed": "Force sync completed! Updated {{updated}} games, fetched {{artwork}} artwork."
+  },
+  "artwork": {
+    "checking": "Checking artwork...",
+    "queueRefresh": "Queuing all games for artwork refresh...",
+    "downloadProgress": "Downloaded artwork {{synced}}/{{total}} ({{game}})"
+  },
+  "deckTabs": {
+    "greatOnDeck": "Great on Deck",
+    "allGames": "All Games",
+    "installed": "Installed",
+    "nonSteam": "Non-Steam"
+  },
+  "unifiedLibrary": {
+    "error": "Unifideck Error",
+    "errorLoadingView": "Failed to load unified library view",
+    "checkConsole": "Check browser console for details",
+    "errorLoadingGames": "Error loading games",
+    "tryReloading": "Try reloading the plugin or checking the console for details",
+    "storeLabel": "Store:",
+    "allStores": "All Stores",
+    "searchPlaceholder": "Search games...",
+    "library": "Library"
   }
 }

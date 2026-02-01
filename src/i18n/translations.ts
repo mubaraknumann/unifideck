@@ -14,6 +14,7 @@ import koKR from "./locales/ko-KR.json";
 import nlNL from "./locales/nl-NL.json";
 import plPL from "./locales/pl-PL.json";
 import trTR from "./locales/tr-TR.json";
+import ukUA from "./locales/uk-UA.json";
 
 const resources: Record<string, { translation: object }> = {
   "en-US": { translation: enUS },
@@ -29,6 +30,7 @@ const resources: Record<string, { translation: object }> = {
   "nl-NL": { translation: nlNL },
   "pl-PL": { translation: plPL },
   "tr-TR": { translation: trTR },
+  "uk-UA": { translation: ukUA },
 };
 
 // Native language names for display in dropdown
@@ -46,42 +48,43 @@ export const LANGUAGE_NAMES: Record<string, string> = {
   "ru-RU": "Русский",
   "tr-TR": "Türkçe",
   "zh-CN": "简体中文",
+  "uk-UA": "Українська",
 };
 
 export const loadTranslations = (savedLanguage?: string) => {
   // Use saved language if provided, otherwise use browser language
-  const initialLanguage = savedLanguage && savedLanguage !== "auto"
-    ? savedLanguage
-    : navigator.language;
+  const initialLanguage =
+    savedLanguage && savedLanguage !== "auto"
+      ? savedLanguage
+      : navigator.language;
 
   console.log("[Unifideck] i18n browser language:", navigator.language);
   console.log("[Unifideck] i18n using language:", initialLanguage);
 
-  i18n
-    .use(initReactI18next)
-    .init({
-      resources,
-      lng: initialLanguage,
-      fallbackLng: {
-        pt: ["pt-BR"],
-        fr: ["fr-FR"],
-        en: ["en-US"],
-        ru: ["ru-RU"],
-        ja: ["ja-JP"],
-        de: ["de-DE"],
-        es: ["es-ES"],
-        it: ["it-IT"],
-        zh: ["zh-CN"],
-        ko: ["ko-KR"],
-        nl: ["nl-NL"],
-        pl: ["pl-PL"],
-        tr: ["tr-TR"],
-        default: ["en-US"],
-      },
-      load: "languageOnly",
-      interpolation: { escapeValue: false },
-      debug: true,
-    });
+  i18n.use(initReactI18next).init({
+    resources,
+    lng: initialLanguage,
+    fallbackLng: {
+      pt: ["pt-BR"],
+      fr: ["fr-FR"],
+      en: ["en-US"],
+      ru: ["ru-RU"],
+      ja: ["ja-JP"],
+      de: ["de-DE"],
+      es: ["es-ES"],
+      it: ["it-IT"],
+      zh: ["zh-CN"],
+      ko: ["ko-KR"],
+      nl: ["nl-NL"],
+      pl: ["pl-PL"],
+      tr: ["tr-TR"],
+      uk: ["uk-UA"],
+      default: ["en-US"],
+    },
+    load: "languageOnly",
+    interpolation: { escapeValue: false },
+    debug: true,
+  });
 
   console.log("[Unifideck] i18n initialized");
 };
@@ -103,4 +106,3 @@ export const getSupportedLanguages = (): string[] => {
 export const getCurrentLanguage = (): string => {
   return i18n.language || "en-US";
 };
-

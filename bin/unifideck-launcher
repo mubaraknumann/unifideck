@@ -777,10 +777,28 @@ if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]] || \
             log "Using External LEGENDARY_CONFIG_PATH: $LEGENDARY_CONFIG_PATH"
         else
             log "WARNING: No authenticated Legendary config found! Game may fail to launch."
+            # Show user-facing alert via toast system
+            notify_stage "toasts.launcher.epicAuthRequired" "toasts.launcher.epicAuthRequiredMessage" "critical"
+        fi
+
+        # === LANGUAGE: Read Unifideck language preference for Epic launch ===
+        EPIC_LANG="en"
+        SETTINGS_FILE="$HOME/.local/share/unifideck/settings.json"
+        if [ -f "$SETTINGS_FILE" ]; then
+            RAW_LANG=$(python3 -c "import json; print(json.load(open('$SETTINGS_FILE')).get('language', 'auto'))" 2>/dev/null || echo "auto")
+            if [ "$RAW_LANG" != "auto" ] && [ -n "$RAW_LANG" ]; then
+                # Extract 2-letter code: "en-US" -> "en", "de-DE" -> "de"
+                EPIC_LANG=$(echo "$RAW_LANG" | cut -d'-' -f1)
+                log "[Language] Using Unifideck language for Epic: $EPIC_LANG (from $RAW_LANG)"
+            else
+                log "[Language] Unifideck language set to auto, defaulting to: $EPIC_LANG"
+            fi
+        else
+            log "[Language] No Unifideck settings found, defaulting to: $EPIC_LANG"
         fi
 
         # Construct the legendary launch command
-        CMD="$LEGENDARY_BIN launch $GAME_ID --no-wine --wrapper \"$PYTHON_BIN $UMU_WRAPPER\" --language en"
+        CMD="$LEGENDARY_BIN launch $GAME_ID --no-wine --wrapper \"$PYTHON_BIN $UMU_WRAPPER\" --language $EPIC_LANG"
         log "Executing: $CMD"
 
         # === CLOUD SAVE: Download before launch ===
@@ -790,7 +808,7 @@ if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]] || \
         notify_stage "toasts.launcher.launchingGame" "toasts.launcher.startingEpicGame" "low"
 
         # Execute legendary (wait for exit, don't use exec)
-        "$LEGENDARY_BIN" launch "$GAME_ID" --no-wine --wrapper "$PYTHON_BIN $UMU_WRAPPER" --language en 2>>"$LOG_FILE"
+        "$LEGENDARY_BIN" launch "$GAME_ID" --no-wine --wrapper "$PYTHON_BIN $UMU_WRAPPER" --language $EPIC_LANG 2>>"$LOG_FILE"
 
         GAME_EXIT_CODE=$?
 
@@ -852,6 +870,13 @@ except Exception as e:
         else
             log "ERROR: umu-run not found"
             exit 1
+        fi
+
+        # === LANGUAGE: Set Windows locale in prefix for Amazon games ===
+        AMAZON_LANG_SCRIPT="$PLUGIN_DIR/bin/amazon_set_language.py"
+        if [ -f "$AMAZON_LANG_SCRIPT" ]; then
+            log "[Language] Setting Windows locale for Amazon game..."
+            python3 "$AMAZON_LANG_SCRIPT" "$PREFIX_PATH" >> "$LOG_FILE" 2>&1 || true
         fi
 
         # Build the command with any Amazon-specific args
@@ -917,36 +942,112 @@ except Exception as e:
             python3 "$GALAXY_STUB_SCRIPT" "$PREFIX_PATH" >> "$HOME/.local/share/unifideck/winetricks.log" 2>&1
         fi
 
-        # === WINETRICKS: Install redistributables (smart detection) ===
-        # winetricks_gog.py handles marker check and installs only missing deps
-        WINETRICKS_SCRIPT="$PLUGIN_DIR/bin/winetricks_gog.py"
-        
-        if [ -f "$WINETRICKS_SCRIPT" ]; then
-            log "[Winetricks] Checking redistributables for GOG game..."
-            
-            if python3 "$WINETRICKS_SCRIPT" "$GAME_ID" "$PREFIX_PATH" >> "$HOME/.local/share/unifideck/winetricks.log" 2>&1; then
-                log "[Winetricks] Check completed"
+        # === GOG SETUP: Install redistributables on first launch ===
+        # Port of Heroic's setup.ts - installs DirectX, vcrun, etc. from GOG manifests
+        # Uses marker file to run only once per game prefix
+        SETUP_MARKER="$PREFIX_PATH/.unifideck-gog-setup-done"
+        GOG_SETUP_SCRIPT="$PLUGIN_DIR/bin/gog_setup.py"
+
+        if [ ! -f "$SETUP_MARKER" ] && [ -f "$GOG_SETUP_SCRIPT" ]; then
+            log "[Setup] Running first-time GOG redistributable installation..."
+            notify_stage "toasts.launcher.installingRedist" "toasts.launcher.installingRedistMessage" "normal"
+
+            # Read language from .unifideck-id marker (written during installation)
+            # This ensures the game setup uses the same language as the installation
+            INSTALL_LANG="en-US"
+            UNIFIDECK_ID_FILE="$WORK_DIR/.unifideck-id"
+            if [ -f "$UNIFIDECK_ID_FILE" ]; then
+                INSTALL_LANG=$(python3 -c "import json; print(json.load(open('$UNIFIDECK_ID_FILE')).get('language', 'en-US'))" 2>/dev/null || echo "en-US")
+                log "[Setup] Using language from marker: $INSTALL_LANG"
             else
-                log "[Winetricks] Check completed (may have warnings)"
+                log "[Setup] No .unifideck-id marker found, using default language: $INSTALL_LANG"
             fi
+
+            # Create marker FIRST to prevent double-launch
+            touch "$SETUP_MARKER"
+
+            if python3 "$GOG_SETUP_SCRIPT" "$GAME_ID" "$PREFIX_PATH" "$WORK_DIR" "$INSTALL_LANG" >> "$HOME/.local/share/unifideck/gog_setup.log" 2>&1; then
+                log "[Setup] Redistributable installation completed successfully"
+            else
+                # Setup failed - remove marker and abort launch
+                log "[Setup] ERROR: Installation failed, see gog_setup.log for details"
+                rm -f "$SETUP_MARKER"
+                notify_stage "toasts.launcher.setupFailed" "toasts.launcher.setupFailedMessage" "critical"
+                exit 1
+            fi
+        elif [ -f "$SETUP_MARKER" ]; then
+            log "[Setup] Redistributables already installed, skipping"
         fi
 
         # Enable NVAPI for modern Proton (matches Epic path)
         export PROTON_ENABLE_NVAPI="1"
         export DXVK_NVAPI_ALLOW_OTHER_DRIVERS="1"
 
-        CMD_STR="$PYTHON_BIN $UMU_WRAPPER \"$EXE_PATH\" $*"
+        # === LANGUAGE FIX: Set game language based on Unifideck preference ===
+        # GOG games read language from goggame-*.info in the install directory.
+        # This modifies that file to use the user's preferred language.
+        GOG_LANG_SCRIPT="$PLUGIN_DIR/bin/gog_set_language.py"
+        if [ -f "$GOG_LANG_SCRIPT" ]; then
+            log "[Language] Setting game language based on Unifideck preference..."
+            python3 "$GOG_LANG_SCRIPT" "$GAME_ID" "$WORK_DIR" >> "$HOME/.local/share/unifideck/gog_language.log" 2>&1 || true
+        fi
+
+        CMD_STR="$PYTHON_BIN $UMU_WRAPPER \"$EXE_PATH\""
         log "Executing: $CMD_STR"
 
         # === CLOUD SAVE: Download before launch ===
         sync_cloud_saves "gog" "$GAME_ID" "download" "$PREFIX_PATH" ""
 
+        # === COMET: Launch GOG Galaxy SDK replacement ===
+        # Comet provides GOG Galaxy online features (achievements, multiplayer, etc.)
+        COMET_BIN="$PLUGIN_DIR/bin/comet"
+        COMET_PID=""
+        if [ -f "$COMET_BIN" ]; then
+            # Get GOG tokens from Unifideck config
+            GOG_TOKEN_FILE="$HOME/.config/unifideck/gog_token.json"
+            if [ -f "$GOG_TOKEN_FILE" ]; then
+                GOG_ACCESS_TOKEN=$(python3 -c "import json; print(json.load(open('$GOG_TOKEN_FILE')).get('access_token',''))" 2>/dev/null)
+                GOG_REFRESH_TOKEN=$(python3 -c "import json; print(json.load(open('$GOG_TOKEN_FILE')).get('refresh_token',''))" 2>/dev/null)
+                GOG_USER_ID=$(python3 -c "import json; print(json.load(open('$GOG_TOKEN_FILE')).get('user_id',''))" 2>/dev/null)
+                GOG_USERNAME=$(python3 -c "import json; print(json.load(open('$GOG_TOKEN_FILE')).get('username','GOGUser'))" 2>/dev/null)
+                
+                # If no username stored, use a default
+                [ -z "$GOG_USERNAME" ] && GOG_USERNAME="GOGUser"
+                
+                if [ -n "$GOG_ACCESS_TOKEN" ] && [ -n "$GOG_REFRESH_TOKEN" ]; then
+                    log "[Comet] Starting GOG Galaxy SDK replacement..."
+                    # Launch Comet in background with tokens
+                    COMET_ARGS="--username $GOG_USERNAME --access-token $GOG_ACCESS_TOKEN --refresh-token $GOG_REFRESH_TOKEN --quit"
+                    [ -n "$GOG_USER_ID" ] && COMET_ARGS="$COMET_ARGS --user-id $GOG_USER_ID"
+                    
+                    "$COMET_BIN" $COMET_ARGS >> "$HOME/.local/share/unifideck/comet.log" 2>&1 &
+                    COMET_PID=$!
+                    log "[Comet] Started with PID $COMET_PID"
+                else
+                    log "[Comet] WARNING: No GOG tokens available, Galaxy online features disabled"
+                fi
+            else
+                log "[Comet] No GOG token file found, Galaxy online features disabled"
+            fi
+        else
+            log "[Comet] Binary not found at $COMET_BIN"
+        fi
+
         # Notify user that game is launching
         notify_stage "toasts.launcher.launchingGame" "toasts.launcher.startingGogGame" "low"
 
         # Execute umu-run with retry for network failures
-        run_umu_with_retry "$PYTHON_BIN" "$UMU_WRAPPER" "$EXE_PATH" "$@"
+        # NOTE: Do NOT pass "$@" - it contains gog:GAME_ID which umu-run doesn't understand
+        run_umu_with_retry "$PYTHON_BIN" "$UMU_WRAPPER" "$EXE_PATH"
         GAME_EXIT_CODE=$?
+
+        # === COMET: Stop after game exits ===
+        if [ -n "$COMET_PID" ]; then
+            log "[Comet] Stopping (PID $COMET_PID)..."
+            kill "$COMET_PID" 2>/dev/null
+            wait "$COMET_PID" 2>/dev/null
+            log "[Comet] Stopped"
+        fi
 
         # === CLOUD SAVE: Upload after exit ===
         log "GOG game exited with code: $GAME_EXIT_CODE"

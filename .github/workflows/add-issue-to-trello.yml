@@ -1,0 +1,70 @@
+name: Sync Issues to Trello
+
+on:
+  issues:
+    types: [opened]
+  issue_comment:
+    types: [created]
+  schedule:
+    - cron: "*/10 * * * *" # Run every 10 minutes
+  workflow_dispatch:
+    inputs:
+      sync_mode:
+        description: "Sync Mode"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - single_issue
+      issue_number:
+        description: "Issue Number (if Single Issue mode)"
+        required: false
+        default: ""
+
+jobs:
+  sync-trello:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Sync All Issues (Scheduled or Manual Bulk)
+        if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.sync_mode == 'all') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TRELLO_API_KEY: ${{ secrets.TRELLO_API_KEY }}
+          TRELLO_API_TOKEN: ${{ secrets.TRELLO_API_TOKEN }}
+          TRELLO_LIST_ID: ${{ secrets.TRELLO_LIST_ID }}
+        run: python scripts/sync_to_trello.py --all
+
+      - name: Sync Specific Issue (Manual Single)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.sync_mode == 'single_issue' && inputs.issue_number != '' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TRELLO_API_KEY: ${{ secrets.TRELLO_API_KEY }}
+          TRELLO_API_TOKEN: ${{ secrets.TRELLO_API_TOKEN }}
+          TRELLO_LIST_ID: ${{ secrets.TRELLO_LIST_ID }}
+        run: python scripts/sync_to_trello.py --issue ${{ inputs.issue_number }}
+
+      - name: Sync New Issue or Comment (Automated)
+        if: ${{ github.event_name == 'issues' || github.event_name == 'issue_comment' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TRELLO_API_KEY: ${{ secrets.TRELLO_API_KEY }}
+          TRELLO_API_TOKEN: ${{ secrets.TRELLO_API_TOKEN }}
+          TRELLO_LIST_ID: ${{ secrets.TRELLO_LIST_ID }}
+        run: python scripts/sync_to_trello.py --issue ${{ github.event.issue.number }}
