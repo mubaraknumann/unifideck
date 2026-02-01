@@ -40,6 +40,14 @@ from backend.cache.steam_appid import (
     load_steam_appid_cache,
     save_steam_appid_cache,
 )
+from backend.cache.steam_metadata import (
+    load_steam_metadata_cache,
+    save_steam_metadata_cache,
+)
+from backend.cache.rawg_metadata import (
+    load_rawg_metadata_cache,
+    save_rawg_metadata_cache,
+)
 from helpers.cache_helpers import get_steam_appid, calculate_game_size, read_cache_entry, write_cache_entry
 
 # Import Cloud Save Manager
@@ -115,115 +123,6 @@ if BACKEND_AVAILABLE:
     Game = BackendGame
 else:
     raise ImportError("backend.stores module is required but not available")
-
-
-# Steam App ID Cache - maps shortcut appId to real Steam appId for ProtonDB lookups
-# Stored as JSON file in plugin data directory
-STEAM_APPID_CACHE_FILE = "steam_appid_cache.json"
-
-
-def get_steam_appid_cache_path() -> Path:
-    """Get path to steam_app_id cache file (in user data, not plugin dir)"""
-    return Path.home() / ".local" / "share" / "unifideck" / STEAM_APPID_CACHE_FILE
-
-
-def load_steam_appid_cache() -> Dict[int, int]:
-    """Load steam_app_id mappings from cache file. Returns {shortcut_appid: steam_appid}"""
-    cache_path = get_steam_appid_cache_path()
-    try:
-        if cache_path.exists():
-            with open(cache_path, 'r') as f:
-                data = json.load(f)
-                # Convert string keys back to int
-                return {int(k): v for k, v in data.items()}
-    except Exception as e:
-        logger.error(f"Error loading steam_appid cache: {e}")
-    return {}
-
-
-def save_steam_appid_cache(cache: Dict[int, int]) -> bool:
-    """Save steam_app_id mappings to cache file"""
-    cache_path = get_steam_appid_cache_path()
-    try:
-        cache_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(cache_path, 'w') as f:
-            json.dump(cache, f)
-        logger.info(f"Saved {len(cache)} steam_app_id mappings to cache")
-        return True
-    except Exception as e:
-        logger.error(f"Error saving steam_appid cache: {e}")
-        return False
-
-
-# Steam Metadata Cache - stores Steam API game details for store patching
-STEAM_METADATA_CACHE_FILE = "steam_metadata_cache.json"
-
-
-def get_steam_metadata_cache_path() -> Path:
-    """Get path to Steam metadata cache file"""
-    return Path.home() / ".local" / "share" / "unifideck" / STEAM_METADATA_CACHE_FILE
-
-
-def load_steam_metadata_cache() -> Dict[int, Dict]:
-    """Load Steam metadata cache. Returns {steam_appid: metadata_dict}"""
-    cache_path = get_steam_metadata_cache_path()
-    try:
-        if cache_path.exists():
-            with open(cache_path, 'r') as f:
-                data = json.load(f)
-                return {int(k): v for k, v in data.items()}
-    except Exception as e:
-        logger.error(f"Error loading steam metadata cache: {e}")
-    return {}
-
-
-def save_steam_metadata_cache(cache: Dict[int, Dict]) -> bool:
-    """Save Steam metadata cache"""
-    cache_path = get_steam_metadata_cache_path()
-    try:
-        cache_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(cache_path, 'w') as f:
-            json.dump(cache, f)
-        logger.info(f"Saved {len(cache)} Steam metadata entries to cache")
-        return True
-    except Exception as e:
-        logger.error(f"Error saving steam metadata cache: {e}")
-        return False
-
-
-# RAWG Metadata Cache - stores RAWG API results keyed by game title (lowercase)
-RAWG_METADATA_CACHE_FILE = "rawg_metadata_cache.json"
-
-
-def get_rawg_metadata_cache_path() -> Path:
-    """Get path to RAWG metadata cache file"""
-    return Path.home() / ".local" / "share" / "unifideck" / RAWG_METADATA_CACHE_FILE
-
-
-def load_rawg_metadata_cache() -> Dict[str, Dict]:
-    """Load RAWG metadata cache. Returns {lowercase_title: rawg_data_dict}"""
-    cache_path = get_rawg_metadata_cache_path()
-    try:
-        if cache_path.exists():
-            with open(cache_path, 'r') as f:
-                return json.load(f)
-    except Exception as e:
-        logger.error(f"Error loading RAWG metadata cache: {e}")
-    return {}
-
-
-def save_rawg_metadata_cache(cache: Dict[str, Dict]) -> bool:
-    """Save RAWG metadata cache"""
-    cache_path = get_rawg_metadata_cache_path()
-    try:
-        cache_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(cache_path, 'w') as f:
-            json.dump(cache, f)
-        logger.info(f"Saved {len(cache)} RAWG metadata entries to cache")
-        return True
-    except Exception as e:
-        logger.error(f"Error saving RAWG metadata cache: {e}")
-        return False
 
 
 def sanitize_description(text: str, max_length: int = 1000) -> str:
