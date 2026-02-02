@@ -524,8 +524,6 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
     };
   }
 
-
-
   // Info badge style - non-interactive display
   const infoBadgeStyle: React.CSSProperties = {
     display: "flex",
