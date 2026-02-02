@@ -1,12 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import {
-  DialogButton,
-  Focusable,
-  showModal,
-  ConfirmModal,
-  toaster,
-} from "@decky/ui";
-import { call } from "@decky/api";
+import { DialogButton, Focusable, showModal, ConfirmModal } from "@decky/ui";
+import { call, toaster } from "@decky/api";
 import { useTranslation } from "react-i18next";
 import { StoreFinal } from "../types/store";
 import StoreIcon from "./StoreIcon";
