@@ -524,23 +524,7 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
     };
   }
 
-  // CSS for controller focus state (.gpfocus is automatically applied by Steam)
-  const focusStyles = `
-    /* Controller focus state - Steam automatically applies .gpfocus */
-    .unifideck-install-button.gpfocus,
-    .unifideck-install-button:hover {
-      filter: brightness(1.2) !important;
-      box-shadow: 0 0 12px rgba(26, 159, 255, 0.8) !important;
-      transform: scale(1.02);
-      transition: all 0.15s ease;
-    }
 
-    /* Extra visibility for focus ring */
-    .unifideck-install-button.gpfocus {
-      outline: 2px solid #1a9fff !important;
-      outline-offset: 2px !important;
-    }
-  `;
 
   // Info badge style - non-interactive display
   const infoBadgeStyle: React.CSSProperties = {
@@ -558,7 +542,6 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
 
   return (
     <>
-      <style>{focusStyles}</style>
       {/* Info badge - non-interactive display showing store, game name, and size */}
       <div
         style={{
