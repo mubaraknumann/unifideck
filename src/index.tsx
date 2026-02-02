@@ -45,6 +45,7 @@ import {
 import { DownloadsTab } from "./components/DownloadsTab";
 import { StorageSettings } from "./components/StorageSettings";
 import { UninstallConfirmModal } from "./components/UninstallConfirmModal";
+import { SteamRestartModal } from "./components/SteamRestartModal";
 import { LanguageSelector } from "./components/LanguageSelector";
 import StoreConnections from "./components/settings/StoreConnections";
 import { Store } from "./types/store";
@@ -902,18 +903,13 @@ const Content: FC = () => {
                       console.log(`[Unifideck] ⚠ Sync cancelled by user`);
                     }
 
-                    // Show toast only if changes were made
+                    // Show modal only if changes were made
                     if (result.status === "complete") {
                       const addedCount = result.synced_games || 0;
                       if (addedCount > 0) {
-                        toaster.toast({
-                          title: t("toasts.syncComplete"),
-                          body: t("toasts.syncCompleteMessage", {
-                            count: addedCount,
-                          }),
-                          duration: 15000,
-                          critical: true,
-                        });
+                        showModal(
+                          <SteamRestartModal closeModal={() => {}} />
+                        );
                       }
                     } else if (result.status === "cancelled") {
                       toaster.toast({
@@ -1100,21 +1096,12 @@ const Content: FC = () => {
 
             // Show restart notification when sync completes (only if changes were made)
             if (result.status === "complete") {
-              // Only show toast if there were actual changes (not just a refresh that added 0 games)
+              // Only show modal if there were actual changes (not just a refresh that added 0 games)
               const addedCount = result.synced_games || 0;
               if (addedCount > 0) {
-                toaster.toast({
-                  title: force
-                    ? t("toasts.forceSyncComplete")
-                    : t("toasts.syncComplete"),
-                  body: force
-                    ? t("toasts.forceSyncCompleteMessage", {
-                        count: addedCount,
-                      })
-                    : t("toasts.syncCompleteMessage", { count: addedCount }),
-                  duration: 15000,
-                  critical: true,
-                });
+                showModal(
+                  <SteamRestartModal closeModal={() => {}} />
+                );
               }
             } else if (result.status === "cancelled") {
               toaster.toast({

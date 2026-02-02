@@ -124,6 +124,11 @@
     "forceSyncDescription": "Would you like to resync all artwork? This will overwrite any manual artwork changes. Select 'Keep Artwork' to only download missing artwork.",
     "resyncArtwork": "Resync Artwork",
     "keepArtwork": "Keep Artwork",
+    "steamRestartTitle": "Synced All Games from Epic!",
+    "steamRestartDescription": "Please Restart Steam to apply your new games and artwork",
+    "steamRestartDescriptionStore": "Please Restart Steam to apply your new {{store}} games and artwork",
+    "restartNow": "Restart Now",
+    "later": "Later",
     "yes": "Yes",
     "no": "No"
   },
