@@ -92,7 +92,8 @@
     "gamesSynced": "{{synced}} / {{total}} games synced",
     "artworkDownloaded": "{{synced}} / {{total}} artwork downloaded",
     "steamMetadataDownloaded": "Steam metadata: {{synced}} / {{total}}",
-    "rawgMetadataDownloaded": "RAWG metadata: {{synced}} / {{total}}"
+    "unifidbMetadataDownloaded": "unifiDB metadata: {{synced}} / {{total}}",
+    "metacriticMetadataDownloaded": "Metacritic data: {{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "Cleanup",
@@ -238,6 +239,8 @@
     "sgdbLookup": "Looking up {{count}} games on SteamGridDB...",
     "extractingSteamMetadata": "Extracting Steam metadata...",
     "fetchingEnhancedMetadata": "Fetching enhanced metadata...",
+    "lookingUpUnifiDB": "Fetching unifiDB metadata...",
+    "fetchingMetacriticData": "Fetching Metacritic metadata...",
     "checkingExistingArtwork": "Checking existing artwork...",
     "cleaningOrphanedArtwork": "Cleaning up orphaned artwork...",
     "retryingMissingArtwork": "Retrying {{synced}} / {{total}} games with missing artwork...",
