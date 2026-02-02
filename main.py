@@ -4036,7 +4036,10 @@ class Plugin:
                                 try:
                                     rawg_data = await self.fetch_rawg_metadata(game.title)
                                     if rawg_data:
+                                        logger.debug(f"[RAWG Prefetch] Got data for {game.title}: {len(rawg_data)} fields")
                                         return (game.title.lower(), rawg_data)
+                                    else:
+                                        logger.debug(f"[RAWG Prefetch] No data returned for {game.title}")
                                 except Exception as e:
                                     logger.debug(f"[RAWG Prefetch] Error for {game.title}: {e}")
                                 finally:
@@ -4047,12 +4050,20 @@ class Plugin:
                         tasks = [prefetch_rawg_for_game(g, semaphore) for g in games_needing_rawg]
                         results = await asyncio.gather(*tasks, return_exceptions=True)
 
+                        # Build new cache with results
+                        new_cache_entries = {}
                         for result in results:
                             if isinstance(result, tuple) and result is not None:
-                                rawg_cache[result[0]] = result[1]
+                                new_cache_entries[result[0]] = result[1]
 
-                        save_rawg_metadata_cache(rawg_cache)
-                        logger.info(f"Sync: Cached RAWG metadata for {sum(1 for r in results if isinstance(r, tuple) and r)} games")
+                        # Validate new data before replacing - only save if we got meaningful results
+                        if new_cache_entries:
+                            logger.info(f"Sync: Fetched RAWG metadata for {len(new_cache_entries)} games")
+                            # Merge with existing cache, preferring new data
+                            rawg_cache.update(new_cache_entries)
+                            save_rawg_metadata_cache(rawg_cache)
+                        else:
+                            logger.warning(f"Sync: RAWG prefetch returned no valid data for {len(games_needing_rawg)} games - preserving existing cache")
 
                 if fetch_artwork and self.steamgriddb:
                     # STEP 1: Identify games needing SGDB lookup (not in cache)
@@ -4293,10 +4304,12 @@ class Plugin:
                 logger.info("Force Sync: Clearing all metadata caches...")
                 get_steam_real_appid_cache_path().unlink(missing_ok=True)
                 get_steam_metadata_cache_path().unlink(missing_ok=True)
-                get_rawg_metadata_cache_path().unlink(missing_ok=True)
-
-                # Update progress: Fetching games
-                self.sync_progress.status = "fetching"
+                # For RAWG, backup old cache instead of deleting - will preserve if new fetch fails
+                rawg_cache_path = get_rawg_metadata_cache_path()
+                if rawg_cache_path.exists():
+                    backup_path = rawg_cache_path.with_suffix('.json.bak')
+                    rawg_cache_path.rename(backup_path)
+                    logger.info(f"Backed up RAWG cache to {backup_path}")
                 self.sync_progress.current_game = {
                     "label": "force_sync.migratingOldInstallations",
                     "values": {}
@@ -4563,6 +4576,96 @@ class Plugin:
                     if steam_appid_cache:
                         save_steam_appid_cache(steam_appid_cache)
 
+                    # Cleanup orphaned artwork before sync (prevents duplicate files)
+                    self.sync_progress.current_game = {
+                        "label": "sync.cleaningOrphanedArtwork",
+                        "values": {}
+                    }
+                    cleanup_result = await self.cleanup_orphaned_artwork()
+                    if cleanup_result.get('removed_count', 0) > 0:
+                        logger.info(f"Cleaned up {cleanup_result['removed_count']} orphaned artwork files")
+
+                    # ARTWORK: Download based on user preference
+                    # If resync_artwork=True, re-download ALL artwork (overwrites manual changes)
+                    # If resync_artwork=False, only download for games missing artwork
+                    self.sync_progress.status = "checking_artwork"
+                    self.sync_progress.current_game = {
+                        "label": "sync.checking_artwork" if not resync_artwork else "sync.queueRefresh",
+                        "values": {}
+                    }
+                    for game in all_games:
+                        if game.app_id in seen_app_ids:
+                            if resync_artwork or not await self.has_artwork(game.app_id):
+                                games_needing_art.append(game)
+                            seen_app_ids.discard(game.app_id)  # Only add once per app_id
+
+                    if games_needing_art:
+                        logger.info(f"Force Sync: Fetching artwork for {len(games_needing_art)} games...")
+                        self.sync_progress.current_phase = "artwork"
+                        self.sync_progress.status = "artwork"
+                        self.sync_progress.artwork_total = len(games_needing_art)
+                        self.sync_progress.artwork_synced = 0
+
+                        # Reset main counters for clean UI
+                        self.sync_progress.synced_games = 0
+                        self.sync_progress.total_games = 0
+
+                        # Check cancellation
+                        if self._cancel_sync:
+                             logger.warning("Force Sync cancelled before artwork")
+                             return {'success': False, 'cancelled': True}
+
+                        # === PASS 1: Initial artwork fetch ===
+                        logger.info(f"  [Pass 1] Starting parallel download (concurrency: 30)")
+                        semaphore = asyncio.Semaphore(30)
+                        tasks = [self.fetch_artwork_with_progress(game, semaphore) for game in games_needing_art]
+                        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+                        # Count successes (results are now dicts)
+                        pass1_success = sum(1 for r in results if isinstance(r, dict) and r.get('success'))
+                        logger.info(f"  [Pass 1] Complete: {pass1_success}/{len(games_needing_art)} games")
+
+                        # === PASS 2: Retry games with incomplete artwork ===
+                        games_to_retry = []
+                        for game in games_needing_art:
+                            missing = await self.get_missing_artwork_types(game.app_id)
+                            if missing:
+                                games_to_retry.append(game)
+
+                        if games_to_retry and not self._cancel_sync:
+                            logger.info(f"  [Pass 2] Retrying {len(games_to_retry)} games with incomplete artwork")
+                            self.sync_progress.status = "artwork_retry"
+                            self.sync_progress.current_game = {
+                                "label": "sync.retryingMissingArtwork",
+                                "values": {"count": len(games_to_retry)}
+                            }
+                            self.sync_progress.artwork_total = len(games_to_retry)
+                            self.sync_progress.artwork_synced = 0
+
+                            retry_tasks = [self.fetch_artwork_with_progress(game, semaphore) for game in games_to_retry]
+                            await asyncio.gather(*retry_tasks, return_exceptions=True)
+
+                            # Count recovered games (can't use await in generator expression)
+                            pass2_recovered = 0
+                            for g in games_to_retry:
+                                if not await self.get_missing_artwork_types(g.app_id):
+                                    pass2_recovered += 1
+                            logger.info(f"  [Pass 2] Recovered: {pass2_recovered}/{len(games_to_retry)} games")
+
+                        # Log still-incomplete games for debugging
+                        still_incomplete = []
+                        for g in games_needing_art:
+                            missing = await self.get_missing_artwork_types(g.app_id)
+                            if missing:
+                                still_incomplete.append((g.title, missing))
+                        if still_incomplete:
+                            logger.warning(f"  Artwork incomplete for {len(still_incomplete)} games after 2 passes")
+                            for title, missing in still_incomplete[:5]:  # Log first 5
+                                logger.debug(f"    - {title}: missing {missing}")
+
+                        artwork_count = len(games_needing_art) - len(still_incomplete)
+                        logger.info(f"Artwork download complete: {artwork_count}/{len(games_needing_art)} games fully successful")
+
                 # === ENHANCED METADATA: RAWG fallback + Deck Compatibility ===
                 # Fetch metadata from RAWG for games missing data, and deck compat from Steam
                 self.sync_progress.current_game = {
@@ -4676,98 +4779,7 @@ class Plugin:
                 if rawg_cache:
                     save_rawg_metadata_cache(rawg_cache)
 
-                    # Cleanup orphaned artwork before sync (prevents duplicate files)
-                    if self.steamgriddb:
-                        self.sync_progress.current_game = {
-                            "label": "sync.cleaningOrphanedArtwork",
-                            "values": {}
-                        }
-                        cleanup_result = await self.cleanup_orphaned_artwork()
-                        if cleanup_result.get('removed_count', 0) > 0:
-                            logger.info(f"Cleaned up {cleanup_result['removed_count']} orphaned artwork files")
-
-                    # STEP 3: Artwork handling based on user preference
-                    # If resync_artwork=True, re-download ALL artwork (overwrites manual changes)
-                    # If resync_artwork=False, only download for games missing artwork
-                    self.sync_progress.status = "checking_artwork"
-                    self.sync_progress.current_game = {
-                        "label": "sync.checking_artwork" if not resync_artwork else "sync.queueRefresh",
-                        "values": {}
-                    }
-                    for game in all_games:
-                        if game.app_id in seen_app_ids:
-                            if resync_artwork or not await self.has_artwork(game.app_id):
-                                games_needing_art.append(game)
-                            seen_app_ids.discard(game.app_id)  # Only add once per app_id
-
-                    if games_needing_art:
-                        logger.info(f"Force Sync: Fetching artwork for {len(games_needing_art)} games...")
-                        self.sync_progress.current_phase = "artwork"
-                        self.sync_progress.status = "artwork"
-                        self.sync_progress.artwork_total = len(games_needing_art)
-                        self.sync_progress.artwork_synced = 0
-
-                        # Reset main counters for clean UI
-                        self.sync_progress.synced_games = 0
-                        self.sync_progress.total_games = 0
-
-                        # Check cancellation
-                        if self._cancel_sync:
-                             logger.warning("Force Sync cancelled before artwork")
-                             return {'success': False, 'cancelled': True}
-
-                        # === PASS 1: Initial artwork fetch ===
-                        logger.info(f"  [Pass 1] Starting parallel download (concurrency: 30)")
-                        semaphore = asyncio.Semaphore(30)
-                        tasks = [self.fetch_artwork_with_progress(game, semaphore) for game in games_needing_art]
-                        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-                        # Count successes (results are now dicts)
-                        pass1_success = sum(1 for r in results if isinstance(r, dict) and r.get('success'))
-                        logger.info(f"  [Pass 1] Complete: {pass1_success}/{len(games_needing_art)} games")
-
-                        # === PASS 2: Retry games with incomplete artwork ===
-                        games_to_retry = []
-                        for game in games_needing_art:
-                            missing = await self.get_missing_artwork_types(game.app_id)
-                            if missing:
-                                games_to_retry.append(game)
-
-                        if games_to_retry and not self._cancel_sync:
-                            logger.info(f"  [Pass 2] Retrying {len(games_to_retry)} games with incomplete artwork")
-                            self.sync_progress.status = "artwork_retry"
-                            self.sync_progress.current_game = {
-                                "label": "sync.retryingMissingArtwork",
-                                "values": {"count": len(games_to_retry)}
-                            }
-                            self.sync_progress.artwork_total = len(games_to_retry)
-                            self.sync_progress.artwork_synced = 0
-
-                            retry_tasks = [self.fetch_artwork_with_progress(game, semaphore) for game in games_to_retry]
-                            await asyncio.gather(*retry_tasks, return_exceptions=True)
-
-                            # Count recovered games (can't use await in generator expression)
-                            pass2_recovered = 0
-                            for g in games_to_retry:
-                                if not await self.get_missing_artwork_types(g.app_id):
-                                    pass2_recovered += 1
-                            logger.info(f"  [Pass 2] Recovered: {pass2_recovered}/{len(games_to_retry)} games")
-
-                        # Log still-incomplete games for debugging
-                        still_incomplete = []
-                        for g in games_needing_art:
-                            missing = await self.get_missing_artwork_types(g.app_id)
-                            if missing:
-                                still_incomplete.append((g.title, missing))
-                        if still_incomplete:
-                            logger.warning(f"  Artwork incomplete for {len(still_incomplete)} games after 2 passes")
-                            for title, missing in still_incomplete[:5]:  # Log first 5
-                                logger.debug(f"    - {title}: missing {missing}")
-
-                        artwork_count = len(games_needing_art) - len(still_incomplete)
-                        logger.info(f"Artwork download complete: {artwork_count}/{len(games_needing_art)} games fully successful")
-
-                # --- STEP 2: UPDATE GAME ICONS ---
+                # --- UPDATE GAME ICONS ---
                 # Check for local icons and update game objects
                 if self.steamgriddb and self.steamgriddb.grid_path:
                     grid_path = Path(self.steamgriddb.grid_path)
@@ -5257,7 +5269,7 @@ class Plugin:
     }
 
     # RAWG.io API key for fallback metadata
-    RAWG_API_KEY = 'ba1f3b6abe404ba993d6ac12479f2977'
+    RAWG_API_KEY = '481b2994641041539cc065c6e37115a3'
 
     # Steam Store API settings
     STEAM_STORE_SEARCH_URL = "https://store.steampowered.com/api/storesearch"
@@ -5294,6 +5306,10 @@ class Plugin:
                             return {}
                         
                         search_data = await response.json()
+                        # Check for API error response (e.g., rate limit)
+                        if 'error' in search_data:
+                            logger.warning(f"[RAWG] API error for '{game_name}': {search_data.get('error')}")
+                            return {}
                         break
                     
             results = search_data.get('results', [])
@@ -5328,6 +5344,10 @@ class Plugin:
                             }
                         
                         detail = await response.json()
+                        # Check for API error response
+                        if 'error' in detail:
+                            logger.warning(f"[RAWG] API error in details for '{game_name}': {detail.get('error')}")
+                            return {}
                         break
 
                 if detail is None:

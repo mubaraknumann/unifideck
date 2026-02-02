@@ -682,8 +682,7 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
             onClick={
               processing
                 ? undefined
-                : downloadState.status === "downloading" ||
-                  downloadState.status === "queued"
+                : downloadState.isDownloading
                 ? showCancelConfirmation
                 : gameInfo.is_installed
                 ? showUninstallConfirmation
@@ -700,8 +699,7 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
               opacity: processing ? 0.5 : 1,
             }}
             className={`unifideck-nav-button unifideck-install-button ${
-              downloadState.status === "downloading" ||
-              downloadState.status === "queued"
+              downloadState.isDownloading
                 ? "cancel-state"
                 : gameInfo.is_installed
                 ? "uninstall-state"
@@ -711,8 +709,7 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
             <span>
               {processing
                 ? "..."
-                : downloadState.status === "downloading" ||
-                  downloadState.status === "queued"
+                : downloadState.isDownloading
                 ? `Cancel (${downloadState.progress || 0}%)`
                 : gameInfo.is_installed
                 ? "Uninstall"

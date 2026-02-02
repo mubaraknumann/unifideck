@@ -95,8 +95,8 @@
       "name": "nile"
     },
     {
-      "sha256hash": "0019dfc4b32d63c1392aa264aed2253c1e0c2fb09216f8e2cc269bbfb8bb49b5",
-      "url": "https://github.com/imLinguin/comet/releases/download/v0.3.2/comet-linux-x86_64",
+      "sha256hash": "2d6694d544fd3155d90d540e70bc1be767a6b9fdda130275f2b79616ff14e843",
+      "url": "https://github.com/imLinguin/comet/releases/download/v0.3.2/comet-x86_64-unknown-linux-gnu",
       "name": "comet"
     }
   ]
