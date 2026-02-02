@@ -1,6 +1,6 @@
 {
   "name": "unifideck-decky",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "Unified game library for Steam Deck - Epic, GOG, and Steam in one place",
   "type": "module",
   "scripts": {
@@ -9,7 +9,6 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "check:prettier": "prettier --config .prettierrc --check",
     "fix:prettier": "prettier --config .prettierrc --write"
-
   },
   "lint-staged": {
     "*.{js,ts,jsx,tsx,json,md}": "npm run fix:prettier"
@@ -37,7 +36,6 @@
     "@types/webpack": "^5.28.5",
     "eslint-config-prettier": "^8.5.0",
     "eslint-plugin-prettier": "^4.0.0",
-
     "lint-staged": "^16.2.7",
     "prettier": "^2.8.8",
     "rollup": "^4.53.3",
@@ -57,9 +55,24 @@
         "react",
         "react-dom"
       ]
+    },
+    "supportedArchitectures": {
+      "os": [
+        "current",
+        "linux"
+      ],
+      "cpu": [
+        "current",
+        "x64"
+      ],
+      "libc": [
+        "current",
+        "musl",
+        "glibc"
+      ]
     }
   },
-  "remote_binary_bundling" : true,
+  "remote_binary_bundling": true,
   "remote_binary": [
     {
       "sha256hash": "5663b221d46ffd98ed4ca1bbaa803af9ac22b371fa1af8261b11758cb9b20893",
@@ -82,8 +95,8 @@
       "name": "nile"
     },
     {
-      "sha256hash": "0019dfc4b32d63c1392aa264aed2253c1e0c2fb09216f8e2cc269bbfb8bb49b5",
-      "url": "https://github.com/imLinguin/comet/releases/download/v0.3.2/comet-linux-x86_64",
+      "sha256hash": "2d6694d544fd3155d90d540e70bc1be767a6b9fdda130275f2b79616ff14e843",
+      "url": "https://github.com/imLinguin/comet/releases/download/v0.3.2/comet-x86_64-unknown-linux-gnu",
       "name": "comet"
     }
   ]

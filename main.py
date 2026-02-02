@@ -117,6 +117,37 @@ STEAM_APPID_CACHE_FILE = "steam_appid_cache.json"
 STEAM_REAL_APPID_CACHE_FILE = "steam_real_appid_cache.json"
 
 
+def _backup_cache_file(cache_path: Path) -> bool:
+    """Create a backup of a cache file before overwriting.
+    
+    Backups are stored as .bak files and can be restored if sync fails.
+    """
+    try:
+        if cache_path.exists():
+            backup_path = cache_path.with_suffix(cache_path.suffix + '.bak')
+            import shutil
+            shutil.copy2(cache_path, backup_path)
+            logger.debug(f"Backed up {cache_path.name} to {backup_path.name}")
+            return True
+    except Exception as e:
+        logger.warning(f"Failed to backup {cache_path.name}: {e}")
+    return False
+
+
+def _restore_cache_backup(cache_path: Path) -> bool:
+    """Restore a cache file from backup if it exists."""
+    try:
+        backup_path = cache_path.with_suffix(cache_path.suffix + '.bak')
+        if backup_path.exists():
+            import shutil
+            shutil.copy2(backup_path, cache_path)
+            logger.info(f"Restored {cache_path.name} from backup")
+            return True
+    except Exception as e:
+        logger.error(f"Failed to restore {cache_path.name} from backup: {e}")
+    return False
+
+
 def get_steam_appid_cache_path() -> Path:
     """Get path to steam_app_id cache file (in user data, not plugin dir)"""
     return Path.home() / ".local" / "share" / "unifideck" / STEAM_APPID_CACHE_FILE
@@ -218,38 +249,109 @@ def save_steam_metadata_cache(cache: Dict[int, Dict]) -> bool:
         return False
 
 
-# RAWG Metadata Cache - stores RAWG API results keyed by game title (lowercase)
+# LEGACY: RAWG Metadata Cache - kept for cleanup and migration purposes only
+# New metadata comes from unifiDB and Metacritic caches
 RAWG_METADATA_CACHE_FILE = "rawg_metadata_cache.json"
 
 
 def get_rawg_metadata_cache_path() -> Path:
-    """Get path to RAWG metadata cache file"""
+    """Get path to legacy RAWG metadata cache file (for cleanup only)"""
     return Path.home() / ".local" / "share" / "unifideck" / RAWG_METADATA_CACHE_FILE
 
 
 def load_rawg_metadata_cache() -> Dict[str, Dict]:
-    """Load RAWG metadata cache. Returns {lowercase_title: rawg_data_dict}"""
+    """Load legacy RAWG metadata cache (for migration only)"""
     cache_path = get_rawg_metadata_cache_path()
     try:
         if cache_path.exists():
             with open(cache_path, 'r') as f:
                 return json.load(f)
     except Exception as e:
-        logger.error(f"Error loading RAWG metadata cache: {e}")
+        logger.error(f"Error loading legacy RAWG metadata cache: {e}")
     return {}
 
 
 def save_rawg_metadata_cache(cache: Dict[str, Dict]) -> bool:
-    """Save RAWG metadata cache"""
+    """Save legacy RAWG metadata cache (for migration only)"""
     cache_path = get_rawg_metadata_cache_path()
     try:
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         with open(cache_path, 'w') as f:
             json.dump(cache, f)
-        logger.info(f"Saved {len(cache)} RAWG metadata entries to cache")
+        logger.info(f"Saved {len(cache)} legacy RAWG metadata entries to cache")
         return True
     except Exception as e:
-        logger.error(f"Error saving RAWG metadata cache: {e}")
+        logger.error(f"Error saving legacy RAWG metadata cache: {e}")
+        return False
+
+
+# unifiDB Metadata Cache - stores IGDB API results keyed by game title (lowercase)
+UNIFIDB_METADATA_CACHE_FILE = "unifidb_metadata_cache.json"
+
+
+def get_unifidb_metadata_cache_path() -> Path:
+    """Get path to unifiDB metadata cache file"""
+    return Path.home() / ".local" / "share" / "unifideck" / UNIFIDB_METADATA_CACHE_FILE
+
+
+def load_unifidb_metadata_cache() -> Dict[str, Dict]:
+    """Load unifiDB metadata cache. Returns {lowercase_title: unifidb_data_dict}"""
+    cache_path = get_unifidb_metadata_cache_path()
+    try:
+        if cache_path.exists():
+            with open(cache_path, 'r') as f:
+                return json.load(f)
+    except Exception as e:
+        logger.error(f"Error loading unifiDB metadata cache: {e}")
+    return {}
+
+
+def save_unifidb_metadata_cache(cache: Dict[str, Dict]) -> bool:
+    """Save unifiDB metadata cache"""
+    cache_path = get_unifidb_metadata_cache_path()
+    try:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(cache_path, 'w') as f:
+            json.dump(cache, f)
+        logger.info(f"Saved {len(cache)} unifiDB metadata entries to cache")
+        return True
+    except Exception as e:
+        logger.error(f"Error saving unifiDB metadata cache: {e}")
+        return False
+
+
+# Metacritic Metadata Cache - stores Metacritic scores/data keyed by game title (lowercase)
+METACRITIC_METADATA_CACHE_FILE = "metacritic_metadata_cache.json"
+
+
+def get_metacritic_metadata_cache_path() -> Path:
+    """Get path to Metacritic metadata cache file"""
+    return Path.home() / ".local" / "share" / "unifideck" / METACRITIC_METADATA_CACHE_FILE
+
+
+def load_metacritic_metadata_cache() -> Dict[str, Dict]:
+    """Load Metacritic metadata cache. Returns {lowercase_title: metacritic_data_dict}"""
+    cache_path = get_metacritic_metadata_cache_path()
+    try:
+        if cache_path.exists():
+            with open(cache_path, 'r') as f:
+                return json.load(f)
+    except Exception as e:
+        logger.error(f"Error loading Metacritic metadata cache: {e}")
+    return {}
+
+
+def save_metacritic_metadata_cache(cache: Dict[str, Dict]) -> bool:
+    """Save Metacritic metadata cache"""
+    cache_path = get_metacritic_metadata_cache_path()
+    try:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(cache_path, 'w') as f:
+            json.dump(cache, f)
+        logger.info(f"Saved {len(cache)} Metacritic metadata entries to cache")
+        return True
+    except Exception as e:
+        logger.error(f"Error saving Metacritic metadata cache: {e}")
         return False
 
 
@@ -1295,9 +1397,11 @@ class SyncProgress:
         'fetching': (0, 10),
         'checking_installed': (10, 20),
         'syncing': (20, 40),
-        'sgdb_lookup': (40, 55),
-        'checking_artwork': (55, 60),
-        'artwork': (60, 95),
+        'unifidb_lookup': (40, 47),
+        'metacritic_fetch': (47, 54),
+        'sgdb_lookup': (54, 60),
+        'checking_artwork': (60, 65),
+        'artwork': (65, 95),
         'proton_setup': (95, 98),
         'complete': (100, 100),
         'error': (100, 100),
@@ -1319,11 +1423,13 @@ class SyncProgress:
         self.artwork_synced = 0
         self.current_phase = "sync"  # "sync" or "artwork"
 
-        # Steam/RAWG metadata tracking
+        # Steam/unifiDB/Metacritic metadata tracking
         self.steam_total = 0
         self.steam_synced = 0
-        self.rawg_total = 0
-        self.rawg_synced = 0
+        self.unifidb_total = 0
+        self.unifidb_synced = 0
+        self.metacritic_total = 0
+        self.metacritic_synced = 0
 
         # Lock for thread-safe updates during parallel downloads
         self._lock = asyncio.Lock()
@@ -1356,32 +1462,60 @@ class SyncProgress:
             }
             return self.steam_synced
 
-    async def increment_rawg(self, game_title: str) -> int:
-        """Thread-safe RAWG metadata counter increment"""
+    async def increment_unifidb(self, game_title: str) -> int:
+        """Thread-safe unifiDB metadata counter increment"""
         async with self._lock:
-            self.rawg_synced += 1
+            self.unifidb_synced += 1
             self.current_game = {
-                "label": "sync.fetchingEnhancedMetadata",
+                "label": "sync.lookingUpUnifiDB",
                 "values": {
-                    "synced": self.rawg_synced,
-                    "total": self.rawg_total,
+                    "synced": self.unifidb_synced,
+                    "total": self.unifidb_total,
                     "game_title": game_title
                 }
             }
-            return self.rawg_synced
+            return self.unifidb_synced
+
+    async def increment_metacritic(self, game_title: str) -> int:
+        """Thread-safe Metacritic metadata counter increment"""
+        async with self._lock:
+            self.metacritic_synced += 1
+            self.current_game = {
+                "label": "sync.fetchingMetacriticData",
+                "values": {
+                    "synced": self.metacritic_synced,
+                    "total": self.metacritic_total,
+                    "game_title": game_title
+                }
+            }
+            return self.metacritic_synced
 
     def _calculate_progress(self) -> int:
-        """Calculate progress based on current phase and its percentage allocation."""
+        """Calculate progress based on current phase and its percentage allocation.
+        
+        Each phase uses its own counters for smooth sub-progress within the phase range.
+        """
         phase_range = self.PHASE_RANGES.get(self.status, (0, 0))
         start_pct, end_pct = phase_range
         
-        # For artwork phase, use artwork counters for sub-progress within the phase range
+        # Calculate sub-progress for phases with counters
         if self.status == 'artwork' and self.artwork_total > 0:
             sub_progress = self.artwork_synced / self.artwork_total
             return int(start_pct + (end_pct - start_pct) * sub_progress)
         
-        # For other phases, return the start of the phase range
-        # (phases transition quickly, so showing phase start is sufficient)
+        if self.status == 'unifidb_lookup' and self.unifidb_total > 0:
+            sub_progress = self.unifidb_synced / self.unifidb_total
+            return int(start_pct + (end_pct - start_pct) * sub_progress)
+        
+        if self.status == 'metacritic_fetch' and self.metacritic_total > 0:
+            sub_progress = self.metacritic_synced / self.metacritic_total
+            return int(start_pct + (end_pct - start_pct) * sub_progress)
+        
+        if self.status == 'syncing' and self.steam_total > 0:
+            sub_progress = self.steam_synced / self.steam_total
+            return int(start_pct + (end_pct - start_pct) * sub_progress)
+        
+        # For phases without counters, return the start of the phase range
         return start_pct
 
     def to_dict(self) -> Dict[str, Any]:
@@ -1397,11 +1531,13 @@ class SyncProgress:
             'artwork_total': self.artwork_total,
             'artwork_synced': self.artwork_synced,
             'current_phase': self.current_phase,
-            # Steam/RAWG fields
+            # Steam/unifiDB/Metacritic fields
             'steam_total': self.steam_total,
             'steam_synced': self.steam_synced,
-            'rawg_total': self.rawg_total,
-            'rawg_synced': self.rawg_synced
+            'unifidb_total': self.unifidb_total,
+            'unifidb_synced': self.unifidb_synced,
+            'metacritic_total': self.metacritic_total,
+            'metacritic_synced': self.metacritic_synced
         }
 
 
@@ -3700,7 +3836,12 @@ class Plugin:
     # Frontend-callable methods
 
     async def has_artwork(self, app_id: int) -> bool:
-        """Check if artwork files exist for this app_id"""
+        """Check if required artwork files exist for this app_id.
+        
+        Returns True if grid, hero, and logo exist. Icon is optional since
+        not all games have icons on SteamGridDB, and missing icon shouldn't
+        mark the entire game as needing artwork re-download.
+        """
         if not self.steamgriddb or not self.steamgriddb.grid_path:
             return False
 
@@ -3709,33 +3850,34 @@ class Plugin:
         # Example: -1257913040 (signed) -> 3037054256 (unsigned)
         unsigned_id = app_id if app_id >= 0 else app_id + 2**32
 
-        # Check for any of the 4 artwork types
+        # Check for 3 REQUIRED artwork types (icon is optional bonus)
         grid_path = Path(self.steamgriddb.grid_path)
-        artwork_files = [
+        required_files = [
             grid_path / f"{unsigned_id}p.jpg",     # Vertical grid (460x215)
             grid_path / f"{unsigned_id}_hero.jpg", # Hero image (1920x620)
             grid_path / f"{unsigned_id}_logo.png", # Logo
-            grid_path / f"{unsigned_id}_icon.jpg"  # Icon
         ]
-        return any(f.exists() for f in artwork_files)
+        # Return True if all REQUIRED files exist (icon is bonus)
+        return all(f.exists() for f in required_files)
 
     async def get_missing_artwork_types(self, app_id: int) -> set:
         """Check which specific artwork types are missing for this app_id
 
         Returns:
-            set: Set of missing artwork types (e.g., {'grid', 'hero', 'logo', 'icon'})
+            set: Set of missing artwork types (e.g., {'grid', 'hero', 'logo'})
+            Icon is excluded from this check since it's optional.
         """
         if not self.steamgriddb or not self.steamgriddb.grid_path:
-            return {'grid', 'hero', 'logo', 'icon'}
+            return {'grid', 'hero', 'logo'}
 
         unsigned_id = app_id if app_id >= 0 else app_id + 2**32
         grid_path = Path(self.steamgriddb.grid_path)
 
+        # Only check required types (icon is optional)
         artwork_checks = {
             'grid': grid_path / f"{unsigned_id}p.jpg",
             'hero': grid_path / f"{unsigned_id}_hero.jpg",
             'logo': grid_path / f"{unsigned_id}_logo.png",
-            'icon': grid_path / f"{unsigned_id}_icon.jpg"
         }
 
         return {art_type for art_type, path in artwork_checks.items() if not path.exists()}
@@ -3876,10 +4018,9 @@ class Plugin:
                 logger.debug(f"  Total Unifideck games in all libraries: {len(all_games)} (these are from store APIs)")
                 logger.debug(f"  Note: Displayed game count may differ if some games fail shortcut registration or have invalid launch options")
 
-                # Force sync: overwrite metadata caches
-                save_steam_real_appid_cache({})
-                save_steam_metadata_cache({})
-                save_rawg_metadata_cache({})
+                # NOTE: We no longer clear caches at the start of sync.
+                # Caches are only overwritten after successful fetch to prevent data loss.
+                # Old caches are backed up before overwriting (see save_*_cache functions).
 
                 # Queue games for background compat fetching (ProtonDB/Deck Verified)
                 logger.info("Sync: Queueing games for compatibility lookup...")
@@ -3970,9 +4111,8 @@ class Plugin:
                 for game in all_games:
                      game.app_id = self.shortcuts_manager.generate_app_id(game.title, launcher_script)
 
-                # Resolve Steam presence via Steam Store API (fallback to RAWG)
-                # CHANGE: Always fetch for ALL Unifideck games (not just missing cache)
-                # This ensures reliable fallback data and complete metadata coverage
+                # Resolve Steam presence via Steam Store API
+                # Fetch for ALL Unifideck games to ensure complete metadata coverage
                 if all_games:
                     real_steam_cache = load_steam_real_appid_cache()
                     steam_metadata_cache = load_steam_metadata_cache()
@@ -3990,16 +4130,24 @@ class Plugin:
                     async def resolve_steam_for_game(game, semaphore):
                         async with semaphore:
                             try:
-                                result = await self.resolve_steam_presence(game.title)
+                                # Add timeout to prevent hanging
+                                result = await asyncio.wait_for(
+                                    self.resolve_steam_presence(game.title),
+                                    timeout=15.0
+                                )
                                 steam_app_id = result.get('steam_appid', 0)
                                 metadata = result.get('metadata', {})
                                 if steam_app_id:
                                     real_steam_cache[game.app_id] = steam_app_id
                                     if metadata:
                                         steam_metadata_cache[steam_app_id] = metadata
-                                await self.sync_progress.increment_steam(game.title)
+                            except asyncio.TimeoutError:
+                                logger.warning(f"[SteamPresence] Timeout for {game.title}")
                             except Exception as e:
                                 logger.debug(f"[SteamPresence] Error for {game.title}: {e}")
+                            finally:
+                                # Always increment progress, even on error
+                                await self.sync_progress.increment_steam(game.title)
 
                     if games_needing_steam:
                         logger.info(f"Sync: Pre-fetching Steam metadata for {len(games_needing_steam)} games (ALL Unifideck games)")
@@ -4014,47 +4162,132 @@ class Plugin:
                         save_steam_metadata_cache(steam_metadata_cache)
                         logger.info(f"Sync: Cached Steam metadata for {len(steam_metadata_cache)} games")
 
-                # === RAWG METADATA PRE-FETCH ===
-                # CHANGE: Always fetch for ALL Unifideck games (not just missing cache)
-                # This ensures reliable fallback data and complete metadata coverage for all games
+                # === unifiDB METADATA FETCH (CDN) ===
+                # Fetch IGDB-sourced game metadata from unifiDB via jsDelivr CDN
                 if all_games:
-                    rawg_cache = load_rawg_metadata_cache()
-                    # Fetch for ALL Unifideck games, regardless of cache status
-                    games_needing_rawg = [g for g in all_games if g.title]
+                    logger.info(f"[SYNC PHASE] Starting unifiDB metadata fetch phase")
+                    unifidb_cache = load_unifidb_metadata_cache()
+                    games_needing_unifidb = [g for g in all_games if g.title]
 
-                    if games_needing_rawg:
-                        logger.info(f"Sync: Pre-fetching RAWG metadata for {len(games_needing_rawg)} games (ALL Unifideck games)")
-                        self.sync_progress.rawg_total = len(games_needing_rawg)
-                        self.sync_progress.rawg_synced = 0
+                    if games_needing_unifidb:
+                        logger.info(f"Sync: Fetching unifiDB metadata for {len(games_needing_unifidb)} games via CDN")
+                        self.sync_progress.status = "unifidb_lookup"
+                        self.sync_progress.unifidb_total = len(games_needing_unifidb)
+                        self.sync_progress.unifidb_synced = 0
                         self.sync_progress.current_game = {
-                            "label": "sync.fetchingEnhancedMetadata",
-                            "values": {"count": len(games_needing_rawg)}
+                            "label": "sync.lookingUpUnifiDB",
+                            "values": {}
                         }
 
-                        async def prefetch_rawg_for_game(game, semaphore):
+                        # Import unifiDB CDN fetcher
+                        try:
+                            from backend.metadata.unifidb import fetch_unifidb_metadata
+                        except ImportError as e:
+                            logger.error(f"Failed to import unifiDB module: {e}")
+                            fetch_unifidb_metadata = None
+
+                        async def fetch_unifidb_for_game(game, semaphore):
                             async with semaphore:
                                 try:
-                                    rawg_data = await self.fetch_rawg_metadata(game.title)
-                                    if rawg_data:
-                                        return (game.title.lower(), rawg_data)
+                                    if fetch_unifidb_metadata is None:
+                                        await self.sync_progress.increment_unifidb(game.title)
+                                        return None
+
+                                    # Fetch from CDN
+                                    cache_data = await fetch_unifidb_metadata(game.title, timeout=10.0)
+                                    await self.sync_progress.increment_unifidb(game.title)
+
+                                    if cache_data:
+                                        logger.debug(f"[unifiDB CDN] Found metadata for {game.title}")
+                                        return (game.title.lower(), cache_data)
+                                    else:
+                                        logger.debug(f"[unifiDB CDN] No match found for {game.title}")
                                 except Exception as e:
-                                    logger.debug(f"[RAWG Prefetch] Error for {game.title}: {e}")
-                                finally:
-                                    await self.sync_progress.increment_rawg(game.title)
+                                    logger.warning(f"[unifiDB CDN] Error for {game.title}: {e}")
+                                    await self.sync_progress.increment_unifidb(game.title)
                                 return None
 
-                        semaphore = asyncio.Semaphore(self.RAWG_MAX_CONCURRENCY)
-                        tasks = [prefetch_rawg_for_game(g, semaphore) for g in games_needing_rawg]
+                        # Fetch unifiDB metadata via CDN (moderate concurrency to avoid rate limits)
+                        semaphore = asyncio.Semaphore(5)
+                        tasks = [fetch_unifidb_for_game(g, semaphore) for g in games_needing_unifidb]
                         results = await asyncio.gather(*tasks, return_exceptions=True)
 
+                        # Build cache from results
+                        new_cache_entries = {}
                         for result in results:
                             if isinstance(result, tuple) and result is not None:
-                                rawg_cache[result[0]] = result[1]
+                                new_cache_entries[result[0]] = result[1]
 
-                        save_rawg_metadata_cache(rawg_cache)
-                        logger.info(f"Sync: Cached RAWG metadata for {sum(1 for r in results if isinstance(r, tuple) and r)} games")
+                        if new_cache_entries:
+                            logger.info(f"Sync: Fetched unifiDB metadata for {len(new_cache_entries)}/{len(games_needing_unifidb)} games via CDN")
+                            unifidb_cache.update(new_cache_entries)
+                            save_unifidb_metadata_cache(unifidb_cache)
+                        else:
+                            logger.warning(f"Sync: unifiDB CDN fetch returned no valid data for {len(games_needing_unifidb)} games")
+                    else:
+                        logger.info(f"Sync: No games need unifiDB lookup")
+
+                # === METACRITIC METADATA FETCH ===
+                # Fetch Metacritic scores/data from backend API (sequential with rate limiting)
+                if all_games:
+                    logger.info(f"[SYNC PHASE] Starting Metacritic metadata fetch phase")
+                    metacritic_cache = load_metacritic_metadata_cache()
+                    games_needing_metacritic = [g for g in all_games if g.title]
+
+                    if games_needing_metacritic:
+                        logger.info(f"Sync: Fetching Metacritic metadata for {len(games_needing_metacritic)} games")
+                        self.sync_progress.status = "metacritic_fetch"
+                        self.sync_progress.metacritic_total = len(games_needing_metacritic)
+                        self.sync_progress.metacritic_synced = 0
+                        self.sync_progress.current_game = {
+                            "label": "sync.fetchingMetacriticData",
+                            "values": {}
+                        }
+
+                        # Import Metacritic scraper
+                        try:
+                            from backend.metadata.metacritic import fetch_metacritic_metadata
+                        except ImportError as e:
+                            logger.error(f"Failed to import Metacritic module: {e}")
+                            fetch_metacritic_metadata = None
+
+                        async def fetch_metacritic_for_game(game, index, total):
+                            try:
+                                if fetch_metacritic_metadata is None:
+                                    await self.sync_progress.increment_metacritic(game.title)
+                                    return None
+
+                                # Sequential with 0.5s delay between requests
+                                metacritic_data = await fetch_metacritic_metadata(game.title, timeout=10.0, delay=0.5)
+                                await self.sync_progress.increment_metacritic(game.title)
+                                if metacritic_data:
+                                    logger.debug(f"[Metacritic] Got score for {game.title}: {metacritic_data.get('metascore')}")
+                                    return (game.title.lower(), metacritic_data)
+                                else:
+                                    logger.debug(f"[Metacritic] No data for {game.title}")
+                            except Exception as e:
+                                logger.warning(f"[Metacritic] Error for {game.title}: {e}")
+                                await self.sync_progress.increment_metacritic(game.title)
+                            return None
+
+                        # Fetch sequentially to respect rate limits
+                        new_cache_entries = {}
+                        for idx, game in enumerate(games_needing_metacritic):
+                            result = await fetch_metacritic_for_game(game, idx, len(games_needing_metacritic))
+                            if isinstance(result, tuple) and result is not None:
+                                new_cache_entries[result[0]] = result[1]
+
+                        if new_cache_entries:
+                            logger.info(f"Sync: Fetched Metacritic metadata for {len(new_cache_entries)}/{len(games_needing_metacritic)} games")
+                            metacritic_cache.update(new_cache_entries)
+                            save_metacritic_metadata_cache(metacritic_cache)
+                        else:
+                            logger.warning(f"Sync: Metacritic fetch returned no valid data for {len(games_needing_metacritic)} games")
+                    else:
+                        logger.info(f"Sync: No games need Metacritic lookup")
 
                 if fetch_artwork and self.steamgriddb:
+                    logger.info(f"[SYNC PHASE] Starting SGDB lookup and artwork phase")
                     # STEP 1: Identify games needing SGDB lookup (not in cache)
                     seen_app_ids = set()
                     games_needing_sgdb_lookup = []
@@ -4110,17 +4343,11 @@ class Plugin:
                     if steam_appid_cache:
                         save_steam_appid_cache(steam_appid_cache)
 
-                    # Cleanup orphaned artwork before sync (prevents duplicate files)
-                    if self.steamgriddb:
-                        self.sync_progress.current_game = {
-                            "label": "sync.cleaningOrphanedArtwork",
-                            "values": {}
-                        }
-                        cleanup_result = await self.cleanup_orphaned_artwork()
-                        if cleanup_result.get('removed_count', 0) > 0:
-                            logger.info(f"Cleaned up {cleanup_result['removed_count']} orphaned artwork files")
+                    # NOTE: Cleanup moved to AFTER shortcuts are written (line ~4480)
+                    # This prevents deleting newly downloaded artwork for games not yet in old shortcuts.vdf
 
                     # STEP 3: Check which games need artwork (quick local file check)
+                    logger.info(f"[SYNC PHASE] Checking artwork for {len(all_games)} games")
                     self.sync_progress.status = "checking_artwork"
                     self.sync_progress.current_game = {
                         "label": "sync.checkingExistingArtwork",
@@ -4131,6 +4358,8 @@ class Plugin:
                             if not await self.has_artwork(game.app_id):
                                 games_needing_art.append(game)
                             seen_app_ids.discard(game.app_id)  # Only check once per app_id
+
+                    logger.info(f"[SYNC PHASE] Artwork check complete: {len(games_needing_art)}/{len(all_games)} games need artwork")
 
                     if games_needing_art:
                         logger.info(f"Fetching artwork for {len(games_needing_art)} games...")
@@ -4198,8 +4427,11 @@ class Plugin:
 
                         artwork_count = len(games_needing_art) - len(still_incomplete)
                         logger.info(f"Artwork download complete: {artwork_count}/{len(games_needing_art)} games fully successful")
+                    else:
+                        logger.info(f"[SYNC PHASE] All games have complete artwork, skipping download")
 
                 # --- STEP 2: UPDATE GAME ICONS ---
+                logger.info(f"[SYNC PHASE] Updating game icons")
                 # Check for local icons and update game objects
                 if self.steamgriddb and self.steamgriddb.grid_path:
                     grid_path = Path(self.steamgriddb.grid_path)
@@ -4214,6 +4446,7 @@ class Plugin:
                              # shortcuts_manager.add_games_batch will use game.cover_image for the 'icon' field
                 
                 # --- STEP 3: WRITE SHORTCUTS ---
+                logger.info(f"[SYNC PHASE] Writing shortcuts for {len(all_games)} games")
                 self.sync_progress.status = "syncing"
                 self.sync_progress.current_game = {
                     "label": "sync.savingShortcuts",
@@ -4228,6 +4461,7 @@ class Plugin:
                      raise Exception(batch_result['error'])
 
                 # Complete
+                logger.info(f"[SYNC PHASE] Sync complete - Added: {added_count}, Artwork: {artwork_count}")
                 self.sync_progress.status = "complete"
                 self.sync_progress.synced_games = len(all_games)
                 self.sync_progress.current_game = {
@@ -4289,14 +4523,15 @@ class Plugin:
             try:
                 logger.info("Force syncing libraries (rewriting all shortcuts and compatibility data)...")
 
-                # CRITICAL: Delete all metadata caches to force full re-fetch
-                logger.info("Force Sync: Clearing all metadata caches...")
-                get_steam_real_appid_cache_path().unlink(missing_ok=True)
-                get_steam_metadata_cache_path().unlink(missing_ok=True)
-                get_rawg_metadata_cache_path().unlink(missing_ok=True)
-
-                # Update progress: Fetching games
-                self.sync_progress.status = "fetching"
+                # Backup existing caches before force sync (safety measure)
+                # Caches will only be overwritten after successful fetch
+                logger.info("Force Sync: Backing up existing metadata caches...")
+                _backup_cache_file(get_steam_real_appid_cache_path())
+                _backup_cache_file(get_steam_metadata_cache_path())
+                _backup_cache_file(get_unifidb_metadata_cache_path())
+                _backup_cache_file(get_metacritic_metadata_cache_path())
+                logger.info("Force Sync: Cache backups created (*.bak files)")
+                
                 self.sync_progress.current_game = {
                     "label": "force_sync.migratingOldInstallations",
                     "values": {}
@@ -4467,7 +4702,7 @@ class Plugin:
                 for game in all_games:
                      game.app_id = self.shortcuts_manager.generate_app_id(game.title, launcher_script)
 
-                # Resolve Steam presence via Steam Store API (fallback to RAWG)
+                # Resolve Steam presence via Steam Store API
                 if all_games:
                     real_steam_cache = load_steam_real_appid_cache()
                     steam_metadata_cache = load_steam_metadata_cache()
@@ -4484,16 +4719,24 @@ class Plugin:
                     async def resolve_steam_for_game(game, semaphore):
                         async with semaphore:
                             try:
-                                result = await self.resolve_steam_presence(game.title)
+                                # Add timeout to prevent hanging
+                                result = await asyncio.wait_for(
+                                    self.resolve_steam_presence(game.title),
+                                    timeout=15.0
+                                )
                                 steam_app_id = result.get('steam_appid', 0)
                                 metadata = result.get('metadata', {})
                                 if steam_app_id:
                                     real_steam_cache[game.app_id] = steam_app_id
                                     if metadata:
                                         steam_metadata_cache[steam_app_id] = metadata
-                                await self.sync_progress.increment_steam(game.title)
+                            except asyncio.TimeoutError:
+                                logger.warning(f"[SteamPresence] Timeout for {game.title}")
                             except Exception as e:
                                 logger.debug(f"[SteamPresence] Error for {game.title}: {e}")
+                            finally:
+                                # Always increment progress, even on error
+                                await self.sync_progress.increment_steam(game.title)
 
                     if games_needing_steam:
                         semaphore = asyncio.Semaphore(self.STEAM_STORE_MAX_CONCURRENCY)
@@ -4504,7 +4747,132 @@ class Plugin:
                     if steam_metadata_cache:
                         save_steam_metadata_cache(steam_metadata_cache)
 
+                # === unifiDB METADATA FETCH (Force Sync - CDN) ===
+                # Fetch IGDB-sourced game metadata from unifiDB via jsDelivr CDN
+                if all_games:
+                    logger.info(f"[FORCE SYNC PHASE] Starting unifiDB metadata fetch phase")
+                    unifidb_cache = load_unifidb_metadata_cache()
+                    games_needing_unifidb = [g for g in all_games if g.title]
+
+                    if games_needing_unifidb:
+                        logger.info(f"Force Sync: Fetching unifiDB metadata for {len(games_needing_unifidb)} games via CDN")
+                        self.sync_progress.status = "unifidb_lookup"
+                        self.sync_progress.unifidb_total = len(games_needing_unifidb)
+                        self.sync_progress.unifidb_synced = 0
+                        self.sync_progress.current_game = {
+                            "label": "sync.lookingUpUnifiDB",
+                            "values": {}
+                        }
+
+                        # Import unifiDB CDN fetcher
+                        try:
+                            from backend.metadata.unifidb import fetch_unifidb_metadata
+                        except ImportError as e:
+                            logger.error(f"Failed to import unifiDB module: {e}")
+                            fetch_unifidb_metadata = None
+
+                        async def fetch_unifidb_for_game(game, semaphore):
+                            async with semaphore:
+                                try:
+                                    if fetch_unifidb_metadata is None:
+                                        await self.sync_progress.increment_unifidb(game.title)
+                                        return None
+
+                                    # Fetch from CDN
+                                    cache_data = await fetch_unifidb_metadata(game.title, timeout=10.0)
+                                    await self.sync_progress.increment_unifidb(game.title)
+
+                                    if cache_data:
+                                        logger.debug(f"[unifiDB CDN] Found metadata for {game.title}")
+                                        return (game.title.lower(), cache_data)
+                                    else:
+                                        logger.debug(f"[unifiDB CDN] No match found for {game.title}")
+                                except Exception as e:
+                                    logger.warning(f"[unifiDB CDN] Error for {game.title}: {e}")
+                                    await self.sync_progress.increment_unifidb(game.title)
+                                return None
+
+                        # Fetch unifiDB metadata via CDN (moderate concurrency to avoid rate limits)
+                        semaphore = asyncio.Semaphore(5)
+                        tasks = [fetch_unifidb_for_game(g, semaphore) for g in games_needing_unifidb]
+                        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+                        # Build cache from results
+                        new_cache_entries = {}
+                        for result in results:
+                            if isinstance(result, tuple) and result is not None:
+                                new_cache_entries[result[0]] = result[1]
+
+                        if new_cache_entries:
+                            logger.info(f"Force Sync: Fetched unifiDB metadata for {len(new_cache_entries)}/{len(games_needing_unifidb)} games via CDN")
+                            unifidb_cache.update(new_cache_entries)
+                            save_unifidb_metadata_cache(unifidb_cache)
+                        else:
+                            logger.warning(f"Force Sync: unifiDB CDN fetch returned no valid data for {len(games_needing_unifidb)} games")
+                    else:
+                        logger.info(f"Force Sync: No games need unifiDB lookup")
+
+                # === METACRITIC METADATA FETCH (Force Sync) ===
+                # Fetch Metacritic scores/data from backend API (sequential with rate limiting)
+                if all_games:
+                    logger.info(f"[FORCE SYNC PHASE] Starting Metacritic metadata fetch phase")
+                    metacritic_cache = load_metacritic_metadata_cache()
+                    games_needing_metacritic = [g for g in all_games if g.title]
+
+                    if games_needing_metacritic:
+                        logger.info(f"Force Sync: Fetching Metacritic metadata for {len(games_needing_metacritic)} games")
+                        self.sync_progress.status = "metacritic_fetch"
+                        self.sync_progress.metacritic_total = len(games_needing_metacritic)
+                        self.sync_progress.metacritic_synced = 0
+                        self.sync_progress.current_game = {
+                            "label": "sync.fetchingMetacriticData",
+                            "values": {}
+                        }
+
+                        # Import Metacritic scraper
+                        try:
+                            from backend.metadata.metacritic import fetch_metacritic_metadata
+                        except ImportError as e:
+                            logger.error(f"Failed to import Metacritic module: {e}")
+                            fetch_metacritic_metadata = None
+
+                        async def fetch_metacritic_for_game(game, index, total):
+                            try:
+                                if fetch_metacritic_metadata is None:
+                                    await self.sync_progress.increment_metacritic(game.title)
+                                    return None
+
+                                # Sequential with 0.5s delay between requests
+                                metacritic_data = await fetch_metacritic_metadata(game.title, timeout=10.0, delay=0.5)
+                                await self.sync_progress.increment_metacritic(game.title)
+                                if metacritic_data:
+                                    logger.debug(f"[Metacritic] Got score for {game.title}: {metacritic_data.get('metascore')}")
+                                    return (game.title.lower(), metacritic_data)
+                                else:
+                                    logger.debug(f"[Metacritic] No data for {game.title}")
+                            except Exception as e:
+                                logger.warning(f"[Metacritic] Error for {game.title}: {e}")
+                                await self.sync_progress.increment_metacritic(game.title)
+                            return None
+
+                        # Fetch sequentially to respect rate limits
+                        new_cache_entries = {}
+                        for idx, game in enumerate(games_needing_metacritic):
+                            result = await fetch_metacritic_for_game(game, idx, len(games_needing_metacritic))
+                            if isinstance(result, tuple) and result is not None:
+                                new_cache_entries[result[0]] = result[1]
+
+                        if new_cache_entries:
+                            logger.info(f"Force Sync: Fetched Metacritic metadata for {len(new_cache_entries)}/{len(games_needing_metacritic)} games")
+                            metacritic_cache.update(new_cache_entries)
+                            save_metacritic_metadata_cache(metacritic_cache)
+                        else:
+                            logger.warning(f"Force Sync: Metacritic fetch returned no valid data for {len(games_needing_metacritic)} games")
+                    else:
+                        logger.info(f"Force Sync: No games need Metacritic lookup")
+
                 if self.steamgriddb:
+                    logger.info(f"[FORCE SYNC PHASE] Starting SGDB lookup and artwork phase")
                     # STEP 1: Identify games needing SGDB lookup (not in cache)
                     seen_app_ids = set()
                     games_needing_sgdb_lookup = []
@@ -4563,132 +4931,19 @@ class Plugin:
                     if steam_appid_cache:
                         save_steam_appid_cache(steam_appid_cache)
 
-                # === ENHANCED METADATA: RAWG fallback + Deck Compatibility ===
-                # Fetch metadata from RAWG for games missing data, and deck compat from Steam
-                self.sync_progress.current_game = {
-                    "label": "sync.fetchingEnhancedMetadata",
-                    "values": {"count": len(all_games)}
-                }
-                
-                # Reload metadata cache after appinfo update
-                existing_metadata = load_steam_metadata_cache()
-                rawg_cache = load_rawg_metadata_cache()
-                updated_count = 0
-
-                # Process in batches with limited concurrency
-                async def fetch_enhanced_metadata_for_game(game, semaphore):
-                    """Fetch RAWG + deck compat for a single game"""
-                    async with semaphore:
-                        try:
-                            # Get signed app_id for cache lookup
-                            app_id = game.app_id
-                            if app_id > 2**31:
-                                app_id_signed = app_id - 2**32
-                            else:
-                                app_id_signed = app_id
-
-                            # Get Steam App ID from mapping
-                            steam_app_id = steam_appid_cache.get(app_id_signed, 0)
-
-                            # Get existing metadata for this Steam app
-                            game_meta = existing_metadata.get(steam_app_id, {}) if steam_app_id else {}
-                            updated = False
-
-                            # Ensure core Steam fields exist for store page detection
-                            if steam_app_id > 0:
-                                if not game_meta.get('steam_appid'):
-                                    game_meta['steam_appid'] = steam_app_id
-                                    updated = True
-                                if not game_meta.get('name'):
-                                    game_meta['name'] = game.title
-                                    updated = True
-                                if not game_meta.get('type'):
-                                    game_meta['type'] = 'game'
-                                    updated = True
-
-                            # Check what's missing - field-level fallback
-                            needs_rawg = (
-                                not game_meta.get('short_description') or
-                                not game_meta.get('developers') or
-                                game_meta.get('metacritic') is None
-                            )
-                            needs_deck = steam_app_id > 0 and game_meta.get('deck_category', 0) == 0
-
-                            # Fetch RAWG data if needed (check RAWG cache first)
-                            rawg_cache_key = game.title.lower()
-                            if needs_rawg:
-                                rawg_data = rawg_cache.get(rawg_cache_key)
-                                if not rawg_data:
-                                    rawg_data = await self.fetch_rawg_metadata(game.title)
-                                    if rawg_data:
-                                        rawg_cache[rawg_cache_key] = rawg_data
-                                if rawg_data:
-                                    if not game_meta.get('short_description') and rawg_data.get('description'):
-                                        game_meta['short_description'] = rawg_data['description'][:500]
-                                        updated = True
-                                    if not game_meta.get('developers') and rawg_data.get('developers'):
-                                        game_meta['developers'] = rawg_data['developers']
-                                        updated = True
-                                    if not game_meta.get('publishers') and rawg_data.get('publishers'):
-                                        game_meta['publishers'] = rawg_data['publishers']
-                                        updated = True
-                                    if game_meta.get('metacritic') is None and rawg_data.get('metacritic'):
-                                        game_meta['metacritic'] = rawg_data['metacritic']
-                                        updated = True
-                                    if not game_meta.get('tags') and rawg_data.get('tags'):
-                                        game_meta['tags'] = rawg_data['tags'][:5]
-                                        updated = True
-                                    if not game_meta.get('genres') and rawg_data.get('genres'):
-                                        game_meta['genres'] = [{'description': g} for g in rawg_data['genres'][:4]]
-                                        updated = True
-                            
-                            # Fetch deck compat if needed
-                            if needs_deck:
-                                deck_info = await self.fetch_steam_deck_compatibility(steam_app_id)
-                                if deck_info.get('category', 0) > 0:
-                                    game_meta['deck_category'] = deck_info['category']
-                                    game_meta['deck_test_results'] = deck_info.get('testResults', [])
-                                    updated = True
-                            
-                            return (steam_app_id, game_meta, updated)
-                        except Exception as e:
-                            logger.debug(f"[EnhancedMeta] Error for {game.title}: {e}")
-                            return (None, None, False)
-                
-                # Run with limited concurrency (5 parallel for API rate limits)
-                semaphore = asyncio.Semaphore(5)
-                tasks = [fetch_enhanced_metadata_for_game(game, semaphore) for game in all_games]
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-                
-                # Update cache with new metadata
-                for result in results:
-                    if isinstance(result, tuple) and result[2]:  # updated=True
-                        steam_app_id, game_meta, _ = result
-                        if steam_app_id and game_meta:
-                            existing_metadata[steam_app_id] = game_meta
-                            updated_count += 1
-                
-                if updated_count > 0:
-                    save_steam_metadata_cache(existing_metadata)
-                    logger.info(f"Force Sync: Enhanced metadata for {updated_count} games (RAWG + deck compat)")
-
-                # Save RAWG cache (populated during batch fetch above)
-                if rawg_cache:
-                    save_rawg_metadata_cache(rawg_cache)
-
                     # Cleanup orphaned artwork before sync (prevents duplicate files)
-                    if self.steamgriddb:
-                        self.sync_progress.current_game = {
-                            "label": "sync.cleaningOrphanedArtwork",
-                            "values": {}
-                        }
-                        cleanup_result = await self.cleanup_orphaned_artwork()
-                        if cleanup_result.get('removed_count', 0) > 0:
-                            logger.info(f"Cleaned up {cleanup_result['removed_count']} orphaned artwork files")
+                    self.sync_progress.current_game = {
+                        "label": "sync.cleaningOrphanedArtwork",
+                        "values": {}
+                    }
+                    cleanup_result = await self.cleanup_orphaned_artwork()
+                    if cleanup_result.get('removed_count', 0) > 0:
+                        logger.info(f"Cleaned up {cleanup_result['removed_count']} orphaned artwork files")
 
-                    # STEP 3: Artwork handling based on user preference
+                    # ARTWORK: Download based on user preference
                     # If resync_artwork=True, re-download ALL artwork (overwrites manual changes)
                     # If resync_artwork=False, only download for games missing artwork
+                    logger.info(f"[FORCE SYNC PHASE] Checking artwork for {len(all_games)} games (resync_artwork={resync_artwork})")
                     self.sync_progress.status = "checking_artwork"
                     self.sync_progress.current_game = {
                         "label": "sync.checking_artwork" if not resync_artwork else "sync.queueRefresh",
@@ -4699,6 +4954,8 @@ class Plugin:
                             if resync_artwork or not await self.has_artwork(game.app_id):
                                 games_needing_art.append(game)
                             seen_app_ids.discard(game.app_id)  # Only add once per app_id
+
+                    logger.info(f"[FORCE SYNC PHASE] Artwork check complete: {len(games_needing_art)}/{len(all_games)} games need artwork")
 
                     if games_needing_art:
                         logger.info(f"Force Sync: Fetching artwork for {len(games_needing_art)} games...")
@@ -4767,7 +5024,125 @@ class Plugin:
                         artwork_count = len(games_needing_art) - len(still_incomplete)
                         logger.info(f"Artwork download complete: {artwork_count}/{len(games_needing_art)} games fully successful")
 
-                # --- STEP 2: UPDATE GAME ICONS ---
+                # === ENHANCED METADATA: unifiDB/Metacritic fallback + Deck Compatibility ===
+                # Fetch metadata from unifiDB/Metacritic for games missing data, and deck compat from Steam
+                self.sync_progress.current_game = {
+                    "label": "sync.fetchingEnhancedMetadata",
+                    "values": {"count": len(all_games)}
+                }
+                
+                # Reload metadata caches after earlier fetch phases
+                existing_metadata = load_steam_metadata_cache()
+                unifidb_cache = load_unifidb_metadata_cache()
+                metacritic_cache = load_metacritic_metadata_cache()
+                updated_count = 0
+
+                # Process in batches with limited concurrency
+                async def fetch_enhanced_metadata_for_game(game, semaphore):
+                    """Fetch deck compat + fill metadata gaps from unifiDB/Metacritic"""
+                    async with semaphore:
+                        try:
+                            # Get signed app_id for cache lookup
+                            app_id = game.app_id
+                            if app_id > 2**31:
+                                app_id_signed = app_id - 2**32
+                            else:
+                                app_id_signed = app_id
+
+                            # Get Steam App ID from mapping
+                            steam_app_id = steam_appid_cache.get(app_id_signed, 0)
+
+                            # Get existing metadata for this Steam app
+                            game_meta = existing_metadata.get(steam_app_id, {}) if steam_app_id else {}
+                            updated = False
+
+                            # Ensure core Steam fields exist for store page detection
+                            if steam_app_id > 0:
+                                if not game_meta.get('steam_appid'):
+                                    game_meta['steam_appid'] = steam_app_id
+                                    updated = True
+                                if not game_meta.get('name'):
+                                    game_meta['name'] = game.title
+                                    updated = True
+                                if not game_meta.get('type'):
+                                    game_meta['type'] = 'game'
+                                    updated = True
+
+                            # Check what's missing - field-level fallback
+                            needs_fallback = (
+                                not game_meta.get('short_description') or
+                                not game_meta.get('developers') or
+                                game_meta.get('metacritic') is None
+                            )
+                            needs_deck = steam_app_id > 0 and game_meta.get('deck_category', 0) == 0
+
+                            # Fetch from unifiDB/Metacritic if needed
+                            cache_key = game.title.lower()
+                            if needs_fallback:
+                                # Try unifiDB first
+                                unifidb_data = unifidb_cache.get(cache_key)
+                                if unifidb_data:
+                                    if not game_meta.get('short_description') and unifidb_data.get('description'):
+                                        game_meta['short_description'] = unifidb_data['description'][:500]
+                                        updated = True
+                                    if not game_meta.get('developers') and unifidb_data.get('developers'):
+                                        game_meta['developers'] = unifidb_data['developers']
+                                        updated = True
+                                    if not game_meta.get('publishers') and unifidb_data.get('publishers'):
+                                        game_meta['publishers'] = unifidb_data['publishers']
+                                        updated = True
+                                    if not game_meta.get('genres') and unifidb_data.get('genres'):
+                                        game_meta['genres'] = [{'description': g} for g in unifidb_data['genres'][:4]]
+                                        updated = True
+                                
+                                # Try Metacritic for score (always prefer Metacritic)
+                                metacritic_data = metacritic_cache.get(cache_key)
+                                if metacritic_data:
+                                    if game_meta.get('metacritic') is None and metacritic_data.get('metascore'):
+                                        game_meta['metacritic'] = metacritic_data['metascore']
+                                        updated = True
+                                    # Also fill other gaps from Metacritic
+                                    if not game_meta.get('short_description') and metacritic_data.get('description'):
+                                        game_meta['short_description'] = metacritic_data['description'][:500]
+                                        updated = True
+                                    if not game_meta.get('developers') and metacritic_data.get('developer'):
+                                        game_meta['developers'] = [metacritic_data['developer']]
+                                        updated = True
+                                    if not game_meta.get('publishers') and metacritic_data.get('publisher'):
+                                        game_meta['publishers'] = [metacritic_data['publisher']]
+                                        updated = True
+                            
+                            # Fetch deck compat if needed
+                            if needs_deck:
+                                deck_info = await self.fetch_steam_deck_compatibility(steam_app_id)
+                                if deck_info.get('category', 0) > 0:
+                                    game_meta['deck_category'] = deck_info['category']
+                                    game_meta['deck_test_results'] = deck_info.get('testResults', [])
+                                    updated = True
+                            
+                            return (steam_app_id, game_meta, updated)
+                        except Exception as e:
+                            logger.debug(f"[EnhancedMeta] Error for {game.title}: {e}")
+                            return (None, None, False)
+                
+                # Run with limited concurrency (5 parallel for API rate limits)
+                semaphore = asyncio.Semaphore(5)
+                tasks = [fetch_enhanced_metadata_for_game(game, semaphore) for game in all_games]
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                
+                # Update cache with new metadata
+                for result in results:
+                    if isinstance(result, tuple) and result[2]:  # updated=True
+                        steam_app_id, game_meta, _ = result
+                        if steam_app_id and game_meta:
+                            existing_metadata[steam_app_id] = game_meta
+                            updated_count += 1
+                
+                if updated_count > 0:
+                    save_steam_metadata_cache(existing_metadata)
+                    logger.info(f"Force Sync: Enhanced metadata for {updated_count} games (unifiDB + Metacritic + deck compat)")
+
+                # --- UPDATE GAME ICONS ---
                 # Check for local icons and update game objects
                 if self.steamgriddb and self.steamgriddb.grid_path:
                     grid_path = Path(self.steamgriddb.grid_path)
@@ -4818,6 +5193,7 @@ class Plugin:
                 logger.info(f"Cleared Proton compatibility for {proton_cleared} games (launcher manages Proton via umu-run)")
 
                 # Complete
+                logger.info(f"[FORCE SYNC PHASE] Force sync complete - Updated: {updated_count}, Artwork: {artwork_count}")
                 self.sync_progress.status = "complete"
                 self.sync_progress.synced_games = len(all_games)
                 self.sync_progress.current_game = {
@@ -5256,110 +5632,10 @@ class Plugin:
         '#SteamOS_TestResult_GameStartupFunctional': 'This game runs successfully on SteamOS',
     }
 
-    # RAWG.io API key for fallback metadata
-    RAWG_API_KEY = 'ba1f3b6abe404ba993d6ac12479f2977'
-
     # Steam Store API settings
     STEAM_STORE_SEARCH_URL = "https://store.steampowered.com/api/storesearch"
     STEAM_APPDETAILS_URL = "https://store.steampowered.com/api/appdetails"
     STEAM_STORE_MAX_CONCURRENCY = 5
-    RAWG_MAX_CONCURRENCY = 5
-
-    async def fetch_rawg_metadata(self, game_name: str) -> Dict[str, Any]:
-        """Fetch game metadata from RAWG.io as fallback.
-        
-        Args:
-            game_name: Name of the game to search for
-            
-        Returns:
-            Dict with: description, genres, tags, developers, publishers, metacritic, website
-        """
-        logger.info(f"[RAWG API] Fetching metadata for: {game_name}")
-        try:
-            import aiohttp
-            import urllib.parse
-            
-            # Search for game by name
-            search_url = f"https://api.rawg.io/api/games?key={self.RAWG_API_KEY}&search={urllib.parse.quote(game_name)}&page_size=1"
-            
-            connector = aiohttp.TCPConnector(ssl=False)
-            async with aiohttp.ClientSession(connector=connector) as session:
-                for attempt in range(2):
-                    async with session.get(search_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
-                        if response.status == 429 and attempt == 0:
-                            await asyncio.sleep(2)
-                            continue
-                        if response.status != 200:
-                            logger.debug(f"[RAWG] Search failed with status {response.status}")
-                            return {}
-                        
-                        search_data = await response.json()
-                        break
-                    
-            results = search_data.get('results', [])
-            if not results:
-                logger.debug(f"[RAWG] No results for '{game_name}'")
-                return {}
-            
-            game = results[0]
-            game_id = game.get('id')
-            
-            # Get detailed game info
-            detail_url = f"https://api.rawg.io/api/games/{game_id}?key={self.RAWG_API_KEY}"
-            
-            connector2 = aiohttp.TCPConnector(ssl=False)
-            async with aiohttp.ClientSession(connector=connector2) as session:
-                detail = None
-                for attempt in range(2):
-                    async with session.get(detail_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
-                        if response.status == 429 and attempt == 0:
-                            await asyncio.sleep(2)
-                            continue
-                        if response.status != 200:
-                            # Return basic info from search if detail fails
-                            return {
-                                'name': game.get('name', ''),
-                                'description': '',
-                                'genres': [g.get('name', '') for g in game.get('genres', [])],
-                                'tags': [t.get('name', '') for t in game.get('tags', [])[:10]],
-                                'metacritic': game.get('metacritic'),
-                                'released': game.get('released', ''),
-                                'store_urls': {},
-                            }
-                        
-                        detail = await response.json()
-                        break
-
-                if detail is None:
-                    return {}
-            
-            store_urls = {}
-            for entry in detail.get('stores', []) if isinstance(detail.get('stores'), list) else []:
-                store = entry.get('store', {}) if isinstance(entry, dict) else {}
-                slug = store.get('slug')
-                url = entry.get('url_en') or entry.get('url')
-                if slug and url:
-                    store_urls[slug] = url
-
-            result = {
-                'name': detail.get('name', ''),
-                'description': detail.get('description_raw', ''),
-                'genres': [g.get('name', '') for g in detail.get('genres', [])],
-                'tags': [t.get('name', '') for t in detail.get('tags', [])[:10]],
-                'developers': [d.get('name', '') for d in detail.get('developers', [])],
-                'publishers': [p.get('name', '') for p in detail.get('publishers', [])],
-                'metacritic': detail.get('metacritic'),
-                'website': detail.get('website', ''),
-                'released': detail.get('released', ''),
-                'store_urls': store_urls,
-            }
-            
-            logger.info(f"[RAWG API] Metadata fetched for '{game_name}'")
-            return result
-            
-        except Exception as e:
-            logger.warning(f"[RAWG] Failed to fetch metadata for '{game_name}': {e}")
-            return {}
 
     async def fetch_steam_store_search(self, game_name: str) -> List[Dict[str, Any]]:
         """Search Steam Store for a game by name."""
@@ -5459,7 +5735,7 @@ class Plugin:
         return 0
 
     async def resolve_steam_presence(self, game_title: str) -> Dict[str, Any]:
-        """Resolve Steam presence using Steam Store API, fallback to RAWG.
+        """Resolve Steam presence using Steam Store API only.
 
         Returns:
             Dict with keys: steam_appid, metadata
@@ -5502,35 +5778,8 @@ class Plugin:
                         }
                     }
 
-        # RAWG fallback
-        rawg_cache = load_rawg_metadata_cache()
-        rawg_key = game_title.lower()
-        rawg_data = rawg_cache.get(rawg_key)
-        if not rawg_data:
-            rawg_data = await self.fetch_rawg_metadata(game_title)
-            if rawg_data:
-                rawg_cache[rawg_key] = rawg_data
-                save_rawg_metadata_cache(rawg_cache)
-
-        if rawg_data:
-            steam_app_id = self._extract_steam_appid_from_rawg(rawg_data)
-            if steam_app_id:
-                details = await self.fetch_steam_appdetails(steam_app_id)
-                if details:
-                    metadata = self._convert_steam_store_data_to_metadata(steam_app_id, details)
-                    return {
-                        'steam_appid': steam_app_id,
-                        'metadata': metadata
-                    }
-                return {
-                    'steam_appid': steam_app_id,
-                    'metadata': {
-                        'type': 'game',
-                        'name': rawg_data.get('name', '') or game_title,
-                        'steam_appid': steam_app_id
-                    }
-                }
-
+        # No Steam presence found - metadata will come from unifiDB/Metacritic caches
+        logger.debug(f"[Steam Presence] No Steam match found for '{game_title}'")
         return {'steam_appid': 0, 'metadata': {}}
 
     async def fetch_steam_deck_compatibility(self, steam_app_id: int) -> Dict[str, Any]:
@@ -5734,10 +5983,10 @@ class Plugin:
             publisher = ''
             description = ''
             release_date = ''
-            rawg_genres = []
+            unifidb_genres = []
+            metacritic = None
 
             # First try Steam metadata for basic info (developer, publisher, description, release date)
-            # NOTE: We do NOT use Steam for Metacritic or genres
             if steam_metadata:
                 developers = steam_metadata.get('developers', [])
                 publishers = steam_metadata.get('publishers', [])
@@ -5756,52 +6005,67 @@ class Plugin:
                 if release_date:
                     sources['release_date'] = 'steam_cache'
 
-            # Check RAWG cache first, then fetch if missing
-            rawg_cache = load_rawg_metadata_cache()
-            rawg_cache_key = title.lower()
-            rawg_data = rawg_cache.get(rawg_cache_key)
-            rawg_source = None
+            # Check Metacritic cache FIRST for scores (primary source)
+            metacritic_cache = load_metacritic_metadata_cache()
+            metacritic_cache_key = title.lower()
+            metacritic_data = metacritic_cache.get(metacritic_cache_key)
 
-            if rawg_data:
-                rawg_source = 'rawg_cache'
-                logger.info(f"[MetadataDisplay] RAWG source=cache for '{title}' (key='{rawg_cache_key}')")
+            if metacritic_data:
+                metacritic = metacritic_data.get('metascore')
+                if metacritic:
+                    sources['metacritic'] = 'metacritic_cache'
+                    logger.debug(f"[MetadataDisplay] Metacritic score for '{title}': {metacritic}")
             else:
-                logger.info(f"[MetadataDisplay] RAWG cache miss for '{title}' (key='{rawg_cache_key}', cache_size={len(rawg_cache)})")
-                rawg_data = await self.fetch_rawg_metadata(title)
-                if rawg_data:
-                    rawg_source = 'rawg_api'
-                    rawg_cache[rawg_cache_key] = rawg_data
-                    save_rawg_metadata_cache(rawg_cache)
-                    logger.info(f"[MetadataDisplay] RAWG source=api_fetch for '{title}' - saved to cache")
-                else:
-                    logger.info(f"[MetadataDisplay] RAWG returned no data for '{title}'")
+                logger.debug(f"[MetadataDisplay] No Metacritic cache for '{title}'")
 
-            metacritic = None  # Always from RAWG, never from Steam
+            # Check unifiDB cache for additional metadata
+            unifidb_cache = load_unifidb_metadata_cache()
+            unifidb_cache_key = title.lower()
+            unifidb_data = unifidb_cache.get(unifidb_cache_key)
 
-            if rawg_data:
+            if unifidb_data:
+                logger.debug(f"[MetadataDisplay] unifiDB source=cache for '{title}'")
                 if not description:
-                    description = rawg_data.get('description', '')
+                    description = unifidb_data.get('description', '')
                     if description:
-                        sources['description'] = rawg_source
+                        sources['description'] = 'unifidb_cache'
                 if not developer:
-                    developer = ', '.join(rawg_data.get('developers', []))
+                    developer = ', '.join(unifidb_data.get('developers', []))
                     if developer:
-                        sources['developer'] = rawg_source
+                        sources['developer'] = 'unifidb_cache'
                 if not publisher:
-                    publisher = ', '.join(rawg_data.get('publishers', []))
+                    publisher = ', '.join(unifidb_data.get('publishers', []))
                     if publisher:
-                        sources['publisher'] = rawg_source
+                        sources['publisher'] = 'unifidb_cache'
                 if not release_date:
-                    release_date = normalize_release_date(rawg_data.get('released', ''))
+                    release_date = normalize_release_date(unifidb_data.get('released', ''))
                     if release_date:
-                        sources['release_date'] = rawg_source
-                metacritic = rawg_data.get('metacritic')
-                sources['metacritic'] = rawg_source
-                rawg_genres = rawg_data.get('genres', [])[:4]
-                if rawg_genres:
-                    sources['genres'] = rawg_source
+                        sources['release_date'] = 'unifidb_cache'
+                unifidb_genres = unifidb_data.get('genres', [])[:4]
+                if unifidb_genres:
+                    sources['genres'] = 'unifidb_cache'
 
-            genres = rawg_genres
+                # If no Metacritic score yet, try unifiDB (fallback only)
+                if not metacritic:
+                    metacritic = unifidb_data.get('aggregated_rating')
+                    if metacritic:
+                        sources['metacritic'] = 'unifidb_cache'
+                        logger.debug(f"[MetadataDisplay] unifiDB rating for '{title}': {metacritic}")
+            else:
+                logger.debug(f"[MetadataDisplay] No unifiDB cache for '{title}'")
+
+            # Fall back to Metacritic for additional fields if unifiDB missing
+            if metacritic_data and not unifidb_genres:
+                genres_from_metacritic = metacritic_data.get('genres', [])[:4]
+                if genres_from_metacritic:
+                    unifidb_genres = genres_from_metacritic
+                    sources['genres'] = 'metacritic_cache'
+                if not description:
+                    description = metacritic_data.get('description', '')
+                    if description:
+                        sources['description'] = 'metacritic_cache'
+
+            genres = unifidb_genres
 
             # Fetch Steam Deck compatibility - use cached if available
             cached_deck_category = steam_metadata.get('deck_category', 0) if steam_metadata else 0
@@ -6974,7 +7238,9 @@ class Plugin:
                     os.path.join(get_steam_appid_cache_path()), # SteamGridDB AppID Cache
                     os.path.join(get_steam_real_appid_cache_path()), # Real Steam AppID Cache
                     os.path.join(get_steam_metadata_cache_path()), # Steam metadata cache
-                    os.path.join(get_rawg_metadata_cache_path()) # RAWG metadata cache
+                    os.path.join(get_rawg_metadata_cache_path()), # RAWG metadata cache
+                    os.path.join(get_unifidb_metadata_cache_path()), # unifiDB metadata cache
+                    os.path.join(get_metacritic_metadata_cache_path()) # Metacritic metadata cache
                 ]
                 
                 # Only delete games.map and registry if we're also deleting game files (destructive mode)

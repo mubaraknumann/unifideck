@@ -2118,3 +2118,39 @@ class GOGAPIClient:
             logger.error(f"[GOG] DLC installation failed with code {proc.returncode}")
             return {'success': False, 'error': f'Installation failed (code {proc.returncode})'}
 
+    async def get_game_store_url(self, gog_id: str) -> Optional[str]:
+        """Fetch GOG store page URL for a game.
+        
+        Args:
+            gog_id: GOG product ID
+            
+        Returns:
+            Store URL or None if not found
+        """
+        try:
+            import aiohttp
+            import ssl
+            
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            
+            timeout = aiohttp.ClientTimeout(total=10.0)
+            connector = aiohttp.TCPConnector(ssl=ssl_context)
+            
+            async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
+                url = f"https://api.gog.com/products/{gog_id}?expand=description"
+                async with session.get(url) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        product_card = data.get('links', {}).get('product_card')
+                        if product_card:
+                            logger.debug(f"[GOG] Found store URL for {gog_id}: {product_card}")
+                            return product_card
+                    else:
+                        logger.debug(f"[GOG] API returned {resp.status} for product {gog_id}")
+        except Exception as e:
+            logger.warning(f"[GOG] Error fetching store URL for {gog_id}: {e}")
+        
+        return None
+

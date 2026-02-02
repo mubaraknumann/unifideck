@@ -323,66 +323,105 @@ class SteamGridDBClient:
         """Fetch GOG artwork URLs from Galaxy GamesDB API (includes vertical_cover)"""
         result = {'urls': {}}
         
+        logger.info(f"[GOG Artwork] Fetching metadata for product ID: {gog_product_id}")
+        
         try:
             connector = aiohttp.TCPConnector(ssl=False)
             async with aiohttp.ClientSession(connector=connector) as session:
                 # Use Galaxy GamesDB API which provides vertical_cover (box art)
                 gamesdb_url = f"https://gamesdb.gog.com/platforms/gog/external_releases/{gog_product_id}"
                 
+                logger.info(f"[GOG Artwork] GamesDB URL: {gamesdb_url}")
+                
                 async with session.get(gamesdb_url) as response:
+                    logger.info(f"[GOG Artwork] GamesDB response status: {response.status}")
+                    
                     if response.status == 200:
                         data = await response.json()
                         game = data.get('game', {})
+                        
+                        if not game:
+                            logger.warning(f"[GOG Artwork] GamesDB returned empty game object for {gog_product_id} - product may not exist in database")
+                        else:
+                            logger.info(f"[GOG Artwork] GamesDB game data keys: {list(game.keys())}")
                         
                         # Grid: Vertical cover (box art) - THIS IS WHAT WE NEED!
                         vertical_cover = game.get('vertical_cover', {})
                         if vertical_cover.get('url_format'):
                             url = vertical_cover['url_format'].replace('{formatter}', '').replace('{ext}', 'jpg')
                             result['urls']['grid'] = url
+                            logger.info(f"[GOG Artwork]   ✓ Found grid: {url[:80]}...")
                         
                         # Hero: Background image
                         background = game.get('background', {})
                         if background.get('url_format'):
                             url = background['url_format'].replace('{formatter}', '').replace('{ext}', 'jpg')
                             result['urls']['hero'] = url
+                            logger.info(f"[GOG Artwork]   ✓ Found hero: {url[:80]}...")
                         
                         # Logo
                         logo = game.get('logo', {})
                         if logo.get('url_format'):
                             url = logo['url_format'].replace('{formatter}', '').replace('{ext}', 'png')
                             result['urls']['logo'] = url
+                            logger.info(f"[GOG Artwork]   ✓ Found logo: {url[:80]}...")
                         
                         # Icon (square_icon preferred, fallback to icon)
                         icon = game.get('square_icon', {}) or game.get('icon', {})
                         if icon.get('url_format'):
                             url = icon['url_format'].replace('{formatter}', '').replace('{ext}', 'jpg')
                             result['urls']['icon'] = url
+                            logger.info(f"[GOG Artwork]   ✓ Found icon: {url[:80]}...")
                     
-                    # Fallback to basic products API if GamesDB fails
+                    elif response.status == 404:
+                        logger.warning(f"[GOG Artwork] Product {gog_product_id} not found in GamesDB (404) - falling back to GOG API")
+                    elif response.status >= 400:
+                        logger.warning(f"[GOG Artwork] GamesDB error {response.status} for {gog_product_id} - falling back to GOG API")
+                    
+                    # Fallback to basic products API if GamesDB fails or returns no artwork
                     if not result['urls']:
+                        logger.info(f"[GOG Artwork] No URLs from GamesDB, trying fallback GOG products API")
                         api_url = f"https://api.gog.com/products/{gog_product_id}?expand=description"
+                        
                         async with session.get(api_url) as prod_response:
+                            logger.info(f"[GOG Artwork] GOG API response status: {prod_response.status}")
+                            
                             if prod_response.status == 200:
                                 data = await prod_response.json()
                                 images = data.get('images', {})
+                                
+                                logger.info(f"[GOG Artwork] Fallback API image keys: {list(images.keys())}")
                                 
                                 if images.get('icon'):
                                     url = images['icon']
                                     if url.startswith('//'): url = 'https:' + url
                                     result['urls']['icon'] = url
+                                    logger.info(f"[GOG Artwork]   ✓ Fallback icon")
                                 
                                 if images.get('logo2x') or images.get('logo'):
                                     url = images.get('logo2x') or images.get('logo')
                                     if url.startswith('//'): url = 'https:' + url
                                     result['urls']['logo'] = url
+                                    logger.info(f"[GOG Artwork]   ✓ Fallback logo")
                                 
                                 if images.get('background'):
                                     url = images['background']
                                     if url.startswith('//'): url = 'https:' + url
                                     result['urls']['hero'] = url
+                                    logger.info(f"[GOG Artwork]   ✓ Fallback hero")
+                            elif prod_response.status == 404:
+                                logger.warning(f"[GOG Artwork] Product {gog_product_id} not found in GOG API (404) - may be delisted")
+                            else:
+                                logger.warning(f"[GOG Artwork] GOG API error: {prod_response.status}")
                         
         except Exception as e:
-            logger.debug(f"GOG GamesDB API error: {e}")
+            logger.error(f"[GOG Artwork] Exception fetching metadata for {gog_product_id}: {e}", exc_info=True)
+        
+        # Final summary
+        if result['urls']:
+            logger.info(f"[GOG Artwork] Product {gog_product_id}: Found {len(result['urls'])} artwork URLs ({', '.join(result['urls'].keys())})")
+        else:
+            logger.warning(f"[GOG Artwork] Product {gog_product_id}: No artwork found from any source")
             
         return result
 
@@ -613,8 +652,14 @@ class SteamGridDBClient:
             # Store-specific checks
             if store == 'gog' and store_id:
                 try:
-                    tasks.append(self.get_gog_metadata(int(store_id)))
-                except:
+                    gog_id = int(store_id)
+                    logger.info(f"[Artwork] Fetching GOG metadata for product ID: {gog_id}")
+                    tasks.append(self.get_gog_metadata(gog_id))
+                except ValueError as e:
+                    logger.error(f"[Artwork] Invalid GOG product ID '{store_id}': {e}")
+                    tasks.append(asyncio.sleep(0, result={'urls': {}})) # Dummy
+                except Exception as e:
+                    logger.error(f"[Artwork] Error preparing GOG metadata fetch for {store_id}: {e}")
                     tasks.append(asyncio.sleep(0, result={'urls': {}})) # Dummy
             elif store == 'epic' and store_id:
                 tasks.append(self.get_epic_metadata(store_id))
