@@ -432,18 +432,28 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
       background-color: rgba(255, 255, 255, 0.2) !important;
     }
     
-    /* Install button - blue when focused */
+    /* Install button - blue (always) */
+    .unifideck-install-button.install-state {
+      background-color: #1a9fff !important;
+    }
+    
+    /* Install button - brighter blue when focused */
     .unifideck-install-button.install-state.gpfocus,
     .unifideck-install-button.install-state:hover {
       background-color: #1a9fff !important;
-      filter: brightness(1) !important;
+      filter: brightness(1.2) !important;
     }
     
-    /* Uninstall button - red when focused */
+    /* Uninstall button - red (always) */
+    .unifideck-install-button.uninstall-state {
+      background-color: #d32f2f !important;
+    }
+    
+    /* Uninstall button - brighter red when focused */
     .unifideck-install-button.uninstall-state.gpfocus,
     .unifideck-install-button.uninstall-state:hover {
       background-color: #d32f2f !important;
-      filter: brightness(1) !important;
+      filter: brightness(1.2) !important;
     }
     
     /* Cancel button - red (always) */
