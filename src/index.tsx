@@ -128,12 +128,14 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
   useEffect(() => {
     const cached = gameInfoCache.get(appId);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      console.log("[InstallInfoDisplay] Using cached game info:", cached.info);
       setGameInfo(cached.info);
       return;
     }
 
     call<[number], any>("get_game_info", appId)
       .then((info) => {
+        console.log("[InstallInfoDisplay] Fetched game info:", info);
         const processedInfo = info?.error ? null : info;
         setGameInfo(processedInfo);
         gameInfoCache.set(appId, {
@@ -408,7 +410,10 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
         })}
         strOKButtonText={t("confirmModals.yes")}
         strCancelButtonText={t("confirmModals.no")}
-        onOK={() => handleInstall()}
+        onOK={() => {
+          handleInstall();
+          return true; // Return true to dismiss modal
+        }}
       />,
     );
   };
@@ -522,55 +527,21 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
     };
   }
 
-  // CSS for controller focus state (.gpfocus is automatically applied by Steam)
-  const focusStyles = `
-    /* Controller focus state - Steam automatically applies .gpfocus */
-    .unifideck-install-button.gpfocus,
-    .unifideck-install-button:hover {
-      filter: brightness(1.2) !important;
-      box-shadow: 0 0 12px rgba(26, 159, 255, 0.8) !important;
-      transform: scale(1.02);
-      transition: all 0.15s ease;
-    }
+  // Info badge style - non-interactive display
+  const infoBadgeStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    padding: "10px 16px",
+    backgroundColor: "#1a9fff",
+    color: "#ffffff",
+    borderRadius: "4px",
+    fontSize: "14px",
+    fontWeight: 500,
+    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.3)",
+  };
 
-    /* Extra visibility for focus ring */
-    .unifideck-install-button.gpfocus {
-      outline: 2px solid #1a9fff !important;
-      outline-offset: 2px !important;
-    }
-  `;
-
-  return (
-    <>
-      <style>{focusStyles}</style>
-      {/* Install/Uninstall/Cancel Button - ProtonDB pattern (no Focusable wrapper) */}
-      <div
-        style={{
-          position: "absolute",
-          top: "40px", // Aligned with ProtonDB badge row
-          right: "35px",
-          zIndex: 9999, // High z-index to ensure visibility above any overlays
-        }}
-        className="unifideck-install-button-container"
-      >
-        <DialogButton
-          onClick={buttonAction}
-          disabled={processing}
-          style={buttonStyle}
-          className="unifideck-install-button"
-        >
-          {processing ? (
-            t("installButton.processing")
-          ) : (
-            <>
-              <StoreIcon store={gameInfo.store} size="16px" color="#ffffff" />
-              {buttonText}
-            </>
-          )}
-        </DialogButton>
-      </div>
-    </>
-  );
+  return null; // Badge info now shown in Game Info Row instead
 };
 
 // Patch function for game details route - EXTRACTED TO MODULE SCOPE (ProtonDB/HLTB pattern)
@@ -693,10 +664,10 @@ function patchGameDetailsRoute() {
           const gameInfoKey = `unifideck-game-info-${appId}`;
 
           const alreadyHasInstallInfo = container.props.children.some(
-            (child: any) => child?.key === installInfoKey
+            (child: any) => child?.key === installInfoKey,
           );
           const alreadyHasGameInfo = container.props.children.some(
-            (child: any) => child?.key === gameInfoKey
+            (child: any) => child?.key === gameInfoKey,
           );
 
           // ProtonDB COMPATIBILITY: Insert at index 2
@@ -706,6 +677,7 @@ function patchGameDetailsRoute() {
           // Since InstallInfoDisplay uses position: absolute, its visual position is CSS-controlled.
           const spliceIndex = Math.min(2, container.props.children.length);
 
+          // NOTE: InstallInfoDisplay is a non-interactive info badge displaying store, name, and size
           // Inject our install info display after play button (only if not already present)
           if (!alreadyHasInstallInfo) {
             container.props.children.splice(
@@ -718,16 +690,16 @@ function patchGameDetailsRoute() {
             );
 
             console.log(
-              `[Unifideck] Injected install info for app ${appId} in ${
+              `[Unifideck] Injected install info badge for app ${appId} in ${
                 innerContainer
                   ? "InnerContainer"
                   : headerContainer
-                    ? "Header"
-                    : playSection
-                      ? "PlaySection"
-                      : buttonsContainer
-                        ? "ButtonsContainer"
-                        : "GameInfoRow"
+                  ? "Header"
+                  : playSection
+                  ? "PlaySection"
+                  : buttonsContainer
+                  ? "ButtonsContainer"
+                  : "GameInfoRow"
               } at index ${spliceIndex}`,
             );
           }
@@ -747,9 +719,11 @@ function patchGameDetailsRoute() {
                 React.createElement(GameInfoPanel, {
                   key: gameInfoKey,
                   appId,
-                })
+                }),
               );
-              console.log(`[Unifideck] Injected GameInfoPanel at index 1 (ProtonDB pattern)`);
+              console.log(
+                `[Unifideck] Injected GameInfoPanel at index 1 (ProtonDB pattern)`,
+              );
             } catch (panelError) {
               console.error(
                 `[Unifideck] Error creating GameInfoPanel:`,
@@ -1335,8 +1309,8 @@ const Content: FC = () => {
       store === "epic"
         ? t("storeConnections.epicGames")
         : store === "amazon"
-          ? t("storeConnections.amazonGames")
-          : t("storeConnections.gog");
+        ? t("storeConnections.amazonGames")
+        : t("storeConnections.gog");
 
     try {
       let methodName: string;

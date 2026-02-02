@@ -292,6 +292,9 @@
       "support": "Support"
     },
     "labels": {
+      "store": "Store:",
+      "name": "Name:",
+      "size": "Size:",
       "developer": "Developer:",
       "publisher": "Publisher:",
       "released": "Released:",
