@@ -170,6 +170,22 @@ const LibrarySync: React.FC<LibrarySyncProps> = ({
                     })}
                   </div>
                 )}
+                {(syncProgress.unifidb_total || 0) > 0 && (
+                  <div>
+                    {t("librarySync.unifidbMetadataDownloaded", {
+                      synced: syncProgress.unifidb_synced || 0,
+                      total: syncProgress.unifidb_total || 0,
+                    })}
+                  </div>
+                )}
+                {(syncProgress.metacritic_total || 0) > 0 && (
+                  <div>
+                    {t("librarySync.metacriticMetadataDownloaded", {
+                      synced: syncProgress.metacritic_synced || 0,
+                      total: syncProgress.metacritic_total || 0,
+                    })}
+                  </div>
+                )}
                 {(syncProgress.rawg_total || 0) > 0 && (
                   <div>
                     {t("librarySync.rawgMetadataDownloaded", {

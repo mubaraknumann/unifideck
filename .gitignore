@@ -42,6 +42,10 @@ out/
 # Build-time copy of defaults/backend for packaging (do not commit)
 backend/
 
+# Explicitly include metadata modules in defaults/backend (committed)
+!defaults/backend/metadata/
+!defaults/backend/metadata/**
+
 # ===========================================
 # Environment and Secrets
 # ===========================================

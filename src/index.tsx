@@ -502,11 +502,11 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
 
     buttonStyle = {
       ...baseButtonStyle,
-      // Solid gray/muted blue for uninstall
-      backgroundColor: "#4a5568",
+      // Solid red background for uninstall
+      backgroundColor: "#d32f2f",
       color: "#ffffff",
-      border: "2px solid #718096",
-      boxShadow: "0 2px 8px rgba(74, 85, 104, 0.5)",
+      border: "2px solid #ff6b6b",
+      boxShadow: "0 2px 8px rgba(211, 47, 47, 0.5)",
     };
   } else {
     // Show size in Install button
