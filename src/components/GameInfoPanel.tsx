@@ -755,9 +755,7 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
           >
             {/* Store Logo */}
             {gameInfo && metadata.store && (
-              <div
-                style={{ display: "flex", alignItems: "center" }}
-              >
+              <div style={{ display: "flex", alignItems: "center" }}>
                 <StoreIcon store={metadata.store} size="20px" />
               </div>
             )}
