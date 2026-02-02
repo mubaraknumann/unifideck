@@ -128,12 +128,14 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
   useEffect(() => {
     const cached = gameInfoCache.get(appId);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      console.log("[InstallInfoDisplay] Using cached game info:", cached.info);
       setGameInfo(cached.info);
       return;
     }
 
     call<[number], any>("get_game_info", appId)
       .then((info) => {
+        console.log("[InstallInfoDisplay] Fetched game info:", info);
         const processedInfo = info?.error ? null : info;
         setGameInfo(processedInfo);
         gameInfoCache.set(appId, {
