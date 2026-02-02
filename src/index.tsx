@@ -541,30 +541,7 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
     boxShadow: "0 2px 8px rgba(0, 0, 0, 0.3)",
   };
 
-  return (
-    <>
-      {/* Info badge - non-interactive display showing store, game name, and size */}
-      <div
-        style={{
-          position: "absolute",
-          top: "40px", // Aligned with ProtonDB badge row
-          right: "35px",
-          zIndex: 9999, // High z-index to ensure visibility above any overlays
-        }}
-        className="unifideck-info-badge-container"
-      >
-        <div style={infoBadgeStyle} className="unifideck-info-badge">
-          <StoreIcon store={gameInfo.store} size="16px" color="#ffffff" />
-          <span>{gameInfo.title}</span>
-          {gameInfo.size_formatted && (
-            <span style={{ fontSize: "13px", opacity: 0.9 }}>
-              ({gameInfo.size_formatted})
-            </span>
-          )}
-        </div>
-      </div>
-    </>
-  );
+  return null; // Badge info now shown in Game Info Row instead
 };
 
 // Patch function for game details route - EXTRACTED TO MODULE SCOPE (ProtonDB/HLTB pattern)

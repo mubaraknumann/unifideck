@@ -708,7 +708,6 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
                 : "install-state"
             }`}
           >
-            <StoreIcon />
             <span>
               {processing
                 ? "..."
@@ -719,11 +718,6 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
                 ? "Uninstall"
                 : "Install"}
             </span>
-            {gameInfo.size && !gameInfo.is_installed && (
-              <span style={{ fontSize: "11px", opacity: 0.7 }}>
-                ({gameInfo.size})
-              </span>
-            )}
           </DialogButton>
         )}
 
@@ -736,7 +730,8 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
       </Focusable>
 
       {/* Game Info Row */}
-      {(metadata.developer ||
+      {(gameInfo ||
+        metadata.developer ||
         metadata.publisher ||
         metadata.releaseDate ||
         metadata.metacritic) && (
@@ -755,8 +750,35 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
               gap: "16px",
               fontSize: "13px",
               color: "#8f98a0",
+              alignItems: "center",
             }}
           >
+            {/* Store Logo */}
+            {gameInfo && metadata.store && (
+              <div
+                style={{ display: "flex", alignItems: "center" }}
+              >
+                <StoreIcon store={metadata.store} size="20px" />
+              </div>
+            )}
+
+            {/* Game Name */}
+            {gameInfo?.title && (
+              <div style={{ fontWeight: 600, color: "#c7d5e0" }}>
+                {gameInfo.title}
+              </div>
+            )}
+
+            {/* Game Size */}
+            {gameInfo?.size_formatted && (
+              <div>
+                <span style={{ fontWeight: 600, color: "#c7d5e0" }}>
+                  {t("gameInfoPanel.labels.size")}{" "}
+                </span>
+                {gameInfo.size_formatted}
+              </div>
+            )}
+
             {metadata.developer && (
               <div>
                 <span style={{ fontWeight: 600, color: "#c7d5e0" }}>
