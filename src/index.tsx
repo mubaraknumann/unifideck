@@ -540,12 +540,24 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
     }
   `;
 
-  const DeckButton = (DialogButton as any).render({}).type;
+  // Info badge style - non-interactive display
+  const infoBadgeStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    padding: "10px 16px",
+    backgroundColor: "#1a9fff",
+    color: "#ffffff",
+    borderRadius: "4px",
+    fontSize: "14px",
+    fontWeight: 500,
+    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.3)",
+  };
 
   return (
     <>
       <style>{focusStyles}</style>
-      {/* Install/Uninstall/Cancel Button - ProtonDB pattern with proper focus handling */}
+      {/* Info badge - non-interactive display showing store, game name, and size */}
       <div
         style={{
           position: "absolute",
@@ -553,24 +565,17 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
           right: "35px",
           zIndex: 9999, // High z-index to ensure visibility above any overlays
         }}
-        className="unifideck-install-button-container"
+        className="unifideck-info-badge-container"
       >
-        <DeckButton
-          onClick={buttonAction}
-          disabled={processing}
-          style={buttonStyle}
-          className="unifideck-install-button"
-          type="button"
-        >
-          {processing ? (
-            t("installButton.processing")
-          ) : (
-            <>
-              <StoreIcon store={gameInfo.store} size="16px" color="#ffffff" />
-              {buttonText}
-            </>
+        <div style={infoBadgeStyle} className="unifideck-info-badge">
+          <StoreIcon store={gameInfo.store} size="16px" color="#ffffff" />
+          <span>{gameInfo.title}</span>
+          {gameInfo.size_formatted && (
+            <span style={{ fontSize: "13px", opacity: 0.9 }}>
+              ({gameInfo.size_formatted})
+            </span>
           )}
-        </DeckButton>
+        </div>
       </div>
     </>
   );
@@ -709,32 +714,32 @@ function patchGameDetailsRoute() {
           // Since InstallInfoDisplay uses position: absolute, its visual position is CSS-controlled.
           const spliceIndex = Math.min(2, container.props.children.length);
 
-          // NOTE: InstallInfoDisplay now integrated into GameInfoPanel for better controller navigation
+          // NOTE: InstallInfoDisplay is a non-interactive info badge displaying store, name, and size
           // Inject our install info display after play button (only if not already present)
-          // if (!alreadyHasInstallInfo) {
-          //   container.props.children.splice(
-          //     spliceIndex,
-          //     0,
-          //     React.createElement(InstallInfoDisplay, {
-          //       key: installInfoKey,
-          //       appId,
-          //     }),
-          //   );
-          //
-          //   console.log(
-          //     `[Unifideck] Injected install info for app ${appId} in ${
-          //       innerContainer
-          //         ? "InnerContainer"
-          //         : headerContainer
-          //           ? "Header"
-          //           : playSection
-          //             ? "PlaySection"
-          //             : buttonsContainer
-          //               ? "ButtonsContainer"
-          //               : "GameInfoRow"
-          //     } at index ${spliceIndex}`,
-          //   );
-          // }
+          if (!alreadyHasInstallInfo) {
+            container.props.children.splice(
+              spliceIndex,
+              0,
+              React.createElement(InstallInfoDisplay, {
+                key: installInfoKey,
+                appId,
+              }),
+            );
+
+            console.log(
+              `[Unifideck] Injected install info badge for app ${appId} in ${
+                innerContainer
+                  ? "InnerContainer"
+                  : headerContainer
+                  ? "Header"
+                  : playSection
+                  ? "PlaySection"
+                  : buttonsContainer
+                  ? "ButtonsContainer"
+                  : "GameInfoRow"
+              } at index ${spliceIndex}`,
+            );
+          }
 
           // ========== GAME INFO PANEL INJECTION ==========
           // For non-Steam games, inject our custom GameInfoPanel to display metadata
