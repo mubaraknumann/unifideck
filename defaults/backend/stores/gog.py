@@ -456,6 +456,55 @@ class GOGAPIClient:
             logger.error(f"Error logging out from GOG: {e}")
             return {'success': False, 'error': str(e)}
 
+    async def get_game_slug(self, game_id: str) -> Optional[str]:
+        """Fetch game slug from GOG API for store URL generation.
+
+        The GOG products endpoint returns a 'slug' field that can be used
+        to construct the store page URL: https://www.gog.com/en/game/{slug}
+
+        Args:
+            game_id: GOG game ID (numeric string)
+
+        Returns:
+            The game slug (e.g., 'the_witcher_3_wild_hunt'), or None if unavailable
+        """
+        await self._ensure_fresh_token()
+
+        if not self.access_token:
+            return None
+
+        try:
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+
+            connector = aiohttp.TCPConnector(ssl=ssl_context)
+            async with aiohttp.ClientSession(connector=connector) as session:
+                url = f'https://api.gog.com/products/{game_id}?locale=en-US'
+                headers = {'Authorization': f'Bearer {self.access_token}'}
+
+                async with session.get(url, headers=headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        slug = data.get('slug')
+                        if slug:
+                            logger.debug(f"[GOG] Got slug for {game_id}: {slug}")
+                            return slug
+
+                        # Alternative: extract from links.product_card if available
+                        links = data.get('links', {})
+                        product_card = links.get('product_card', '')
+                        if product_card and '/game/' in product_card:
+                            extracted_slug = product_card.split('/game/')[-1].rstrip('/')
+                            logger.debug(f"[GOG] Extracted slug from product_card for {game_id}: {extracted_slug}")
+                            return extracted_slug
+
+            return None
+
+        except Exception as e:
+            logger.warning(f"[GOG] Could not fetch slug for {game_id}: {e}")
+            return None
+
     async def get_library(self) -> List[Game]:
         """Get GOG library via API with pagination support"""
         if not self.access_token:

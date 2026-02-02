@@ -90,7 +90,9 @@
     "cancelSync": "Annuler la synchronisation",
     "retryStatusCheck": "Réessayer la vérification",
     "gamesSynced": "{{synced}} / {{total}} jeux synchronisés",
-    "artworkDownloaded": "{{synced}} / {{total}} visuels téléchargés"
+    "artworkDownloaded": "{{synced}} / {{total}} visuels téléchargés",
+    "steamMetadataDownloaded": "Métadonnées Steam : {{synced}} / {{total}}",
+    "rawgMetadataDownloaded": "Métadonnées RAWG : {{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "Nettoyage",
@@ -234,9 +236,11 @@
     "cancelledByUser": "Synchronisation annulée par l’utilisateur",
     "checkingInstalledGames": "Vérification des jeux installés…",
     "sgdbLookup": "Recherche de {{count}} jeux sur SteamGridDB…",
+    "extractingSteamMetadata": "Extraction des métadonnées Steam pour {{synced}}/{{total}} jeux…",
+    "fetchingEnhancedMetadata": "Récupération des métadonnées améliorées pour {{synced}}/{{total}} jeux…",
     "checkingExistingArtwork": "Vérification des illustrations existantes…",
     "cleaningOrphanedArtwork": "Nettoyage des illustrations orphelines...",
-    "retryingMissingArtwork": "Nouvelle tentative pour {{count}} jeux avec illustrations manquantes...",
+    "retryingMissingArtwork": "Nouvelle tentative pour {{synced}}/{{total}} jeux avec illustrations manquantes...",
     "savingShortcuts": "Enregistrement des raccourcis…",
     "completed": "Synchronisation terminée ! {{added}} ajoutés, {{artwork}} illustrations."
   },
@@ -271,5 +275,37 @@
     "allStores": "Tous les Magasins",
     "searchPlaceholder": "Rechercher des jeux...",
     "library": "Bibliothèque"
+  },
+  "gameInfoPanel": {
+    "loading": "Chargement des informations du jeu...",
+    "noMetadata": "Aucune métadonnée disponible pour ce jeu.",
+    "noTestResults": "Aucun résultat de test détaillé disponible.",
+    "buttons": {
+      "details": "Détails",
+      "synopsis": "Synopsis",
+      "storePage": "Page du Magasin",
+      "dlc": "DLC",
+      "communityHub": "Centre Communautaire",
+      "pointsShop": "Boutique de Points",
+      "discussions": "Discussions",
+      "guides": "Guides",
+      "support": "Support"
+    },
+    "labels": {
+      "developer": "Développeur :",
+      "publisher": "Éditeur :",
+      "released": "Sortie :",
+      "metacritic": "Metacritic :",
+      "status": "Statut :"
+    },
+    "compatibility": {
+      "modalTitle": "Compatibilité Steam Deck",
+      "viewOnProtonDb": "Voir sur ProtonDB",
+      "close": "Fermer",
+      "verified": "VÉRIFIÉ",
+      "playable": "JOUABLE",
+      "unsupported": "NON COMPATIBLE",
+      "unknown": "INCONNU"
+    }
   }
 }

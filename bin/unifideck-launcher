@@ -1035,7 +1035,7 @@ except Exception as e:
 
         # === COMET: Launch GOG Galaxy SDK replacement ===
         # Comet provides GOG Galaxy online features (achievements, multiplayer, etc.)
-        COMET_BIN="$PLUGIN_DIR/bin/comet/comet"
+        COMET_BIN="$PLUGIN_DIR/bin/comet"
         COMET_PID=""
         if [ -f "$COMET_BIN" ]; then
             # Get GOG tokens from Unifideck config

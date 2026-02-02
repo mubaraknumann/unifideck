@@ -12,7 +12,6 @@ import {
   playSectionClasses,
   appDetailsHeaderClasses,
   DialogButton,
-  Focusable,
   ToggleField,
   showModal,
   ConfirmModal,
@@ -36,6 +35,11 @@ import {
 } from "./tabs";
 
 import { syncUnifideckCollections } from "./spoofing/CollectionManager";
+import {
+  loadSteamAppIdMappings,
+  patchSteamStores,
+  injectGameToAppinfo,
+} from "./spoofing/SteamStorePatcher";
 
 // Import Downloads feature components
 import { DownloadsTab } from "./components/DownloadsTab";
@@ -46,6 +50,7 @@ import StoreConnections from "./components/settings/StoreConnections";
 import { Store } from "./types/store";
 import LibrarySync from "./components/settings/LibrarySync";
 import StoreIcon from "./components/StoreIcon";
+import GameInfoPanel from "./components/GameInfoPanel";
 import { SyncProgress } from "./types/syncProgress";
 
 // ========== INSTALL BUTTON FEATURE ==========
@@ -517,38 +522,53 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
     };
   }
 
+  // CSS for controller focus state (.gpfocus is automatically applied by Steam)
+  const focusStyles = `
+    /* Controller focus state - Steam automatically applies .gpfocus */
+    .unifideck-install-button.gpfocus,
+    .unifideck-install-button:hover {
+      filter: brightness(1.2) !important;
+      box-shadow: 0 0 12px rgba(26, 159, 255, 0.8) !important;
+      transform: scale(1.02);
+      transition: all 0.15s ease;
+    }
+
+    /* Extra visibility for focus ring */
+    .unifideck-install-button.gpfocus {
+      outline: 2px solid #1a9fff !important;
+      outline-offset: 2px !important;
+    }
+  `;
+
   return (
     <>
-      {" "}
-      {/* Install/Uninstall/Cancel Button */}
-      <Focusable
+      <style>{focusStyles}</style>
+      {/* Install/Uninstall/Cancel Button - ProtonDB pattern (no Focusable wrapper) */}
+      <div
         style={{
           position: "absolute",
           top: "40px", // Aligned with ProtonDB badge row
           right: "35px",
           zIndex: 9999, // High z-index to ensure visibility above any overlays
-          // Ensure focusable container is visible
-          opacity: 1,
-          visibility: "visible",
         }}
-        // Ensure controller navigation works
-        onActivate={buttonAction}
+        className="unifideck-install-button-container"
       >
         <DialogButton
           onClick={buttonAction}
           disabled={processing}
           style={buttonStyle}
-          // Add focus visual feedback for controller users
-          focusable={true}
+          className="unifideck-install-button"
         >
-          {processing ? t("installButton.processing") : (
+          {processing ? (
+            t("installButton.processing")
+          ) : (
             <>
               <StoreIcon store={gameInfo.store} size="16px" color="#ffffff" />
               {buttonText}
             </>
           )}
         </DialogButton>
-      </Focusable>
+      </div>
     </>
   );
 };
@@ -578,6 +598,15 @@ function patchGameDetailsRoute() {
 
         if (!overview) return ret;
         const appId = overview.appid;
+
+        // DISABLED: Store patching disabled, so no metadata injection
+        // TODO: Re-enable once we figure out what's breaking Steam
+        // const isShortcut = appId > 2000000000;
+        // if (isShortcut) {
+        //   const signedAppId = appId > 0x7FFFFFFF ? appId - 0x100000000 : appId;
+        //   console.log(`[Unifideck] Game details opened for shortcut: ${appId} (signed: ${signedAppId})`);
+        //   injectGameToAppinfo(signedAppId);
+        // }
 
         try {
           // Strategy: Find the Header area (contains Play button and game info)
@@ -658,6 +687,18 @@ function patchGameDetailsRoute() {
             container.props.children = [container.props.children];
           }
 
+          // DEDUPLICATION: Check if we've already injected our components
+          // React re-renders can cause the patcher to run multiple times
+          const installInfoKey = `unifideck-install-info-${appId}`;
+          const gameInfoKey = `unifideck-game-info-${appId}`;
+
+          const alreadyHasInstallInfo = container.props.children.some(
+            (child: any) => child?.key === installInfoKey
+          );
+          const alreadyHasGameInfo = container.props.children.some(
+            (child: any) => child?.key === gameInfoKey
+          );
+
           // ProtonDB COMPATIBILITY: Insert at index 2
           // ProtonDB inserts at index 1. By inserting at index 2, we:
           // 1. Avoid overwriting ProtonDB's element
@@ -665,29 +706,57 @@ function patchGameDetailsRoute() {
           // Since InstallInfoDisplay uses position: absolute, its visual position is CSS-controlled.
           const spliceIndex = Math.min(2, container.props.children.length);
 
-          // Inject our install info display after play button
-          container.props.children.splice(
-            spliceIndex,
-            0,
-            React.createElement(InstallInfoDisplay, {
-              key: `unifideck-install-info-${appId}`,
-              appId,
-            }),
-          );
+          // Inject our install info display after play button (only if not already present)
+          if (!alreadyHasInstallInfo) {
+            container.props.children.splice(
+              spliceIndex,
+              0,
+              React.createElement(InstallInfoDisplay, {
+                key: installInfoKey,
+                appId,
+              }),
+            );
 
-          console.log(
-            `[Unifideck] Injected install info for app ${appId} in ${
-              innerContainer
-                ? "InnerContainer"
-                : headerContainer
-                  ? "Header"
-                  : playSection
-                    ? "PlaySection"
-                    : buttonsContainer
-                      ? "ButtonsContainer"
-                      : "GameInfoRow"
-            } at index ${spliceIndex}`,
-          );
+            console.log(
+              `[Unifideck] Injected install info for app ${appId} in ${
+                innerContainer
+                  ? "InnerContainer"
+                  : headerContainer
+                    ? "Header"
+                    : playSection
+                      ? "PlaySection"
+                      : buttonsContainer
+                        ? "ButtonsContainer"
+                        : "GameInfoRow"
+              } at index ${spliceIndex}`,
+            );
+          }
+
+          // ========== GAME INFO PANEL INJECTION ==========
+          // For non-Steam games, inject our custom GameInfoPanel to display metadata
+          // Non-Steam shortcuts have appId > 2000000000
+          // ProtonDB pattern: Insert at index 1 (between PlaySection and tabs)
+          // This lets the flex container handle positioning naturally
+          const isNonSteamGame = appId > 2000000000;
+          if (isNonSteamGame && !alreadyHasGameInfo) {
+            try {
+              // Insert at index 1: between PlaySection [0] and Tabs [1+]
+              container.props.children.splice(
+                1,
+                0,
+                React.createElement(GameInfoPanel, {
+                  key: gameInfoKey,
+                  appId,
+                })
+              );
+              console.log(`[Unifideck] Injected GameInfoPanel at index 1 (ProtonDB pattern)`);
+            } catch (panelError) {
+              console.error(
+                `[Unifideck] Error creating GameInfoPanel:`,
+                panelError,
+              );
+            }
+          }
         } catch (error) {
           console.error("[Unifideck] Error injecting install info:", error);
         }
@@ -1597,6 +1666,9 @@ const Content: FC = () => {
   );
 };
 
+// Store unpatch function for Steam stores
+let unpatchSteamStores: (() => void) | null = null;
+
 export default definePlugin(() => {
   console.log("[Unifideck] Plugin loaded");
 
@@ -1609,6 +1681,12 @@ export default definePlugin(() => {
       }
     })
     .catch(() => {}); // Silently ignore if backend not ready
+
+  // DISABLED: Store patching was causing Steam to hang on startup
+  // TODO: Re-enable once we figure out what's breaking Steam
+  // loadSteamAppIdMappings().then(() => {
+  //   unpatchSteamStores = patchSteamStores();
+  // });
 
   // Patch the library to add Unifideck tabs (All, Installed, Great on Deck, Steam, Epic, GOG, Amazon)
   // This uses TabMaster's approach: intercept useMemo hook to inject custom tabs
@@ -1731,6 +1809,12 @@ export default definePlugin(() => {
     ),
     onDismount() {
       console.log("[Unifideck] Plugin unloading");
+
+      // Unpatch Steam stores
+      if (unpatchSteamStores) {
+        unpatchSteamStores();
+        unpatchSteamStores = null;
+      }
 
       // Stop launcher toast polling
       const toastInterval = (window as any).__unifideck_toast_interval;

@@ -93,7 +93,9 @@
     "cancelSync": "Senkronizasyonu İptal Et",
     "retryStatusCheck": "Durum Kontrolünü Yeniden Dene",
     "gamesSynced": "{{synced}} / {{total}} oyun senkronize edildi",
-    "artworkDownloaded": "{{synced}} / {{total}} kapak indirildi"
+    "artworkDownloaded": "{{synced}} / {{total}} kapak indirildi",
+    "steamMetadataDownloaded": "Steam meta verisi: {{synced}} / {{total}}",
+    "rawgMetadataDownloaded": "RAWG meta verisi: {{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "Temizlik",
@@ -225,7 +227,11 @@
     "uninstallFailed": "Kaldırma başarısız",
     "lockConflict": "Kilit çakışması - tekrar deneyin",
     "unknownStore": "Bilinmeyen mağaza",
-    "shortcutWriteFailed": "Kısayollar yazılamadı"
+    "shortcutWriteFailed": "Kısayollar yazılamadı",
+    "backgroundSyncDisabled": "Arka plan senkronizasyonu devre dışı",
+    "steamGridDbUnavailable": "SteamGridDB kütüphanesi kullanılamıyor",
+    "deleteSyncInProgress": "Senkronizasyon devam ederken silinemiyor",
+    "alreadyInQueue": "Zaten kuyrukta"
   },
   "sync": {
     "downloadingArtwork": "{{game}} için görsel indiriliyor...",
@@ -233,6 +239,8 @@
     "cancelledByUser": "Senkronizasyon iptal edildi",
     "checkingInstalledGames": "Yüklü oyunlar kontrol ediliyor...",
     "sgdbLookup": "SteamGridDB'de {{count}} oyun aranıyor...",
+    "extractingSteamMetadata": "{{synced}}/{{total}} oyun için Steam meta verileri çıkarılıyor...",
+    "fetchingEnhancedMetadata": "{{synced}}/{{total}} oyun için gelişmiş meta veriler getiriliyor...",
     "checkingExistingArtwork": "Mevcut görseller kontrol ediliyor...",
     "cleaningOrphanedArtwork": "Sahipsiz görseller temizleniyor...",
     "retryingMissingArtwork": "Eksik görselleri olan {{count}} oyun tekrar deneniyor...",
@@ -270,5 +278,37 @@
     "allStores": "Tüm Mağazalar",
     "searchPlaceholder": "Oyun ara...",
     "library": "Kütüphane"
+  },
+  "gameInfoPanel": {
+    "loading": "Oyun bilgileri yükleniyor...",
+    "noMetadata": "Bu oyun için mevcut veri yok.",
+    "noTestResults": "Ayrıntılı test sonuçları yok.",
+    "buttons": {
+      "details": "Ayrıntılar",
+      "synopsis": "Özet",
+      "storePage": "Mağaza Sayfası",
+      "dlc": "DLC",
+      "communityHub": "Topluluk Hubı",
+      "pointsShop": "Puan Dükkanı",
+      "discussions": "Tartışmalar",
+      "guides": "Kılavuzlar",
+      "support": "Destek"
+    },
+    "labels": {
+      "developer": "Geliştirici:",
+      "publisher": "Yayıncı:",
+      "released": "Çıkış Tarihi:",
+      "metacritic": "Metacritic:",
+      "status": "Durum:"
+    },
+    "compatibility": {
+      "modalTitle": "Steam Deck Uyumluluğu",
+      "viewOnProtonDb": "ProtonDB'de Karşılaştır",
+      "close": "Kapat",
+      "verified": "DOĞRULANDI",
+      "playable": "OYNANABILIDIR",
+      "unsupported": "DESTEKLENMİYOR",
+      "unknown": "BİLİNMİYOR"
+    }
   }
 }

@@ -24,32 +24,7 @@
     "notInstalled": "설치 안 됨",
     "playtime": "{{hours}}시간 {{minutes}}분 플레이"
   },
-  "launcher": {
-    "networkError": "네트워크 오류",
-    "retryingUmu": "{{seconds}}초 후 UMU 재시도 (시도 {{attempt}}/{{max}})...",
-    "protonUpgrade": "Proton 업그레이드",
-    "resettingPrefix": "{{version}}용 접두사(Prefix) 재설정 중...",
-    "firstTimeSetup": "초기 설정",
-    "initializingPrefix": "Wine 접두사(Prefix) 초기화 중...",
-    "setupCompleteTitle": "설정 완료",
-    "prefixInitialized": "Wine 접두사(Prefix) 초기화됨",
-    "setupFallback": "설정",
-    "fallbackInitialization": "대체 초기화 중...",
-    "launchingGame": "게임 실행 중",
-    "startingEpicGame": "Epic 게임 시작 중...",
-    "startingAmazonGame": "Amazon 게임 시작 중...",
-    "startingGogGame": "GOG 게임 시작 중...",
-    "dependenciesTitle": "종속성 설치 중",
-    "installingRedistributables": "게임 재배포 가능 패키지 설치 중...",
-    "dependenciesReady": "종속성 준비 완료",
-    "redistributablesInstalled": "재배포 가능 패키지 설치됨",
-    "dependenciesStatus": "종속성",
-    "checkLogs": "설정 완료 (세부 정보는 로그 확인)",
-    "installingProton": "Proton 설치 중",
-    "attemptingInstall": "{{version}} 설치 시도 중...",
-    "epicAuthRequired": "Epic 로그인 필요",
-    "epicAuthRequiredMessage": "Unifideck 설정에서 Epic Games에 로그인하십시오"
-  },
+
   "downloadsTab": {
     "currentDownload": "현재 다운로드",
     "queuedDownloads": "대기 중 ({{count}})",
@@ -116,7 +91,9 @@
     "cancelSync": "동기화 취소",
     "retryStatusCheck": "상태 확인 재시도",
     "gamesSynced": "{{synced}} / {{total}}개 게임 동기화됨",
-    "artworkDownloaded": "{{synced}} / {{total}}개 아트워크 다운로드됨"
+    "artworkDownloaded": "{{synced}} / {{total}}개 아트워크 다운로드됨",
+    "steamMetadataDownloaded": "Steam 메타데이터: {{synced}} / {{total}}",
+    "rawgMetadataDownloaded": "RAWG 메타데이터: {{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "정리",
@@ -185,6 +162,30 @@
     "deleteFailed": "삭제 실패",
     "unifideck": "Unifideck:",
     "launcher": {
+      "networkError": "네트워크 오류",
+      "retryingUmu": "{{seconds}}초 후 UMU 재시도 (시도 {{attempt}}/{{max}})...",
+      "protonUpgrade": "Proton 업그레이드",
+      "resettingPrefix": "{{version}}용 접두사(Prefix) 재설정 중...",
+      "firstTimeSetup": "초기 설정",
+      "initializingPrefix": "Wine 접두사(Prefix) 초기화 중...",
+      "setupCompleteTitle": "설정 완료",
+      "prefixInitialized": "Wine 접두사(Prefix) 초기화됨",
+      "setupFallback": "설정",
+      "fallbackInitialization": "대체 초기화 중...",
+      "launchingGame": "게임 실행 중",
+      "startingEpicGame": "Epic 게임 시작 중...",
+      "startingAmazonGame": "Amazon 게임 시작 중...",
+      "startingGogGame": "GOG 게임 시작 중...",
+      "dependenciesTitle": "종속성 설치 중",
+      "installingRedistributables": "게임 재배포 가능 패키지 설치 중...",
+      "dependenciesReady": "종속성 준비 완료",
+      "redistributablesInstalled": "재배포 가능 패키지 설치됨",
+      "dependenciesStatus": "종속성",
+      "checkLogs": "설정 완료 (세부 정보는 로그 확인)",
+      "installingProton": "Proton 설치 중",
+      "attemptingInstall": "{{version}} 설치 시도 중...",
+      "epicAuthRequired": "Epic 로그인 필요",
+      "epicAuthRequiredMessage": "Unifideck 설정에서 Epic Games에 로그인하십시오",
       "installingRedist": "재배포 패키지 설치 중",
       "installingRedistMessage": "GOG 재배포 패키지 초기 설치 실행 중...",
       "setupFailed": "설치 실패",
@@ -235,9 +236,11 @@
     "cancelledByUser": "사용자가 동기화 취소",
     "checkingInstalledGames": "설치된 게임 확인 중...",
     "sgdbLookup": "SteamGridDB에서 {{count}}개 검색 중...",
+    "extractingSteamMetadata": "{{synced}}/{{total}}개 게임에 대한 Steam 메타데이터 추출 중...",
+    "fetchingEnhancedMetadata": "{{synced}}/{{total}}개 게임의 향상된 메타데이터 가져오는 중...",
     "checkingExistingArtwork": "기존 아트워크 확인 중...",
     "cleaningOrphanedArtwork": "고아 아트워크 정리 중...",
-    "retryingMissingArtwork": "아트웍이 누락된 게임 {{count}}개를 다시 시도하는 중...",
+    "retryingMissingArtwork": "아트웍이 누락된 {{synced}}/{{total}}개 게임을 다시 시도하는 중...",
     "savingShortcuts": "바로가기 저장 중...",
     "completed": "동기화 완료! {{added}} 추가, 아트워크 {{artwork}}."
   },
@@ -272,5 +275,37 @@
     "allStores": "모든 스토어",
     "searchPlaceholder": "게임 검색...",
     "library": "라이브러리"
+  },
+  "gameInfoPanel": {
+    "loading": "게임 정보 로드 중...",
+    "noMetadata": "이 게임에 대한 메타데이터가 없습니다.",
+    "noTestResults": "상세 테스트 결과가 없습니다.",
+    "buttons": {
+      "details": "세부 사항",
+      "synopsis": "싱놉시스",
+      "storePage": "스토어 페이지",
+      "dlc": "DLC",
+      "communityHub": "커뮤니티 허브",
+      "pointsShop": "포인트샵",
+      "discussions": "스레드",
+      "guides": "가이드",
+      "support": "지원"
+    },
+    "labels": {
+      "developer": "개발사:",
+      "publisher": "발행사:",
+      "released": "출시 날짜:",
+      "metacritic": "Metacritic:",
+      "status": "상태:"
+    },
+    "compatibility": {
+      "modalTitle": "Steam Deck 호환성",
+      "viewOnProtonDb": "ProtonDB에서 보기",
+      "close": "닫기",
+      "verified": "검용됨",
+      "playable": "플레이가능",
+      "unsupported": "비지원",
+      "unknown": "미알려짐"
+    }
   }
 }
