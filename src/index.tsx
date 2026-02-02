@@ -410,7 +410,10 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
         })}
         strOKButtonText={t("confirmModals.yes")}
         strCancelButtonText={t("confirmModals.no")}
-        onOK={() => handleInstall()}
+        onOK={() => {
+          handleInstall();
+          return true; // Return true to dismiss modal
+        }}
       />,
     );
   };
