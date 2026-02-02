@@ -696,10 +696,10 @@ function patchGameDetailsRoute() {
           const gameInfoKey = `unifideck-game-info-${appId}`;
 
           const alreadyHasInstallInfo = container.props.children.some(
-            (child: any) => child?.key === installInfoKey
+            (child: any) => child?.key === installInfoKey,
           );
           const alreadyHasGameInfo = container.props.children.some(
-            (child: any) => child?.key === gameInfoKey
+            (child: any) => child?.key === gameInfoKey,
           );
 
           // ProtonDB COMPATIBILITY: Insert at index 2
@@ -709,31 +709,32 @@ function patchGameDetailsRoute() {
           // Since InstallInfoDisplay uses position: absolute, its visual position is CSS-controlled.
           const spliceIndex = Math.min(2, container.props.children.length);
 
+          // NOTE: InstallInfoDisplay now integrated into GameInfoPanel for better controller navigation
           // Inject our install info display after play button (only if not already present)
-          if (!alreadyHasInstallInfo) {
-            container.props.children.splice(
-              spliceIndex,
-              0,
-              React.createElement(InstallInfoDisplay, {
-                key: installInfoKey,
-                appId,
-              }),
-            );
-
-            console.log(
-              `[Unifideck] Injected install info for app ${appId} in ${
-                innerContainer
-                  ? "InnerContainer"
-                  : headerContainer
-                    ? "Header"
-                    : playSection
-                      ? "PlaySection"
-                      : buttonsContainer
-                        ? "ButtonsContainer"
-                        : "GameInfoRow"
-              } at index ${spliceIndex}`,
-            );
-          }
+          // if (!alreadyHasInstallInfo) {
+          //   container.props.children.splice(
+          //     spliceIndex,
+          //     0,
+          //     React.createElement(InstallInfoDisplay, {
+          //       key: installInfoKey,
+          //       appId,
+          //     }),
+          //   );
+          //
+          //   console.log(
+          //     `[Unifideck] Injected install info for app ${appId} in ${
+          //       innerContainer
+          //         ? "InnerContainer"
+          //         : headerContainer
+          //           ? "Header"
+          //           : playSection
+          //             ? "PlaySection"
+          //             : buttonsContainer
+          //               ? "ButtonsContainer"
+          //               : "GameInfoRow"
+          //     } at index ${spliceIndex}`,
+          //   );
+          // }
 
           // ========== GAME INFO PANEL INJECTION ==========
           // For non-Steam games, inject our custom GameInfoPanel to display metadata
@@ -750,9 +751,11 @@ function patchGameDetailsRoute() {
                 React.createElement(GameInfoPanel, {
                   key: gameInfoKey,
                   appId,
-                })
+                }),
               );
-              console.log(`[Unifideck] Injected GameInfoPanel at index 1 (ProtonDB pattern)`);
+              console.log(
+                `[Unifideck] Injected GameInfoPanel at index 1 (ProtonDB pattern)`,
+              );
             } catch (panelError) {
               console.error(
                 `[Unifideck] Error creating GameInfoPanel:`,
@@ -1338,8 +1341,8 @@ const Content: FC = () => {
       store === "epic"
         ? t("storeConnections.epicGames")
         : store === "amazon"
-          ? t("storeConnections.amazonGames")
-          : t("storeConnections.gog");
+        ? t("storeConnections.amazonGames")
+        : t("storeConnections.gog");
 
     try {
       let methodName: string;

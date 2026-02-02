@@ -1,8 +1,17 @@
-import React, { useState, useEffect } from "react";
-import { DialogButton, Focusable, showModal, ConfirmModal } from "@decky/ui";
+import React, { useState, useEffect, useRef } from "react";
+import {
+  DialogButton,
+  Focusable,
+  showModal,
+  ConfirmModal,
+  toaster,
+} from "@decky/ui";
 import { call } from "@decky/api";
 import { useTranslation } from "react-i18next";
 import { StoreFinal } from "../types/store";
+import StoreIcon from "./StoreIcon";
+import { UninstallConfirmModal } from "./UninstallConfirmModal";
+import { updateSingleGameStatus } from "../tabs";
 
 // Steam Deck compatibility categories
 enum ESteamDeckCompatibilityCategory {
@@ -83,6 +92,16 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
 
+  // Install button state
+  const [gameInfo, setGameInfo] = useState<any>(null);
+  const [processing, setProcessing] = useState(false);
+  const [downloadState, setDownloadState] = useState<{
+    isDownloading: boolean;
+    progress?: number;
+    downloadId?: string;
+  }>({ isDownloading: false });
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -132,6 +151,242 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
     };
   }, [appId]);
 
+  // Fetch game info for install button
+  useEffect(() => {
+    call<[number], any>("get_game_info", appId)
+      .then((info) => {
+        setGameInfo(info?.error ? null : info);
+      })
+      .catch(() => setGameInfo(null));
+  }, [appId]);
+
+  // Poll for download state
+  useEffect(() => {
+    if (!gameInfo) return;
+
+    const checkDownloadState = async () => {
+      try {
+        const result = await call<
+          [string, string],
+          {
+            success: boolean;
+            is_downloading: boolean;
+            download_info?: {
+              id: string;
+              progress_percent: number;
+              status: string;
+            };
+          }
+        >("is_game_downloading", gameInfo.game_id, gameInfo.store);
+
+        setDownloadState((prevState) => {
+          const newState = {
+            isDownloading: false,
+            progress: 0,
+            downloadId: undefined as string | undefined,
+          };
+
+          if (result.success && result.is_downloading && result.download_info) {
+            const status = result.download_info.status;
+            if (status === "downloading" || status === "queued") {
+              newState.isDownloading = true;
+              newState.progress = result.download_info.progress_percent;
+              newState.downloadId = result.download_info.id;
+            }
+          }
+
+          // Detect completion
+          if (prevState.isDownloading && !newState.isDownloading) {
+            const finalStatus = result.download_info?.status;
+            if (finalStatus === "completed") {
+              toaster.toast({
+                title: t("toasts.installComplete"),
+                body: t("toasts.installCompleteMessage", {
+                  title: gameInfo?.title || "Game",
+                }),
+                duration: 10000,
+                critical: true,
+              });
+
+              // Refresh game info
+              call<[number], any>("get_game_info", appId).then((info) => {
+                const processedInfo = info?.error ? null : info;
+                setGameInfo(processedInfo);
+                if (processedInfo) {
+                  updateSingleGameStatus({
+                    appId,
+                    store: processedInfo.store,
+                    isInstalled: processedInfo.is_installed,
+                  });
+                }
+              });
+            }
+          }
+
+          return newState;
+        });
+      } catch (error) {
+        console.error("[GameInfoPanel] Error checking download state:", error);
+      }
+    };
+
+    checkDownloadState();
+    pollIntervalRef.current = setInterval(checkDownloadState, 1000);
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, [gameInfo, appId, t]);
+
+  // Install/uninstall handlers
+  const handleInstall = async () => {
+    if (!gameInfo) return;
+    setProcessing(true);
+
+    const result = await call<[number], any>(
+      "add_to_download_queue_by_appid",
+      appId,
+    );
+
+    if (result.success) {
+      toaster.toast({
+        title: t("toasts.downloadStarted"),
+        body: t("toasts.downloadQueued", { title: gameInfo.title }),
+        duration: 5000,
+      });
+
+      if (result.is_multipart) {
+        toaster.toast({
+          title: t("toasts.multipartDetected"),
+          body: t("toasts.multipartMessage"),
+          duration: 8000,
+        });
+      }
+
+      setDownloadState((prev) => ({
+        ...prev,
+        isDownloading: true,
+        progress: 0,
+      }));
+    } else {
+      toaster.toast({
+        title: t("toasts.downloadFailed"),
+        body: result.error
+          ? t(result.error)
+          : t("toasts.downloadFailedMessage"),
+        duration: 10000,
+        critical: true,
+      });
+    }
+    setProcessing(false);
+  };
+
+  const handleCancel = async () => {
+    const dlId =
+      downloadState.downloadId || `${gameInfo.store}:${gameInfo.game_id}`;
+    setProcessing(true);
+
+    const result = await call<[string], { success: boolean; error?: string }>(
+      "cancel_download_by_id",
+      dlId,
+    );
+
+    if (result.success) {
+      toaster.toast({
+        title: t("toasts.downloadCancelled"),
+        body: t("toasts.downloadCancelledMessage", { title: gameInfo?.title }),
+        duration: 5000,
+      });
+      setDownloadState({ isDownloading: false, progress: 0 });
+    } else {
+      toaster.toast({
+        title: t("toasts.cancelFailed"),
+        body: result.error ? t(result.error) : t("toasts.cancelFailedMessage"),
+        duration: 5000,
+        critical: true,
+      });
+    }
+    setProcessing(false);
+  };
+
+  const handleUninstall = async (deletePrefix: boolean = false) => {
+    if (!gameInfo) return;
+    setProcessing(true);
+
+    toaster.toast({
+      title: t("toasts.uninstalling"),
+      body: deletePrefix
+        ? t("toasts.uninstallingMessageProton", { title: gameInfo.title })
+        : t("toasts.uninstallingMessage", { title: gameInfo.title }),
+      duration: 5000,
+    });
+
+    const result = await call<[number, boolean], any>(
+      "uninstall_game_by_appid",
+      appId,
+      deletePrefix,
+    );
+
+    if (result.success) {
+      setGameInfo({ ...gameInfo, is_installed: false });
+
+      if (result.game_update) {
+        updateSingleGameStatus(result.game_update);
+      }
+
+      toaster.toast({
+        title: t("toasts.uninstallComplete"),
+        body: deletePrefix
+          ? t("toasts.uninstallCompleteMessageProton", {
+              title: gameInfo.title,
+            })
+          : t("toasts.uninstallCompleteMessage", { title: gameInfo.title }),
+        duration: 10000,
+      });
+    }
+    setProcessing(false);
+  };
+
+  const showInstallConfirmation = () => {
+    showModal(
+      <ConfirmModal
+        strTitle={t("confirmModals.installTitle")}
+        strDescription={t("confirmModals.installDescription", {
+          title: gameInfo?.title,
+        })}
+        strOKButtonText={t("confirmModals.yes")}
+        strCancelButtonText={t("confirmModals.no")}
+        onOK={() => handleInstall()}
+      />,
+    );
+  };
+
+  const showUninstallConfirmation = () => {
+    showModal(
+      <UninstallConfirmModal
+        gameTitle={gameInfo?.title || "this game"}
+        onConfirm={(deletePrefix) => handleUninstall(deletePrefix)}
+      />,
+    );
+  };
+
+  const showCancelConfirmation = () => {
+    showModal(
+      <ConfirmModal
+        strTitle={t("confirmModals.cancelTitle")}
+        strDescription={t("confirmModals.cancelDescription", {
+          title: gameInfo?.title,
+        })}
+        strOKButtonText={t("confirmModals.yes")}
+        strCancelButtonText={t("confirmModals.no")}
+        bDestructiveWarning={true}
+        onOK={() => handleCancel()}
+      />,
+    );
+  };
+
   // Open URL in browser popup (same method as auth flow)
   const openUrl = (url: string) => {
     if (url) {
@@ -178,6 +433,25 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
     .unifideck-nav-button:hover {
       filter: brightness(1.3) !important;
       background-color: rgba(255, 255, 255, 0.2) !important;
+    }
+    
+    /* Install button - blue when focused */
+    .unifideck-install-button.install-state.gpfocus,
+    .unifideck-install-button.install-state:hover {
+      background-color: #1a9fff !important;
+      filter: brightness(1) !important;
+    }
+    
+    /* Uninstall button - red when focused */
+    .unifideck-install-button.uninstall-state.gpfocus,
+    .unifideck-install-button.uninstall-state:hover {
+      background-color: #d32f2f !important;
+      filter: brightness(1) !important;
+    }
+    
+    /* Cancel button - red (always) */
+    .unifideck-install-button.cancel-state {
+      background-color: #d32f2f !important;
     }
   `;
 
@@ -402,6 +676,57 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
             className="unifideck-nav-button"
           >
             {t("gameInfoPanel.buttons.synopsis")}
+          </DialogButton>
+        )}
+
+        {/* Install/Uninstall/Cancel Button */}
+        {gameInfo && !gameInfo.error && (
+          <DialogButton
+            onClick={
+              processing
+                ? undefined
+                : downloadState.status === "downloading" ||
+                  downloadState.status === "queued"
+                ? showCancelConfirmation
+                : gameInfo.is_installed
+                ? showUninstallConfirmation
+                : showInstallConfirmation
+            }
+            disabled={processing}
+            style={{
+              ...buttonStyle,
+              padding: "4px 12px",
+              fontSize: "12px",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              opacity: processing ? 0.5 : 1,
+            }}
+            className={`unifideck-nav-button unifideck-install-button ${
+              downloadState.status === "downloading" ||
+              downloadState.status === "queued"
+                ? "cancel-state"
+                : gameInfo.is_installed
+                ? "uninstall-state"
+                : "install-state"
+            }`}
+          >
+            <StoreIcon />
+            <span>
+              {processing
+                ? "..."
+                : downloadState.status === "downloading" ||
+                  downloadState.status === "queued"
+                ? `Cancel (${downloadState.progress || 0}%)`
+                : gameInfo.is_installed
+                ? "Uninstall"
+                : "Install"}
+            </span>
+            {gameInfo.size && !gameInfo.is_installed && (
+              <span style={{ fontSize: "11px", opacity: 0.7 }}>
+                ({gameInfo.size})
+              </span>
+            )}
           </DialogButton>
         )}
 
