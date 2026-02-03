@@ -15,11 +15,20 @@ export const SteamRestartModal: FC<SteamRestartModalProps> = ({
   const { t } = useTranslation();
 
   const handleRestartNow = () => {
-    // Request Steam restart via backend
-    // This will gracefully close Steam and relaunch it
     closeModal?.();
-    // TODO: Add backend method to restart Steam
-    console.log("[SteamRestartModal] Restart now requested");
+
+    // Use StartShutdown instead of StartRestart (safer and works better)
+    // On Steam Deck, gamescope-session will automatically restart Steam
+    // See: https://github.com/SteamDeckHomebrew/decky-loader/blob/main/frontend/src/steamfixes/README.md
+    // StartRestart() breaks CEF debugging, StartShutdown(false) doesn't
+    if (window.SteamClient?.User?.StartShutdown) {
+      console.log("[SteamRestartModal] Restarting Steam via StartShutdown");
+      window.SteamClient.User.StartShutdown(false);
+    } else {
+      console.error(
+        "[SteamRestartModal] SteamClient.User.StartShutdown not available",
+      );
+    }
   };
 
   const handleLater = () => {

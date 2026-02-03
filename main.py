@@ -4492,6 +4492,7 @@ class Plugin:
 
             finally:
                 self._is_syncing = False
+                self._cancel_sync = False
 
     async def force_sync_libraries(self, resync_artwork: bool = False) -> Dict[str, Any]:
         """
@@ -5227,6 +5228,7 @@ class Plugin:
 
             finally:
                 self._is_syncing = False
+                self._cancel_sync = False
 
     async def start_background_sync(self) -> Dict[str, Any]:
         """Start background sync service"""
