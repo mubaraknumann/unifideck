@@ -95,7 +95,7 @@
     "gamesSynced": "{{synced}} / {{total}} oyun senkronize edildi",
     "artworkDownloaded": "{{synced}} / {{total}} kapak indirildi",
     "steamMetadataDownloaded": "Steam meta verisi: {{synced}} / {{total}}",
-    "rawgMetadataDownloaded": "RAWG meta verisi: {{synced}} / {{total}}"
+    "unifidbMetadataDownloaded": "unifiDB meta verisi: {{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "Temizlik",
@@ -292,9 +292,15 @@
       "pointsShop": "Puan Dükkanı",
       "discussions": "Tartışmalar",
       "guides": "Kılavuzlar",
-      "support": "Destek"
+      "support": "Destek",
+      "install": "Kur",
+      "uninstall": "Kaldır",
+      "cancel": "İptal"
     },
     "labels": {
+      "store": "Mağaza:",
+      "name": "Ad:",
+      "size": "Boyut:",
       "developer": "Geliştirici:",
       "publisher": "Yayıncı:",
       "released": "Çıkış Tarihi:",

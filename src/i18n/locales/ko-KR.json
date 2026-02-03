@@ -93,7 +93,7 @@
     "gamesSynced": "{{synced}} / {{total}}개 게임 동기화됨",
     "artworkDownloaded": "{{synced}} / {{total}}개 아트워크 다운로드됨",
     "steamMetadataDownloaded": "Steam 메타데이터: {{synced}} / {{total}}",
-    "rawgMetadataDownloaded": "RAWG 메타데이터: {{synced}} / {{total}}"
+    "unifidbMetadataDownloaded": "unifiDB 메타데이터: {{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "정리",
@@ -289,9 +289,15 @@
       "pointsShop": "포인트샵",
       "discussions": "스레드",
       "guides": "가이드",
-      "support": "지원"
+      "support": "지원",
+      "install": "설치",
+      "uninstall": "제거",
+      "cancel": "취소"
     },
     "labels": {
+      "store": "스토어:",
+      "name": "이름:",
+      "size": "크기:",
       "developer": "개발사:",
       "publisher": "발행사:",
       "released": "출시 날짜:",
@@ -302,7 +308,7 @@
       "modalTitle": "Steam Deck 호환성",
       "viewOnProtonDb": "ProtonDB에서 보기",
       "close": "닫기",
-      "verified": "검용됨",
+      "verified": "검증됨",
       "playable": "플레이가능",
       "unsupported": "비지원",
       "unknown": "미알려짐"

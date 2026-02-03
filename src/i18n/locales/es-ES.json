@@ -92,7 +92,7 @@
     "gamesSynced": "{{synced}} / {{total}} juegos sincronizados",
     "artworkDownloaded": "{{synced}} / {{total}} ilustraciones descargadas",
     "steamMetadataDownloaded": "Metadatos de Steam: {{synced}} / {{total}}",
-    "rawgMetadataDownloaded": "Metadatos de RAWG: {{synced}} / {{total}}"
+    "unifidbMetadataDownloaded": "Metadatos de unifiDB: {{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "Limpieza",
@@ -289,9 +289,15 @@
       "pointsShop": "Tienda de Puntos",
       "discussions": "Discusiones",
       "guides": "Guías",
-      "support": "Soporte"
+      "support": "Soporte",
+      "install": "Instalar",
+      "uninstall": "Desinstalar",
+      "cancel": "Cancelar"
     },
     "labels": {
+      "store": "Tienda:",
+      "name": "Nombre:",
+      "size": "Tamaño:",
       "developer": "Desarrollador:",
       "publisher": "Editorial:",
       "released": "Lanzado:",
