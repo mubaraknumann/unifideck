@@ -720,10 +720,12 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
               {processing
                 ? "..."
                 : downloadState.isDownloading
-                ? `Cancel (${downloadState.progress || 0}%)`
+                ? `${t("gameInfoPanel.buttons.cancel")} (${
+                    downloadState.progress || 0
+                  }%)`
                 : gameInfo.is_installed
-                ? "Uninstall"
-                : "Install"}
+                ? t("gameInfoPanel.buttons.uninstall")
+                : t("gameInfoPanel.buttons.install")}
             </span>
           </DialogButton>
         )}

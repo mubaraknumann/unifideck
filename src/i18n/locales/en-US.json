@@ -292,7 +292,10 @@
       "pointsShop": "Points Shop",
       "discussions": "Discussions",
       "guides": "Guides",
-      "support": "Support"
+      "support": "Support",
+      "install": "Install",
+      "uninstall": "Uninstall",
+      "cancel": "Cancel"
     },
     "labels": {
       "store": "Store:",

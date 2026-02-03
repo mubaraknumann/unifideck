@@ -92,7 +92,7 @@
     "gamesSynced": "{{synced}} / {{total}} игр синхронизировано",
     "artworkDownloaded": "{{synced}} / {{total}} артов загружено",
     "steamMetadataDownloaded": "Метаданные Steam: {{synced}} / {{total}}",
-    "rawgMetadataDownloaded": "Метаданные RAWG: {{synced}} / {{total}}"
+    "unifidbMetadataDownloaded": "Метаданные unifiDB: {{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "Очистка",
@@ -287,10 +287,16 @@
       "communityHub": "Центр сообщества",
       "pointsShop": "Магазин точек",
       "discussions": "Обсуждения",
-      "guides": "Приготнения",
-      "support": "Поддержка"
+      "guides": "Гайды",
+      "support": "Поддержка",
+      "install": "Установить",
+      "uninstall": "Удалить",
+      "cancel": "Отменить"
     },
     "labels": {
+      "store": "Магазин:",
+      "name": "Название:",
+      "size": "Размер:",
       "developer": "Разработчик:",
       "publisher": "Издатель:",
       "released": "Выпущена:",

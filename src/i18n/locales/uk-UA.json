@@ -92,7 +92,7 @@
     "gamesSynced": "{{synced}} / {{total}} ігор синхронізовано",
     "artworkDownloaded": "{{synced}} / {{total}} обкладинок завантажено",
     "steamMetadataDownloaded": "Метадані Steam: {{synced}} / {{total}}",
-    "rawgMetadataDownloaded": "Метадані RAWG: {{synced}} / {{total}}"
+    "unifidbMetadataDownloaded": "Метадані unifiDB: {{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "Очищення",
@@ -281,17 +281,23 @@
     "noMetadata": "Немає метаданих для цієї гри.",
     "noTestResults": "Немає деталізованих результатів тесту.",
     "buttons": {
-      "details": "Навдання",
+      "details": "Деталі",
       "synopsis": "Синопсис",
       "storePage": "Сторінка магазину",
       "dlc": "DLC",
-      "communityHub": "Місто діяльності спільноти",
+      "communityHub": "Центр спільноти",
       "pointsShop": "Магазин балів",
       "discussions": "Обговорення",
       "guides": "Поради",
-      "support": "Підтримка"
+      "support": "Підтримка",
+      "install": "Встановити",
+      "uninstall": "Видалити",
+      "cancel": "Скасувати"
     },
     "labels": {
+      "store": "Магазин:",
+      "name": "Назва:",
+      "size": "Розмір:",
       "developer": "Розробник:",
       "publisher": "Видавець:",
       "released": "Вийшла:",
@@ -299,7 +305,7 @@
       "status": "Стан:"
     },
     "compatibility": {
-      "modalTitle": "Смисність Steam Deck",
+      "modalTitle": "Сумісність Steam Deck",
       "viewOnProtonDb": "Подивитися на ProtonDB",
       "close": "Закрити",
       "verified": "ПОТВЕРДЖЕНО",
