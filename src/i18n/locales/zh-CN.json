@@ -265,10 +265,10 @@
     "downloadProgress": "已下载 {{synced}}/{{total}}（{{game}}）"
   },
   "deckTabs": {
-    "greatOnDeck": "适用于 Steam Deck",
+    "greatOnDeck": "非常适合 Deck",
     "allGames": "所有游戏",
     "installed": "已安装",
-    "nonSteam": "非Steam"
+    "nonSteam": "非 Steam"
   },
   "unifiedLibrary": {
     "error": "Unifideck 错误",
