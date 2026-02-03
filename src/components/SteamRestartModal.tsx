@@ -1,7 +1,6 @@
 import { FC } from "react";
 import { useTranslation } from "react-i18next";
-import { ConfirmModal, DialogButton } from "@decky/ui";
-import { FaSyncAlt, FaClock } from "react-icons/fa";
+import { ConfirmModal } from "@decky/ui";
 
 interface SteamRestartModalProps {
   store?: string;
@@ -38,63 +37,16 @@ export const SteamRestartModal: FC<SteamRestartModalProps> = ({
   return (
     <ConfirmModal
       strTitle={t("confirmModals.steamRestartTitle")}
-      strDescription=""
-      bHideCloseIcon={false}
-      onOK={closeModal}
-      onCancel={closeModal}
-    >
-      <div style={{ padding: "10px 0" }}>
-        {/* Description */}
-        <div
-          style={{
-            marginBottom: "20px",
-            color: "#ccc",
-            fontSize: "14px",
-            lineHeight: "1.5",
-          }}
-        >
-          {store
-            ? t("confirmModals.steamRestartDescriptionStore", { store })
-            : t("confirmModals.steamRestartDescription")}
-        </div>
-
-        {/* Action buttons */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "10px",
-          }}
-        >
-          {/* Restart Now */}
-          <DialogButton
-            onClick={handleRestartNow}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px",
-              color: "#1a9fff",
-            }}
-          >
-            <FaSyncAlt /> {t("confirmModals.restartNow")}
-          </DialogButton>
-
-          {/* Later */}
-          <DialogButton
-            onClick={handleLater}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px",
-            }}
-          >
-            <FaClock /> {t("confirmModals.later")}
-          </DialogButton>
-        </div>
-      </div>
-    </ConfirmModal>
+      strDescription={
+        store
+          ? t("confirmModals.steamRestartDescriptionStore", { store })
+          : t("confirmModals.steamRestartDescription")
+      }
+      strOKButtonText={t("confirmModals.restartNow")}
+      strCancelButtonText={t("confirmModals.later")}
+      onOK={handleRestartNow}
+      onCancel={handleLater}
+    />
   );
 };
 
