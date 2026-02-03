@@ -92,7 +92,7 @@
     "gamesSynced": "{{synced}} / {{total}} 件のゲームを同期済み",
     "artworkDownloaded": "{{synced}} / {{total}} 件のアートをダウンロード済み",
     "steamMetadataDownloaded": "Steamメタデータ: {{synced}} / {{total}}",
-    "rawgMetadataDownloaded": "RAWGメタデータ: {{synced}} / {{total}}"
+    "unifidbMetadataDownloaded": "unifiDBメタデータ: {{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "クリーンアップ",
@@ -288,9 +288,15 @@
       "pointsShop": "ポイントショップ",
       "discussions": "ディスカッション",
       "guides": "ガイド",
-      "support": "サポート"
+      "support": "サポート",
+      "install": "インストール",
+      "uninstall": "アンインストール",
+      "cancel": "キャンセル"
     },
     "labels": {
+      "store": "ストア:",
+      "name": "名前:",
+      "size": "サイズ:",
       "developer": "開発者:",
       "publisher": "パブリッシャー:",
       "released": "発売日:",

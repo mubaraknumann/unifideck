@@ -97,7 +97,7 @@
     "gamesSynced": "{{synced}} / {{total}} 个游戏已同步",
     "artworkDownloaded": "{{synced}} / {{total}} 个封面已下载",
     "steamMetadataDownloaded": "Steam 元数据：{{synced}} / {{total}}",
-    "rawgMetadataDownloaded": "RAWG 元数据：{{synced}} / {{total}}"
+    "unifidbMetadataDownloaded": "unifiDB 元数据：{{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "清理",
@@ -294,9 +294,15 @@
       "pointsShop": "积分店",
       "discussions": "讨论",
       "guides": "指南",
-      "support": "支持"
+      "support": "支持",
+      "install": "安装",
+      "uninstall": "卸载",
+      "cancel": "取消"
     },
     "labels": {
+      "store": "商店:",
+      "name": "名称:",
+      "size": "大小:",
       "developer": "开发者:",
       "publisher": "发行商:",
       "released": "发行日期:",

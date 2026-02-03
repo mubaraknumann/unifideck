@@ -92,7 +92,7 @@
     "gamesSynced": "{{synced}} / {{total}} games gesynchroniseerd",
     "artworkDownloaded": "{{synced}} / {{total}} artwork gedownload",
     "steamMetadataDownloaded": "Steam-metadata: {{synced}} / {{total}}",
-    "rawgMetadataDownloaded": "RAWG-metadata: {{synced}} / {{total}}"
+    "unifidbMetadataDownloaded": "unifiDB-metadata: {{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "Opruimen",
@@ -289,9 +289,15 @@
       "pointsShop": "Puntwinkel",
       "discussions": "Discussies",
       "guides": "Gidsen",
-      "support": "Ondersteuning"
+      "support": "Ondersteuning",
+      "install": "Installeren",
+      "uninstall": "Verwijderen",
+      "cancel": "Annuleren"
     },
     "labels": {
+      "store": "Winkel:",
+      "name": "Naam:",
+      "size": "Grootte:",
       "developer": "Ontwikkelaar:",
       "publisher": "Uitgever:",
       "released": "Uitgebracht:",

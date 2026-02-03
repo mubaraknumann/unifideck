@@ -92,7 +92,7 @@
     "gamesSynced": "{{synced}} / {{total}} jeux synchronisés",
     "artworkDownloaded": "{{synced}} / {{total}} visuels téléchargés",
     "steamMetadataDownloaded": "Métadonnées Steam : {{synced}} / {{total}}",
-    "rawgMetadataDownloaded": "Métadonnées RAWG : {{synced}} / {{total}}"
+    "unifidbMetadataDownloaded": "Métadonnées unifiDB : {{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "Nettoyage",
@@ -289,9 +289,15 @@
       "pointsShop": "Boutique de Points",
       "discussions": "Discussions",
       "guides": "Guides",
-      "support": "Support"
+      "support": "Support",
+      "install": "Installer",
+      "uninstall": "Désinstaller",
+      "cancel": "Annuler"
     },
     "labels": {
+      "store": "Magasin :",
+      "name": "Nom :",
+      "size": "Taille :",
       "developer": "Développeur :",
       "publisher": "Éditeur :",
       "released": "Sortie :",
