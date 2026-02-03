@@ -79,6 +79,32 @@ To build the plugin from source (for development or local testing):
 The build script wraps the Decky CLI (e.g. `cli/decky plugin build .`) to produce a Decky-compatible plugin zip in `out/` (for example, `out/Unifideck.zip`). It assumes the frontend has already been built (step 2) and that any required backend files are present in the repository.
 For the expected plugin zip layout (dist, package.json, plugin.json, main.py, LICENSE, bin, backend, etc.), see the [Decky Plugin Template](https://github.com/SteamDeckHomebrew/decky-plugin-template) [distribution section](https://github.com/SteamDeckHomebrew/decky-plugin-template#distribution).
 
+### Project Structure
+
+```
+unifideck/
+├── backend/          # Python backend modules (stores, auth, metadata, etc.)
+├── bin/              # CLI tools (legendary, gogdl, nile - downloaded at build)
+├── src/              # TypeScript/React frontend code
+├── assets/           # Plugin icons and images
+├── defaults/         # Default configuration files
+├── dist/             # Rollup output (generated)
+├── out/              # Decky CLI build output (generated)
+├── main.py           # Plugin entrypoint
+├── plugin.json       # Plugin metadata
+└── package.json      # npm dependencies
+```
+
+The backend directory contains all Python backend logic organized into modules:
+- `auth/` - Store authentication handlers
+- `stores/` - Epic, GOG, Amazon store integrations
+- `metadata/` - Game metadata fetching (SteamGridDB, unifiDB, Metacritic)
+- `discovery/` - Game discovery and compatibility data
+- `download/` - Download queue and installation management
+- `compat/` - Steam Deck compatibility integration
+- `registry/` - Windows registry emulation for GOG/Amazon
+- `utils/` - Shared utilities
+
 ## Getting Started
 
 1. Open the **Quick Access Menu** and find **Unifideck**
