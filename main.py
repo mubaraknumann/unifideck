@@ -1397,9 +1397,8 @@ class SyncProgress:
         'fetching': (0, 10),
         'checking_installed': (10, 20),
         'syncing': (20, 40),
-        'unifidb_lookup': (40, 47),
-        'metacritic_fetch': (47, 54),
-        'sgdb_lookup': (54, 60),
+        'unifidb_lookup': (40, 50),
+        'sgdb_lookup': (50, 60),
         'checking_artwork': (60, 65),
         'artwork': (65, 95),
         'proton_setup': (95, 98),
@@ -1423,13 +1422,11 @@ class SyncProgress:
         self.artwork_synced = 0
         self.current_phase = "sync"  # "sync" or "artwork"
 
-        # Steam/unifiDB/Metacritic metadata tracking
+        # Steam/unifiDB metadata tracking
         self.steam_total = 0
         self.steam_synced = 0
         self.unifidb_total = 0
         self.unifidb_synced = 0
-        self.metacritic_total = 0
-        self.metacritic_synced = 0
 
         # Lock for thread-safe updates during parallel downloads
         self._lock = asyncio.Lock()
@@ -1476,20 +1473,6 @@ class SyncProgress:
             }
             return self.unifidb_synced
 
-    async def increment_metacritic(self, game_title: str) -> int:
-        """Thread-safe Metacritic metadata counter increment"""
-        async with self._lock:
-            self.metacritic_synced += 1
-            self.current_game = {
-                "label": "sync.fetchingMetacriticData",
-                "values": {
-                    "synced": self.metacritic_synced,
-                    "total": self.metacritic_total,
-                    "game_title": game_title
-                }
-            }
-            return self.metacritic_synced
-
     def _calculate_progress(self) -> int:
         """Calculate progress based on current phase and its percentage allocation.
         
@@ -1505,10 +1488,6 @@ class SyncProgress:
         
         if self.status == 'unifidb_lookup' and self.unifidb_total > 0:
             sub_progress = self.unifidb_synced / self.unifidb_total
-            return int(start_pct + (end_pct - start_pct) * sub_progress)
-        
-        if self.status == 'metacritic_fetch' and self.metacritic_total > 0:
-            sub_progress = self.metacritic_synced / self.metacritic_total
             return int(start_pct + (end_pct - start_pct) * sub_progress)
         
         if self.status == 'syncing' and self.steam_total > 0:
@@ -1531,13 +1510,11 @@ class SyncProgress:
             'artwork_total': self.artwork_total,
             'artwork_synced': self.artwork_synced,
             'current_phase': self.current_phase,
-            # Steam/unifiDB/Metacritic fields
+            # Steam/unifiDB metadata fields
             'steam_total': self.steam_total,
             'steam_synced': self.steam_synced,
             'unifidb_total': self.unifidb_total,
-            'unifidb_synced': self.unifidb_synced,
-            'metacritic_total': self.metacritic_total,
-            'metacritic_synced': self.metacritic_synced
+            'unifidb_synced': self.unifidb_synced
         }
 
 
@@ -4227,64 +4204,6 @@ class Plugin:
                     else:
                         logger.info(f"Sync: No games need unifiDB lookup")
 
-                # === METACRITIC METADATA FETCH ===
-                # Fetch Metacritic scores/data from backend API (sequential with rate limiting)
-                if all_games:
-                    logger.info(f"[SYNC PHASE] Starting Metacritic metadata fetch phase")
-                    metacritic_cache = load_metacritic_metadata_cache()
-                    games_needing_metacritic = [g for g in all_games if g.title]
-
-                    if games_needing_metacritic:
-                        logger.info(f"Sync: Fetching Metacritic metadata for {len(games_needing_metacritic)} games")
-                        self.sync_progress.status = "metacritic_fetch"
-                        self.sync_progress.metacritic_total = len(games_needing_metacritic)
-                        self.sync_progress.metacritic_synced = 0
-                        self.sync_progress.current_game = {
-                            "label": "sync.fetchingMetacriticData",
-                            "values": {}
-                        }
-
-                        # Import Metacritic scraper
-                        try:
-                            from backend.metadata.metacritic import fetch_metacritic_metadata
-                        except ImportError as e:
-                            logger.error(f"Failed to import Metacritic module: {e}")
-                            fetch_metacritic_metadata = None
-
-                        async def fetch_metacritic_for_game(game, index, total):
-                            try:
-                                if fetch_metacritic_metadata is None:
-                                    await self.sync_progress.increment_metacritic(game.title)
-                                    return None
-
-                                # Sequential with 0.5s delay between requests
-                                metacritic_data = await fetch_metacritic_metadata(game.title, timeout=10.0, delay=0.5)
-                                await self.sync_progress.increment_metacritic(game.title)
-                                if metacritic_data:
-                                    logger.debug(f"[Metacritic] Got score for {game.title}: {metacritic_data.get('metascore')}")
-                                    return (game.title.lower(), metacritic_data)
-                                else:
-                                    logger.debug(f"[Metacritic] No data for {game.title}")
-                            except Exception as e:
-                                logger.warning(f"[Metacritic] Error for {game.title}: {e}")
-                                await self.sync_progress.increment_metacritic(game.title)
-                            return None
-
-                        # Fetch sequentially to respect rate limits
-                        new_cache_entries = {}
-                        for idx, game in enumerate(games_needing_metacritic):
-                            result = await fetch_metacritic_for_game(game, idx, len(games_needing_metacritic))
-                            if isinstance(result, tuple) and result is not None:
-                                new_cache_entries[result[0]] = result[1]
-
-                        if new_cache_entries:
-                            logger.info(f"Sync: Fetched Metacritic metadata for {len(new_cache_entries)}/{len(games_needing_metacritic)} games")
-                            metacritic_cache.update(new_cache_entries)
-                            save_metacritic_metadata_cache(metacritic_cache)
-                        else:
-                            logger.warning(f"Sync: Metacritic fetch returned no valid data for {len(games_needing_metacritic)} games")
-                    else:
-                        logger.info(f"Sync: No games need Metacritic lookup")
 
                 if fetch_artwork and self.steamgriddb:
                     logger.info(f"[SYNC PHASE] Starting SGDB lookup and artwork phase")
@@ -4492,6 +4411,7 @@ class Plugin:
 
             finally:
                 self._is_syncing = False
+                self._cancel_sync = False
 
     async def force_sync_libraries(self, resync_artwork: bool = False) -> Dict[str, Any]:
         """
@@ -4812,64 +4732,6 @@ class Plugin:
                     else:
                         logger.info(f"Force Sync: No games need unifiDB lookup")
 
-                # === METACRITIC METADATA FETCH (Force Sync) ===
-                # Fetch Metacritic scores/data from backend API (sequential with rate limiting)
-                if all_games:
-                    logger.info(f"[FORCE SYNC PHASE] Starting Metacritic metadata fetch phase")
-                    metacritic_cache = load_metacritic_metadata_cache()
-                    games_needing_metacritic = [g for g in all_games if g.title]
-
-                    if games_needing_metacritic:
-                        logger.info(f"Force Sync: Fetching Metacritic metadata for {len(games_needing_metacritic)} games")
-                        self.sync_progress.status = "metacritic_fetch"
-                        self.sync_progress.metacritic_total = len(games_needing_metacritic)
-                        self.sync_progress.metacritic_synced = 0
-                        self.sync_progress.current_game = {
-                            "label": "sync.fetchingMetacriticData",
-                            "values": {}
-                        }
-
-                        # Import Metacritic scraper
-                        try:
-                            from backend.metadata.metacritic import fetch_metacritic_metadata
-                        except ImportError as e:
-                            logger.error(f"Failed to import Metacritic module: {e}")
-                            fetch_metacritic_metadata = None
-
-                        async def fetch_metacritic_for_game(game, index, total):
-                            try:
-                                if fetch_metacritic_metadata is None:
-                                    await self.sync_progress.increment_metacritic(game.title)
-                                    return None
-
-                                # Sequential with 0.5s delay between requests
-                                metacritic_data = await fetch_metacritic_metadata(game.title, timeout=10.0, delay=0.5)
-                                await self.sync_progress.increment_metacritic(game.title)
-                                if metacritic_data:
-                                    logger.debug(f"[Metacritic] Got score for {game.title}: {metacritic_data.get('metascore')}")
-                                    return (game.title.lower(), metacritic_data)
-                                else:
-                                    logger.debug(f"[Metacritic] No data for {game.title}")
-                            except Exception as e:
-                                logger.warning(f"[Metacritic] Error for {game.title}: {e}")
-                                await self.sync_progress.increment_metacritic(game.title)
-                            return None
-
-                        # Fetch sequentially to respect rate limits
-                        new_cache_entries = {}
-                        for idx, game in enumerate(games_needing_metacritic):
-                            result = await fetch_metacritic_for_game(game, idx, len(games_needing_metacritic))
-                            if isinstance(result, tuple) and result is not None:
-                                new_cache_entries[result[0]] = result[1]
-
-                        if new_cache_entries:
-                            logger.info(f"Force Sync: Fetched Metacritic metadata for {len(new_cache_entries)}/{len(games_needing_metacritic)} games")
-                            metacritic_cache.update(new_cache_entries)
-                            save_metacritic_metadata_cache(metacritic_cache)
-                        else:
-                            logger.warning(f"Force Sync: Metacritic fetch returned no valid data for {len(games_needing_metacritic)} games")
-                    else:
-                        logger.info(f"Force Sync: No games need Metacritic lookup")
 
                 if self.steamgriddb:
                     logger.info(f"[FORCE SYNC PHASE] Starting SGDB lookup and artwork phase")
@@ -5227,6 +5089,7 @@ class Plugin:
 
             finally:
                 self._is_syncing = False
+                self._cancel_sync = False
 
     async def start_background_sync(self) -> Dict[str, Any]:
         """Start background sync service"""
@@ -6006,6 +5869,7 @@ class Plugin:
                     sources['release_date'] = 'steam_cache'
 
             # Check Metacritic cache FIRST for scores (primary source)
+            # If not in cache, fetch on-demand (this is the new lazy loading pattern)
             metacritic_cache = load_metacritic_metadata_cache()
             metacritic_cache_key = title.lower()
             metacritic_data = metacritic_cache.get(metacritic_cache_key)
@@ -6016,7 +5880,29 @@ class Plugin:
                     sources['metacritic'] = 'metacritic_cache'
                     logger.debug(f"[MetadataDisplay] Metacritic score for '{title}': {metacritic}")
             else:
-                logger.debug(f"[MetadataDisplay] No Metacritic cache for '{title}'")
+                # ON-DEMAND FETCH: Not in cache, so fetch live from Metacritic API
+                logger.debug(f"[MetadataDisplay] No Metacritic cache for '{title}', fetching on-demand...")
+                try:
+                    from backend.metadata.metacritic import fetch_metacritic_metadata
+                    
+                    # Fetch with no delay (user is waiting for panel to open)
+                    metacritic_data = await fetch_metacritic_metadata(title, timeout=10.0, delay=0)
+                    
+                    if metacritic_data:
+                        # Cache the result for future use
+                        metacritic_cache[metacritic_cache_key] = metacritic_data
+                        save_metacritic_metadata_cache(metacritic_cache)
+                        
+                        metacritic = metacritic_data.get('metascore')
+                        if metacritic:
+                            sources['metacritic'] = 'metacritic_live'
+                            logger.info(f"[MetadataDisplay] Fetched Metacritic score for '{title}': {metacritic}")
+                    else:
+                        logger.debug(f"[MetadataDisplay] No Metacritic data found for '{title}'")
+                except ImportError as e:
+                    logger.error(f"[MetadataDisplay] Failed to import Metacritic module: {e}")
+                except Exception as e:
+                    logger.warning(f"[MetadataDisplay] Error fetching Metacritic data for '{title}': {e}")
 
             # Check unifiDB cache for additional metadata
             unifidb_cache = load_unifidb_metadata_cache()
