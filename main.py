@@ -32,7 +32,7 @@ except ImportError:
     STEAMGRIDDB_AVAILABLE = False
 
 # Import Download Manager (modular backend)
-from backend.download.manager import get_download_queue, DownloadQueue
+from py_modules.unifideck.download.manager import get_download_queue, DownloadQueue
 
 # Import Cloud Save Manager
 from cloud_save_manager import CloudSaveManager
@@ -45,14 +45,14 @@ from launch_options_parser import extract_store_id, is_unifideck_shortcut, get_f
 # These will eventually replace the inline class definitions below.
 # ============================================================================
 try:
-    from backend.stores import (
+    from py_modules.unifideck.stores import (
         Store, Game as BackendGame, StoreManager,
         EpicConnector as BackendEpicConnector,
         AmazonConnector as BackendAmazonConnector,
         GOGAPIClient as BackendGOGAPIClient
     )
-    from backend.auth import CDPOAuthMonitor as BackendCDPOAuthMonitor
-    from backend.compat import (
+    from py_modules.unifideck.auth import CDPOAuthMonitor as BackendCDPOAuthMonitor
+    from py_modules.unifideck.compat import (
         BackgroundCompatFetcher as BackendCompatFetcher,
         load_compat_cache, save_compat_cache, prefetch_compat
     )
@@ -88,11 +88,11 @@ ARTWORK_FETCH_TIMEOUT = 90
 
 
 # ============================================================================
-# CDPOAuthMonitor - Now imported from backend.auth module
+# CDPOAuthMonitor - Now imported from py_modules.unifideck.auth module
 # ============================================================================
 if BACKEND_AVAILABLE:
     CDPOAuthMonitor = BackendCDPOAuthMonitor
-    logger.info("Using CDPOAuthMonitor from backend.auth module")
+    logger.info("Using CDPOAuthMonitor from py_modules.unifideck.auth module")
 else:
     # Fallback: Define inline if backend not available (should not happen in production)
     logger.warning("Backend not available, CDPOAuthMonitor would need inline definition")
@@ -101,7 +101,7 @@ else:
 
 
 # ============================================================================
-# Game dataclass - Now imported from backend.stores.base module
+# Game dataclass - Now imported from py_modules.unifideck.stores.base module
 # ============================================================================
 if BACKEND_AVAILABLE:
     Game = BackendGame
@@ -1230,7 +1230,7 @@ def save_compat_cache(cache: Dict[str, Dict]) -> bool:
 
 
 # ============================================================================
-# BackgroundCompatFetcher - Now imported from backend.compat.library module
+# BackgroundCompatFetcher - Now imported from py_modules.unifideck.compat.library module
 # ============================================================================
 if BACKEND_AVAILABLE:
     BackgroundCompatFetcher = BackendCompatFetcher
@@ -3240,7 +3240,7 @@ class ShortcutsManager:
 
 
 # ============================================================================
-# EpicConnector - Now imported from backend.stores.epic module
+# EpicConnector - Now imported from py_modules.unifideck.stores.epic module
 # ============================================================================
 if BACKEND_AVAILABLE:
     EpicConnector = BackendEpicConnector
@@ -3248,7 +3248,7 @@ else:
     raise ImportError("backend.stores.epic module is required but not available")
 
 # ============================================================================
-# AmazonConnector - Now imported from backend.stores.amazon module
+# AmazonConnector - Now imported from py_modules.unifideck.stores.amazon module
 # ============================================================================
 if BACKEND_AVAILABLE:
     AmazonConnector = BackendAmazonConnector
@@ -3256,7 +3256,7 @@ else:
     raise ImportError("backend.stores.amazon module is required but not available")
 
 # ============================================================================
-# GOGAPIClient - Now imported from backend.stores.gog module
+# GOGAPIClient - Now imported from py_modules.unifideck.stores.gog module
 # ============================================================================
 if BACKEND_AVAILABLE:
     GOGAPIClient = BackendGOGAPIClient
@@ -3790,7 +3790,7 @@ class Plugin:
             # FIX 1: Propagate registration failures to download status
             # This ensures users see an error in the UI instead of 'completed'
             if not registration_success:
-                from backend.download.manager import DownloadStatus
+                from py_modules.unifideck.download.manager import DownloadStatus
                 item.status = DownloadStatus.ERROR
                 item.error_message = error_message or "Failed to register game after download"
                 logger.error(f"[DownloadComplete] REGISTRATION FAILED for {item.game_title}: {item.error_message}")
@@ -4158,7 +4158,7 @@ class Plugin:
 
                         # Import unifiDB CDN fetcher
                         try:
-                            from backend.metadata.unifidb import fetch_unifidb_metadata
+                            from py_modules.unifideck.metadata.unifidb import fetch_unifidb_metadata
                         except ImportError as e:
                             logger.error(f"Failed to import unifiDB module: {e}")
                             fetch_unifidb_metadata = None
@@ -4686,7 +4686,7 @@ class Plugin:
 
                         # Import unifiDB CDN fetcher
                         try:
-                            from backend.metadata.unifidb import fetch_unifidb_metadata
+                            from py_modules.unifideck.metadata.unifidb import fetch_unifidb_metadata
                         except ImportError as e:
                             logger.error(f"Failed to import unifiDB module: {e}")
                             fetch_unifidb_metadata = None
@@ -5883,7 +5883,7 @@ class Plugin:
                 # ON-DEMAND FETCH: Not in cache, so fetch live from Metacritic API
                 logger.debug(f"[MetadataDisplay] No Metacritic cache for '{title}', fetching on-demand...")
                 try:
-                    from backend.metadata.metacritic import fetch_metacritic_metadata
+                    from py_modules.unifideck.metadata.metacritic import fetch_metacritic_metadata
                     
                     # Fetch with no delay (user is waiting for panel to open)
                     metacritic_data = await fetch_metacritic_metadata(title, timeout=10.0, delay=0)
