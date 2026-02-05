@@ -17,6 +17,10 @@ from urllib.parse import parse_qs
 DECKY_PLUGIN_DIR = os.environ.get("DECKY_PLUGIN_DIR")
 if DECKY_PLUGIN_DIR:
     sys.path.insert(0, DECKY_PLUGIN_DIR)
+    # Also add py_modules directory so submodules can import bundled packages (e.g., steamgrid)
+    py_modules_path = os.path.join(DECKY_PLUGIN_DIR, "py_modules")
+    if os.path.isdir(py_modules_path):
+        sys.path.insert(0, py_modules_path)
 
 # Import VDF utilities
 from py_modules.unifideck.vdf import load_shortcuts_vdf, save_shortcuts_vdf
@@ -26,7 +30,7 @@ from py_modules.unifideck.steam_utils import get_logged_in_steam_user, migrate_u
 
 # Import SteamGridDB client
 try:
-    from steamgriddb_client import SteamGridDBClient
+    from py_modules.unifideck.steamgriddb import SteamGridDBClient
     STEAMGRIDDB_AVAILABLE = True
 except ImportError:
     STEAMGRIDDB_AVAILABLE = False
@@ -1430,6 +1434,25 @@ class SyncProgress:
 
         # Lock for thread-safe updates during parallel downloads
         self._lock = asyncio.Lock()
+
+    def reset(self):
+        """Reset all progress state for a new sync operation.
+        
+        Must be called at the start of sync_libraries / force_sync_libraries
+        to prevent stale data from the previous sync leaking into the UI.
+        """
+        self.total_games = 0
+        self.synced_games = 0
+        self.current_game = {"label": None, "values": {}}
+        self.status = "idle"
+        self.error = None
+        self.artwork_total = 0
+        self.artwork_synced = 0
+        self.current_phase = "sync"
+        self.steam_total = 0
+        self.steam_synced = 0
+        self.unifidb_total = 0
+        self.unifidb_synced = 0
 
     async def increment_artwork(self, game_title: str) -> int:
         """Thread-safe artwork counter increment"""
@@ -3815,9 +3838,13 @@ class Plugin:
     async def has_artwork(self, app_id: int) -> bool:
         """Check if required artwork files exist for this app_id.
         
-        Returns True if grid, hero, and logo exist. Icon is optional since
-        not all games have icons on SteamGridDB, and missing icon shouldn't
-        mark the entire game as needing artwork re-download.
+        Returns True if grid, hero, and logo exist (any file extension).
+        Icon is optional since not all games have icons on SteamGridDB,
+        and missing icon shouldn't mark the entire game as needing re-download.
+        
+        Uses glob patterns to detect artwork regardless of extension,
+        so custom artwork set via Steam UI, SGDBoop, Decky SteamGridDB plugin,
+        or any other tool is properly recognized.
         """
         if not self.steamgriddb or not self.steamgriddb.grid_path:
             return False
@@ -3828,17 +3855,21 @@ class Plugin:
         unsigned_id = app_id if app_id >= 0 else app_id + 2**32
 
         # Check for 3 REQUIRED artwork types (icon is optional bonus)
+        # Use glob to match any extension — users may set custom art via other tools
         grid_path = Path(self.steamgriddb.grid_path)
-        required_files = [
-            grid_path / f"{unsigned_id}p.jpg",     # Vertical grid (460x215)
-            grid_path / f"{unsigned_id}_hero.jpg", # Hero image (1920x620)
-            grid_path / f"{unsigned_id}_logo.png", # Logo
+        required_patterns = [
+            f"{unsigned_id}p.*",      # Grid (portrait/vertical)
+            f"{unsigned_id}_hero.*",  # Hero image
+            f"{unsigned_id}_logo.*",  # Logo
         ]
-        # Return True if all REQUIRED files exist (icon is bonus)
-        return all(f.exists() for f in required_files)
+        # Return True if all REQUIRED types have at least one matching file
+        return all(list(grid_path.glob(pattern)) for pattern in required_patterns)
 
     async def get_missing_artwork_types(self, app_id: int) -> set:
         """Check which specific artwork types are missing for this app_id
+
+        Uses glob patterns to detect artwork regardless of extension,
+        so custom artwork set via other tools is properly recognized.
 
         Returns:
             set: Set of missing artwork types (e.g., {'grid', 'hero', 'logo'})
@@ -3851,16 +3882,23 @@ class Plugin:
         grid_path = Path(self.steamgriddb.grid_path)
 
         # Only check required types (icon is optional)
-        artwork_checks = {
-            'grid': grid_path / f"{unsigned_id}p.jpg",
-            'hero': grid_path / f"{unsigned_id}_hero.jpg",
-            'logo': grid_path / f"{unsigned_id}_logo.png",
+        # Use glob patterns to detect any extension
+        artwork_patterns = {
+            'grid': f"{unsigned_id}p.*",
+            'hero': f"{unsigned_id}_hero.*",
+            'logo': f"{unsigned_id}_logo.*",
         }
 
-        return {art_type for art_type, path in artwork_checks.items() if not path.exists()}
+        return {art_type for art_type, pattern in artwork_patterns.items() if not list(grid_path.glob(pattern))}
 
-    async def fetch_artwork_with_progress(self, game, semaphore):
+    async def fetch_artwork_with_progress(self, game, semaphore, only_types: set = None):
         """Fetch artwork for a single game with concurrency control and timeout
+
+        Args:
+            game: Game object to fetch artwork for
+            semaphore: Concurrency limiter
+            only_types: If provided, only fetch these artwork types ('grid', 'hero', 'logo', 'icon').
+                       If None, fetch all types.
 
         Returns:
             dict: {success: bool, timed_out: bool, game: Game, error: str}
@@ -3880,7 +3918,8 @@ class Plugin:
                             game.title,
                             game.app_id,
                             store=game.store,      # 'epic', 'gog', or 'amazon'
-                            store_id=game.id       # Store-specific game ID
+                            store_id=game.id,      # Store-specific game ID
+                            only_types=only_types  # Only fetch specified types (if any)
                         ),
                         timeout=ARTWORK_FETCH_TIMEOUT
                     )
@@ -3933,13 +3972,15 @@ class Plugin:
             try:
                 logger.info("Syncing libraries...")
 
+                # Reset all progress state from previous sync
+                self.sync_progress.reset()
+
                 # Update progress: Fetching games
                 self.sync_progress.status = "fetching"
                 self.sync_progress.current_game = {
                     "label": "sync.fetchingGameLists",
                     "values": {}
                 }
-                self.sync_progress.error = None
 
                 # Get games from all stores
                 epic_games = await self.epic.get_library()
@@ -4089,13 +4130,32 @@ class Plugin:
                      game.app_id = self.shortcuts_manager.generate_app_id(game.title, launcher_script)
 
                 # Resolve Steam presence via Steam Store API
-                # Fetch for ALL Unifideck games to ensure complete metadata coverage
+                # Only fetch for games missing from cache or with incomplete metadata
                 if all_games:
                     real_steam_cache = load_steam_real_appid_cache()
                     steam_metadata_cache = load_steam_metadata_cache()
 
-                    # Fetch for ALL Unifideck games, regardless of cache status
-                    games_needing_steam = [g for g in all_games if g.title]
+                    # Incremental: skip games that already have a resolved Steam ID AND complete metadata
+                    def _needs_steam_fetch(game) -> bool:
+                        if not game.title:
+                            return False
+                        steam_app_id = real_steam_cache.get(game.app_id, 0)
+                        if not steam_app_id:
+                            return True  # No Steam ID resolved yet
+                        meta = steam_metadata_cache.get(steam_app_id, {})
+                        # Consider complete if it has a name and short_description
+                        return not (meta.get('name') and meta.get('short_description'))
+
+                    games_needing_steam = [g for g in all_games if _needs_steam_fetch(g)]
+                    skipped_steam = len([g for g in all_games if g.title]) - len(games_needing_steam)
+                    if skipped_steam > 0:
+                        logger.info(f"Sync: Skipping {skipped_steam} games with complete Steam metadata (incremental)")
+
+                    # Still assign cached steam_app_id to skipped games for later phases
+                    for game in all_games:
+                        cached_steam_id = real_steam_cache.get(game.app_id, 0)
+                        if cached_steam_id:
+                            game.steam_app_id = cached_steam_id
 
                     self.sync_progress.steam_total = len(games_needing_steam)
                     self.sync_progress.steam_synced = 0
@@ -4127,7 +4187,7 @@ class Plugin:
                                 await self.sync_progress.increment_steam(game.title)
 
                     if games_needing_steam:
-                        logger.info(f"Sync: Pre-fetching Steam metadata for {len(games_needing_steam)} games (ALL Unifideck games)")
+                        logger.info(f"Sync: Pre-fetching Steam metadata for {len(games_needing_steam)} games")
                         logger.debug(f"  Sample games: {', '.join([g.title for g in games_needing_steam[:5]])}")
                         semaphore = asyncio.Semaphore(self.STEAM_STORE_MAX_CONCURRENCY)
                         await asyncio.gather(*[resolve_steam_for_game(g, semaphore) for g in games_needing_steam])
@@ -4144,7 +4204,15 @@ class Plugin:
                 if all_games:
                     logger.info(f"[SYNC PHASE] Starting unifiDB metadata fetch phase")
                     unifidb_cache = load_unifidb_metadata_cache()
-                    games_needing_unifidb = [g for g in all_games if g.title]
+
+                    # Incremental: only fetch for games not already in unifiDB cache
+                    games_needing_unifidb = [
+                        g for g in all_games
+                        if g.title and g.title.lower() not in unifidb_cache
+                    ]
+                    skipped_unifidb = len([g for g in all_games if g.title]) - len(games_needing_unifidb)
+                    if skipped_unifidb > 0:
+                        logger.info(f"Sync: Skipping {skipped_unifidb} games with existing unifiDB metadata (incremental)")
 
                     if games_needing_unifidb:
                         logger.info(f"Sync: Fetching unifiDB metadata for {len(games_needing_unifidb)} games via CDN")
@@ -4443,6 +4511,9 @@ class Plugin:
             try:
                 logger.info("Force syncing libraries (rewriting all shortcuts and compatibility data)...")
 
+                # Reset all progress state from previous sync
+                self.sync_progress.reset()
+
                 # Backup existing caches before force sync (safety measure)
                 # Caches will only be overwritten after successful fetch
                 logger.info("Force Sync: Backing up existing metadata caches...")
@@ -4452,11 +4523,11 @@ class Plugin:
                 _backup_cache_file(get_metacritic_metadata_cache_path())
                 logger.info("Force Sync: Cache backups created (*.bak files)")
                 
+                self.sync_progress.status = "fetching"
                 self.sync_progress.current_game = {
                     "label": "force_sync.migratingOldInstallations",
                     "values": {}
                 }
-                self.sync_progress.error = None
 
                 # Migrate old GOG .unifideck-id markers to new JSON format
                 try:
@@ -4794,215 +4865,126 @@ class Plugin:
                         save_steam_appid_cache(steam_appid_cache)
 
                     # Cleanup orphaned artwork before sync (prevents duplicate files)
-                    self.sync_progress.current_game = {
-                        "label": "sync.cleaningOrphanedArtwork",
-                        "values": {}
-                    }
-                    cleanup_result = await self.cleanup_orphaned_artwork()
-                    if cleanup_result.get('removed_count', 0) > 0:
-                        logger.info(f"Cleaned up {cleanup_result['removed_count']} orphaned artwork files")
+                    # Only run when resync_artwork=True — skipping protects manually customized artwork
+                    if resync_artwork:
+                        self.sync_progress.current_game = {
+                            "label": "sync.cleaningOrphanedArtwork",
+                            "values": {}
+                        }
+                        cleanup_result = await self.cleanup_orphaned_artwork()
+                        if cleanup_result.get('removed_count', 0) > 0:
+                            logger.info(f"Cleaned up {cleanup_result['removed_count']} orphaned artwork files")
 
                     # ARTWORK: Download based on user preference
-                    # If resync_artwork=True, re-download ALL artwork (overwrites manual changes)
-                    # If resync_artwork=False, only download for games missing artwork
+                    # If resync_artwork=True, re-download ALL artwork (overwrites everything)
+                    # If resync_artwork=False, fill gaps only (download missing types per game)
                     logger.info(f"[FORCE SYNC PHASE] Checking artwork for {len(all_games)} games (resync_artwork={resync_artwork})")
                     self.sync_progress.status = "checking_artwork"
                     self.sync_progress.current_game = {
-                        "label": "sync.checking_artwork" if not resync_artwork else "sync.queueRefresh",
+                        "label": "sync.queueRefresh" if resync_artwork else "sync.checking_artwork",
                         "values": {}
                     }
+                    
+                    # Build list of games needing art + their missing types
+                    # This dict maps app_id -> set of missing artwork types
+                    games_missing_types = {}
+                    
                     for game in all_games:
                         if game.app_id in seen_app_ids:
-                            if resync_artwork or not await self.has_artwork(game.app_id):
+                            if resync_artwork:
+                                # Full resync: all games get all types downloaded
                                 games_needing_art.append(game)
+                                games_missing_types[game.app_id] = None  # None = all types
+                            else:
+                                # Gap-fill: only download missing types
+                                missing = await self.get_missing_artwork_types(game.app_id)
+                                if missing:
+                                    games_needing_art.append(game)
+                                    games_missing_types[game.app_id] = missing
                             seen_app_ids.discard(game.app_id)  # Only add once per app_id
 
                     logger.info(f"[FORCE SYNC PHASE] Artwork check complete: {len(games_needing_art)}/{len(all_games)} games need artwork")
+                    if not resync_artwork and games_missing_types:
+                        total_missing = sum(len(types) for types in games_missing_types.values() if types)
+                        logger.info(f"[FORCE SYNC PHASE] Gap-fill mode: {total_missing} total missing types to download across {len(games_needing_art)} games")
 
                     if games_needing_art:
-                        logger.info(f"Force Sync: Fetching artwork for {len(games_needing_art)} games...")
-                        self.sync_progress.current_phase = "artwork"
-                        self.sync_progress.status = "artwork"
-                        self.sync_progress.artwork_total = len(games_needing_art)
-                        self.sync_progress.artwork_synced = 0
-
-                        # Reset main counters for clean UI
-                        self.sync_progress.synced_games = 0
-                        self.sync_progress.total_games = 0
-
-                        # Check cancellation
-                        if self._cancel_sync:
-                             logger.warning("Force Sync cancelled before artwork")
-                             return {'success': False, 'cancelled': True}
-
-                        # === PASS 1: Initial artwork fetch ===
-                        logger.info(f"  [Pass 1] Starting parallel download (concurrency: 30)")
-                        semaphore = asyncio.Semaphore(30)
-                        tasks = [self.fetch_artwork_with_progress(game, semaphore) for game in games_needing_art]
-                        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-                        # Count successes (results are now dicts)
-                        pass1_success = sum(1 for r in results if isinstance(r, dict) and r.get('success'))
-                        logger.info(f"  [Pass 1] Complete: {pass1_success}/{len(games_needing_art)} games")
-
-                        # === PASS 2: Retry games with incomplete artwork ===
-                        games_to_retry = []
-                        for game in games_needing_art:
-                            missing = await self.get_missing_artwork_types(game.app_id)
-                            if missing:
-                                games_to_retry.append(game)
-
-                        if games_to_retry and not self._cancel_sync:
-                            logger.info(f"  [Pass 2] Retrying {len(games_to_retry)} games with incomplete artwork")
-                            self.sync_progress.status = "artwork_retry"
-                            self.sync_progress.current_game = {
-                                "label": "sync.retryingMissingArtwork",
-                                "values": {"count": len(games_to_retry)}
-                            }
-                            self.sync_progress.artwork_total = len(games_to_retry)
+                            logger.info(f"Force Sync: Fetching artwork for {len(games_needing_art)} games...")
+                            self.sync_progress.current_phase = "artwork"
+                            self.sync_progress.status = "artwork"
+                            self.sync_progress.artwork_total = len(games_needing_art)
                             self.sync_progress.artwork_synced = 0
 
-                            retry_tasks = [self.fetch_artwork_with_progress(game, semaphore) for game in games_to_retry]
-                            await asyncio.gather(*retry_tasks, return_exceptions=True)
+                            # Reset main counters for clean UI
+                            self.sync_progress.synced_games = 0
+                            self.sync_progress.total_games = 0
 
-                            # Count recovered games (can't use await in generator expression)
-                            pass2_recovered = 0
-                            for g in games_to_retry:
-                                if not await self.get_missing_artwork_types(g.app_id):
-                                    pass2_recovered += 1
-                            logger.info(f"  [Pass 2] Recovered: {pass2_recovered}/{len(games_to_retry)} games")
+                            # Check cancellation
+                            if self._cancel_sync:
+                                 logger.warning("Force Sync cancelled before artwork")
+                                 return {'success': False, 'cancelled': True}
 
-                        # Log still-incomplete games for debugging
-                        still_incomplete = []
-                        for g in games_needing_art:
-                            missing = await self.get_missing_artwork_types(g.app_id)
-                            if missing:
-                                still_incomplete.append((g.title, missing))
-                        if still_incomplete:
-                            logger.warning(f"  Artwork incomplete for {len(still_incomplete)} games after 2 passes")
-                            for title, missing in still_incomplete[:5]:  # Log first 5
-                                logger.debug(f"    - {title}: missing {missing}")
+                            # === PASS 1: Initial artwork fetch ===
+                            logger.info(f"  [Pass 1] Starting parallel download (concurrency: 30)")
+                            semaphore = asyncio.Semaphore(30)
+                            tasks = []
+                            for game in games_needing_art:
+                                # Pass only_types if in gap-fill mode (resync_artwork=False)
+                                only_types = games_missing_types.get(game.app_id) if not resync_artwork else None
+                                tasks.append(self.fetch_artwork_with_progress(game, semaphore, only_types=only_types))
+                            results = await asyncio.gather(*tasks, return_exceptions=True)
 
-                        artwork_count = len(games_needing_art) - len(still_incomplete)
-                        logger.info(f"Artwork download complete: {artwork_count}/{len(games_needing_art)} games fully successful")
+                            # Count successes (results are now dicts)
+                            pass1_success = sum(1 for r in results if isinstance(r, dict) and r.get('success'))
+                            logger.info(f"  [Pass 1] Complete: {pass1_success}/{len(games_needing_art)} games")
 
-                # === ENHANCED METADATA: unifiDB/Metacritic fallback + Deck Compatibility ===
-                # Fetch metadata from unifiDB/Metacritic for games missing data, and deck compat from Steam
-                self.sync_progress.current_game = {
-                    "label": "sync.fetchingEnhancedMetadata",
-                    "values": {"count": len(all_games)}
-                }
-                
-                # Reload metadata caches after earlier fetch phases
-                existing_metadata = load_steam_metadata_cache()
-                unifidb_cache = load_unifidb_metadata_cache()
-                metacritic_cache = load_metacritic_metadata_cache()
-                updated_count = 0
+                            # === PASS 2: Retry games with incomplete artwork ===
+                            games_to_retry = []
+                            for game in games_needing_art:
+                                missing = await self.get_missing_artwork_types(game.app_id)
+                                if missing:
+                                    games_to_retry.append(game)
 
-                # Process in batches with limited concurrency
-                async def fetch_enhanced_metadata_for_game(game, semaphore):
-                    """Fetch deck compat + fill metadata gaps from unifiDB/Metacritic"""
-                    async with semaphore:
-                        try:
-                            # Get signed app_id for cache lookup
-                            app_id = game.app_id
-                            if app_id > 2**31:
-                                app_id_signed = app_id - 2**32
-                            else:
-                                app_id_signed = app_id
+                            if games_to_retry and not self._cancel_sync:
+                                logger.info(f"  [Pass 2] Retrying {len(games_to_retry)} games with incomplete artwork")
+                                self.sync_progress.status = "artwork_retry"
+                                self.sync_progress.current_game = {
+                                    "label": "sync.retryingMissingArtwork",
+                                    "values": {"count": len(games_to_retry)}
+                                }
+                                self.sync_progress.artwork_total = len(games_to_retry)
+                                self.sync_progress.artwork_synced = 0
 
-                            # Get Steam App ID from mapping
-                            steam_app_id = steam_appid_cache.get(app_id_signed, 0)
+                                retry_tasks = []
+                                for game in games_to_retry:
+                                    # Pass only_types if in gap-fill mode (resync_artwork=False)
+                                    only_types = games_missing_types.get(game.app_id) if not resync_artwork else None
+                                    retry_tasks.append(self.fetch_artwork_with_progress(game, semaphore, only_types=only_types))
+                                await asyncio.gather(*retry_tasks, return_exceptions=True)
 
-                            # Get existing metadata for this Steam app
-                            game_meta = existing_metadata.get(steam_app_id, {}) if steam_app_id else {}
-                            updated = False
+                                # Count recovered games (can't use await in generator expression)
+                                pass2_recovered = 0
+                                for g in games_to_retry:
+                                    if not await self.get_missing_artwork_types(g.app_id):
+                                        pass2_recovered += 1
+                                logger.info(f"  [Pass 2] Recovered: {pass2_recovered}/{len(games_to_retry)} games")
 
-                            # Ensure core Steam fields exist for store page detection
-                            if steam_app_id > 0:
-                                if not game_meta.get('steam_appid'):
-                                    game_meta['steam_appid'] = steam_app_id
-                                    updated = True
-                                if not game_meta.get('name'):
-                                    game_meta['name'] = game.title
-                                    updated = True
-                                if not game_meta.get('type'):
-                                    game_meta['type'] = 'game'
-                                    updated = True
+                            # Log still-incomplete games for debugging
+                            still_incomplete = []
+                            for g in games_needing_art:
+                                missing = await self.get_missing_artwork_types(g.app_id)
+                                if missing:
+                                    still_incomplete.append((g.title, missing))
+                            if still_incomplete:
+                                logger.warning(f"  Artwork incomplete for {len(still_incomplete)} games after 2 passes")
+                                for title, missing in still_incomplete[:5]:  # Log first 5
+                                    logger.debug(f"    - {title}: missing {missing}")
 
-                            # Check what's missing - field-level fallback
-                            needs_fallback = (
-                                not game_meta.get('short_description') or
-                                not game_meta.get('developers') or
-                                game_meta.get('metacritic') is None
-                            )
-                            needs_deck = steam_app_id > 0 and game_meta.get('deck_category', 0) == 0
-
-                            # Fetch from unifiDB/Metacritic if needed
-                            cache_key = game.title.lower()
-                            if needs_fallback:
-                                # Try unifiDB first
-                                unifidb_data = unifidb_cache.get(cache_key)
-                                if unifidb_data:
-                                    if not game_meta.get('short_description') and unifidb_data.get('description'):
-                                        game_meta['short_description'] = unifidb_data['description'][:500]
-                                        updated = True
-                                    if not game_meta.get('developers') and unifidb_data.get('developers'):
-                                        game_meta['developers'] = unifidb_data['developers']
-                                        updated = True
-                                    if not game_meta.get('publishers') and unifidb_data.get('publishers'):
-                                        game_meta['publishers'] = unifidb_data['publishers']
-                                        updated = True
-                                    if not game_meta.get('genres') and unifidb_data.get('genres'):
-                                        game_meta['genres'] = [{'description': g} for g in unifidb_data['genres'][:4]]
-                                        updated = True
-                                
-                                # Try Metacritic for score (always prefer Metacritic)
-                                metacritic_data = metacritic_cache.get(cache_key)
-                                if metacritic_data:
-                                    if game_meta.get('metacritic') is None and metacritic_data.get('metascore'):
-                                        game_meta['metacritic'] = metacritic_data['metascore']
-                                        updated = True
-                                    # Also fill other gaps from Metacritic
-                                    if not game_meta.get('short_description') and metacritic_data.get('description'):
-                                        game_meta['short_description'] = metacritic_data['description'][:500]
-                                        updated = True
-                                    if not game_meta.get('developers') and metacritic_data.get('developer'):
-                                        game_meta['developers'] = [metacritic_data['developer']]
-                                        updated = True
-                                    if not game_meta.get('publishers') and metacritic_data.get('publisher'):
-                                        game_meta['publishers'] = [metacritic_data['publisher']]
-                                        updated = True
-                            
-                            # Fetch deck compat if needed
-                            if needs_deck:
-                                deck_info = await self.fetch_steam_deck_compatibility(steam_app_id)
-                                if deck_info.get('category', 0) > 0:
-                                    game_meta['deck_category'] = deck_info['category']
-                                    game_meta['deck_test_results'] = deck_info.get('testResults', [])
-                                    updated = True
-                            
-                            return (steam_app_id, game_meta, updated)
-                        except Exception as e:
-                            logger.debug(f"[EnhancedMeta] Error for {game.title}: {e}")
-                            return (None, None, False)
-                
-                # Run with limited concurrency (5 parallel for API rate limits)
-                semaphore = asyncio.Semaphore(5)
-                tasks = [fetch_enhanced_metadata_for_game(game, semaphore) for game in all_games]
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-                
-                # Update cache with new metadata
-                for result in results:
-                    if isinstance(result, tuple) and result[2]:  # updated=True
-                        steam_app_id, game_meta, _ = result
-                        if steam_app_id and game_meta:
-                            existing_metadata[steam_app_id] = game_meta
-                            updated_count += 1
-                
-                if updated_count > 0:
-                    save_steam_metadata_cache(existing_metadata)
-                    logger.info(f"Force Sync: Enhanced metadata for {updated_count} games (unifiDB + Metacritic + deck compat)")
+                            artwork_count = len(games_needing_art) - len(still_incomplete)
+                            logger.info(f"Artwork download complete: {artwork_count}/{len(games_needing_art)} games fully successful")
+                    else:
+                        logger.info(f"[FORCE SYNC PHASE] No games need artwork (resync_artwork={resync_artwork})")
+                        artwork_count = 0
 
                 # --- UPDATE GAME ICONS ---
                 # Check for local icons and update game objects
@@ -5060,7 +5042,7 @@ class Plugin:
                 self.sync_progress.synced_games = len(all_games)
                 self.sync_progress.current_game = {
                     "label": "force_sync.completed",
-                    "values": {"updated": updated_count, "artwork": artwork_count}
+                    "values": {"added": added_count, "updated": updated_count, "artwork": artwork_count}
                 }
 
                 # Notify about Steam restart requirement

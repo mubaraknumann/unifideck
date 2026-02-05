@@ -630,14 +630,22 @@ class SteamGridDBClient:
         
         return None
 
-    async def fetch_game_art(self, title: str, app_id: int, store: str = None, store_id: str = None) -> Dict[str, Any]:
+    async def fetch_game_art(self, title: str, app_id: int, store: str = None, store_id: str = None, only_types: set = None) -> Dict[str, Any]:
         """
         Orchestrated Artwork Pipeline:
         1. Metadata Phase: Fetch URLs from all sources CONCURRENTLY
         2. Selection Phase: Prioritize Store URLs > Steam URLs
         3. Download Phase: Download unique, selected images CONCURRENTLY
+        
+        Args:
+            only_types: If provided, only fetch/download these artwork types ('grid', 'hero', 'logo', 'icon'). 
+                       If None, attempt all types.
         """
         final_result = {'success': False, 'steam_app_id': None, 'sources': []}
+        
+        # Default to all types if not specified
+        if only_types is None:
+            only_types = {'grid', 'hero', 'logo', 'icon'}
         
         # Unsigned ID for filenames
         unsigned_id = app_id if app_id >= 0 else app_id + 2**32
@@ -694,8 +702,9 @@ class SteamGridDBClient:
             source_map = {}
             
             # Add remaining store URLs (they are authoritative for this game)
+            # Filter to only requested types
             for k, url in store_urls.items():
-                if url:
+                if url and k in only_types:
                     selected_urls[k] = url
                     source_map[k] = store_label
             
@@ -768,8 +777,9 @@ class SteamGridDBClient:
             # === PHASE 4: FALLBACK (SGDB) ===
             # If significant art is missing, use SGDB to fill gaps
             # Include icon since no store provides proper icons
+            # Respect caller's only_types filter — never download types they didn't request
             needed = {'grid', 'hero', 'logo', 'icon'}
-            missing = needed - downloaded
+            missing = (needed - downloaded) & only_types
             
             if missing and self.client:
                 try:
@@ -787,7 +797,7 @@ class SteamGridDBClient:
             
             # === PHASE 5: STEAM CDN (Last Resort) ===
             # Only use Steam CDN for remaining gaps after Store and SGDB
-            still_missing = needed - downloaded
+            still_missing = (needed - downloaded) & only_types
             
             if still_missing and steam_res.get('urls'):
                 steam_urls = steam_res.get('urls', {})

@@ -903,13 +903,13 @@ const Content: FC = () => {
                       console.log(`[Unifideck] ⚠ Sync cancelled by user`);
                     }
 
-                    // Show modal only if changes were made
+                    // Show restart notification when sync completes (if library has games)
                     if (result.status === "complete") {
-                      const addedCount = result.synced_games || 0;
-                      if (addedCount > 0) {
-                        showModal(
-                          <SteamRestartModal closeModal={() => {}} />
-                        );
+                      const totalGames = result.synced_games || 0;
+
+                      // Show modal if there are any games in the library
+                      if (totalGames > 0) {
+                        showModal(<SteamRestartModal closeModal={() => {}} />);
                       }
                     } else if (result.status === "cancelled") {
                       toaster.toast({
@@ -1094,14 +1094,14 @@ const Content: FC = () => {
               console.log(`[Unifideck] ⚠ Sync cancelled by user`);
             }
 
-            // Show restart notification when sync completes (only if changes were made)
+            // Show restart notification when sync completes (if library has games)
             if (result.status === "complete") {
-              // Only show modal if there were actual changes (not just a refresh that added 0 games)
-              const addedCount = result.synced_games || 0;
-              if (addedCount > 0) {
-                showModal(
-                  <SteamRestartModal closeModal={() => {}} />
-                );
+              const totalGames = result.synced_games || 0;
+
+              // Show modal if there are any games in the library
+              // (user explicitly triggered sync, so remind them to restart)
+              if (totalGames > 0) {
+                showModal(<SteamRestartModal closeModal={() => {}} />);
               }
             } else if (result.status === "cancelled") {
               toaster.toast({
