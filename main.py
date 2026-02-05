@@ -17,6 +17,10 @@ from urllib.parse import parse_qs
 DECKY_PLUGIN_DIR = os.environ.get("DECKY_PLUGIN_DIR")
 if DECKY_PLUGIN_DIR:
     sys.path.insert(0, DECKY_PLUGIN_DIR)
+    # Also add py_modules directory so submodules can import bundled packages (e.g., steamgrid)
+    py_modules_path = os.path.join(DECKY_PLUGIN_DIR, "py_modules")
+    if os.path.isdir(py_modules_path):
+        sys.path.insert(0, py_modules_path)
 
 # Import VDF utilities
 from py_modules.unifideck.vdf import load_shortcuts_vdf, save_shortcuts_vdf
@@ -26,7 +30,7 @@ from py_modules.unifideck.steam_utils import get_logged_in_steam_user, migrate_u
 
 # Import SteamGridDB client
 try:
-    from steamgriddb_client import SteamGridDBClient
+    from py_modules.unifideck.steamgriddb import SteamGridDBClient
     STEAMGRIDDB_AVAILABLE = True
 except ImportError:
     STEAMGRIDDB_AVAILABLE = False
@@ -1430,6 +1434,25 @@ class SyncProgress:
 
         # Lock for thread-safe updates during parallel downloads
         self._lock = asyncio.Lock()
+
+    def reset(self):
+        """Reset all progress state for a new sync operation.
+        
+        Must be called at the start of sync_libraries / force_sync_libraries
+        to prevent stale data from the previous sync leaking into the UI.
+        """
+        self.total_games = 0
+        self.synced_games = 0
+        self.current_game = {"label": None, "values": {}}
+        self.status = "idle"
+        self.error = None
+        self.artwork_total = 0
+        self.artwork_synced = 0
+        self.current_phase = "sync"
+        self.steam_total = 0
+        self.steam_synced = 0
+        self.unifidb_total = 0
+        self.unifidb_synced = 0
 
     async def increment_artwork(self, game_title: str) -> int:
         """Thread-safe artwork counter increment"""
@@ -3933,13 +3956,15 @@ class Plugin:
             try:
                 logger.info("Syncing libraries...")
 
+                # Reset all progress state from previous sync
+                self.sync_progress.reset()
+
                 # Update progress: Fetching games
                 self.sync_progress.status = "fetching"
                 self.sync_progress.current_game = {
                     "label": "sync.fetchingGameLists",
                     "values": {}
                 }
-                self.sync_progress.error = None
 
                 # Get games from all stores
                 epic_games = await self.epic.get_library()
@@ -4443,6 +4468,9 @@ class Plugin:
             try:
                 logger.info("Force syncing libraries (rewriting all shortcuts and compatibility data)...")
 
+                # Reset all progress state from previous sync
+                self.sync_progress.reset()
+
                 # Backup existing caches before force sync (safety measure)
                 # Caches will only be overwritten after successful fetch
                 logger.info("Force Sync: Backing up existing metadata caches...")
@@ -4452,11 +4480,11 @@ class Plugin:
                 _backup_cache_file(get_metacritic_metadata_cache_path())
                 logger.info("Force Sync: Cache backups created (*.bak files)")
                 
+                self.sync_progress.status = "fetching"
                 self.sync_progress.current_game = {
                     "label": "force_sync.migratingOldInstallations",
                     "values": {}
                 }
-                self.sync_progress.error = None
 
                 # Migrate old GOG .unifideck-id markers to new JSON format
                 try:
@@ -5060,7 +5088,7 @@ class Plugin:
                 self.sync_progress.synced_games = len(all_games)
                 self.sync_progress.current_game = {
                     "label": "force_sync.completed",
-                    "values": {"updated": updated_count, "artwork": artwork_count}
+                    "values": {"added": added_count, "updated": updated_count, "artwork": artwork_count}
                 }
 
                 # Notify about Steam restart requirement
