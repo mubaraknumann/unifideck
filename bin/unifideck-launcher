@@ -41,22 +41,6 @@ log() {
 # This ensures toasts appear in Steam Gaming Mode (notify-send doesn't work there).
 TOAST_FILE="$HOME/.local/share/unifideck/launcher_toasts.json"
 
-is_online() {
-  # Fast + dependency-light. If DNS works and we can reach an HTTPS endpoint, we're online.
-  getent hosts account-public-service-prod03.ol.epicgames.com >/dev/null 2>&1 || return 1
-  timeout 2 bash -c ':</dev/tcp/1.1.1.1/443' >/dev/null 2>&1 || return 1
-  return 0
-}
-
-ONLINE=0
-if is_online; then
-    ONLINE=1;
-fi
-
-if [ "$ONLINE" -ne 1 ]; then
-  export UMU_RUNTIME_UPDATE=0
-fi
-
 notify_stage() {
     local stage="$1"
     local message="$2"
@@ -110,11 +94,6 @@ sync_cloud_saves() {
     local direction="$3"
     local prefix_path="${4:-}"
     local save_path="${5:-}"
-    
-    if [ "$ONLINE" -ne 1 ]; then
-        log "[CloudSave] Not connected to the network, skipping"
-        return 0
-    fi
     
     if [ ! -f "$CLOUD_SAVE_SCRIPT" ]; then
         log "[CloudSave] Sync script not found, skipping"
@@ -724,27 +703,23 @@ if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]] || \
 
         # Install/Update EOS overlay if not installed (required for games like FM24)
         # Check if overlay_install.json exists in legendary config
-        if [ "$ONLINE" -eq 1 ]; then 
-            EOS_INSTALL_MARKER="$HOME/.config/legendary/overlay_install.json"
-            if [ ! -f "$EOS_INSTALL_MARKER" ]; then
-                log "EOS Overlay not installed, installing..."
-                "$LEGENDARY_BIN" eos-overlay install -y 2>>"$LOG_FILE" || true
-            else
-                # Update to latest version (non-blocking, best effort)
-                "$LEGENDARY_BIN" eos-overlay update -y 2>>"$LOG_FILE" &
-            fi
-
-            # Enable EOS overlay for the /pfx subdirectory (like Heroic)
-            # Only if prefix is already initialized (has user.reg)
-            PFX_PATH="$PREFIX_PATH/pfx"
-            mkdir -p "$PFX_PATH"
-            if [ -f "$PFX_PATH/user.reg" ]; then
-                "$LEGENDARY_BIN" eos-overlay enable --prefix "$PFX_PATH" 2>>"$LOG_FILE" || true
-            else
-                log "Prefix not initialized yet, skipping EOS overlay enable"
-            fi
+        EOS_INSTALL_MARKER="$HOME/.config/legendary/overlay_install.json"
+        if [ ! -f "$EOS_INSTALL_MARKER" ]; then
+            log "EOS Overlay not installed, installing..."
+            "$LEGENDARY_BIN" eos-overlay install -y 2>>"$LOG_FILE" || true
         else
-            log "[Offline] Skipping EOS overlay install/update/enable"
+            # Update to latest version (non-blocking, best effort)
+            "$LEGENDARY_BIN" eos-overlay update -y 2>>"$LOG_FILE" &
+        fi
+
+        # Enable EOS overlay for the /pfx subdirectory (like Heroic)
+        # Only if prefix is already initialized (has user.reg)
+        PFX_PATH="$PREFIX_PATH/pfx"
+        mkdir -p "$PFX_PATH"
+        if [ -f "$PFX_PATH/user.reg" ]; then
+            "$LEGENDARY_BIN" eos-overlay enable --prefix "$PFX_PATH" 2>>"$LOG_FILE" || true
+        else
+            log "Prefix not initialized yet, skipping EOS overlay enable"
         fi
 
         # === WINETRICKS: Install redistributables at first launch ===
@@ -823,13 +798,7 @@ if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]] || \
         fi
 
         # Construct the legendary launch command
-        CMD=""
-        if [ "$ONLINE" -eq 1 ]; then 
-            CMD="$LEGENDARY_BIN launch $GAME_ID --no-wine --wrapper \"$PYTHON_BIN $UMU_WRAPPER\" --language $EPIC_LANG"
-        else
-            CMD="$LEGENDARY_BIN launch $GAME_ID --no-wine --wrapper \"$PYTHON_BIN $UMU_WRAPPER\" --language $EPIC_LANG --offline"
-        fi
-
+        CMD="$LEGENDARY_BIN launch $GAME_ID --no-wine --wrapper \"$PYTHON_BIN $UMU_WRAPPER\" --language $EPIC_LANG"
         log "Executing: $CMD"
 
         # === CLOUD SAVE: Download before launch ===
@@ -839,11 +808,7 @@ if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]] || \
         notify_stage "toasts.launcher.launchingGame" "toasts.launcher.startingEpicGame" "low"
 
         # Execute legendary (wait for exit, don't use exec)
-        if [ "$ONLINE" -eq 1 ]; then 
-            "$LEGENDARY_BIN" launch "$GAME_ID" --no-wine --wrapper "$PYTHON_BIN $UMU_WRAPPER" --language $EPIC_LANG 2>>"$LOG_FILE"
-        else
-            "$LEGENDARY_BIN" launch "$GAME_ID" --no-wine --wrapper "$PYTHON_BIN $UMU_WRAPPER" --language $EPIC_LANG --offline 2>>"$LOG_FILE"
-        fi
+        "$LEGENDARY_BIN" launch "$GAME_ID" --no-wine --wrapper "$PYTHON_BIN $UMU_WRAPPER" --language $EPIC_LANG 2>>"$LOG_FILE"
 
         GAME_EXIT_CODE=$?
 
