@@ -903,21 +903,12 @@ const Content: FC = () => {
                       console.log(`[Unifideck] ⚠ Sync cancelled by user`);
                     }
 
-                    // Show modal only if changes were made
+                    // Show restart notification when sync completes (if library has games)
                     if (result.status === "complete") {
-                      // Use the actual added/updated/artwork counts from current_game.values
-                      // Backend sets these at completion: {"added": N, "artwork": N} or {"updated": N, "artwork": N}
-                      const values = result.current_game?.values || {};
-                      const addedCount = (values.added as number) || 0;
-                      const updatedCount = (values.updated as number) || 0;
-                      const artworkCount = (values.artwork as number) || 0;
+                      const totalGames = result.synced_games || 0;
 
-                      // Only show modal if there were actual changes
-                      if (
-                        addedCount > 0 ||
-                        updatedCount > 0 ||
-                        artworkCount > 0
-                      ) {
+                      // Show modal if there are any games in the library
+                      if (totalGames > 0) {
                         showModal(<SteamRestartModal closeModal={() => {}} />);
                       }
                     } else if (result.status === "cancelled") {
@@ -1103,17 +1094,13 @@ const Content: FC = () => {
               console.log(`[Unifideck] ⚠ Sync cancelled by user`);
             }
 
-            // Show restart notification when sync completes (only if changes were made)
+            // Show restart notification when sync completes (if library has games)
             if (result.status === "complete") {
-              // Use the actual added/updated/artwork counts from current_game.values
-              // Backend sets these at completion: {"added": N, "artwork": N} or {"updated": N, "artwork": N}
-              const values = result.current_game?.values || {};
-              const addedCount = (values.added as number) || 0;
-              const updatedCount = (values.updated as number) || 0;
-              const artworkCount = (values.artwork as number) || 0;
+              const totalGames = result.synced_games || 0;
 
-              // Only show modal if there were actual changes
-              if (addedCount > 0 || updatedCount > 0 || artworkCount > 0) {
+              // Show modal if there are any games in the library
+              // (user explicitly triggered sync, so remind them to restart)
+              if (totalGames > 0) {
                 showModal(<SteamRestartModal closeModal={() => {}} />);
               }
             } else if (result.status === "cancelled") {

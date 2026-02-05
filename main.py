@@ -4114,13 +4114,32 @@ class Plugin:
                      game.app_id = self.shortcuts_manager.generate_app_id(game.title, launcher_script)
 
                 # Resolve Steam presence via Steam Store API
-                # Fetch for ALL Unifideck games to ensure complete metadata coverage
+                # Only fetch for games missing from cache or with incomplete metadata
                 if all_games:
                     real_steam_cache = load_steam_real_appid_cache()
                     steam_metadata_cache = load_steam_metadata_cache()
 
-                    # Fetch for ALL Unifideck games, regardless of cache status
-                    games_needing_steam = [g for g in all_games if g.title]
+                    # Incremental: skip games that already have a resolved Steam ID AND complete metadata
+                    def _needs_steam_fetch(game) -> bool:
+                        if not game.title:
+                            return False
+                        steam_app_id = real_steam_cache.get(game.app_id, 0)
+                        if not steam_app_id:
+                            return True  # No Steam ID resolved yet
+                        meta = steam_metadata_cache.get(steam_app_id, {})
+                        # Consider complete if it has a name and short_description
+                        return not (meta.get('name') and meta.get('short_description'))
+
+                    games_needing_steam = [g for g in all_games if _needs_steam_fetch(g)]
+                    skipped_steam = len([g for g in all_games if g.title]) - len(games_needing_steam)
+                    if skipped_steam > 0:
+                        logger.info(f"Sync: Skipping {skipped_steam} games with complete Steam metadata (incremental)")
+
+                    # Still assign cached steam_app_id to skipped games for later phases
+                    for game in all_games:
+                        cached_steam_id = real_steam_cache.get(game.app_id, 0)
+                        if cached_steam_id:
+                            game.steam_app_id = cached_steam_id
 
                     self.sync_progress.steam_total = len(games_needing_steam)
                     self.sync_progress.steam_synced = 0
@@ -4152,7 +4171,7 @@ class Plugin:
                                 await self.sync_progress.increment_steam(game.title)
 
                     if games_needing_steam:
-                        logger.info(f"Sync: Pre-fetching Steam metadata for {len(games_needing_steam)} games (ALL Unifideck games)")
+                        logger.info(f"Sync: Pre-fetching Steam metadata for {len(games_needing_steam)} games")
                         logger.debug(f"  Sample games: {', '.join([g.title for g in games_needing_steam[:5]])}")
                         semaphore = asyncio.Semaphore(self.STEAM_STORE_MAX_CONCURRENCY)
                         await asyncio.gather(*[resolve_steam_for_game(g, semaphore) for g in games_needing_steam])
@@ -4169,7 +4188,15 @@ class Plugin:
                 if all_games:
                     logger.info(f"[SYNC PHASE] Starting unifiDB metadata fetch phase")
                     unifidb_cache = load_unifidb_metadata_cache()
-                    games_needing_unifidb = [g for g in all_games if g.title]
+
+                    # Incremental: only fetch for games not already in unifiDB cache
+                    games_needing_unifidb = [
+                        g for g in all_games
+                        if g.title and g.title.lower() not in unifidb_cache
+                    ]
+                    skipped_unifidb = len([g for g in all_games if g.title]) - len(games_needing_unifidb)
+                    if skipped_unifidb > 0:
+                        logger.info(f"Sync: Skipping {skipped_unifidb} games with existing unifiDB metadata (incremental)")
 
                     if games_needing_unifidb:
                         logger.info(f"Sync: Fetching unifiDB metadata for {len(games_needing_unifidb)} games via CDN")
@@ -4913,124 +4940,6 @@ class Plugin:
 
                         artwork_count = len(games_needing_art) - len(still_incomplete)
                         logger.info(f"Artwork download complete: {artwork_count}/{len(games_needing_art)} games fully successful")
-
-                # === ENHANCED METADATA: unifiDB/Metacritic fallback + Deck Compatibility ===
-                # Fetch metadata from unifiDB/Metacritic for games missing data, and deck compat from Steam
-                self.sync_progress.current_game = {
-                    "label": "sync.fetchingEnhancedMetadata",
-                    "values": {"count": len(all_games)}
-                }
-                
-                # Reload metadata caches after earlier fetch phases
-                existing_metadata = load_steam_metadata_cache()
-                unifidb_cache = load_unifidb_metadata_cache()
-                metacritic_cache = load_metacritic_metadata_cache()
-                updated_count = 0
-
-                # Process in batches with limited concurrency
-                async def fetch_enhanced_metadata_for_game(game, semaphore):
-                    """Fetch deck compat + fill metadata gaps from unifiDB/Metacritic"""
-                    async with semaphore:
-                        try:
-                            # Get signed app_id for cache lookup
-                            app_id = game.app_id
-                            if app_id > 2**31:
-                                app_id_signed = app_id - 2**32
-                            else:
-                                app_id_signed = app_id
-
-                            # Get Steam App ID from mapping
-                            steam_app_id = steam_appid_cache.get(app_id_signed, 0)
-
-                            # Get existing metadata for this Steam app
-                            game_meta = existing_metadata.get(steam_app_id, {}) if steam_app_id else {}
-                            updated = False
-
-                            # Ensure core Steam fields exist for store page detection
-                            if steam_app_id > 0:
-                                if not game_meta.get('steam_appid'):
-                                    game_meta['steam_appid'] = steam_app_id
-                                    updated = True
-                                if not game_meta.get('name'):
-                                    game_meta['name'] = game.title
-                                    updated = True
-                                if not game_meta.get('type'):
-                                    game_meta['type'] = 'game'
-                                    updated = True
-
-                            # Check what's missing - field-level fallback
-                            needs_fallback = (
-                                not game_meta.get('short_description') or
-                                not game_meta.get('developers') or
-                                game_meta.get('metacritic') is None
-                            )
-                            needs_deck = steam_app_id > 0 and game_meta.get('deck_category', 0) == 0
-
-                            # Fetch from unifiDB/Metacritic if needed
-                            cache_key = game.title.lower()
-                            if needs_fallback:
-                                # Try unifiDB first
-                                unifidb_data = unifidb_cache.get(cache_key)
-                                if unifidb_data:
-                                    if not game_meta.get('short_description') and unifidb_data.get('description'):
-                                        game_meta['short_description'] = unifidb_data['description'][:500]
-                                        updated = True
-                                    if not game_meta.get('developers') and unifidb_data.get('developers'):
-                                        game_meta['developers'] = unifidb_data['developers']
-                                        updated = True
-                                    if not game_meta.get('publishers') and unifidb_data.get('publishers'):
-                                        game_meta['publishers'] = unifidb_data['publishers']
-                                        updated = True
-                                    if not game_meta.get('genres') and unifidb_data.get('genres'):
-                                        game_meta['genres'] = [{'description': g} for g in unifidb_data['genres'][:4]]
-                                        updated = True
-                                
-                                # Try Metacritic for score (always prefer Metacritic)
-                                metacritic_data = metacritic_cache.get(cache_key)
-                                if metacritic_data:
-                                    if game_meta.get('metacritic') is None and metacritic_data.get('metascore'):
-                                        game_meta['metacritic'] = metacritic_data['metascore']
-                                        updated = True
-                                    # Also fill other gaps from Metacritic
-                                    if not game_meta.get('short_description') and metacritic_data.get('description'):
-                                        game_meta['short_description'] = metacritic_data['description'][:500]
-                                        updated = True
-                                    if not game_meta.get('developers') and metacritic_data.get('developer'):
-                                        game_meta['developers'] = [metacritic_data['developer']]
-                                        updated = True
-                                    if not game_meta.get('publishers') and metacritic_data.get('publisher'):
-                                        game_meta['publishers'] = [metacritic_data['publisher']]
-                                        updated = True
-                            
-                            # Fetch deck compat if needed
-                            if needs_deck:
-                                deck_info = await self.fetch_steam_deck_compatibility(steam_app_id)
-                                if deck_info.get('category', 0) > 0:
-                                    game_meta['deck_category'] = deck_info['category']
-                                    game_meta['deck_test_results'] = deck_info.get('testResults', [])
-                                    updated = True
-                            
-                            return (steam_app_id, game_meta, updated)
-                        except Exception as e:
-                            logger.debug(f"[EnhancedMeta] Error for {game.title}: {e}")
-                            return (None, None, False)
-                
-                # Run with limited concurrency (5 parallel for API rate limits)
-                semaphore = asyncio.Semaphore(5)
-                tasks = [fetch_enhanced_metadata_for_game(game, semaphore) for game in all_games]
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-                
-                # Update cache with new metadata
-                for result in results:
-                    if isinstance(result, tuple) and result[2]:  # updated=True
-                        steam_app_id, game_meta, _ = result
-                        if steam_app_id and game_meta:
-                            existing_metadata[steam_app_id] = game_meta
-                            updated_count += 1
-                
-                if updated_count > 0:
-                    save_steam_metadata_cache(existing_metadata)
-                    logger.info(f"Force Sync: Enhanced metadata for {updated_count} games (unifiDB + Metacritic + deck compat)")
 
                 # --- UPDATE GAME ICONS ---
                 # Check for local icons and update game objects
