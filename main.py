@@ -1463,7 +1463,7 @@ class SyncProgress:
                 "values": {
                     "synced": self.artwork_synced,
                     "total": self.artwork_total,
-                    "game_title": game_title
+                    "game": game_title
                 }
             }
             return self.artwork_synced
@@ -1477,7 +1477,7 @@ class SyncProgress:
                 "values": {
                     "synced": self.steam_synced,
                     "total": self.steam_total,
-                    "game_title": game_title
+                    "game": game_title
                 }
             }
             return self.steam_synced
@@ -1491,7 +1491,7 @@ class SyncProgress:
                 "values": {
                     "synced": self.unifidb_synced,
                     "total": self.unifidb_total,
-                    "game_title": game_title
+                    "game": game_title
                 }
             }
             return self.unifidb_synced
@@ -4386,7 +4386,7 @@ class Plugin:
                             self.sync_progress.status = "artwork_retry"
                             self.sync_progress.current_game = {
                                 "label": "sync.retryingMissingArtwork",
-                                "values": {"count": len(games_to_retry)}
+                                "values": {"synced": 0, "total": len(games_to_retry)}
                             }
                             self.sync_progress.artwork_total = len(games_to_retry)
                             self.sync_progress.artwork_synced = 0
