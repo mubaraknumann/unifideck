@@ -123,6 +123,11 @@
     "forceSyncDescription": "Wil je alle artwork opnieuw synchroniseren? Dit overschrijft handmatige artwork-wijzigingen. Selecteer 'Artwork Behouden' om alleen ontbrekende artwork te downloaden.",
     "resyncArtwork": "Artwork Opnieuw Synchroniseren",
     "keepArtwork": "Artwork Behouden",
+    "steamRestartTitle": "Synchronisatie Voltooid!",
+    "steamRestartDescription": "Start Steam opnieuw op om je nieuwe games en artwork toe te passen",
+    "steamRestartDescriptionStore": "Start Steam opnieuw op om je nieuwe {{store}}-games en artwork toe te passen",
+    "restartNow": "Nu Opnieuw Starten",
+    "later": "Later",
     "yes": "Ja",
     "no": "Nee"
   },

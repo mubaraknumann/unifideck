@@ -123,6 +123,11 @@
     "forceSyncDescription": "¿Deseas volver a sincronizar todas las ilustraciones? Esto sobrescribirá cualquier cambio manual. Selecciona 'Mantener Ilustraciones' para descargar solo las faltantes.",
     "resyncArtwork": "Volver a Sincronizar Ilustraciones",
     "keepArtwork": "Mantener Ilustraciones",
+    "steamRestartTitle": "¡Sincronización Completada!",
+    "steamRestartDescription": "Por favor, reinicia Steam para aplicar tus nuevos juegos e ilustraciones",
+    "steamRestartDescriptionStore": "Por favor, reinicia Steam para aplicar tus nuevos juegos e ilustraciones de {{store}}",
+    "restartNow": "Reiniciar Ahora",
+    "later": "Más Tarde",
     "yes": "Sí",
     "no": "No"
   },

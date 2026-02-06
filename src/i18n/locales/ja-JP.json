@@ -123,6 +123,11 @@
     "forceSyncDescription": "すべてのアートを再同期しますか？手動で変更したものは上書きされます。「アートを保持」を選択すると不足分のみダウンロードされます。",
     "resyncArtwork": "アートを再同期",
     "keepArtwork": "アートを保持",
+    "steamRestartTitle": "同期が完了しました!",
+    "steamRestartDescription": "新しいゲームとアートワークを適用するには、Steamを再起動してください",
+    "steamRestartDescriptionStore": "新しい{{store}}のゲームとアートワークを適用するには、Steamを再起動してください",
+    "restartNow": "今すぐ再起動",
+    "later": "後で",
     "yes": "はい",
     "no": "いいえ"
   },

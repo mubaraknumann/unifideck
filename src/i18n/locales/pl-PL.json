@@ -123,6 +123,11 @@
     "forceSyncDescription": "Czy chcesz ponownie zsynchronizować wszystkie grafiki? Spowoduje to nadpisanie wszelkich ręcznych zmian grafik. Wybierz 'Zachowaj Grafiki', aby pobrać tylko brakujące grafiki.",
     "resyncArtwork": "Ponownie Synchronizuj Grafiki",
     "keepArtwork": "Zachowaj Grafiki",
+    "steamRestartTitle": "Synchronizacja Ukończona!",
+    "steamRestartDescription": "Uruchom ponownie Steam, aby zastosować nowe gry i grafiki",
+    "steamRestartDescriptionStore": "Uruchom ponownie Steam, aby zastosować nowe gry i grafiki {{store}}",
+    "restartNow": "Uruchom Teraz",
+    "later": "Później",
     "yes": "Tak",
     "no": "Nie"
   },

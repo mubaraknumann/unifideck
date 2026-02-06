@@ -123,6 +123,11 @@
     "forceSyncDescription": "Souhaitez-vous re-synchroniser tous les visuels ? Cela écrasera toute modification manuelle des visuels. Sélectionnez 'Conserver les visuels' pour télécharger uniquement les visuels manquants.",
     "resyncArtwork": "Re-synchroniser les visuels",
     "keepArtwork": "Conserver les visuels",
+    "steamRestartTitle": "Synchronisation terminée !",
+    "steamRestartDescription": "Veuillez redémarrer Steam pour appliquer vos nouveaux jeux et visuels",
+    "steamRestartDescriptionStore": "Veuillez redémarrer Steam pour appliquer vos nouveaux jeux et visuels {{store}}",
+    "restartNow": "Redémarrer maintenant",
+    "later": "Plus tard",
     "yes": "Oui",
     "no": "Non"
   },

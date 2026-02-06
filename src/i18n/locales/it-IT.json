@@ -123,6 +123,11 @@
     "forceSyncDescription": "Vuoi risincronizzare tutte le copertine? Questo sovrascriverà eventuali modifiche manuali alle copertine. Seleziona 'Mantieni Copertine' per scaricare solo le copertine mancanti.",
     "resyncArtwork": "Risincronizza Copertine",
     "keepArtwork": "Mantieni Copertine",
+    "steamRestartTitle": "Sincronizzazione Completata!",
+    "steamRestartDescription": "Riavvia Steam per applicare i tuoi nuovi giochi e copertine",
+    "steamRestartDescriptionStore": "Riavvia Steam per applicare i tuoi nuovi giochi e copertine di {{store}}",
+    "restartNow": "Riavvia Ora",
+    "later": "Più Tardi",
     "yes": "Sì",
     "no": "No"
   },

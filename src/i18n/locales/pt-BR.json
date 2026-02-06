@@ -123,6 +123,11 @@
     "forceSyncDescription": "Deseja ressincronizar todas as artes? Isso sobrescreverá alterações manuais. Selecione 'Manter Artes' para baixar apenas as faltantes.",
     "resyncArtwork": "Ressincronizar Artes",
     "keepArtwork": "Manter Artes",
+    "steamRestartTitle": "Sincronização Concluída!",
+    "steamRestartDescription": "Reinicie o Steam para aplicar seus novos jogos e artes",
+    "steamRestartDescriptionStore": "Reinicie o Steam para aplicar seus novos jogos e artes de {{store}}",
+    "restartNow": "Reiniciar Agora",
+    "later": "Mais Tarde",
     "yes": "Sim",
     "no": "Não"
   },

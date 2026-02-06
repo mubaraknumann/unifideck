@@ -126,6 +126,11 @@
     "forceSyncDescription": "Tüm kapakları yeniden senkronize etmek ister misiniz? Bu, manuel kapak değişikliklerinin üzerine yazacaktır. Yalnızca eksik kapakları indirmek için 'Kapakları Koru'yu seçin.",
     "resyncArtwork": "Kapakları Yeniden Senkronize Et",
     "keepArtwork": "Kapakları Koru",
+    "steamRestartTitle": "Senkronizasyon Tamamlandı!",
+    "steamRestartDescription": "Yeni oyunlarınızı ve kapakları uygulamak için Steam'i yeniden başlatın",
+    "steamRestartDescriptionStore": "Yeni {{store}} oyunlarınızı ve kapakları uygulamak için Steam'i yeniden başlatın",
+    "restartNow": "Şimdi Yeniden Başlat",
+    "later": "Daha Sonra",
     "yes": "Evet",
     "no": "Hayır"
   },

@@ -124,6 +124,11 @@
     "forceSyncDescription": "모든 아트워크를 재동기화하시겠습니까? 수동 아트워크 변경 사항이 덮어쓰기됩니다. 누락된 아트워크만 다운로드하려면 '아트워크 유지'를 선택하세요.",
     "resyncArtwork": "아트워크 재동기화",
     "keepArtwork": "아트워크 유지",
+    "steamRestartTitle": "동기화 완료!",
+    "steamRestartDescription": "새로운 게임과 아트워크를 적용하려면 Steam을 다시 시작하세요",
+    "steamRestartDescriptionStore": "새로운 {{store}} 게임과 아트워크를 적용하려면 Steam을 다시 시작하세요",
+    "restartNow": "지금 다시 시작",
+    "later": "나중에",
     "yes": "예",
     "no": "아니요"
   },
