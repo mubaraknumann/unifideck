@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { StoreFinal } from "../types/store";
 import StoreIcon from "./StoreIcon";
 import { UninstallConfirmModal } from "./UninstallConfirmModal";
+import { GOGLanguageSelectModal } from "./GOGLanguageSelectModal";
 import { updateSingleGameStatus } from "../tabs";
 
 // Steam Deck compatibility categories
@@ -234,14 +235,22 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
     };
   }, [gameInfo, appId, t]);
 
-  // Install/uninstall handlers
-  const handleInstall = async () => {
+  // Start download with optional language (for GOG games)
+  const startDownload = async (language?: string) => {
     if (!gameInfo) return;
     setProcessing(true);
 
-    const result = await call<[number], any>(
-      "add_to_download_queue_by_appid",
-      appId,
+    // Use add_to_download_queue directly with language parameter
+    const result = await call<
+      [string, string, string, boolean, string | null],
+      any
+    >(
+      "add_to_download_queue",
+      gameInfo.game_id,
+      gameInfo.title,
+      gameInfo.store,
+      gameInfo.is_installed || false,
+      language || null
     );
 
     if (result.success) {
@@ -250,14 +259,6 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
         body: t("toasts.downloadQueued", { title: gameInfo.title }),
         duration: 5000,
       });
-
-      if (result.is_multipart) {
-        toaster.toast({
-          title: t("toasts.multipartDetected"),
-          body: t("toasts.multipartMessage"),
-          duration: 8000,
-        });
-      }
 
       setDownloadState((prev) => ({
         ...prev,
@@ -275,6 +276,58 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
       });
     }
     setProcessing(false);
+  };
+
+  // Install handler - checks for GOG language selection
+  const handleInstall = async () => {
+    if (!gameInfo) return;
+
+    // For GOG games, check if multiple languages are available
+    if (gameInfo.store === "gog") {
+      setProcessing(true); // Show loading state while fetching languages
+      try {
+        const langResult = await call<
+          [string],
+          { success: boolean; languages: string[]; error?: string }
+        >("get_gog_game_languages", gameInfo.game_id);
+
+        setProcessing(false); // Clear loading before showing modal
+
+        // Validate response - handle null/undefined/malformed responses
+        const languages = langResult?.languages;
+        if (!langResult?.success || !Array.isArray(languages)) {
+          console.warn(
+            "[GameInfoPanel] Invalid language response, falling back to default:",
+            langResult?.error || "unknown error"
+          );
+          startDownload();
+          return;
+        }
+
+        // Multiple languages - show selection modal
+        if (languages.length > 1) {
+          showModal(
+            <GOGLanguageSelectModal
+              gameTitle={gameInfo.title}
+              languages={languages}
+              onConfirm={(selectedLang) => startDownload(selectedLang)}
+            />
+          );
+          return;
+        }
+
+        // Single or no language - use first available or fallback
+        startDownload(languages[0] || undefined);
+        return;
+      } catch (error) {
+        setProcessing(false); // Clear loading on error
+        console.error("[GameInfoPanel] Error fetching GOG languages:", error);
+        // Fallback to download without language selection
+      }
+    }
+
+    // Non-GOG games or fallback - download without language
+    startDownload();
   };
 
   const handleCancel = async () => {

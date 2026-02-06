@@ -3822,10 +3822,10 @@ class Plugin:
         self.download_queue.set_on_complete_callback(on_download_complete)
         
         # Set GOG install callback to use GOGAPIClient
-        async def gog_install_callback(game_id: str, install_path: str = None, progress_callback=None):
+        async def gog_install_callback(game_id: str, install_path: str = None, progress_callback=None, language: str = None):
             """Delegate GOG downloads to GOGAPIClient.install_game"""
-            return await self.gog.install_game(game_id, install_path, progress_callback)
-        
+            return await self.gog.install_game(game_id, install_path, progress_callback, language=language)
+
         self.download_queue.set_gog_install_callback(gog_install_callback)
         
         # Set size cache callback to update Install button sizes when accurate size is received
@@ -6190,23 +6190,25 @@ class Plugin:
             logger.error(f"[DownloadQueue] Error getting queue info: {e}")
             return {'success': False, 'error': str(e)}
 
-    async def add_to_download_queue(self, game_id: str, game_title: str, store: str, was_previously_installed: bool = False) -> Dict[str, Any]:
+    async def add_to_download_queue(self, game_id: str, game_title: str, store: str, was_previously_installed: bool = False, language: str = None) -> Dict[str, Any]:
         """Add a game to the download queue
-        
+
         Args:
             game_id: Store-specific game identifier
             game_title: Display name
             store: 'epic' or 'gog'
             was_previously_installed: GUARDRAIL - If True, cancel won't delete game files
+            language: For GOG games, the language to download (e.g., 'en-US', 'de-DE')
         """
         try:
             result = await self.download_queue.add_to_queue(
                 game_id=game_id,
                 game_title=game_title,
                 store=store,
-                was_previously_installed=was_previously_installed
+                was_previously_installed=was_previously_installed,
+                language=language
             )
-            logger.info(f"[DownloadQueue] Added {game_title} to queue (was_installed={was_previously_installed}): {result}")
+            logger.info(f"[DownloadQueue] Added {game_title} to queue (was_installed={was_previously_installed}, lang={language}): {result}")
             return result
         except Exception as e:
             logger.error(f"[DownloadQueue] Error adding to queue: {e}")
@@ -6619,6 +6621,19 @@ class Plugin:
     async def logout_gog(self) -> Dict[str, Any]:
         """Logout from GOG"""
         return await self.gog.logout()
+
+    async def get_gog_game_languages(self, game_id: str) -> Dict[str, Any]:
+        """Get available languages for a GOG game.
+
+        Returns list of language codes (e.g., ['en-US', 'de-DE', 'fr-FR']).
+        Only returns multiple languages for games that have them.
+        """
+        try:
+            languages = await self.gog.get_available_languages(game_id)
+            return {'success': True, 'languages': languages}
+        except Exception as e:
+            logger.error(f"[GOG] Error getting languages for {game_id}: {e}")
+            return {'success': False, 'error': str(e), 'languages': ['en-US']}
 
     async def start_amazon_auth(self) -> Dict[str, Any]:
         """Start Amazon Games OAuth authentication via nile"""
