@@ -312,5 +312,14 @@
       "unsupported": "НОЕ ПОДДЕРЖИВАЕМА",
       "unknown": "НЕИЗВЕСТНА"
     }
+  },
+  "gameDetailsSettings": {
+    "title": "ПРОСМОТР ДЕТАЛЕЙ ИГРЫ",
+    "simple": "Простой",
+    "detailed": "Подробный"
+  },
+  "gogLanguageModal": {
+    "title": "Выберите язык",
+    "description": "Выберите язык для загрузки {{title}}"
   }
 }

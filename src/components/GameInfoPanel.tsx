@@ -76,6 +76,20 @@ interface GameInfoPanelProps {
   appId: number;
 }
 
+// View mode constants (duplicated from index.tsx for component isolation)
+const GAME_DETAILS_VIEW_MODE_KEY = "unifideck-game-details-view-mode";
+const VIEW_MODE_CHANGE_EVENT = "unifideck-view-mode-change";
+type GameDetailsViewMode = "simple" | "detailed";
+
+const getStoredViewMode = (): GameDetailsViewMode => {
+  try {
+    const stored = localStorage.getItem(GAME_DETAILS_VIEW_MODE_KEY);
+    return stored === "simple" ? "simple" : "detailed";
+  } catch {
+    return "detailed";
+  }
+};
+
 /**
  * GameInfoPanel - Displays metadata for non-Steam games
  * Matches Steam's GAME INFO tab layout with functional navigation buttons
@@ -86,6 +100,21 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+
+  // Track view mode with event listener for live updates
+  const [viewMode, setViewMode] = useState<GameDetailsViewMode>(
+    getStoredViewMode(),
+  );
+
+  useEffect(() => {
+    const handleViewModeChange = (e: Event) => {
+      const mode = (e as CustomEvent).detail as GameDetailsViewMode;
+      setViewMode(mode);
+    };
+    window.addEventListener(VIEW_MODE_CHANGE_EVENT, handleViewModeChange);
+    return () =>
+      window.removeEventListener(VIEW_MODE_CHANGE_EVENT, handleViewModeChange);
+  }, []);
 
   // Install button state
   const [gameInfo, setGameInfo] = useState<any>(null);
@@ -250,7 +279,7 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
       gameInfo.title,
       gameInfo.store,
       gameInfo.is_installed || false,
-      language || null
+      language || null,
     );
 
     if (result.success) {
@@ -298,7 +327,7 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
         if (!langResult?.success || !Array.isArray(languages)) {
           console.warn(
             "[GameInfoPanel] Invalid language response, falling back to default:",
-            langResult?.error || "unknown error"
+            langResult?.error || "unknown error",
           );
           startDownload();
           return;
@@ -311,7 +340,7 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
               gameTitle={gameInfo.title}
               languages={languages}
               onConfirm={(selectedLang) => startDownload(selectedLang)}
-            />
+            />,
           );
           return;
         }
@@ -657,6 +686,11 @@ const GameInfoPanel: React.FC<GameInfoPanelProps> = ({ appId }) => {
     };
     return labels[category];
   };
+
+  // Hide panel completely in simple mode - only top-right button shows
+  if (viewMode === "simple") {
+    return null;
+  }
 
   if (loading) {
     return (

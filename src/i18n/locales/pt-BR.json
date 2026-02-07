@@ -313,5 +313,14 @@
       "unsupported": "NÃO SUPORTADO",
       "unknown": "DESCONHECIDO"
     }
+  },
+  "gameDetailsSettings": {
+    "title": "VISUALIZAÇÃO DE DETALHES DO JOGO",
+    "simple": "Simples",
+    "detailed": "Detalhado"
+  },
+  "gogLanguageModal": {
+    "title": "Selecionar idioma",
+    "description": "Escolha o idioma para baixar {{title}}"
   }
 }

@@ -316,5 +316,14 @@
       "unsupported": "DESTEKLENMİYOR",
       "unknown": "BİLİNMİYOR"
     }
+  },
+  "gameDetailsSettings": {
+    "title": "OYUN DETAYLARI GÖRÜNÜMÜ",
+    "simple": "Basit",
+    "detailed": "Ayrıntılı"
+  },
+  "gogLanguageModal": {
+    "title": "Dili Seçin",
+    "description": "{{title}} için indirilecek dili seçin"
   }
 }

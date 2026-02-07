@@ -321,5 +321,14 @@
       "unsupported": "UNSUPPORTED",
       "unknown": "UNKNOWN"
     }
+  },
+  "gameDetailsSettings": {
+    "title": "GAME DETAILS VIEW",
+    "simple": "Simple",
+    "detailed": "Detailed"
+  },
+  "gogLanguageModal": {
+    "title": "Select Language",
+    "description": "Choose which language to download for {{title}}"
   }
 }

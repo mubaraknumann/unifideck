@@ -318,5 +318,14 @@
       "unsupported": "不支持",
       "unknown": "未知"
     }
+  },
+  "gameDetailsSettings": {
+    "title": "游戏详情视图",
+    "simple": "简单",
+    "detailed": "详细"
+  },
+  "gogLanguageModal": {
+    "title": "选择语言",
+    "description": "选择要下载{{title}}的语言"
   }
 }
