@@ -312,5 +312,17 @@
       "unsupported": "非対応",
       "unknown": "不明"
     }
+  },
+  "gameDetailsSettings": {
+    "title": "ゲーム詳細ビュー",
+    "simple": "シンプル",
+    "detailed": "詳細"
+  },
+  "gogLanguageModal": {
+    "title": "言語を選択",
+    "description": "{{title}}をダウンロードする言語を選択してください",
+    "label": "言語",
+    "install": "インストール",
+    "cancel": "キャンセル"
   }
 }

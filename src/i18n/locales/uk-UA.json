@@ -313,5 +313,17 @@
       "unsupported": "НЕ ПІДТРИМУЄТЬСЯ",
       "unknown": "НЕВІДОМА"
     }
+  },
+  "gameDetailsSettings": {
+    "title": "ПЕРЕГЛЯД ДЕТАЛЕЙ ГРИ",
+    "simple": "Простий",
+    "detailed": "Детальний"
+  },
+  "gogLanguageModal": {
+    "title": "Виберіть мову",
+    "description": "Виберіть мову для завантаження {{title}}",
+    "label": "Мова",
+    "install": "Встановити",
+    "cancel": "Скасувати"
   }
 }

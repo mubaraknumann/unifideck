@@ -52,6 +52,7 @@ import { Store } from "./types/store";
 import LibrarySync from "./components/settings/LibrarySync";
 import StoreIcon from "./components/StoreIcon";
 import GameInfoPanel from "./components/GameInfoPanel";
+import { GOGLanguageSelectModal } from "./components/GOGLanguageSelectModal";
 import { SyncProgress } from "./types/syncProgress";
 
 // ========== INSTALL BUTTON FEATURE ==========
@@ -104,6 +105,36 @@ const CACHE_TTL = 5000; // 5 seconds - reduced from 30s for faster button state 
 
 // ========== END INSTALL BUTTON FEATURE ==========
 
+// ========== GAME DETAILS VIEW MODE SETTING ==========
+// Persisted toggle between "simple" (top-right download button) and "detailed" (metadata panel)
+type GameDetailsViewMode = "simple" | "detailed";
+const GAME_DETAILS_VIEW_MODE_KEY = "unifideck-game-details-view-mode";
+
+const getStoredViewMode = (): GameDetailsViewMode => {
+  try {
+    const stored = localStorage.getItem(GAME_DETAILS_VIEW_MODE_KEY);
+    return stored === "simple" ? "simple" : "detailed"; // Default to detailed
+  } catch {
+    return "detailed";
+  }
+};
+
+const setStoredViewMode = (mode: GameDetailsViewMode) => {
+  try {
+    localStorage.setItem(GAME_DETAILS_VIEW_MODE_KEY, mode);
+    // Dispatch custom event for components to listen to
+    window.dispatchEvent(
+      new CustomEvent(VIEW_MODE_CHANGE_EVENT, { detail: mode }),
+    );
+  } catch {
+    console.error("[Unifideck] Failed to save view mode to localStorage");
+  }
+};
+
+// Custom event name for view mode changes
+const VIEW_MODE_CHANGE_EVENT = "unifideck-view-mode-change";
+// ========== END GAME DETAILS VIEW MODE SETTING ==========
+
 // ========== NATIVE PLAY BUTTON OVERRIDE ==========
 //
 // This component shows alongside the native Play button for uninstalled Unifideck games.
@@ -122,6 +153,21 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
     downloadId?: string;
   }>({ isDownloading: false });
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Track view mode with event listener for live updates
+  const [viewMode, setViewMode] = useState<GameDetailsViewMode>(
+    getStoredViewMode(),
+  );
+
+  useEffect(() => {
+    const handleViewModeChange = (e: Event) => {
+      const mode = (e as CustomEvent).detail as GameDetailsViewMode;
+      setViewMode(mode);
+    };
+    window.addEventListener(VIEW_MODE_CHANGE_EVENT, handleViewModeChange);
+    return () =>
+      window.removeEventListener(VIEW_MODE_CHANGE_EVENT, handleViewModeChange);
+  }, []);
 
   const { t } = useTranslation();
 
@@ -282,14 +328,22 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
     };
   }, [gameInfo, appId]);
 
-  const handleInstall = async () => {
+  // Start download with optional language (for GOG games)
+  const startDownload = async (language?: string) => {
     if (!gameInfo) return;
     setProcessing(true);
 
-    // Queue download instead of direct install
-    const result = await call<[number], any>(
-      "add_to_download_queue_by_appid",
-      appId,
+    // Use add_to_download_queue with language parameter (matches GameInfoPanel)
+    const result = await call<
+      [string, string, string, boolean, string | null],
+      any
+    >(
+      "add_to_download_queue",
+      gameInfo.game_id,
+      gameInfo.title,
+      gameInfo.store,
+      gameInfo.is_installed || false,
+      language || null,
     );
 
     if (result.success) {
@@ -325,6 +379,61 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
       });
     }
     setProcessing(false);
+  };
+
+  // Install handler - checks for GOG language selection (matches GameInfoPanel behavior)
+  const handleInstall = async () => {
+    if (!gameInfo) return;
+
+    // For GOG games, check if multiple languages are available
+    if (gameInfo.store === "gog") {
+      setProcessing(true); // Show loading state while fetching languages
+      try {
+        const langResult = await call<
+          [string],
+          { success: boolean; languages: string[]; error?: string }
+        >("get_gog_game_languages", gameInfo.game_id);
+
+        setProcessing(false); // Clear loading before showing modal
+
+        // Validate response - handle null/undefined/malformed responses
+        const languages = langResult?.languages;
+        if (!langResult?.success || !Array.isArray(languages)) {
+          console.warn(
+            "[InstallInfoDisplay] Invalid language response, falling back to default:",
+            langResult?.error || "unknown error",
+          );
+          startDownload();
+          return;
+        }
+
+        // Multiple languages - show selection modal
+        if (languages.length > 1) {
+          showModal(
+            <GOGLanguageSelectModal
+              gameTitle={gameInfo.title}
+              languages={languages}
+              onConfirm={(selectedLang) => startDownload(selectedLang)}
+            />,
+          );
+          return;
+        }
+
+        // Single or no language - use first available or fallback
+        startDownload(languages[0] || undefined);
+        return;
+      } catch (error) {
+        setProcessing(false); // Clear loading on error
+        console.error(
+          "[InstallInfoDisplay] Error fetching GOG languages:",
+          error,
+        );
+        // Fallback to download without language selection
+      }
+    }
+
+    // Non-GOG games or fallback - download without language
+    startDownload();
   };
 
   const handleCancel = async () => {
@@ -528,21 +637,62 @@ const InstallInfoDisplay: FC<{ appId: number }> = ({ appId }) => {
     };
   }
 
-  // Info badge style - non-interactive display
-  const infoBadgeStyle: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    padding: "10px 16px",
-    backgroundColor: "#1a9fff",
-    color: "#ffffff",
-    borderRadius: "4px",
-    fontSize: "14px",
-    fontWeight: 500,
-    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.3)",
-  };
+  // CSS for controller focus state (.gpfocus is automatically applied by Steam)
+  const focusStyles = `
+    /* Controller focus state - Steam automatically applies .gpfocus */
+    .unifideck-install-button.gpfocus,
+    .unifideck-install-button:hover {
+      filter: brightness(1.2) !important;
+      box-shadow: 0 0 12px rgba(26, 159, 255, 0.8) !important;
+      transform: scale(1.02);
+      transition: all 0.15s ease;
+    }
 
-  return null; // Badge info now shown in Game Info Row instead
+    /* Extra visibility for focus ring */
+    .unifideck-install-button.gpfocus {
+      outline: 2px solid #1a9fff !important;
+      outline-offset: 2px !important;
+    }
+  `;
+
+  // Only show top-right button in "simple" view mode
+  // In "detailed" mode, the install button is shown inline in GameInfoPanel
+  if (viewMode === "detailed") {
+    return null; // Badge info shown in Game Info Row instead
+  }
+
+  // Simple mode: Render prominent top-right positioned button
+  return (
+    <>
+      <style>{focusStyles}</style>
+      {/* Install/Uninstall/Cancel Button - positioned at top-right */}
+      <div
+        style={{
+          position: "absolute",
+          top: "40px", // Aligned with ProtonDB badge row
+          right: "35px",
+          zIndex: 9999, // High z-index to ensure visibility above any overlays
+        }}
+        className="unifideck-install-button-container"
+      >
+        <DialogButton
+          onClick={buttonAction}
+          disabled={processing}
+          style={buttonStyle}
+          className="unifideck-install-button"
+        >
+          {processing ? (
+            t("installButton.processing")
+          ) : (
+            <>
+              <StoreIcon store={gameInfo.store} size="16px" color="#ffffff" />
+              {buttonText}
+            </>
+          )}
+        </DialogButton>
+      </div>
+    </>
+  );
 };
 
 // Patch function for game details route - EXTRACTED TO MODULE SCOPE (ProtonDB/HLTB pattern)
@@ -710,6 +860,7 @@ function patchGameDetailsRoute() {
           // Non-Steam shortcuts have appId > 2000000000
           // ProtonDB pattern: Insert at index 1 (between PlaySection and tabs)
           // This lets the flex container handle positioning naturally
+          // Panel visibility is controlled internally via viewMode state
           const isNonSteamGame = appId > 2000000000;
           if (isNonSteamGame && !alreadyHasGameInfo) {
             try {
@@ -797,6 +948,15 @@ const Content: FC = () => {
     gog: "checking",
     amazon: "checking",
   });
+
+  // Game Details View Mode - persisted via localStorage
+  const [gameDetailsViewMode, setGameDetailsViewMode] =
+    useState<GameDetailsViewMode>(getStoredViewMode());
+
+  const handleViewModeChange = (mode: GameDetailsViewMode) => {
+    setGameDetailsViewMode(mode);
+    setStoredViewMode(mode); // This dispatches the custom event
+  };
 
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
 
@@ -1554,6 +1714,23 @@ const Content: FC = () => {
 
           {/* Language Settings - centralized language control */}
           <LanguageSelector />
+
+          {/* Game Details View Mode */}
+          <PanelSection title={t("gameDetailsSettings.title")}>
+            <PanelSectionRow>
+              <ToggleField
+                label={
+                  gameDetailsViewMode === "simple"
+                    ? t("gameDetailsSettings.simple")
+                    : t("gameDetailsSettings.detailed")
+                }
+                checked={gameDetailsViewMode === "simple"}
+                onChange={(checked) =>
+                  handleViewModeChange(checked ? "simple" : "detailed")
+                }
+              />
+            </PanelSectionRow>
+          </PanelSection>
 
           {/* Cleanup Section */}
           <PanelSection title={t("cleanup.title")}>
