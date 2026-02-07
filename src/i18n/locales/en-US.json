@@ -329,6 +329,9 @@
   },
   "gogLanguageModal": {
     "title": "Select Language",
-    "description": "Choose which language to download for {{title}}"
+    "description": "Choose which language to download for {{title}}",
+    "label": "Language",
+    "install": "Install",
+    "cancel": "Cancel"
   }
 }

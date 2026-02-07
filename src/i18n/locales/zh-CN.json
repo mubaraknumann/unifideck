@@ -326,6 +326,9 @@
   },
   "gogLanguageModal": {
     "title": "选择语言",
-    "description": "选择要下载{{title}}的语言"
+    "description": "选择要下载{{title}}的语言",
+    "label": "语言",
+    "install": "安装",
+    "cancel": "取消"
   }
 }

@@ -320,6 +320,9 @@
   },
   "gogLanguageModal": {
     "title": "言語を選択",
-    "description": "{{title}}をダウンロードする言語を選択してください"
+    "description": "{{title}}をダウンロードする言語を選択してください",
+    "label": "言語",
+    "install": "インストール",
+    "cancel": "キャンセル"
   }
 }

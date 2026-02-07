@@ -324,6 +324,9 @@
   },
   "gogLanguageModal": {
     "title": "Dili Seçin",
-    "description": "{{title}} için indirilecek dili seçin"
+    "description": "{{title}} için indirilecek dili seçin",
+    "label": "Dil",
+    "install": "Kur",
+    "cancel": "İptal"
   }
 }

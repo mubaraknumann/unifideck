@@ -320,6 +320,9 @@
   },
   "gogLanguageModal": {
     "title": "Wybierz język",
-    "description": "Wybierz język do pobrania {{title}}"
+    "description": "Wybierz język do pobrania {{title}}",
+    "label": "Język",
+    "install": "Zainstaluj",
+    "cancel": "Anuluj"
   }
 }
