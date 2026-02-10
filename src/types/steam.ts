@@ -40,6 +40,10 @@ export interface SteamCollection {
   visibleApps: number[];
 }
 
+export interface Unregisterable {
+  unregister(): void;
+}
+
 // Global Steam Client API interfaces
 declare global {
   interface Window {
@@ -48,6 +52,19 @@ declare global {
         GetOwnedApps(): SteamApp[];
         GetNonSteamApps(): SteamApp[];
         GetAppOverview(appId: number): SteamAppOverview | null;
+        RegisterForGameActionStart(
+          callback: (gameActionId: number, appId: string, action: string, launchSource: number) => void,
+        ): Unregisterable;
+        CancelGameAction(gameActionId: number): void;
+        RunGame(appId: string, launchOptions: string, param3: number, param4: number): void;
+        TerminateApp(appId: string, force: boolean): void;
+        ShowControllerConfigurator(appId: number): void;
+        OpenAppSettingsDialog(appId: number, section: string): void;
+      };
+      GameSessions?: {
+        RegisterForAppLifetimeNotifications(
+          callback: (notification: { unAppID: number; bRunning: boolean; nInstanceID: number }) => void,
+        ): Unregisterable;
       };
       library?: {
         GetCollections(): SteamCollection[];

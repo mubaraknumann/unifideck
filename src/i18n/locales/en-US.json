@@ -106,7 +106,10 @@
     "deleting": "Deleting..."
   },
   "installButton": {
+    "play": "Play",
+    "resume": "Resume",
     "install": "Install {{title}}",
+    "installNative": "Install",
     "uninstall": "Uninstall {{title}}",
     "cancel": "✖ Cancel",
     "processing": "Processing...",

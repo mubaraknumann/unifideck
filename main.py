@@ -44,6 +44,10 @@ from py_modules.unifideck.cloud_save import CloudSaveManager
 # Import resilient launch options parser
 from py_modules.unifideck.launch_options import extract_store_id, is_unifideck_shortcut, get_full_id, get_store_prefix
 
+# Import CDP modules for native PlaySection hiding
+from py_modules.unifideck.cdp_utils import create_cef_debugging_flag
+from py_modules.unifideck.cdp_inject import get_cdp_client, shutdown_cdp_client
+
 # ============================================================================
 # NEW MODULAR BACKEND IMPORTS (Phase 1: Available for use alongside old code)
 # These will eventually replace the inline class definitions below.
@@ -3586,6 +3590,19 @@ class Plugin:
 
         logger.info("[INIT] Starting Unifideck plugin initialization")
 
+        # === CDP INITIALIZATION (for native PlaySection hiding) ===
+        # Enable CEF remote debugging flag (required for CDP access)
+        flag_created = create_cef_debugging_flag()
+        if flag_created:
+            logger.info("[INIT CDP] CEF debugging flag created - Steam restart required for CDP to work")
+
+        # Connect to CDP (will fail gracefully if Steam not restarted yet)
+        try:
+            await get_cdp_client()
+            logger.info("[INIT CDP] CDP client connected successfully")
+        except Exception as e:
+            logger.warning(f"[INIT CDP] CDP connection failed (restart Steam if needed): {e}")
+
         # Initialize sync progress tracker
         self.sync_progress = SyncProgress()
 
@@ -5464,6 +5481,235 @@ class Plugin:
             logger.error(f"Error getting game info for app {app_id}: {e}")
             return {'error': str(e)}
 
+    # === CDP BACKEND METHODS (for native PlaySection hiding) ===
+
+    async def inject_hide_css_cdp(self, appId: int, css_rules: str) -> Dict[str, Any]:
+        """Inject CSS to hide native PlaySection via CDP
+
+        Args:
+            appId: Steam shortcut app ID
+            css_rules: CSS rules to inject (from frontend with current class names)
+
+        Returns:
+            Dict with success status: {'success': bool, 'css_id': str, 'error': str}
+        """
+        try:
+            client = await get_cdp_client()
+            css_id = await client.inject_hide_css(appId, css_rules)
+            logger.info(f"[CDP] Successfully injected hide CSS for app {appId}")
+            return {"success": True, "css_id": css_id}
+        except Exception as e:
+            # Try reconnecting once on any connection-related error
+            err_lower = str(e).lower()
+            if any(kw in err_lower for kw in ["transport", "closing", "closed", "reset", "eof", "timeout", "not connected", "refused"]):
+                try:
+                    logger.warning(f"[CDP] Connection error, reconnecting...")
+                    await shutdown_cdp_client()
+                    client = await get_cdp_client()
+                    css_id = await client.inject_hide_css(appId, css_rules)
+                    logger.info(f"[CDP] Successfully injected hide CSS for app {appId} (after reconnect)")
+                    return {"success": True, "css_id": css_id}
+                except Exception as retry_e:
+                    logger.error(f"[CDP] Reconnection failed for app {appId}: {retry_e}")
+                    return {"success": False, "error": str(retry_e)}
+            logger.error(f"[CDP] Failed to inject hide CSS for app {appId}: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def remove_hide_css_cdp(self, appId: int) -> Dict[str, Any]:
+        """Remove hide CSS for specific app via CDP
+
+        Args:
+            appId: Steam shortcut app ID
+
+        Returns:
+            Dict with success status: {'success': bool, 'error': str}
+        """
+        try:
+            client = await get_cdp_client()
+            await client.remove_hide_css(appId)
+            logger.info(f"[CDP] Successfully removed hide CSS for app {appId}")
+            return {"success": True}
+        except Exception as e:
+            # Try reconnecting once on any connection-related error
+            err_lower = str(e).lower()
+            if any(kw in err_lower for kw in ["transport", "closing", "closed", "reset", "eof", "timeout", "not connected", "refused"]):
+                try:
+                    logger.warning(f"[CDP] Connection error, reconnecting...")
+                    await shutdown_cdp_client()
+                    client = await get_cdp_client()
+                    await client.remove_hide_css(appId)
+                    logger.info(f"[CDP] Successfully removed hide CSS for app {appId} (after reconnect)")
+                    return {"success": True}
+                except Exception as retry_e:
+                    logger.error(f"[CDP] Reconnection failed for app {appId}: {retry_e}")
+                    return {"success": False, "error": str(retry_e)}
+            logger.error(f"[CDP] Failed to remove hide CSS for app {appId}: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def hide_native_play_section(self, appId: int) -> Dict[str, Any]:
+        """Hide native Play button area via CDP DOM manipulation
+
+        Args:
+            appId: Steam shortcut app ID
+
+        Returns:
+            Dict with success status
+        """
+        try:
+            client = await get_cdp_client()
+            hidden = await client.hide_native_play_section(appId)
+            logger.info(f"[CDP] hide_native_play_section({appId}) => {hidden}")
+            return {"success": hidden}
+        except Exception as e:
+            err_lower = str(e).lower()
+            if any(kw in err_lower for kw in ["transport", "closing", "closed", "reset", "eof", "timeout", "not connected", "refused"]):
+                try:
+                    logger.warning(f"[CDP] Connection error, reconnecting...")
+                    await shutdown_cdp_client()
+                    client = await get_cdp_client()
+                    hidden = await client.hide_native_play_section(appId)
+                    logger.info(f"[CDP] hide_native_play_section({appId}) => {hidden} (after reconnect)")
+                    return {"success": hidden}
+                except Exception as retry_e:
+                    logger.error(f"[CDP] Reconnection failed for app {appId}: {retry_e}")
+                    return {"success": False, "error": str(retry_e)}
+            logger.error(f"[CDP] Failed to hide native play section for app {appId}: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def unhide_native_play_section(self, appId: int) -> Dict[str, Any]:
+        """Unhide native Play button area via CDP DOM manipulation
+
+        Args:
+            appId: Steam shortcut app ID
+
+        Returns:
+            Dict with success status
+        """
+        try:
+            client = await get_cdp_client()
+            unhidden = await client.unhide_native_play_section(appId)
+            logger.info(f"[CDP] unhide_native_play_section({appId}) => {unhidden}")
+            return {"success": True}
+        except Exception as e:
+            err_lower = str(e).lower()
+            if any(kw in err_lower for kw in ["transport", "closing", "closed", "reset", "eof", "timeout", "not connected", "refused"]):
+                try:
+                    logger.warning(f"[CDP] Connection error, reconnecting...")
+                    await shutdown_cdp_client()
+                    client = await get_cdp_client()
+                    unhidden = await client.unhide_native_play_section(appId)
+                    logger.info(f"[CDP] unhide_native_play_section({appId}) => {unhidden} (after reconnect)")
+                    return {"success": True}
+                except Exception as retry_e:
+                    logger.error(f"[CDP] Reconnection failed for app {appId}: {retry_e}")
+                    return {"success": False, "error": str(retry_e)}
+            logger.error(f"[CDP] Failed to unhide native play section for app {appId}: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def focus_unifideck_button(self, appId: int) -> Dict[str, Any]:
+        """Focus the Unifideck action button via CDP.
+
+        Runs .focus() on our button in the SP tab's DOM so Steam's gamepad
+        focus system applies the gpfocus class correctly.
+        """
+        try:
+            client = await get_cdp_client()
+            focused = await client.focus_unifideck_button(appId)
+            return {"success": focused}
+        except Exception as e:
+            err_lower = str(e).lower()
+            if any(kw in err_lower for kw in ["transport", "closing", "closed", "reset", "eof", "timeout", "not connected", "refused"]):
+                try:
+                    logger.warning(f"[CDP] Connection error during focus, reconnecting...")
+                    await shutdown_cdp_client()
+                    client = await get_cdp_client()
+                    focused = await client.focus_unifideck_button(appId)
+                    return {"success": focused}
+                except Exception as retry_e:
+                    logger.error(f"[CDP] Reconnection failed for focus on app {appId}: {retry_e}")
+                    return {"success": False, "error": str(retry_e)}
+            logger.error(f"[CDP] Failed to focus button for app {appId}: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def debug_log_playsection_structure(self, appId: int) -> Dict[str, Any]:
+        """DEBUG: Comprehensive CDP diagnostic for PlaySection hiding"""
+        try:
+            client = await get_cdp_client()
+
+            js = """(function() {
+    var output = '';
+    output += '=== DOCUMENT ===\\n';
+    output += 'URL: ' + document.location.href + '\\n';
+    output += 'Title: ' + document.title + '\\n\\n';
+
+    var styleId = 'unifideck-hide-native-play-""" + str(appId) + """';
+    var styleEl = document.getElementById(styleId);
+    output += '=== INJECTED STYLE ===\\n';
+    output += 'Style #' + styleId + ': ' + (styleEl ? 'FOUND' : 'NOT FOUND') + '\\n';
+    if (styleEl) {
+        output += 'Content: ' + styleEl.textContent + '\\n';
+        output += 'Parent: ' + (styleEl.parentElement ? styleEl.parentElement.tagName : 'DETACHED') + '\\n';
+    }
+    var allUniStyles = document.querySelectorAll('[id^="unifideck-hide-native-play-"]');
+    output += 'Total unifideck styles: ' + allUniStyles.length + '\\n\\n';
+
+    output += '=== PLAYBAR CLASS SEARCH ===\\n';
+    if (styleEl) {
+        var m = styleEl.textContent.match(/\\.([a-zA-Z0-9_-]+):not/);
+        if (m) {
+            var cls = m[1];
+            output += 'Target class: .' + cls + '\\n';
+            var hits = document.querySelectorAll('.' + cls);
+            output += 'Elements found: ' + hits.length + '\\n';
+            for (var i = 0; i < hits.length; i++) {
+                var el = hits[i];
+                var cs = window.getComputedStyle(el);
+                output += '  [' + i + '] ' + el.tagName + ' display=' + cs.display + '\\n';
+                output += '    classes=' + (el.className || '').substring(0, 150) + '\\n';
+                output += '    data-unifideck=' + el.hasAttribute('data-unifideck-play-wrapper') + '\\n';
+            }
+        } else {
+            output += 'Could not parse class from CSS\\n';
+        }
+    }
+    output += '\\n';
+
+    output += '=== WRAPPERS ===\\n';
+    var wrappers = document.querySelectorAll('[data-unifideck-play-wrapper]');
+    output += 'data-unifideck-play-wrapper elements: ' + wrappers.length + '\\n';
+    for (var i = 0; i < wrappers.length; i++) {
+        var w = wrappers[i];
+        output += '  [' + i + '] ' + w.tagName + ' display=' + window.getComputedStyle(w).display + '\\n';
+    }
+    output += '\\n';
+
+    output += '=== PLAY/INSTALL BUTTONS ===\\n';
+    var btns = document.querySelectorAll('button, [role=button]');
+    for (var i = 0; i < btns.length; i++) {
+        var txt = (btns[i].textContent || '').trim();
+        if (txt === 'Play' || txt === 'Install' || txt.indexOf('Install') === 0) {
+            output += '  btn: "' + txt.substring(0, 30) + '"\\n';
+            var p = btns[i];
+            for (var j = 0; j < 5 && p; j++) {
+                output += '    p' + j + ': ' + p.tagName + ' .' + (p.className || '').substring(0, 100) + '\\n';
+                p = p.parentElement;
+            }
+        }
+    }
+
+    return output;
+})()"""
+
+            result = await client.execute_js(js)
+            structure = result.get("result", {}).get("result", {}).get("value", "No CDP result")
+
+            logger.info(f"[DEBUG CDP] Diagnostic for app {appId}:\n{structure}")
+            return {"success": True, "structure": structure}
+
+        except Exception as e:
+            logger.error(f"[DEBUG CDP] Failed: {e}")
+            return {"success": False, "error": str(e)}
+
     # Steam Deck compatibility test result token -> human readable text mapping
     DECK_TEST_RESULT_TOKENS = {
         '#SteamDeckVerified_TestResult_DefaultControllerConfigFullyFunctional': 'All functionality is accessible when using the default controller configuration',
@@ -7165,5 +7411,12 @@ class Plugin:
         logger.info("[UNLOAD] Stopping background sync service")
         if self.background_sync:
             await self.background_sync.stop()
+
+        # Disconnect CDP client
+        try:
+            await shutdown_cdp_client()
+            logger.info("[UNLOAD] CDP client disconnected")
+        except Exception as e:
+            logger.warning(f"[UNLOAD] CDP disconnect failed: {e}")
 
         logger.info("[UNLOAD] Unifideck plugin unloaded")
