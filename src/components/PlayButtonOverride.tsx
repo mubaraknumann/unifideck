@@ -173,6 +173,7 @@ export const PlaySectionWrapper: FC<PlaySectionWrapperProps> = ({ appId }) => {
   const [isRunning, setIsRunning] = useState(false);
   const [lastPlayedTimestamp, setLastPlayedTimestamp] = useState(0);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const debugLoggedRef = useRef(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const { t } = useTranslation();
 
@@ -269,14 +270,29 @@ export const PlaySectionWrapper: FC<PlaySectionWrapperProps> = ({ appId }) => {
         const overview = appStore?.m_mapApps?.get?.(appId);
         if (!overview) return;
 
+        // One-time diagnostic log to help debug running state issues
+        if (!debugLoggedRef.current) {
+          console.log(
+            `[PlaySectionWrapper] Overview for ${appId}:`,
+            "local_per_client_data:", JSON.stringify(overview.local_per_client_data),
+            "per_client_data:", JSON.stringify(overview.per_client_data),
+          );
+          debugLoggedRef.current = true;
+        }
+
         // Try local_per_client_data first (local machine), then per_client_data array
         const localData = overview.local_per_client_data;
         const displayStatus =
           localData?.display_status ??
           overview.per_client_data?.[0]?.display_status;
 
-        const running = displayStatus === 4 || displayStatus === 1;
-        setIsRunning(running);
+        // Only update state if display_status is actually available.
+        // Don't override bRunning-derived state (from lifetime notifications)
+        // with false when display_status isn't populated for non-Steam shortcuts.
+        if (displayStatus !== undefined && displayStatus !== null) {
+          const running = displayStatus === 4 || displayStatus === 1;
+          setIsRunning(running);
+        }
       } catch {
         // Silently fail — appStore shape may vary
       }
@@ -297,8 +313,9 @@ export const PlaySectionWrapper: FC<PlaySectionWrapperProps> = ({ appId }) => {
             console.log(
               `[PlaySectionWrapper] Lifetime notification: unAppID=${data.unAppID}, running=${data.bRunning}`,
             );
-            // Re-check display_status for authoritative state rather than trusting bRunning alone
-            checkRunningState();
+            // Use bRunning directly — proven reliable for non-Steam shortcuts
+            // (MoonDeck pattern). display_status is NOT reliably populated for shortcuts.
+            setIsRunning(data.bRunning);
           },
         ) ?? null;
     } catch {
@@ -373,6 +390,67 @@ export const PlaySectionWrapper: FC<PlaySectionWrapperProps> = ({ appId }) => {
       gameInfo,
     });
   }, [downloadState, gameInfo]);
+
+  // Proton compat tool handling: When a Unifideck game page loads, check if
+  // Steam's Force Compatibility is set with a Proton tool. If so:
+  // 1. Save the tool to proton_settings.json (launcher reads at Priority 2.5)
+  // 2. Set launch options to use %command% bypass trick so the bash launcher
+  //    runs natively even when Proton is configured (Proton command is commented out)
+  useEffect(() => {
+    if (!gameInfo?.is_installed || !gameInfo?.store || !gameInfo?.game_id) return;
+    if (appId <= 2000000000) return;
+
+    let cancelled = false;
+    const storeGameId = `${gameInfo.store}:${gameInfo.game_id}`;
+
+    (async () => {
+      try {
+        const result = await call<[string], {
+          success: boolean;
+          tool_name?: string;
+          appid_unsigned?: number;
+          is_linux_runtime?: boolean;
+          launcher_path?: string;
+          error?: string;
+        }>("get_compat_tool_for_game", storeGameId);
+
+        if (cancelled || !result?.success) return;
+
+        const launcherPath = result.launcher_path;
+        if (!launcherPath) return;
+
+        if (result.tool_name && !result.is_linux_runtime) {
+          // Proton compat tool detected - save for the launcher
+          await call<[string, string], { success: boolean }>(
+            "save_proton_setting", storeGameId, result.tool_name,
+          );
+
+          if (cancelled) return;
+
+          // Set launch options with %command% bypass: runs launcher natively,
+          // Proton-wrapped command gets commented out after #
+          const bypassOptions = `${launcherPath} "${storeGameId}" #%command%`;
+          window.SteamClient?.Apps?.SetShortcutLaunchOptions(appId, bypassOptions);
+
+          console.log(
+            `[PlaySectionWrapper] Set %command% bypass for "${gameInfo.title}" (${result.tool_name})`,
+          );
+        } else {
+          // No Proton tool (or Linux runtime) - restore original launch options
+          window.SteamClient?.Apps?.SetShortcutLaunchOptions(appId, storeGameId);
+
+          // Clear any previously saved proton setting
+          await call<[string, string], { success: boolean }>(
+            "save_proton_setting", storeGameId, "",
+          );
+        }
+      } catch (error) {
+        console.error("[PlaySectionWrapper] Error checking compat tool:", error);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [appId, gameInfo?.is_installed, gameInfo?.store, gameInfo?.game_id]);
 
   // Poll for download state
   useEffect(() => {

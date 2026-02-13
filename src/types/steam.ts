@@ -60,6 +60,9 @@ declare global {
         TerminateApp(appId: string, force: boolean): void;
         ShowControllerConfigurator(appId: number): void;
         OpenAppSettingsDialog(appId: number, section: string): void;
+        SpecifyCompatTool(appId: number, strToolName: string): void;
+        SetShortcutLaunchOptions(appId: number, options: string): void;
+        GetPlaytime(appId: number): Promise<{ nPlaytimeForever: number; rtLastTimePlayed: number }>;
       };
       GameSessions?: {
         RegisterForAppLifetimeNotifications(

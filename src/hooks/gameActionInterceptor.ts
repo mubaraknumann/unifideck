@@ -1,15 +1,12 @@
 /**
  * Game Action Interceptor
  *
- * Intercepts Steam's play button presses for uninstalled Unifideck games.
- * When a user clicks "Play" on an uninstalled non-Steam shortcut managed by Unifideck,
- * this cancels the launch action and triggers the install flow instead.
- * When a game is downloading, clicking "Play" triggers the cancel flow.
+ * Intercepts Steam's play button presses for Unifideck games:
+ * 1. Uninstalled games: cancels launch and triggers install flow
+ * 2. Downloading games: cancels launch and shows cancel confirmation
+ * 3. Installed games: let Steam handle it normally
  *
- * Strategy: Only cancel when we KNOW from cache that the game is uninstalled.
- * Never re-launch (RunGame) from the interceptor - that causes infinite loops.
- * If cache is empty, let the launch proceed (the user is probably launching
- * from the library grid without visiting game details first).
+ * Strategy: Only cancel when we KNOW from cache that the game is a Unifideck game.
  *
  * Based on MoonDeck's RegisterForGameActionStart pattern.
  */
@@ -201,11 +198,11 @@ function showCancelConfirmation(gameInfo: any, downloadId?: string) {
 /**
  * Registers the game action interceptor.
  *
- * Strategy: Only cancel when we KNOW from cache that the game is an
- * uninstalled Unifideck game. If cache is empty or game is installed,
- * do nothing and let the native launch proceed.
- *
- * For downloading games, cancel the launch and show cancel confirmation.
+ * Strategy: Only act on games we KNOW from cache are Unifideck games.
+ * - Installed: let Steam handle it normally
+ * - Downloading: cancel + show cancel confirmation
+ * - Uninstalled: cancel + show install confirmation
+ * - Unknown (no cache): let Steam handle it
  *
  * @returns Cleanup function to unregister the interceptor.
  */
@@ -227,7 +224,7 @@ export function registerGameActionInterceptor(): () => void {
           return;
         }
 
-        // Game is installed and not downloading - let the native launch proceed
+        // Game is installed and not downloading - let Steam handle it normally
         if (cachedInfo.is_installed && !downloadStateRef.isDownloading) {
           return;
         }

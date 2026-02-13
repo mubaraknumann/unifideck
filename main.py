@@ -6689,6 +6689,43 @@ class Plugin:
 
     # ============== END LANGUAGE SETTINGS API ==============
 
+    # ============== PROTON COMPAT TOOL API ==============
+
+    async def get_compat_tool_for_game(self, store_game_id: str) -> Dict[str, Any]:
+        """Get the Steam compatibility tool set for a Unifideck shortcut.
+
+        Reads config.vdf CompatToolMapping using the shortcut's appID
+        from shortcuts_registry.json. Also returns the launcher path
+        for building %command% bypass launch options.
+
+        Args:
+            store_game_id: e.g., "gog:1234567890"
+        """
+        from py_modules.unifideck.compat.proton_tools import get_compat_tool_for_game as _get
+        result = _get(store_game_id)
+        result["launcher_path"] = os.path.join(os.path.dirname(__file__), 'bin', 'unifideck-launcher')
+        return result
+
+    async def temporarily_clear_compat_tool(self, appid_unsigned: int) -> Dict[str, Any]:
+        """Temporarily remove a compat tool entry from config.vdf.
+
+        Called before re-launching via RunGame to prevent Steam from
+        running our bash launcher through Wine/Proton.
+        """
+        from py_modules.unifideck.compat.proton_tools import temporarily_clear_compat_tool as _clear
+        return _clear(appid_unsigned)
+
+    async def restore_compat_tool(self, appid_unsigned: int, tool_name: str) -> Dict[str, Any]:
+        """Restore a compat tool entry in config.vdf after temporary clear."""
+        from py_modules.unifideck.compat.proton_tools import restore_compat_tool as _restore
+        return _restore(appid_unsigned, tool_name)
+
+    async def save_proton_setting(self, store_game_id: str, tool_name: str) -> Dict[str, Any]:
+        """Save proton tool preference for the launcher to read at Priority 2.5."""
+        from py_modules.unifideck.compat.proton_tools import save_proton_setting as _save
+        return _save(store_game_id, tool_name)
+
+    # ============== END PROTON COMPAT TOOL API ==============
 
     async def check_store_status(self) -> Dict[str, Any]:
         """Check connectivity status of all stores"""
