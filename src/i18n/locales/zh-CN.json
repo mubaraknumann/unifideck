@@ -318,7 +318,10 @@
       "publisher": "发行商:",
       "released": "发行日期:",
       "metacritic": "Metacritic:",
-      "status": "状态:"
+      "status": "状态:",
+      "spaceRequired": "所需空间",
+      "lastPlayed": "最后游玩",
+      "never": "从未"
     },
     "compatibility": {
       "modalTitle": "Steam Deck 兼容性",

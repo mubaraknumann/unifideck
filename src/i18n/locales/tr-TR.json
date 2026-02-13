@@ -316,7 +316,10 @@
       "publisher": "Yayıncı:",
       "released": "Çıkış Tarihi:",
       "metacritic": "Metacritic:",
-      "status": "Durum:"
+      "status": "Durum:",
+      "spaceRequired": "Gerekli Alan",
+      "lastPlayed": "Son Oynama",
+      "never": "Hiçbir zaman"
     },
     "compatibility": {
       "modalTitle": "Steam Deck Uyumluluğu",

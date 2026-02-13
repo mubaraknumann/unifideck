@@ -313,7 +313,10 @@
       "publisher": "パブリッシャー:",
       "released": "発売日:",
       "metacritic": "Metacritic:",
-      "status": "ステータス:"
+      "status": "ステータス:",
+      "spaceRequired": "必要容量",
+      "lastPlayed": "最終プレイ",
+      "never": "なし"
     },
     "compatibility": {
       "modalTitle": "Steam Deck互換性",

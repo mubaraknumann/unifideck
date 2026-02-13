@@ -313,7 +313,10 @@
       "publisher": "Herausgeber:",
       "released": "Veröffentlicht:",
       "metacritic": "Metacritic:",
-      "status": "Status:"
+      "status": "Status:",
+      "spaceRequired": "Speicherplatz",
+      "lastPlayed": "Zuletzt gespielt",
+      "never": "Nie"
     },
     "compatibility": {
       "modalTitle": "Steam Deck-Kompatibilität",

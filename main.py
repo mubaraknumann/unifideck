@@ -1470,7 +1470,7 @@ class SyncProgress:
                 "values": {
                     "synced": self.artwork_synced,
                     "total": self.artwork_total,
-                    "game_title": game_title
+                    "game": game_title
                 }
             }
             return self.artwork_synced

@@ -313,7 +313,10 @@
       "publisher": "Издатель:",
       "released": "Выпущена:",
       "metacritic": "Metacritic:",
-      "status": "Статус:"
+      "status": "Статус:",
+      "spaceRequired": "Место на диске",
+      "lastPlayed": "Последний запуск",
+      "never": "Никогда"
     },
     "compatibility": {
       "modalTitle": "Совместимость Steam Deck",

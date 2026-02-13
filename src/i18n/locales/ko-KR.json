@@ -314,7 +314,10 @@
       "publisher": "발행사:",
       "released": "출시 날짜:",
       "metacritic": "Metacritic:",
-      "status": "상태:"
+      "status": "상태:",
+      "spaceRequired": "필요 공간",
+      "lastPlayed": "마지막 플레이",
+      "never": "없음"
     },
     "compatibility": {
       "modalTitle": "Steam Deck 호환성",

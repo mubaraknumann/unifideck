@@ -313,7 +313,10 @@
       "publisher": "Видавець:",
       "released": "Вийшла:",
       "metacritic": "Metacritic:",
-      "status": "Стан:"
+      "status": "Стан:",
+      "spaceRequired": "Необхідне місце",
+      "lastPlayed": "Останній запуск",
+      "never": "Ніколи"
     },
     "compatibility": {
       "modalTitle": "Сумісність Steam Deck",
