@@ -92,7 +92,8 @@
     "gamesSynced": "{{synced}} / {{total}} jeux synchronisés",
     "artworkDownloaded": "{{synced}} / {{total}} visuels téléchargés",
     "steamMetadataDownloaded": "Métadonnées Steam : {{synced}} / {{total}}",
-    "unifidbMetadataDownloaded": "Métadonnées unifiDB : {{synced}} / {{total}}"
+    "unifidbMetadataDownloaded": "Métadonnées unifiDB : {{synced}} / {{total}}",
+    "metacriticMetadataDownloaded": "Données Metacritic : {{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "Nettoyage",
@@ -105,7 +106,10 @@
     "deleting": "Suppression..."
   },
   "installButton": {
+    "play": "Jouer",
+    "resume": "Reprendre",
     "install": "Installer {{title}}",
+    "installNative": "Installer",
     "uninstall": "Désinstaller {{title}}",
     "cancel": "✖ Annuler",
     "processing": "Traitement...",
@@ -123,6 +127,11 @@
     "forceSyncDescription": "Souhaitez-vous re-synchroniser tous les visuels ? Cela écrasera toute modification manuelle des visuels. Sélectionnez 'Conserver les visuels' pour télécharger uniquement les visuels manquants.",
     "resyncArtwork": "Re-synchroniser les visuels",
     "keepArtwork": "Conserver les visuels",
+    "steamRestartTitle": "Synchronisation terminée !",
+    "steamRestartDescription": "Veuillez redémarrer Steam pour appliquer vos nouveaux jeux et illustrations",
+    "steamRestartDescriptionStore": "Veuillez redémarrer Steam pour appliquer vos nouveaux {{store}} jeux et illustrations",
+    "restartNow": "Redémarrer maintenant",
+    "later": "Plus tard",
     "yes": "Oui",
     "no": "Non"
   },
@@ -238,6 +247,8 @@
     "sgdbLookup": "Recherche de {{count}} jeux sur SteamGridDB…",
     "extractingSteamMetadata": "Extraction des métadonnées Steam pour {{synced}}/{{total}} jeux…",
     "fetchingEnhancedMetadata": "Récupération des métadonnées améliorées pour {{synced}}/{{total}} jeux…",
+    "lookingUpUnifiDB": "Récupération des métadonnées unifiDB…",
+    "fetchingMetacriticData": "Récupération des métadonnées Metacritic…",
     "checkingExistingArtwork": "Vérification des illustrations existantes…",
     "cleaningOrphanedArtwork": "Nettoyage des illustrations orphelines...",
     "retryingMissingArtwork": "Nouvelle tentative pour {{synced}}/{{total}} jeux avec illustrations manquantes...",

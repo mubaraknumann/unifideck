@@ -92,7 +92,8 @@
     "gamesSynced": "{{synced}} / {{total}} игр синхронизировано",
     "artworkDownloaded": "{{synced}} / {{total}} артов загружено",
     "steamMetadataDownloaded": "Метаданные Steam: {{synced}} / {{total}}",
-    "unifidbMetadataDownloaded": "Метаданные unifiDB: {{synced}} / {{total}}"
+    "unifidbMetadataDownloaded": "Метаданные unifiDB: {{synced}} / {{total}}",
+    "metacriticMetadataDownloaded": "Данные Metacritic: {{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "Очистка",
@@ -105,7 +106,10 @@
     "deleting": "Удаление..."
   },
   "installButton": {
+    "play": "Играть",
+    "resume": "Возобновить",
     "install": "Установить {{title}}",
+    "installNative": "Установить",
     "uninstall": "Удалить {{title}}",
     "cancel": "✖ Отмена",
     "processing": "Обработка...",
@@ -123,6 +127,11 @@
     "forceSyncDescription": "Хотите пересинхронизировать все обложки? Это перезапишет любые ручные изменения. Выберите 'Сохранить обложки', чтобы скачать только отсутствующие.",
     "resyncArtwork": "Пересинхр. обложки",
     "keepArtwork": "Сохранить обложки",
+    "steamRestartTitle": "Синхронизация завершена!",
+    "steamRestartDescription": "Пожалуйста, перезапустите Steam, чтобы применить новые игры и обложки",
+    "steamRestartDescriptionStore": "Пожалуйста, перезапустите Steam, чтобы применить новые игры {{store}} и обложки",
+    "restartNow": "Перезапустить сейчас",
+    "later": "Позже",
     "yes": "Да",
     "no": "Нет"
   },
@@ -142,6 +151,7 @@
     "uninstallingMessageProton": "Удаление {{title}} и файлов Proton...",
     "uninstallComplete": "Удаление завершено",
     "uninstallCompleteMessage": "{{title}} удален.",
+    "uninstallCompleteMessageProton": "{{title}} удалена (включая файлы Proton).",
     "installComplete": "Установка завершена!",
     "installCompleteMessage": "{{title}} готов к игре. Перезапустите Steam, чтобы увидеть его в библиотеке.",
     "syncComplete": "Синхронизация завершена!",
@@ -237,6 +247,8 @@
     "sgdbLookup": "Поиск {{count}} игр в SteamGridDB...",
     "extractingSteamMetadata": "Извлечение метаданных Steam для {{synced}}/{{total}} игр...",
     "fetchingEnhancedMetadata": "Получение дополнительных метаданных для {{synced}}/{{total}} игр...",
+    "lookingUpUnifiDB": "Получение метаданных unifiDB…",
+    "fetchingMetacriticData": "Получение метаданных Metacritic…",
     "checkingExistingArtwork": "Проверка существующего арта...",
     "cleaningOrphanedArtwork": "Очистка оставшихся без привязки обложек...",
     "retryingMissingArtwork": "Повторная попытка для {{synced}}/{{total}} игр с отсутствующими обложками...",

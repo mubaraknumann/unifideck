@@ -92,7 +92,8 @@
     "gamesSynced": "{{synced}} / {{total}} gier zsynchronizowanych",
     "artworkDownloaded": "{{synced}} / {{total}} grafik pobranych",
     "steamMetadataDownloaded": "Metadane Steam: {{synced}} / {{total}}",
-    "unifidbMetadataDownloaded": "Metadane unifiDB: {{synced}} / {{total}}"
+    "unifidbMetadataDownloaded": "Metadane unifiDB: {{synced}} / {{total}}",
+    "metacriticMetadataDownloaded": "Metadane Metacritic: {{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "Czyszczenie",
@@ -105,7 +106,10 @@
     "deleting": "Usuwanie..."
   },
   "installButton": {
+    "play": "Graj",
+    "resume": "Wznów",
     "install": "Zainstaluj {{title}}",
+    "installNative": "Zainstaluj",
     "uninstall": "Odinstaluj {{title}}",
     "cancel": "✖ Anuluj",
     "processing": "Przetwarzanie...",
@@ -123,6 +127,11 @@
     "forceSyncDescription": "Czy chcesz ponownie zsynchronizować wszystkie grafiki? Spowoduje to nadpisanie wszelkich ręcznych zmian grafik. Wybierz 'Zachowaj Grafiki', aby pobrać tylko brakujące grafiki.",
     "resyncArtwork": "Ponownie Synchronizuj Grafiki",
     "keepArtwork": "Zachowaj Grafiki",
+    "steamRestartTitle": "Synchronizacja ukończona!",
+    "steamRestartDescription": "Uruchom ponownie Steam, aby zastosować nowe gry i grafiki",
+    "steamRestartDescriptionStore": "Uruchom ponownie Steam, aby zastosować nowe gry i grafiki z {{store}}",
+    "restartNow": "Uruchom ponownie teraz",
+    "later": "Później",
     "yes": "Tak",
     "no": "Nie"
   },
@@ -142,6 +151,7 @@
     "uninstallingMessageProton": "Odinstalowywanie {{title}} i plików Proton...",
     "uninstallComplete": "Odinstalowywanie zakończone",
     "uninstallCompleteMessage": "{{title}} usunięty.",
+    "uninstallCompleteMessageProton": "{{title}} usunięty (wraz z plikami Proton).",
     "installComplete": "Instalacja Ukończona!",
     "installCompleteMessage": "{{title}} jest gotowy do gry. Uruchom ponownie Steam, aby zobaczyć go w swojej bibliotece.",
     "syncComplete": "Synchronizacja Ukończona!",
@@ -237,6 +247,8 @@
     "sgdbLookup": "Wyszukiwanie {{count}} gier w SteamGridDB...",
     "extractingSteamMetadata": "Wyodrębnianie metadanych Steam dla {{synced}}/{{total}} gier...",
     "fetchingEnhancedMetadata": "Pobieranie ulepszonych metadanych dla {{synced}}/{{total}} gier...",
+    "lookingUpUnifiDB": "Pobieranie metadanych unifiDB…",
+    "fetchingMetacriticData": "Pobieranie metadanych Metacritic…",
     "checkingExistingArtwork": "Sprawdzanie istniejącej grafiki...",
     "cleaningOrphanedArtwork": "Czyszczenie osieroconych grafik...",
     "retryingMissingArtwork": "Ponawianie {{synced}}/{{total}} gier z brakującymi grafikami...",

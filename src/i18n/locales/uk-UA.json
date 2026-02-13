@@ -92,7 +92,8 @@
     "gamesSynced": "{{synced}} / {{total}} ігор синхронізовано",
     "artworkDownloaded": "{{synced}} / {{total}} обкладинок завантажено",
     "steamMetadataDownloaded": "Метадані Steam: {{synced}} / {{total}}",
-    "unifidbMetadataDownloaded": "Метадані unifiDB: {{synced}} / {{total}}"
+    "unifidbMetadataDownloaded": "Метадані unifiDB: {{synced}} / {{total}}",
+    "metacriticMetadataDownloaded": "Дані Metacritic: {{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "Очищення",
@@ -105,7 +106,10 @@
     "deleting": "Видалення..."
   },
   "installButton": {
+    "play": "Грати",
+    "resume": "Продовжити",
     "install": "Встановити {{title}}",
+    "installNative": "Встановити",
     "uninstall": "Видалити {{title}}",
     "cancel": "✖ Скасувати",
     "processing": "Обробка...",
@@ -123,6 +127,11 @@
     "forceSyncDescription": "Бажаєте повторно синхронізувати всі обкладинки? Це перезапише всі ручні зміни обкладинок. Виберіть 'Зберегти обкладинки', щоб завантажити лише відсутні обкладинки.",
     "resyncArtwork": "Пересинхронізувати обкладинки",
     "keepArtwork": "Зберегти обкладинки",
+    "steamRestartTitle": "Синхронізацію завершено!",
+    "steamRestartDescription": "Будь ласка, перезапустіть Steam, щоб застосувати нові ігри та обкладинки",
+    "steamRestartDescriptionStore": "Будь ласка, перезапустіть Steam, щоб застосувати нові ігри та обкладинки {{store}}",
+    "restartNow": "Перезапустити зараз",
+    "later": "Пізніше",
     "yes": "Так",
     "no": "Ні"
   },
@@ -238,6 +247,8 @@
     "sgdbLookup": "Пошук {{count}} ігор у SteamGridDB...",
     "extractingSteamMetadata": "Вилучення метаданих Steam для {{synced}}/{{total}} ігор...",
     "fetchingEnhancedMetadata": "Отримання покращених метаданих для {{synced}}/{{total}} ігор...",
+    "lookingUpUnifiDB": "Отримання метаданих unifiDB...",
+    "fetchingMetacriticData": "Отримання метаданих Metacritic...",
     "checkingExistingArtwork": "Перевірка наявного арту...",
     "cleaningOrphanedArtwork": "Очищення осиротілих обкладинок...",
     "retryingMissingArtwork": "Повторна спроба для {{synced}}/{{total}} ігор з відсутніми обкладинками...",

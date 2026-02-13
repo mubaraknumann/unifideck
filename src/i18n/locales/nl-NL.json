@@ -92,7 +92,8 @@
     "gamesSynced": "{{synced}} / {{total}} games gesynchroniseerd",
     "artworkDownloaded": "{{synced}} / {{total}} artwork gedownload",
     "steamMetadataDownloaded": "Steam-metadata: {{synced}} / {{total}}",
-    "unifidbMetadataDownloaded": "unifiDB-metadata: {{synced}} / {{total}}"
+    "unifidbMetadataDownloaded": "unifiDB-metadata: {{synced}} / {{total}}",
+    "metacriticMetadataDownloaded": "Metacritic-gegevens: {{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "Opruimen",
@@ -105,7 +106,10 @@
     "deleting": "Verwijderen..."
   },
   "installButton": {
+    "play": "Spelen",
+    "resume": "Hervatten",
     "install": "{{title}} Installeren",
+    "installNative": "Installeren",
     "uninstall": "{{title}} Verwijderen",
     "cancel": "✖ Annuleren",
     "processing": "Verwerken...",
@@ -123,6 +127,11 @@
     "forceSyncDescription": "Wil je alle artwork opnieuw synchroniseren? Dit overschrijft handmatige artwork-wijzigingen. Selecteer 'Artwork Behouden' om alleen ontbrekende artwork te downloaden.",
     "resyncArtwork": "Artwork Opnieuw Synchroniseren",
     "keepArtwork": "Artwork Behouden",
+    "steamRestartTitle": "Synchronisatie Voltooid!",
+    "steamRestartDescription": "Herstart Steam om je nieuwe games en artwork toe te passen",
+    "steamRestartDescriptionStore": "Herstart Steam om je nieuwe {{store}}-games en artwork toe te passen",
+    "restartNow": "Nu herstarten",
+    "later": "Later",
     "yes": "Ja",
     "no": "Nee"
   },
@@ -236,8 +245,10 @@
     "cancelledByUser": "Sync geannuleerd",
     "checkingInstalledGames": "Geïnstalleerde games controleren...",
     "sgdbLookup": "{{count}} games op SteamGridDB zoeken...",
-    "extractingSteamMetadata": "Steam-metadata extraheren voor {{synced}}/{{total}} games...",
-    "fetchingEnhancedMetadata": "Verbeterde metadata ophalen voor {{synced}}/{{total}} games...",
+    "extractingSteamMetadata": "Steam-metadata extraheren for {{synced}}/{{total}} games...",
+    "fetchingEnhancedMetadata": "Verbeterde metadata ophalen for {{synced}}/{{total}} games...",
+    "lookingUpUnifiDB": "unifiDB-metadata ophalen…",
+    "fetchingMetacriticData": "Metacritic-metadata ophalen…",
     "checkingExistingArtwork": "Bestaande artwork controleren...",
     "cleaningOrphanedArtwork": "Wees-artwork opruimen...",
     "retryingMissingArtwork": "{{synced}}/{{total}} spellen met ontbrekend artwork opnieuw proberen...",
