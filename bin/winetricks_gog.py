@@ -51,7 +51,8 @@ DEFAULT_DEPS = [
     'xinput',         # XInput for controller support (xinput1_*.dll)
     
     # .NET (some GOG games require this)
-    'dotnet40',       # .NET Framework 4.0
+    'dotnet40',           # .NET Framework 4.0
+    'dotnetdesktop6',     # .NET Desktop Runtime 6.0 (BG3, other modern titles)
     
     # Fonts (for UI/text rendering)
     'corefonts',      # Microsoft core fonts

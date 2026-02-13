@@ -1065,6 +1065,29 @@ except Exception as e:
             log "[Setup] Redistributables already installed, skipping"
         fi
 
+        # === WINETRICKS: Install common redistributables ===
+        # Supplements gog_setup.py (which only installs GOG-declared deps)
+        # with broader coverage (VC++ runtimes, .NET, DirectX, fonts, etc.)
+        WINETRICKS_MARKER="$PREFIX_PATH/unifideck_winetricks_complete.marker"
+        WINETRICKS_GOG_SCRIPT="$PLUGIN_DIR/bin/winetricks_gog.py"
+
+        if [ ! -f "$WINETRICKS_MARKER" ] || ! grep -qi "complete\|no redistributables" "$WINETRICKS_MARKER" 2>/dev/null; then
+            if [ -f "$WINETRICKS_GOG_SCRIPT" ]; then
+                log "[Winetricks] Running GOG redistributables installation..."
+                notify_stage "toasts.launcher.dependenciesTitle" "toasts.launcher.installingRedistributables" "normal"
+
+                if python3 "$WINETRICKS_GOG_SCRIPT" "$GAME_ID" "$PREFIX_PATH" >> "$HOME/.local/share/unifideck/winetricks.log" 2>&1; then
+                    log "[Winetricks] Installation completed successfully"
+                    notify_stage "toasts.launcher.dependenciesReady" "toasts.launcher.redistributablesInstalled" "low"
+                else
+                    log "[Winetricks] Installation completed (may have warnings)"
+                    notify_stage "toasts.launcher.dependenciesStatus" "toasts.launcher.checkLogs" "low"
+                fi
+            fi
+        else
+            log "[Winetricks] Redistributables already installed, skipping"
+        fi
+
         # Enable NVAPI for modern Proton (matches Epic path)
         export PROTON_ENABLE_NVAPI="1"
         export DXVK_NVAPI_ALLOW_OTHER_DRIVERS="1"
