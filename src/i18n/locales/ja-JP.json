@@ -324,5 +324,18 @@
     "label": "言語",
     "install": "インストール",
     "cancel": "キャンセル"
+  },
+  "accountSwitch": {
+    "title": "アカウント切り替えを検出",
+    "description": "別のSteamアカウントがログインしています。Unifideckのデータをどうしますか？",
+    "migrate": "Unifideckデータを移行",
+    "migrateDescription": "前のアカウントからゲームとアートワークをコピー",
+    "freshStart": "新規スタート",
+    "freshStartDescription": "ストアのログインをクリアして、別のEpic/GOG/Amazonアカウントに接続",
+    "skip": "スキップ",
+    "toastMigrateTitle": "移行完了",
+    "toastMigrateBody": "{{shortcuts}} 件のショートカットと {{artwork}} 件のアートワークファイルを移行しました",
+    "toastClearTitle": "認証トークンをクリアしました",
+    "toastClearBody": "ストアのログインがクリアされました。別のアカウントでサインインできます。"
   }
 }

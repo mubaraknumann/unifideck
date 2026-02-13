@@ -324,5 +324,18 @@
     "label": "Język",
     "install": "Zainstaluj",
     "cancel": "Anuluj"
+  },
+  "accountSwitch": {
+    "title": "Wykryto zmianę konta",
+    "description": "Inne konto Steam jest teraz zalogowane. Co chcesz zrobić z danymi Unifideck?",
+    "migrate": "Migruj dane Unifideck",
+    "migrateDescription": "Kopiuj gry i grafiki z poprzedniego konta",
+    "freshStart": "Zacznij od nowa",
+    "freshStartDescription": "Wyczyść logowania do sklepów, aby połączyć inne konta Epic/GOG/Amazon",
+    "skip": "Pomiń",
+    "toastMigrateTitle": "Migracja zakończona",
+    "toastMigrateBody": "Zmigrowano {{shortcuts}} skrótów i {{artwork}} plików grafik",
+    "toastClearTitle": "Tokeny uwierzytelniania wyczyszczone",
+    "toastClearBody": "Logowania do sklepów zostały wyczyszczone. Możesz teraz zalogować się innymi kontami."
   }
 }

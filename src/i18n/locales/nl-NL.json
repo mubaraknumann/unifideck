@@ -325,5 +325,18 @@
     "label": "Taal",
     "install": "Installeren",
     "cancel": "Annuleren"
+  },
+  "accountSwitch": {
+    "title": "Accountwissel gedetecteerd",
+    "description": "Er is een ander Steam-account ingelogd. Wat wil je doen met je Unifideck-gegevens?",
+    "migrate": "Unifideck-gegevens migreren",
+    "migrateDescription": "Games en artwork van het vorige account kopiëren",
+    "freshStart": "Opnieuw beginnen",
+    "freshStartDescription": "Winkelaanmeldingen wissen om andere Epic/GOG/Amazon-accounts te verbinden",
+    "skip": "Overslaan",
+    "toastMigrateTitle": "Migratie voltooid",
+    "toastMigrateBody": "{{shortcuts}} snelkoppelingen en {{artwork}} artwork-bestanden gemigreerd",
+    "toastClearTitle": "Authenticatietokens gewist",
+    "toastClearBody": "Winkelaanmeldingen zijn gewist. Je kunt nu inloggen met andere accounts."
   }
 }

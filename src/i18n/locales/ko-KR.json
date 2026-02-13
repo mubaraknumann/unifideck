@@ -325,5 +325,18 @@
     "label": "언어",
     "install": "설치",
     "cancel": "취소"
+  },
+  "accountSwitch": {
+    "title": "계정 전환 감지됨",
+    "description": "다른 Steam 계정으로 로그인되었습니다. Unifideck 데이터를 어떻게 하시겠습니까?",
+    "migrate": "Unifideck 데이터 마이그레이션",
+    "migrateDescription": "이전 계정에서 게임 및 아트워크 복사",
+    "freshStart": "새로 시작",
+    "freshStartDescription": "다른 Epic/GOG/Amazon 계정을 연결하기 위해 스토어 로그인 초기화",
+    "skip": "건너뛰기",
+    "toastMigrateTitle": "마이그레이션 완료",
+    "toastMigrateBody": "{{shortcuts}}개의 바로가기와 {{artwork}}개의 아트워크 파일이 마이그레이션되었습니다",
+    "toastClearTitle": "인증 토큰 초기화됨",
+    "toastClearBody": "스토어 로그인이 초기화되었습니다. 이제 다른 계정으로 로그인할 수 있습니다."
   }
 }

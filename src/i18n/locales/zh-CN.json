@@ -330,5 +330,18 @@
     "label": "语言",
     "install": "安装",
     "cancel": "取消"
+  },
+  "accountSwitch": {
+    "title": "检测到账户切换",
+    "description": "另一个 Steam 账户已登录。您想如何处理 Unifideck 数据？",
+    "migrate": "迁移 Unifideck 数据",
+    "migrateDescription": "从之前的账户复制游戏和封面",
+    "freshStart": "全新开始",
+    "freshStartDescription": "清除商店登录信息以连接不同的 Epic/GOG/Amazon 账户",
+    "skip": "跳过",
+    "toastMigrateTitle": "迁移完成",
+    "toastMigrateBody": "已迁移 {{shortcuts}} 个快捷方式和 {{artwork}} 个封面文件",
+    "toastClearTitle": "认证令牌已清除",
+    "toastClearBody": "商店登录信息已清除。您现在可以使用不同的账户登录。"
   }
 }

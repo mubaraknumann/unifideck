@@ -324,5 +324,18 @@
     "label": "Язык",
     "install": "Установить",
     "cancel": "Отмена"
+  },
+  "accountSwitch": {
+    "title": "Обнаружена смена аккаунта",
+    "description": "Сейчас выполнен вход в другой аккаунт Steam. Что вы хотите сделать с данными Unifideck?",
+    "migrate": "Перенести данные Unifideck",
+    "migrateDescription": "Скопировать игры и обложки из предыдущего аккаунта",
+    "freshStart": "Начать заново",
+    "freshStartDescription": "Очистить логины магазинов для подключения других аккаунтов Epic/GOG/Amazon",
+    "skip": "Пропустить",
+    "toastMigrateTitle": "Перенос завершён",
+    "toastMigrateBody": "Перенесено {{shortcuts}} ярлыков и {{artwork}} файлов обложек",
+    "toastClearTitle": "Токены аутентификации очищены",
+    "toastClearBody": "Логины магазинов были очищены. Теперь вы можете войти с другими аккаунтами."
   }
 }

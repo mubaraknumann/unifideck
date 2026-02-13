@@ -46,6 +46,7 @@ import { DownloadsTab } from "./components/DownloadsTab";
 import { StorageSettings } from "./components/StorageSettings";
 import { UninstallConfirmModal } from "./components/UninstallConfirmModal";
 import { SteamRestartModal } from "./components/SteamRestartModal";
+import { AccountSwitchModal } from "./components/AccountSwitchModal";
 import { LanguageSelector } from "./components/LanguageSelector";
 import StoreConnections from "./components/settings/StoreConnections";
 import { Store } from "./types/store";
@@ -1814,6 +1815,47 @@ export default definePlugin(() => {
       if (result?.success && result.language && result.language !== "auto") {
         changeLanguage(result.language);
         console.log("[Unifideck] Applied saved language:", result.language);
+      }
+    })
+    .catch(() => {}); // Silently ignore if backend not ready
+
+  // Check for account switch and show modal if needed
+  call<[], { show_modal: boolean; has_registry: boolean; has_auth_tokens: boolean }>(
+    "check_account_switch",
+  )
+    .then((result) => {
+      if (result?.show_modal) {
+        console.log("[Unifideck] Account switch detected, showing modal");
+        showModal(
+          <AccountSwitchModal
+            hasRegistry={result.has_registry}
+            hasAuthTokens={result.has_auth_tokens}
+            onMigrate={async () => {
+              const r = await call<[], { shortcuts_created: number; artwork_copied: number }>(
+                "migrate_account_data",
+              );
+              toaster.toast({
+                title: t("accountSwitch.toastMigrateTitle"),
+                body: t("accountSwitch.toastMigrateBody", {
+                  shortcuts: r.shortcuts_created,
+                  artwork: r.artwork_copied,
+                }),
+              });
+              showModal(<SteamRestartModal closeModal={() => {}} />);
+            }}
+            onClearAuths={async () => {
+              await call<[], unknown>("clear_store_auths");
+              toaster.toast({
+                title: t("accountSwitch.toastClearTitle"),
+                body: t("accountSwitch.toastClearBody"),
+              });
+            }}
+            onSkip={() => {
+              console.log("[Unifideck] Account switch skipped by user");
+            }}
+            closeModal={() => {}}
+          />,
+        );
       }
     })
     .catch(() => {}); // Silently ignore if backend not ready

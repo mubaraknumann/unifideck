@@ -325,5 +325,18 @@
     "label": "Sprache",
     "install": "Installieren",
     "cancel": "Abbrechen"
+  },
+  "accountSwitch": {
+    "title": "Kontowechsel erkannt",
+    "description": "Ein anderes Steam-Konto ist jetzt angemeldet. Was möchtest du mit deinen Unifideck-Daten tun?",
+    "migrate": "Unifideck-Daten migrieren",
+    "migrateDescription": "Spiele & Artwork vom vorherigen Konto kopieren",
+    "freshStart": "Neuanfang",
+    "freshStartDescription": "Shop-Anmeldungen löschen, um andere Epic/GOG/Amazon-Konten zu verbinden",
+    "skip": "Überspringen",
+    "toastMigrateTitle": "Migration abgeschlossen",
+    "toastMigrateBody": "{{shortcuts}} Verknüpfungen und {{artwork}} Artwork-Dateien migriert",
+    "toastClearTitle": "Authentifizierungstokens gelöscht",
+    "toastClearBody": "Shop-Anmeldungen wurden gelöscht. Du kannst dich jetzt mit anderen Konten anmelden."
   }
 }

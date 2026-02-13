@@ -328,5 +328,18 @@
     "label": "Dil",
     "install": "Kur",
     "cancel": "İptal"
+  },
+  "accountSwitch": {
+    "title": "Hesap Değişikliği Algılandı",
+    "description": "Farklı bir Steam hesabı giriş yaptı. Unifideck verilerinizle ne yapmak istersiniz?",
+    "migrate": "Unifideck Verilerini Taşı",
+    "migrateDescription": "Önceki hesaptan oyunları ve görselleri kopyala",
+    "freshStart": "Sıfırdan Başla",
+    "freshStartDescription": "Farklı Epic/GOG/Amazon hesapları bağlamak için mağaza girişlerini temizle",
+    "skip": "Atla",
+    "toastMigrateTitle": "Taşıma Tamamlandı",
+    "toastMigrateBody": "{{shortcuts}} kısayol ve {{artwork}} görsel dosyası taşındı",
+    "toastClearTitle": "Kimlik Doğrulama Jetonları Temizlendi",
+    "toastClearBody": "Mağaza girişleri temizlendi. Artık farklı hesaplarla giriş yapabilirsiniz."
   }
 }

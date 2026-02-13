@@ -48,6 +48,9 @@ from py_modules.unifideck.launch_options import extract_store_id, is_unifideck_s
 from py_modules.unifideck.cdp_utils import create_cef_debugging_flag
 from py_modules.unifideck.cdp_inject import get_cdp_client, shutdown_cdp_client
 
+# Import Account Manager for multi-account support
+from py_modules.unifideck.account_manager import AccountManager
+
 # ============================================================================
 # NEW MODULAR BACKEND IMPORTS (Phase 1: Available for use alongside old code)
 # These will eventually replace the inline class definitions below.
@@ -3615,6 +3618,12 @@ class Plugin:
         if migration_result.get('shortcuts_migrated', 0) > 0 or migration_result.get('artwork_migrated', 0) > 0:
             logger.info(f"[INIT] User 0 migration: {migration_result['shortcuts_migrated']} shortcuts, {migration_result['artwork_migrated']} artwork files migrated")
         
+        # Detect account switch (must happen before reconciliation so modal can be shown)
+        logger.info("[INIT] Checking for account switch")
+        self.account_manager = AccountManager()
+        self.account_manager.detect_account_switch()
+        self.account_manager.save_current_user()
+
         # Reconcile games.map to remove orphaned entries (games deleted externally)
         logger.info("[INIT] Reconciling games.map for orphaned entries")
         reconcile_result = self.shortcuts_manager.reconcile_games_map()
@@ -6688,6 +6697,52 @@ class Plugin:
             return {'success': False, 'error': str(e)}
 
     # ============== END LANGUAGE SETTINGS API ==============
+
+    # ============== ACCOUNT SWITCH API ==============
+
+    async def check_account_switch(self) -> Dict[str, Any]:
+        """Check if a Steam account switch was detected on startup.
+
+        Called by the frontend to decide whether to show the account switch modal.
+        """
+        return {
+            'show_modal': self.account_manager.should_show_modal(),
+            'current_user': self.account_manager.current_user_id,
+            'previous_user': self.account_manager.previous_user_id,
+            'has_auth_tokens': self.account_manager.has_active_auth_tokens(),
+            'has_registry': self.account_manager.has_registry_entries(),
+        }
+
+    async def migrate_account_data(self) -> Dict[str, Any]:
+        """Migrate shortcuts and artwork from previous account to current account.
+
+        Called when the user selects 'Migrate' in the account switch modal.
+        """
+        shortcuts = self.account_manager.reconcile_shortcuts_from_registry(self.shortcuts_manager)
+        artwork = self.account_manager.migrate_artwork()
+        self.account_manager.account_switch_detected = False
+        return {
+            'shortcuts_created': shortcuts.get('created', 0),
+            'artwork_copied': artwork.get('copied', 0),
+            'errors': shortcuts.get('errors', []) + artwork.get('errors', []),
+        }
+
+    async def clear_store_auths(self) -> Dict[str, Any]:
+        """Clear all store auth tokens for a fresh start.
+
+        Called when the user selects 'Fresh Start' in the account switch modal.
+        Re-initializes store connectors to pick up the cleared state.
+        """
+        result = self.account_manager.clear_all_auth_tokens()
+
+        # Re-init store connectors so they reflect the cleared state
+        self.gog = GOGAPIClient(plugin_dir=DECKY_PLUGIN_DIR, plugin_instance=self)
+        self.amazon = AmazonConnector(plugin_dir=DECKY_PLUGIN_DIR, plugin_instance=self)
+
+        self.account_manager.account_switch_detected = False
+        return result
+
+    # ============== END ACCOUNT SWITCH API ==============
 
     # ============== PROTON COMPAT TOOL API ==============
 
