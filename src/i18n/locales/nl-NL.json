@@ -92,7 +92,8 @@
     "gamesSynced": "{{synced}} / {{total}} games gesynchroniseerd",
     "artworkDownloaded": "{{synced}} / {{total}} artwork gedownload",
     "steamMetadataDownloaded": "Steam-metadata: {{synced}} / {{total}}",
-    "unifidbMetadataDownloaded": "unifiDB-metadata: {{synced}} / {{total}}"
+    "unifidbMetadataDownloaded": "unifiDB-metadata: {{synced}} / {{total}}",
+    "metacriticMetadataDownloaded": "Metacritic-gegevens: {{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "Opruimen",
@@ -105,7 +106,10 @@
     "deleting": "Verwijderen..."
   },
   "installButton": {
+    "play": "Spelen",
+    "resume": "Hervatten",
     "install": "{{title}} Installeren",
+    "installNative": "Installeren",
     "uninstall": "{{title}} Verwijderen",
     "cancel": "✖ Annuleren",
     "processing": "Verwerken...",
@@ -123,6 +127,11 @@
     "forceSyncDescription": "Wil je alle artwork opnieuw synchroniseren? Dit overschrijft handmatige artwork-wijzigingen. Selecteer 'Artwork Behouden' om alleen ontbrekende artwork te downloaden.",
     "resyncArtwork": "Artwork Opnieuw Synchroniseren",
     "keepArtwork": "Artwork Behouden",
+    "steamRestartTitle": "Synchronisatie Voltooid!",
+    "steamRestartDescription": "Herstart Steam om je nieuwe games en artwork toe te passen",
+    "steamRestartDescriptionStore": "Herstart Steam om je nieuwe {{store}}-games en artwork toe te passen",
+    "restartNow": "Nu herstarten",
+    "later": "Later",
     "yes": "Ja",
     "no": "Nee"
   },
@@ -236,8 +245,10 @@
     "cancelledByUser": "Sync geannuleerd",
     "checkingInstalledGames": "Geïnstalleerde games controleren...",
     "sgdbLookup": "{{count}} games op SteamGridDB zoeken...",
-    "extractingSteamMetadata": "Steam-metadata extraheren voor {{synced}}/{{total}} games...",
-    "fetchingEnhancedMetadata": "Verbeterde metadata ophalen voor {{synced}}/{{total}} games...",
+    "extractingSteamMetadata": "Steam-metadata extraheren for {{synced}}/{{total}} games...",
+    "fetchingEnhancedMetadata": "Verbeterde metadata ophalen for {{synced}}/{{total}} games...",
+    "lookingUpUnifiDB": "unifiDB-metadata ophalen…",
+    "fetchingMetacriticData": "Metacritic-metadata ophalen…",
     "checkingExistingArtwork": "Bestaande artwork controleren...",
     "cleaningOrphanedArtwork": "Wees-artwork opruimen...",
     "retryingMissingArtwork": "{{synced}}/{{total}} spellen met ontbrekend artwork opnieuw proberen...",
@@ -302,7 +313,10 @@
       "publisher": "Uitgever:",
       "released": "Uitgebracht:",
       "metacritic": "Metacritic:",
-      "status": "Status:"
+      "status": "Status:",
+      "spaceRequired": "Benodigde ruimte",
+      "lastPlayed": "Laatst gespeeld",
+      "never": "Nooit"
     },
     "compatibility": {
       "modalTitle": "Steam Deck-compatibiliteit",
@@ -313,5 +327,30 @@
       "unsupported": "NIET ONDERSTEUND",
       "unknown": "ONBEKEND"
     }
+  },
+  "gameDetailsSettings": {
+    "title": "WEERGAVE SPELDETAILS",
+    "simple": "Eenvoudig",
+    "detailed": "Gedetailleerd"
+  },
+  "gogLanguageModal": {
+    "title": "Taal selecteren",
+    "description": "Kies de taal voor het downloaden van {{title}}",
+    "label": "Taal",
+    "install": "Installeren",
+    "cancel": "Annuleren"
+  },
+  "accountSwitch": {
+    "title": "Accountwissel gedetecteerd",
+    "description": "Er is een ander Steam-account ingelogd. Wat wil je doen met je Unifideck-gegevens?",
+    "migrate": "Unifideck-gegevens migreren",
+    "migrateDescription": "Games en artwork van het vorige account kopiëren",
+    "freshStart": "Opnieuw beginnen",
+    "freshStartDescription": "Winkelaanmeldingen wissen om andere Epic/GOG/Amazon-accounts te verbinden",
+    "skip": "Overslaan",
+    "toastMigrateTitle": "Migratie voltooid",
+    "toastMigrateBody": "{{shortcuts}} snelkoppelingen en {{artwork}} artwork-bestanden gemigreerd",
+    "toastClearTitle": "Authenticatietokens gewist",
+    "toastClearBody": "Winkelaanmeldingen zijn gewist. Je kunt nu inloggen met andere accounts."
   }
 }

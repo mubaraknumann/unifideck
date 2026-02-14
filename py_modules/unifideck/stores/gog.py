@@ -1083,25 +1083,35 @@ class GOGAPIClient:
         
         return 0  # Unknown
 
-    async def install_game(self, game_id: str, base_path: str = None, progress_callback=None) -> Dict[str, Any]:
-        """Install GOG game using gogdl binary"""
+    async def install_game(self, game_id: str, base_path: str = None, progress_callback=None, language: str = None) -> Dict[str, Any]:
+        """Install GOG game using gogdl binary
+
+        Args:
+            game_id: GOG game ID
+            base_path: Installation directory
+            progress_callback: Callback for progress updates
+            language: Language code to download (e.g., 'en-US', 'de-DE'). If None, uses system preference.
+        """
         if not self.gogdl_bin:
             return {'success': False, 'error': 'gogdl binary not found'}
-            
+
         # 1. Ensure Auth (refreshes token if needed)
         if not await self.is_available():
              return {'success': False, 'error': 'Not authenticated with GOG or token expired'}
-        
+
         # Proactively refresh token if old (Lutris pattern)
         await self._ensure_fresh_token()
-             
+
         # Force sync fresh token to gogdl config
         if not self._ensure_auth_config():
              return {'success': False, 'error': 'Failed to configure GOG authentication'}
-        
-        # Get preferred language based on system locale
-        preferred_lang = self._get_unifideck_language()
-        logger.info(f"[GOG] Using language preference: {preferred_lang}")
+
+        # Get preferred language - use explicit selection or fall back to system preference
+        preferred_lang = language if language else self._get_unifideck_language()
+        # Track if user explicitly selected this language via the modal
+        # (vs. falling back to system preference)
+        explicit_language_selection = language is not None
+        logger.info(f"[GOG] Using language preference: {preferred_lang} (explicit={explicit_language_selection})")
 
         # 2. Determine Install Path
         if not base_path:
@@ -1267,43 +1277,48 @@ class GOGAPIClient:
             '--support', support_dir,
         ]
         
-        # STRATEGY: Prioritize User Preference, then Download ALL Supported
+        # STRATEGY:
+        # - If user explicitly selected a language (via modal), download ONLY that language
+        # - If no explicit selection, use system preference with English fallback
         languages_to_download = []
-        
+
         # 1. Determine Primary Language (User Preference or English)
         primary_lang = preferred_lang or 'en-US'
-        
-        if supported_languages:
-            # Smart match for primary language (handles en vs en-US)
-            matched_primary = self._smart_match_language(primary_lang, supported_languages)
-            
-            if matched_primary:
-                languages_to_download.append(matched_primary)
-            else:
-                # If primary not found, try English fallback (smart match)
-                matched_english = self._smart_match_language('en-US', supported_languages)
-                if matched_english:
-                    languages_to_download.append(matched_english)
+
+        if explicit_language_selection:
+            # User explicitly chose via language selection modal - download ONLY their choice
+            if supported_languages:
+                matched = self._smart_match_language(primary_lang, supported_languages)
+                if matched:
+                    languages_to_download.append(matched)
                 else:
-                    # If neither preferred nor English is supported, take the first available
+                    # Selected language not available, use first supported
                     languages_to_download.append(supported_languages[0])
-                
-            # 2. Add ALL other supported languages (as requested by user)
-            for lang in supported_languages:
-                if lang not in languages_to_download:
-                    languages_to_download.append(lang)
+                    logger.warning(f"[GOG] Selected language {primary_lang} not available, using {supported_languages[0]}")
+            else:
+                languages_to_download.append(primary_lang)
+            logger.info(f"[GOG] User explicitly selected language: {languages_to_download}")
         else:
-            # Fallback if info failed: Try Preferred + English
-            languages_to_download.append(primary_lang)
-            if 'en-US' not in languages_to_download:
-                languages_to_download.append('en-US')
-        
-        logger.info(f"[GOG] Downloading languages (English first): {languages_to_download}")
+            # No explicit selection - use system preference with fallback
+            if supported_languages:
+                matched = self._smart_match_language(primary_lang, supported_languages)
+                if matched:
+                    languages_to_download.append(matched)
+                else:
+                    # Fallback to English or first available
+                    matched_english = self._smart_match_language('en-US', supported_languages)
+                    if matched_english:
+                        languages_to_download.append(matched_english)
+                    else:
+                        languages_to_download.append(supported_languages[0])
+            else:
+                languages_to_download.append(primary_lang)
+                if 'en-US' not in languages_to_download:
+                    languages_to_download.append('en-US')
+            logger.info(f"[GOG] Using system language preference: {languages_to_download}")
+
         for lang in languages_to_download:
             cmd.extend(['--lang', lang])
-        # LOGIC FIX: Do NOT use "Safety Fallback" with all languages.
-        # Sending multiple --lang flags to gogdl breaks the download for some games (only 1KB downloaded).
-        # We rely on 'languages_to_download' which defaults to ['en-US'] if manifest parsing failed.
         # This ensures we always attempted to download at least the English version.
         
         # CRITICAL FIX: Delete manifest AGAIN right before download
@@ -2021,24 +2036,36 @@ class GOGAPIClient:
                 stderr=asyncio.subprocess.PIPE,
                 env=self._get_gogdl_env()
             )
-            stdout, _ = await proc.communicate()
-            
+
+            # Add timeout to prevent hanging
+            try:
+                stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
+            except asyncio.TimeoutError:
+                proc.kill()
+                logger.warning(f"[GOG] Timeout getting languages for {game_id}")
+                return ['en-US']
+
             if proc.returncode == 0:
                 for line in stdout.decode().strip().split('\n'):
                     try:
                         data = json.loads(line)
-                        if 'available_languages' in data:
-                            langs = data['available_languages']
+                        # gogdl returns 'languages' not 'available_languages'
+                        if 'languages' in data:
+                            langs = data['languages']
+                            # Handle empty array - fallback to English
+                            if not langs or len(langs) == 0:
+                                logger.warning(f"[GOG] Empty languages array for {game_id}, using fallback")
+                                return ['en-US']
                             logger.info(f"[GOG] Available languages for {game_id}: {langs}")
                             return langs
                     except json.JSONDecodeError:
                         continue
-            
-            return ['en']
-            
+
+            return ['en-US']
+
         except Exception as e:
             logger.error(f"[GOG] Error getting available languages: {e}")
-            return ['en']
+            return ['en-US']
 
     async def install_dlc(self, game_id: str, dlc_id: str, base_path: str = None, progress_callback=None) -> Dict[str, Any]:
         """Install a DLC for a game using gogdl.

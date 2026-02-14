@@ -93,7 +93,8 @@
     "gamesSynced": "{{synced}} / {{total}}개 게임 동기화됨",
     "artworkDownloaded": "{{synced}} / {{total}}개 아트워크 다운로드됨",
     "steamMetadataDownloaded": "Steam 메타데이터: {{synced}} / {{total}}",
-    "unifidbMetadataDownloaded": "unifiDB 메타데이터: {{synced}} / {{total}}"
+    "unifidbMetadataDownloaded": "unifiDB 메타데이터: {{synced}} / {{total}}",
+    "metacriticMetadataDownloaded": "Metacritic 데이터: {{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "정리",
@@ -106,7 +107,10 @@
     "deleting": "삭제 중..."
   },
   "installButton": {
+    "play": "플레이",
+    "resume": "재개",
     "install": "{{title}} 설치",
+    "installNative": "설치",
     "uninstall": "{{title}} 제거",
     "cancel": "✖ 취소",
     "processing": "처리 중...",
@@ -124,6 +128,11 @@
     "forceSyncDescription": "모든 아트워크를 재동기화하시겠습니까? 수동 아트워크 변경 사항이 덮어쓰기됩니다. 누락된 아트워크만 다운로드하려면 '아트워크 유지'를 선택하세요.",
     "resyncArtwork": "아트워크 재동기화",
     "keepArtwork": "아트워크 유지",
+    "steamRestartTitle": "동기화 완료!",
+    "steamRestartDescription": "새 게임과 아트워크를 적용하려면 Steam을 다시 시작하세요",
+    "steamRestartDescriptionStore": "새로운 {{store}} 게임과 아트워크를 적용하려면 Steam을 다시 시작하세요",
+    "restartNow": "지금 다시 시작",
+    "later": "나중에",
     "yes": "예",
     "no": "아니요"
   },
@@ -143,6 +152,7 @@
     "uninstallingMessageProton": "{{title}} 및 Proton 파일 제거 중...",
     "uninstallComplete": "제거 완료",
     "uninstallCompleteMessage": "{{title}}이(가) 제거되었습니다.",
+    "uninstallCompleteMessageProton": "{{title}}이(가) 제거되었습니다(Proton 파일 포함).",
     "installComplete": "설치 완료!",
     "installCompleteMessage": "{{title}}을(를) 플레이할 준비가 되었습니다. Steam을 다시 시작하여 라이브러리에서 확인하세요.",
     "syncComplete": "동기화 완료!",
@@ -238,6 +248,8 @@
     "sgdbLookup": "SteamGridDB에서 {{count}}개 검색 중...",
     "extractingSteamMetadata": "{{synced}}/{{total}}개 게임에 대한 Steam 메타데이터 추출 중...",
     "fetchingEnhancedMetadata": "{{synced}}/{{total}}개 게임의 향상된 메타데이터 가져오는 중...",
+    "lookingUpUnifiDB": "unifiDB 메타데이터 가져오는 중...",
+    "fetchingMetacriticData": "Metacritic 메타데이터 가져오는 중...",
     "checkingExistingArtwork": "기존 아트워크 확인 중...",
     "cleaningOrphanedArtwork": "고아 아트워크 정리 중...",
     "retryingMissingArtwork": "아트웍이 누락된 {{synced}}/{{total}}개 게임을 다시 시도하는 중...",
@@ -302,7 +314,10 @@
       "publisher": "발행사:",
       "released": "출시 날짜:",
       "metacritic": "Metacritic:",
-      "status": "상태:"
+      "status": "상태:",
+      "spaceRequired": "필요 공간",
+      "lastPlayed": "마지막 플레이",
+      "never": "없음"
     },
     "compatibility": {
       "modalTitle": "Steam Deck 호환성",
@@ -313,5 +328,30 @@
       "unsupported": "비지원",
       "unknown": "미알려짐"
     }
+  },
+  "gameDetailsSettings": {
+    "title": "게임 상세 정보 보기",
+    "simple": "간단함",
+    "detailed": "상세함"
+  },
+  "gogLanguageModal": {
+    "title": "언어 선택",
+    "description": "{{title}}을(를) 다운로드할 언어를 선택하세요",
+    "label": "언어",
+    "install": "설치",
+    "cancel": "취소"
+  },
+  "accountSwitch": {
+    "title": "계정 전환 감지됨",
+    "description": "다른 Steam 계정으로 로그인되었습니다. Unifideck 데이터를 어떻게 하시겠습니까?",
+    "migrate": "Unifideck 데이터 마이그레이션",
+    "migrateDescription": "이전 계정에서 게임 및 아트워크 복사",
+    "freshStart": "새로 시작",
+    "freshStartDescription": "다른 Epic/GOG/Amazon 계정을 연결하기 위해 스토어 로그인 초기화",
+    "skip": "건너뛰기",
+    "toastMigrateTitle": "마이그레이션 완료",
+    "toastMigrateBody": "{{shortcuts}}개의 바로가기와 {{artwork}}개의 아트워크 파일이 마이그레이션되었습니다",
+    "toastClearTitle": "인증 토큰 초기화됨",
+    "toastClearBody": "스토어 로그인이 초기화되었습니다. 이제 다른 계정으로 로그인할 수 있습니다."
   }
 }

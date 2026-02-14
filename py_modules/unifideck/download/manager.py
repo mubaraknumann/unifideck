@@ -74,6 +74,9 @@ class DownloadItem:
     download_phase: str = "downloading"  # downloading|extracting|verifying|complete
     phase_message: str = ""              # Human-readable phase status message
 
+    # Language selection for GOG games (e.g., 'en-US', 'de-DE')
+    language: Optional[str] = None
+
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
@@ -320,16 +323,18 @@ class DownloadQueue:
         game_title: str,
         store: str,
         storage_location: Optional[str] = None,
-        was_previously_installed: bool = False
+        was_previously_installed: bool = False,
+        language: Optional[str] = None
     ) -> Dict[str, Any]:
         """Add a game to the download queue
-        
+
         Args:
             game_id: Store-specific game identifier
             game_title: Display name of the game
             store: 'epic' or 'gog'
             storage_location: Where to install (internal/sdcard)
             was_previously_installed: GUARDRAIL - if True, cancel will NOT delete game files
+            language: For GOG games, the language to download (e.g., 'en-US', 'de-DE')
         """
         download_id = f"{store}:{game_id}"
         
@@ -356,7 +361,8 @@ class DownloadQueue:
             game_title=game_title,
             store=store,
             storage_location=storage_location or self.get_default_storage(),
-            was_previously_installed=was_previously_installed
+            was_previously_installed=was_previously_installed,
+            language=language
         )
         
         if was_previously_installed:
@@ -798,7 +804,8 @@ class DownloadQueue:
                         self._save()
             
             # Call the GOG API client's install method
-            result = await self._gog_install_callback(item.game_id, install_path, progress_callback)
+            # Pass language if specified (for GOG language selection feature)
+            result = await self._gog_install_callback(item.game_id, install_path, progress_callback, language=item.language)
             
             if result.get('success'):
                 logger.info(f"[DownloadQueue] GOG download completed: {item.game_title}")

@@ -32,19 +32,17 @@ coverage.xml
 .venv/
 venv/
 env/
+
+# External Python dependencies (installed via pip)
 py_modules/*
+# But include our plugin module
+!py_modules/unifideck/
+!py_modules/unifideck/**
 
 # ===========================================
 # Build Output
 # ===========================================
 out/
-
-# Build-time copy of defaults/backend for packaging (do not commit)
-backend/
-
-# Explicitly include metadata modules in defaults/backend (committed)
-!defaults/backend/metadata/
-!defaults/backend/metadata/**
 
 # ===========================================
 # Environment and Secrets
@@ -115,3 +113,5 @@ task.md
 .claude/*
 build-plugin_old.sh
 .github/copilot-instructions.md
+__pycache__
+*.pyc
