@@ -160,9 +160,10 @@ function formatPlaytime(minutes: number): string {
 
 interface PlaySectionWrapperProps {
   appId: number;
+  playSectionClassName?: string;
 }
 
-export const PlaySectionWrapper: FC<PlaySectionWrapperProps> = ({ appId }) => {
+export const PlaySectionWrapper: FC<PlaySectionWrapperProps> = ({ appId, playSectionClassName }) => {
   const [gameInfo, setGameInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [downloadState, setDownloadState] = useState<{
@@ -841,12 +842,16 @@ export const PlaySectionWrapper: FC<PlaySectionWrapperProps> = ({ appId }) => {
       <div
         ref={wrapperRef}
         data-unifideck-play-wrapper="true"
+        className={playSectionClassName || undefined}
         style={{
           display: "flex",
           alignItems: "center",
           width: "100%",
           padding: "16px",
           boxSizing: "border-box",
+          background: "rgba(14, 20, 27, 0.33)",
+          position: "relative" as const,
+          zIndex: 2,
         }}
       >
         <style>{buttonStyles}</style>
@@ -1019,12 +1024,16 @@ export const PlaySectionWrapper: FC<PlaySectionWrapperProps> = ({ appId }) => {
     <div
       ref={wrapperRef}
       data-unifideck-play-wrapper="true"
+      className={playSectionClassName || undefined}
       style={{
         display: "flex",
         alignItems: "center",
         width: "100%",
         padding: "16px",
         boxSizing: "border-box",
+        background: "rgba(14, 20, 27, 0.33)",
+        position: "relative" as const,
+        zIndex: 2,
       }}
     >
       <style>{buttonStyles}</style>
