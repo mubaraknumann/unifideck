@@ -131,11 +131,40 @@ export function patchLibrary(): RoutePatch {
                   // Fake useMemo to intercept tab creation
                   const fakeUseMemo = (fn: () => any, deps: any[]) => {
                     return realUseMemo(() => {
-                      const tabs: SteamTab[] = fn();
+                      const result = fn();
 
-                      // Only intercept if we got an array of tabs
-                      if (!Array.isArray(tabs)) {
-                        return tabs;
+                      // Only intercept if we got an array
+                      if (!Array.isArray(result)) {
+                        return result;
+                      }
+
+                      // Steam's tab useMemo returns a tuple: [tabsArray, boolean]
+                      // Detect this by checking if first element is an array of tab-like objects
+                      let tabs: SteamTab[];
+                      let isTuple = false;
+                      let tupleRest: any[] = [];
+
+                      if (
+                        result.length >= 2 &&
+                        Array.isArray(result[0]) &&
+                        result[0].length > 0 &&
+                        result[0][0]?.id &&
+                        result[0][0]?.content
+                      ) {
+                        // Tuple format: [tabsArray, ...rest]
+                        tabs = result[0];
+                        isTuple = true;
+                        tupleRest = result.slice(1);
+                      } else if (
+                        result.length > 0 &&
+                        result[0]?.id &&
+                        result[0]?.content
+                      ) {
+                        // Legacy format: direct tabs array
+                        tabs = result;
+                      } else {
+                        // Not a tabs array, pass through
+                        return result;
                       }
 
                       // Check if TabManager is initialized
@@ -143,7 +172,7 @@ export function patchLibrary(): RoutePatch {
                         console.log(
                           "[Unifideck] TabManager not initialized, showing default tabs",
                         );
-                        return tabs;
+                        return result;
                       }
 
                       // Extract sorting props from deps
@@ -161,9 +190,10 @@ export function patchLibrary(): RoutePatch {
                       );
                       if (!tabTemplate) {
                         console.warn(
-                          "[Unifideck] Could not find AllGames template tab",
+                          "[Unifideck] Could not find AllGames template tab in",
+                          tabs.map((t: SteamTab) => t?.id),
                         );
-                        return tabs;
+                        return result;
                       }
 
                       // Find the TabAppGrid component
@@ -179,7 +209,7 @@ export function patchLibrary(): RoutePatch {
                         console.warn(
                           "[Unifideck] Could not find TabAppGrid component",
                         );
-                        return tabs;
+                        return result;
                       }
                       TabAppGridComponent = TabAppGrid;
 
@@ -206,11 +236,17 @@ export function patchLibrary(): RoutePatch {
                         (tab) => !hiddenTabs.includes(tab.id),
                       );
 
-                      // Return custom tabs first, then remaining default tabs
+                      const mergedTabs = [...customTabs, ...filteredDefaultTabs];
+
                       console.log(
                         `[Unifideck] Showing ${customTabs.length} custom tabs + ${filteredDefaultTabs.length} default tabs (hidden: ${hiddenTabs.length})`,
                       );
-                      return [...customTabs, ...filteredDefaultTabs];
+
+                      // Return in same format as received
+                      if (isTuple) {
+                        return [mergedTabs, ...tupleRest];
+                      }
+                      return mergedTabs;
                     }, deps);
                   };
 

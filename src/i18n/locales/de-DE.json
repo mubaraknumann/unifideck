@@ -92,7 +92,8 @@
     "gamesSynced": "{{synced}} / {{total}} Spiele synchronisiert",
     "artworkDownloaded": "{{synced}} / {{total}} Illustrationen heruntergeladen",
     "steamMetadataDownloaded": "Steam-Metadaten: {{synced}} / {{total}}",
-    "unifidbMetadataDownloaded": "unifiDB-Metadaten: {{synced}} / {{total}}"
+    "unifidbMetadataDownloaded": "unifiDB-Metadaten: {{synced}} / {{total}}",
+    "metacriticMetadataDownloaded": "Metacritic-Daten: {{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "Aufräumen",
@@ -105,7 +106,10 @@
     "deleting": "Lösche..."
   },
   "installButton": {
+    "play": "Spielen",
+    "resume": "Fortsetzen",
     "install": "Installiere {{title}}",
+    "installNative": "Installieren",
     "uninstall": "Deinstalliere {{title}}",
     "cancel": "✖ Abbrechen",
     "processing": "Verarbeite...",
@@ -123,6 +127,11 @@
     "forceSyncDescription": "Möchtest du alle Illustrationen erneut synchronisieren? Dadurch werden manuelle Änderungen überschrieben. Wähle 'Illustrationen behalten', um nur fehlende herunterzuladen.",
     "resyncArtwork": "Illustrationen erneut synchronisieren",
     "keepArtwork": "Illustrationen behalten",
+    "steamRestartTitle": "Synchronisierung abgeschlossen!",
+    "steamRestartDescription": "Bitte starte Steam neu, um deine neuen Spiele und Illustrationen anzuwenden",
+    "steamRestartDescriptionStore": "Bitte starte Steam neu, um deine neuen {{store}}-Spiele und Illustrationen anzuwenden",
+    "restartNow": "Jetzt neustarten",
+    "later": "Später",
     "yes": "Ja",
     "no": "Nein"
   },
@@ -238,6 +247,8 @@
     "sgdbLookup": "{{count}} Spiele bei SteamGridDB suchen...",
     "extractingSteamMetadata": "Steam-Metadaten für {{synced}}/{{total}} Spiele extrahieren...",
     "fetchingEnhancedMetadata": "Erweiterte Metadaten für {{synced}}/{{total}} Spiele abrufen...",
+    "lookingUpUnifiDB": "unifiDB-Metadaten werden abgerufen…",
+    "fetchingMetacriticData": "Metacritic-Metadaten werden abgerufen…",
     "checkingExistingArtwork": "Vorhandenes Artwork prüfen...",
     "cleaningOrphanedArtwork": "Verwaiste Grafiken werden bereinigt...",
     "retryingMissingArtwork": "{{synced}}/{{total}} Spiele werden mit fehlenden Grafiken erneut versucht...",
@@ -302,7 +313,10 @@
       "publisher": "Herausgeber:",
       "released": "Veröffentlicht:",
       "metacritic": "Metacritic:",
-      "status": "Status:"
+      "status": "Status:",
+      "spaceRequired": "Speicherplatz",
+      "lastPlayed": "Zuletzt gespielt",
+      "never": "Nie"
     },
     "compatibility": {
       "modalTitle": "Steam Deck-Kompatibilität",
@@ -313,5 +327,30 @@
       "unsupported": "NICHT UNTERSTÜTZT",
       "unknown": "UNBEKANNT"
     }
+  },
+  "gameDetailsSettings": {
+    "title": "SPIELDETAILS ANSICHT",
+    "simple": "Einfach",
+    "detailed": "Detailliert"
+  },
+  "gogLanguageModal": {
+    "title": "Sprache wählen",
+    "description": "Wählen Sie die Sprache für {{title}} aus",
+    "label": "Sprache",
+    "install": "Installieren",
+    "cancel": "Abbrechen"
+  },
+  "accountSwitch": {
+    "title": "Kontowechsel erkannt",
+    "description": "Ein anderes Steam-Konto ist jetzt angemeldet. Was möchtest du mit deinen Unifideck-Daten tun?",
+    "migrate": "Unifideck-Daten migrieren",
+    "migrateDescription": "Spiele & Artwork vom vorherigen Konto kopieren",
+    "freshStart": "Neuanfang",
+    "freshStartDescription": "Shop-Anmeldungen löschen, um andere Epic/GOG/Amazon-Konten zu verbinden",
+    "skip": "Überspringen",
+    "toastMigrateTitle": "Migration abgeschlossen",
+    "toastMigrateBody": "{{shortcuts}} Verknüpfungen und {{artwork}} Artwork-Dateien migriert",
+    "toastClearTitle": "Authentifizierungstokens gelöscht",
+    "toastClearBody": "Shop-Anmeldungen wurden gelöscht. Du kannst dich jetzt mit anderen Konten anmelden."
   }
 }

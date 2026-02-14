@@ -53,6 +53,19 @@ export const unifideckGameCache: Map<
   }
 > = new Map();
 
+// Version counter to force patcher re-runs when install status changes
+// Incremented by updateSingleGameStatus() to trigger React remount
+export const gameStateVersion: Map<number, number> = new Map();
+
+// Callback to force game details patcher to re-run
+// Registered by the patcher in index.tsx, called by updateSingleGameStatus
+type ForceRefreshCallback = (appId: number) => Promise<void>;
+let forceRefreshCallback: ForceRefreshCallback | null = null;
+
+export function setForceRefreshCallback(callback: ForceRefreshCallback) {
+  forceRefreshCallback = callback;
+}
+
 // Cache for valid third-party shortcuts (non-Unifideck shortcuts with valid executables)
 // Stores appIds of shortcuts that have valid Exe paths
 // Shortcuts NOT in this cache (and not in unifideckGameCache) are considered broken
@@ -125,8 +138,34 @@ export function updateSingleGameStatus(game: {
   if (altSignedId !== signedId) {
     unifideckGameCache.set(altSignedId, entry);
   }
+
+  // Increment version counter to force patcher re-run
+  // This causes React to remount components with fresh cache data
+  const currentVersion = gameStateVersion.get(signedId) || 0;
+  const newVersion = currentVersion + 1;
+  gameStateVersion.set(signedId, newVersion);
+  gameStateVersion.set(unsignedId, newVersion);
+  if (altSignedId !== signedId) {
+    gameStateVersion.set(altSignedId, newVersion);
+  }
+
   console.log(
-    `[Unifideck] Updated single game status: ${game.store}:${game.appId} installed=${game.isInstalled}`,
+    `[Unifideck] Updated single game status: ${game.store}:${game.appId} installed=${game.isInstalled} version=${newVersion}`,
+  );
+
+  // Trigger force refresh if callback is registered (navigation-based backup)
+  if (forceRefreshCallback) {
+    forceRefreshCallback(game.appId).catch((err) => {
+      console.error(`[Unifideck] Error in force refresh callback:`, err);
+    });
+  }
+
+  // Notify mounted components about state change (reactive update without navigation)
+  // Same pattern as VIEW_MODE_CHANGE_EVENT (confirmed working for cross-component updates)
+  window.dispatchEvent(
+    new CustomEvent("unifideck-game-state-changed", {
+      detail: { appId: game.appId, isInstalled: game.isInstalled, store: game.store },
+    }),
   );
 }
 

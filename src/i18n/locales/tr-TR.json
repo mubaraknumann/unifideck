@@ -95,7 +95,8 @@
     "gamesSynced": "{{synced}} / {{total}} oyun senkronize edildi",
     "artworkDownloaded": "{{synced}} / {{total}} kapak indirildi",
     "steamMetadataDownloaded": "Steam meta verisi: {{synced}} / {{total}}",
-    "unifidbMetadataDownloaded": "unifiDB meta verisi: {{synced}} / {{total}}"
+    "unifidbMetadataDownloaded": "unifiDB meta verisi: {{synced}} / {{total}}",
+    "metacriticMetadataDownloaded": "Metacritic verisi: {{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "Temizlik",
@@ -108,7 +109,10 @@
     "deleting": "Siliniyor..."
   },
   "installButton": {
+    "play": "Oyna",
+    "resume": "Devam Et",
     "install": "{{title}} Kur",
+    "installNative": "Yükle",
     "uninstall": "{{title}} Kaldır",
     "cancel": "✖ İptal",
     "processing": "İşleniyor...",
@@ -126,6 +130,11 @@
     "forceSyncDescription": "Tüm kapakları yeniden senkronize etmek ister misiniz? Bu, manuel kapak değişikliklerinin üzerine yazacaktır. Yalnızca eksik kapakları indirmek için 'Kapakları Koru'yu seçin.",
     "resyncArtwork": "Kapakları Yeniden Senkronize Et",
     "keepArtwork": "Kapakları Koru",
+    "steamRestartTitle": "Senkronizasyon tamamlandı!",
+    "steamRestartDescription": "Yeni oyunlarınızı ve kapaklarınızı uygulamak için lütfen Steam'i yeniden başlatın",
+    "steamRestartDescriptionStore": "Yeni {{store}} oyunlarınızı ve kapaklarınızı uygulamak için lütfen Steam'i yeniden başlatın",
+    "restartNow": "Şimdi yeniden başlat",
+    "later": "Daha sonra",
     "yes": "Evet",
     "no": "Hayır"
   },
@@ -241,6 +250,8 @@
     "sgdbLookup": "SteamGridDB'de {{count}} oyun aranıyor...",
     "extractingSteamMetadata": "{{synced}}/{{total}} oyun için Steam meta verileri çıkarılıyor...",
     "fetchingEnhancedMetadata": "{{synced}}/{{total}} oyun için gelişmiş meta veriler getiriliyor...",
+    "lookingUpUnifiDB": "unifiDB meta verileri getiriliyor…",
+    "fetchingMetacriticData": "Metacritic meta verileri getiriliyor…",
     "checkingExistingArtwork": "Mevcut görseller kontrol ediliyor...",
     "cleaningOrphanedArtwork": "Sahipsiz görseller temizleniyor...",
     "retryingMissingArtwork": "Eksik görselleri olan {{count}} oyun tekrar deneniyor...",
@@ -305,7 +316,10 @@
       "publisher": "Yayıncı:",
       "released": "Çıkış Tarihi:",
       "metacritic": "Metacritic:",
-      "status": "Durum:"
+      "status": "Durum:",
+      "spaceRequired": "Gerekli Alan",
+      "lastPlayed": "Son Oynama",
+      "never": "Hiçbir zaman"
     },
     "compatibility": {
       "modalTitle": "Steam Deck Uyumluluğu",
@@ -316,5 +330,30 @@
       "unsupported": "DESTEKLENMİYOR",
       "unknown": "BİLİNMİYOR"
     }
+  },
+  "gameDetailsSettings": {
+    "title": "OYUN DETAYLARI GÖRÜNÜMÜ",
+    "simple": "Basit",
+    "detailed": "Ayrıntılı"
+  },
+  "gogLanguageModal": {
+    "title": "Dili Seçin",
+    "description": "{{title}} için indirilecek dili seçin",
+    "label": "Dil",
+    "install": "Kur",
+    "cancel": "İptal"
+  },
+  "accountSwitch": {
+    "title": "Hesap Değişikliği Algılandı",
+    "description": "Farklı bir Steam hesabı giriş yaptı. Unifideck verilerinizle ne yapmak istersiniz?",
+    "migrate": "Unifideck Verilerini Taşı",
+    "migrateDescription": "Önceki hesaptan oyunları ve görselleri kopyala",
+    "freshStart": "Sıfırdan Başla",
+    "freshStartDescription": "Farklı Epic/GOG/Amazon hesapları bağlamak için mağaza girişlerini temizle",
+    "skip": "Atla",
+    "toastMigrateTitle": "Taşıma Tamamlandı",
+    "toastMigrateBody": "{{shortcuts}} kısayol ve {{artwork}} görsel dosyası taşındı",
+    "toastClearTitle": "Kimlik Doğrulama Jetonları Temizlendi",
+    "toastClearBody": "Mağaza girişleri temizlendi. Artık farklı hesaplarla giriş yapabilirsiniz."
   }
 }

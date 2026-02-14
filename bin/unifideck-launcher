@@ -213,8 +213,52 @@ run_umu_with_retry() {
 }
 
 # ==============================================================================
+# UNIFIDECK CONFIG READERS
+# Read proton_settings.json and shortcuts_registry.json for Proton selection
+# ==============================================================================
+
+# Read saved Proton tool preference from proton_settings.json
+# This is set by the frontend interceptor when it detects Force Compatibility
+get_unifideck_proton_tool() {
+    local game_key="$1"
+    local config_file="$HOME/.local/share/unifideck/proton_settings.json"
+    [ ! -f "$config_file" ] && return 1
+    "$PYTHON_BIN" -c "
+import json, sys
+try:
+    with open('$config_file') as f:
+        data = json.load(f)
+    tool = data.get('games', {}).get('$game_key', {}).get('proton_tool', '')
+    if tool:
+        print(tool)
+except Exception:
+    pass
+" 2>/dev/null
+}
+
+# Read shortcut appID from shortcuts_registry.json for config.vdf lookup
+get_shortcut_appid_from_registry() {
+    local game_key="$1"
+    local registry="$HOME/.local/share/unifideck/shortcuts_registry.json"
+    [ ! -f "$registry" ] && return 1
+    "$PYTHON_BIN" -c "
+import json, sys
+try:
+    with open('$registry') as f:
+        data = json.load(f)
+    entry = data.get('$game_key', {})
+    appid = entry.get('appid_unsigned')
+    if appid:
+        print(appid)
+except Exception:
+    pass
+" 2>/dev/null
+}
+
+# ==============================================================================
 # PROTON VERSION SELECTION
-# Priority: 1) PROTONPATH= env  2) PROTON= env  3) Steam compat  4) default
+# Priority: 1) PROTONPATH= env  2) PROTON= env  2.5) Unifideck setting
+#           3) Steam compat  4) default
 # ==============================================================================
 
 # Resolve a Proton tool name to its filesystem path
@@ -268,7 +312,8 @@ get_steam_compat_tool() {
 select_proton_version() {
     local game_id="$1"
     local shortcut_appid="$2"
-    
+    local game_key="$3"
+
     # Priority 1: PROTONPATH already set in environment
     if [ -n "$PROTONPATH" ] && [ -d "$PROTONPATH" ]; then
         log "[Proton] Using PROTONPATH from environment: $PROTONPATH"
@@ -313,10 +358,50 @@ select_proton_version() {
         fi
     fi
     
-    # Priority 3: Steam's Compatibility setting
+    # Priority 2.5: Unifideck saved proton setting (from Steam's Force Compatibility UI)
+    # The frontend interceptor extracts the compat tool and saves it to proton_settings.json
+    if [ -n "$game_key" ]; then
+        local unifideck_tool
+        unifideck_tool=$(get_unifideck_proton_tool "$game_key" || true)
+        if [ -n "$unifideck_tool" ]; then
+            local resolved
+            resolved=$(resolve_proton_path "$unifideck_tool")
+            if [ -n "$resolved" ]; then
+                export PROTONPATH="$resolved"
+                log "[Proton] Using saved Unifideck setting ($unifideck_tool): $PROTONPATH"
+                return 0
+            else
+                log "[Proton] Saved tool $unifideck_tool not found locally, attempting install..."
+                notify_stage "toasts.launcher.installingProton" "toasts.launcher.attemptingInstall|version=$unifideck_tool" "normal"
+
+                INSTALLER_SCRIPT="$PLUGIN_DIR/bin/proton_installer.py"
+                if [ -f "$INSTALLER_SCRIPT" ]; then
+                    INSTALL_RESULT=$("$PYTHON_BIN" "$INSTALLER_SCRIPT" "$unifideck_tool" 2>>"$LOG_FILE" | tail -n 1)
+
+                    if [ -n "$INSTALL_RESULT" ] && [ -d "$INSTALL_RESULT" ]; then
+                        export PROTONPATH="$INSTALL_RESULT"
+                        log "[Proton] Installed $unifideck_tool to: $PROTONPATH"
+                        return 0
+                    elif [[ "$INSTALL_RESULT" == *"INSTALLED_VIA_STEAM"* ]]; then
+                        log "[Proton] Steam installation completed. Re-resolving..."
+                        resolved=$(resolve_proton_path "$unifideck_tool")
+                        if [ -n "$resolved" ]; then
+                            export PROTONPATH="$resolved"
+                            log "[Proton] Resolved new Steam Proton: $PROTONPATH"
+                            return 0
+                        fi
+                    else
+                        log "[Proton] Installation failed for $unifideck_tool, falling through"
+                    fi
+                fi
+            fi
+        fi
+    fi
+
+    # Priority 3: Steam's Compatibility setting (direct config.vdf read)
     if [ -n "$shortcut_appid" ]; then
         local steam_tool
-        steam_tool=$(get_steam_compat_tool "$shortcut_appid")
+        steam_tool=$(get_steam_compat_tool "$shortcut_appid" || true)
         if [ -n "$steam_tool" ]; then
             local resolved
             resolved=$(resolve_proton_path "$steam_tool")
@@ -489,8 +574,9 @@ if [[ "$EXE_PATH" == *.exe ]] || [[ "$EXE_PATH" == *.EXE ]] || \
     fi
     
     
-    # Select Proton version (respects PROTONPATH/PROTON env, Steam settings, defaults to Experimental)
-    select_proton_version "$GAME_ID" ""
+    # Select Proton version (respects PROTONPATH/PROTON env, Unifideck setting, Steam config, defaults)
+    SHORTCUT_APPID=$(get_shortcut_appid_from_registry "$KEY" || true)
+    select_proton_version "$GAME_ID" "$SHORTCUT_APPID" "$KEY"
     
     log "WINEPREFIX: $WINEPREFIX"
     log "GAMEID: $GAMEID"
@@ -977,6 +1063,29 @@ except Exception as e:
             fi
         elif [ -f "$SETUP_MARKER" ]; then
             log "[Setup] Redistributables already installed, skipping"
+        fi
+
+        # === WINETRICKS: Install common redistributables ===
+        # Supplements gog_setup.py (which only installs GOG-declared deps)
+        # with broader coverage (VC++ runtimes, .NET, DirectX, fonts, etc.)
+        WINETRICKS_MARKER="$PREFIX_PATH/unifideck_winetricks_complete.marker"
+        WINETRICKS_GOG_SCRIPT="$PLUGIN_DIR/bin/winetricks_gog.py"
+
+        if [ ! -f "$WINETRICKS_MARKER" ] || ! grep -qi "complete\|no redistributables" "$WINETRICKS_MARKER" 2>/dev/null; then
+            if [ -f "$WINETRICKS_GOG_SCRIPT" ]; then
+                log "[Winetricks] Running GOG redistributables installation..."
+                notify_stage "toasts.launcher.dependenciesTitle" "toasts.launcher.installingRedistributables" "normal"
+
+                if python3 "$WINETRICKS_GOG_SCRIPT" "$GAME_ID" "$PREFIX_PATH" >> "$HOME/.local/share/unifideck/winetricks.log" 2>&1; then
+                    log "[Winetricks] Installation completed successfully"
+                    notify_stage "toasts.launcher.dependenciesReady" "toasts.launcher.redistributablesInstalled" "low"
+                else
+                    log "[Winetricks] Installation completed (may have warnings)"
+                    notify_stage "toasts.launcher.dependenciesStatus" "toasts.launcher.checkLogs" "low"
+                fi
+            fi
+        else
+            log "[Winetricks] Redistributables already installed, skipping"
         fi
 
         # Enable NVAPI for modern Proton (matches Epic path)

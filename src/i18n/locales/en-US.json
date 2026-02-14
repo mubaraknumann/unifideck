@@ -106,7 +106,10 @@
     "deleting": "Deleting..."
   },
   "installButton": {
+    "play": "Play",
+    "resume": "Resume",
     "install": "Install {{title}}",
+    "installNative": "Install",
     "uninstall": "Uninstall {{title}}",
     "cancel": "✖ Cancel",
     "processing": "Processing...",
@@ -310,7 +313,10 @@
       "publisher": "Publisher:",
       "released": "Released:",
       "metacritic": "Metacritic:",
-      "status": "Status:"
+      "status": "Status:",
+      "spaceRequired": "Space Required",
+      "lastPlayed": "Last Played",
+      "never": "Never"
     },
     "compatibility": {
       "modalTitle": "Steam Deck Compatibility",
@@ -321,5 +327,30 @@
       "unsupported": "UNSUPPORTED",
       "unknown": "UNKNOWN"
     }
+  },
+  "gameDetailsSettings": {
+    "title": "GAME DETAILS VIEW",
+    "simple": "Simple",
+    "detailed": "Detailed"
+  },
+  "gogLanguageModal": {
+    "title": "Select Language",
+    "description": "Choose which language to download for {{title}}",
+    "label": "Language",
+    "install": "Install",
+    "cancel": "Cancel"
+  },
+  "accountSwitch": {
+    "title": "Account Switch Detected",
+    "description": "A different Steam account is now logged in. What would you like to do with your Unifideck data?",
+    "migrate": "Migrate Unifideck Data",
+    "migrateDescription": "Copy games & artwork from previous account",
+    "freshStart": "Fresh Start",
+    "freshStartDescription": "Clear store logins to connect different Epic/GOG/Amazon accounts",
+    "skip": "Skip",
+    "toastMigrateTitle": "Migration Complete",
+    "toastMigrateBody": "Migrated {{shortcuts}} shortcuts and {{artwork}} artwork files",
+    "toastClearTitle": "Auth Tokens Cleared",
+    "toastClearBody": "Store logins have been cleared. You can now sign in with different accounts."
   }
 }

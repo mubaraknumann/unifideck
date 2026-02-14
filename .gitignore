@@ -113,3 +113,5 @@ task.md
 .claude/*
 build-plugin_old.sh
 .github/copilot-instructions.md
+__pycache__
+*.pyc

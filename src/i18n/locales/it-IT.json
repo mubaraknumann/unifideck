@@ -92,7 +92,8 @@
     "gamesSynced": "{{synced}} / {{total}} giochi sincronizzati",
     "artworkDownloaded": "{{synced}} / {{total}} copertine scaricate",
     "steamMetadataDownloaded": "Metadati Steam: {{synced}} / {{total}}",
-    "unifidbMetadataDownloaded": "Metadati unifiDB: {{synced}} / {{total}}"
+    "unifidbMetadataDownloaded": "Metadati unifiDB: {{synced}} / {{total}}",
+    "metacriticMetadataDownloaded": "Dati Metacritic: {{synced}} / {{total}}"
   },
   "cleanup": {
     "title": "Pulizia",
@@ -105,7 +106,10 @@
     "deleting": "Eliminazione..."
   },
   "installButton": {
+    "play": "Gioca",
+    "resume": "Riprendi",
     "install": "Installa {{title}}",
+    "installNative": "Installa",
     "uninstall": "Disinstalla {{title}}",
     "cancel": "✖ Annulla",
     "processing": "Elaborazione...",
@@ -123,6 +127,11 @@
     "forceSyncDescription": "Vuoi risincronizzare tutte le copertine? Questo sovrascriverà eventuali modifiche manuali alle copertine. Seleziona 'Mantieni Copertine' per scaricare solo le copertine mancanti.",
     "resyncArtwork": "Risincronizza Copertine",
     "keepArtwork": "Mantieni Copertine",
+    "steamRestartTitle": "Sincronizzazione completata!",
+    "steamRestartDescription": "Riavvia Steam per applicare i nuovi giochi e le nuove copertine",
+    "steamRestartDescriptionStore": "Riavvia Steam per applicare i nuovi giochi e le nuove copertine di {{store}}",
+    "restartNow": "Riavvia ora",
+    "later": "Più tardi",
     "yes": "Sì",
     "no": "No"
   },
@@ -238,6 +247,8 @@
     "sgdbLookup": "Ricerca di {{count}} giochi su SteamGridDB...",
     "extractingSteamMetadata": "Estrazione metadati Steam per {{synced}}/{{total}} giochi...",
     "fetchingEnhancedMetadata": "Recupero metadati migliorati per {{synced}}/{{total}} giochi...",
+    "lookingUpUnifiDB": "Recupero dei metadati unifiDB…",
+    "fetchingMetacriticData": "Recupero dei metadati Metacritic…",
     "checkingExistingArtwork": "Controllo artwork esistente...",
     "cleaningOrphanedArtwork": "Pulizia delle immagini orfane...",
     "retryingMissingArtwork": "Riprovo {{synced}}/{{total}} giochi con immagini mancanti...",
@@ -302,7 +313,10 @@
       "publisher": "Editore:",
       "released": "Uscita:",
       "metacritic": "Metacritic:",
-      "status": "Stato:"
+      "status": "Stato:",
+      "spaceRequired": "Spazio richiesto",
+      "lastPlayed": "Ultima partita",
+      "never": "Mai"
     },
     "compatibility": {
       "modalTitle": "Compatibilità Steam Deck",
@@ -313,5 +327,30 @@
       "unsupported": "NON SUPPORTATO",
       "unknown": "SCONOSCIUTO"
     }
+  },
+  "gameDetailsSettings": {
+    "title": "VISTA DETTAGLI GIOCO",
+    "simple": "Semplice",
+    "detailed": "Dettagliato"
+  },
+  "gogLanguageModal": {
+    "title": "Seleziona lingua",
+    "description": "Scegli la lingua per scaricare {{title}}",
+    "label": "Lingua",
+    "install": "Installa",
+    "cancel": "Annulla"
+  },
+  "accountSwitch": {
+    "title": "Cambio account rilevato",
+    "description": "Un altro account Steam è ora connesso. Cosa vuoi fare con i tuoi dati Unifideck?",
+    "migrate": "Migra dati Unifideck",
+    "migrateDescription": "Copia giochi e copertine dall'account precedente",
+    "freshStart": "Ricomincia da capo",
+    "freshStartDescription": "Cancella gli accessi ai negozi per collegare altri account Epic/GOG/Amazon",
+    "skip": "Salta",
+    "toastMigrateTitle": "Migrazione completata",
+    "toastMigrateBody": "Migrati {{shortcuts}} collegamenti e {{artwork}} file di copertine",
+    "toastClearTitle": "Token di autenticazione cancellati",
+    "toastClearBody": "Gli accessi ai negozi sono stati cancellati. Ora puoi accedere con account diversi."
   }
 }

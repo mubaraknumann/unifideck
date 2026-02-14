@@ -9,3 +9,12 @@ from .library import (
     prefetch_compat,
     BackgroundCompatFetcher,
 )
+from .proton_tools import (
+    get_compat_tool_for_app,
+    get_compat_tool_for_game,
+    temporarily_clear_compat_tool,
+    restore_compat_tool,
+    save_proton_setting,
+    get_saved_proton_tool,
+    is_linux_runtime,
+)

@@ -19,6 +19,8 @@ export {
   isUnifideckGame,
   getStoreForApp,
   unifideckGameCache,
+  gameStateVersion,
+  setForceRefreshCallback,
 } from "./filters";
 export type { TabFilter, FilterType, FilterParams } from "./filters";
 export {
