@@ -11,6 +11,7 @@ import {
   appActionButtonClasses,
   playSectionClasses,
   appDetailsHeaderClasses,
+  basicAppDetailsSectionStylerClasses,
   DialogButton,
   ToggleField,
   showModal,
@@ -757,6 +758,7 @@ function patchGameDetailsRoute() {
                 React.createElement(PlaySectionWrapper, {
                   key: versionedKey,
                   appId,
+                  playSectionClassName: basicAppDetailsSectionStylerClasses?.PlaySection,
                 }),
               );
               console.log(
