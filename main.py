@@ -366,6 +366,42 @@ def save_metacritic_metadata_cache(cache: Dict[str, Dict]) -> bool:
         return False
 
 
+# Artwork Attempts Cache - tracks which games have had artwork fetch attempted
+# Maps str(app_id) -> bool (True=has artwork, False=no artwork available)
+ARTWORK_ATTEMPTS_CACHE_FILE = "artwork_attempts_cache.json"
+
+
+def get_artwork_attempts_cache_path() -> Path:
+    """Get path to artwork attempts cache file"""
+    return Path.home() / ".local" / "share" / "unifideck" / ARTWORK_ATTEMPTS_CACHE_FILE
+
+
+def load_artwork_attempts_cache() -> Dict[str, bool]:
+    """Load artwork attempts cache. Returns {str(app_id): bool}"""
+    cache_path = get_artwork_attempts_cache_path()
+    try:
+        if cache_path.exists():
+            with open(cache_path, 'r') as f:
+                return json.load(f)
+    except Exception as e:
+        logger.error(f"Error loading artwork attempts cache: {e}")
+    return {}
+
+
+def save_artwork_attempts_cache(cache: Dict[str, bool]) -> bool:
+    """Save artwork attempts cache"""
+    cache_path = get_artwork_attempts_cache_path()
+    try:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(cache_path, 'w') as f:
+            json.dump(cache, f)
+        logger.debug(f"Saved {len(cache)} artwork attempt entries to cache")
+        return True
+    except Exception as e:
+        logger.error(f"Error saving artwork attempts cache: {e}")
+        return False
+
+
 def sanitize_description(text: str, max_length: int = 1000) -> str:
     """Clean up RAWG/Steam descriptions for display.
 
@@ -4165,12 +4201,14 @@ class Plugin:
                     def _needs_steam_fetch(game) -> bool:
                         if not game.title:
                             return False
-                        steam_app_id = real_steam_cache.get(game.app_id, 0)
-                        if not steam_app_id:
+                        cached = real_steam_cache.get(game.app_id, 0)
+                        if cached == -1:
+                            return False  # Negative cache: already tried, no Steam match
+                        if not cached:
                             return True  # No Steam ID resolved yet
-                        meta = steam_metadata_cache.get(steam_app_id, {})
-                        # Consider complete if it has a name and short_description
-                        return not (meta.get('name') and meta.get('short_description'))
+                        meta = steam_metadata_cache.get(cached, {})
+                        # Consider complete if it has a name (short_description may be empty for some games)
+                        return not meta.get('name')
 
                     games_needing_steam = [g for g in all_games if _needs_steam_fetch(g)]
                     skipped_steam = len([g for g in all_games if g.title]) - len(games_needing_steam)
@@ -4178,9 +4216,10 @@ class Plugin:
                         logger.info(f"Sync: Skipping {skipped_steam} games with complete Steam metadata (incremental)")
 
                     # Still assign cached steam_app_id to skipped games for later phases
+                    # Skip negative cache sentinels (-1 means no Steam match)
                     for game in all_games:
                         cached_steam_id = real_steam_cache.get(game.app_id, 0)
-                        if cached_steam_id:
+                        if cached_steam_id and cached_steam_id > 0:
                             game.steam_app_id = cached_steam_id
 
                     self.sync_progress.steam_total = len(games_needing_steam)
@@ -4204,6 +4243,9 @@ class Plugin:
                                     real_steam_cache[game.app_id] = steam_app_id
                                     if metadata:
                                         steam_metadata_cache[steam_app_id] = metadata
+                                else:
+                                    # Negative cache: remember we tried and found no Steam match
+                                    real_steam_cache[game.app_id] = -1
                             except asyncio.TimeoutError:
                                 logger.warning(f"[SteamPresence] Timeout for {game.title}")
                             except Exception as e:
@@ -4273,6 +4315,8 @@ class Plugin:
                                         return (game.title.lower(), cache_data)
                                     else:
                                         logger.debug(f"[unifiDB CDN] No match found for {game.title}")
+                                        # Negative cache: store None so we don't retry next sync
+                                        return (game.title.lower(), None)
                                 except Exception as e:
                                     logger.warning(f"[unifiDB CDN] Error for {game.title}: {e}")
                                     await self.sync_progress.increment_unifidb(game.title)
@@ -4290,7 +4334,8 @@ class Plugin:
                                 new_cache_entries[result[0]] = result[1]
 
                         if new_cache_entries:
-                            logger.info(f"Sync: Fetched unifiDB metadata for {len(new_cache_entries)}/{len(games_needing_unifidb)} games via CDN")
+                            found_count = sum(1 for v in new_cache_entries.values() if v is not None)
+                            logger.info(f"Sync: unifiDB CDN: {found_count} found, {len(new_cache_entries) - found_count} not found (cached) out of {len(games_needing_unifidb)} games")
                             unifidb_cache.update(new_cache_entries)
                             save_unifidb_metadata_cache(unifidb_cache)
                         else:
@@ -4304,18 +4349,21 @@ class Plugin:
                     # STEP 1: Identify games needing SGDB lookup (not in cache)
                     seen_app_ids = set()
                     games_needing_sgdb_lookup = []
-                    
+
                     for game in all_games:
                         if game.app_id in seen_app_ids:
                             continue
                         seen_app_ids.add(game.app_id)
-                        
-                        # Check cache first
+
+                        # Check cache first (skip negative cache sentinels: -1 means no SGDB match)
                         if game.app_id in steam_appid_cache:
-                            game.steam_app_id = steam_appid_cache[game.app_id]
+                            cached_val = steam_appid_cache[game.app_id]
+                            if cached_val > 0:
+                                game.steam_app_id = cached_val
+                            # else: -1 sentinel, skip lookup but don't set steam_app_id
                         else:
                             games_needing_sgdb_lookup.append(game)
-                    
+
                     # STEP 2: Parallel SteamGridDB lookups for uncached games
                     if games_needing_sgdb_lookup:
                         logger.info(f"Looking up {len(games_needing_sgdb_lookup)} games on SteamGridDB (parallel)...")
@@ -4324,7 +4372,7 @@ class Plugin:
                             "label": "sync.sgdbLookup",
                             "values": {"count": len(games_needing_sgdb_lookup)}
                         }
-                        
+
                         # Helper to lookup and store result
                         async def lookup_sgdb(game):
                             try:
@@ -4332,18 +4380,21 @@ class Plugin:
                                 if sgdb_id:
                                     game.steam_app_id = sgdb_id
                                     return (game.app_id, sgdb_id)
+                                else:
+                                    # Negative cache: no SGDB match found
+                                    return (game.app_id, -1)
                             except Exception as e:
                                 logger.debug(f"SGDB lookup failed for {game.title}: {e}")
-                            return None
-                        
+                            return None  # Only None on exception → retried next sync
+
                         # 20 concurrent lookups (fast!)
                         semaphore = asyncio.Semaphore(30)
                         async def limited_lookup(game):
                             async with semaphore:
                                 return await lookup_sgdb(game)
-                        
+
                         results = await asyncio.gather(*[limited_lookup(g) for g in games_needing_sgdb_lookup])
-                        
+
                         # Update cache with results
                         for result in results:
                             if result:
@@ -4366,12 +4417,20 @@ class Plugin:
                         "label": "sync.checkingExistingArtwork",
                         "values": {}
                     }
+                    artwork_attempts = load_artwork_attempts_cache()
+                    skipped_artwork_attempts = 0
                     for game in all_games:
                         if game.app_id in seen_app_ids:
-                            if not await self.has_artwork(game.app_id):
+                            str_id = str(game.app_id)
+                            # Skip games we already tried and confirmed have no artwork available
+                            if str_id in artwork_attempts and not artwork_attempts[str_id]:
+                                skipped_artwork_attempts += 1
+                            elif not await self.has_artwork(game.app_id):
                                 games_needing_art.append(game)
                             seen_app_ids.discard(game.app_id)  # Only check once per app_id
 
+                    if skipped_artwork_attempts > 0:
+                        logger.info(f"[SYNC PHASE] Skipping {skipped_artwork_attempts} games with no available artwork (incremental)")
                     logger.info(f"[SYNC PHASE] Artwork check complete: {len(games_needing_art)}/{len(all_games)} games need artwork")
 
                     if games_needing_art:
@@ -4440,6 +4499,12 @@ class Plugin:
 
                         artwork_count = len(games_needing_art) - len(still_incomplete)
                         logger.info(f"Artwork download complete: {artwork_count}/{len(games_needing_art)} games fully successful")
+
+                        # Save artwork attempt results for incremental sync
+                        for game in games_needing_art:
+                            has_art = await self.has_artwork(game.app_id)
+                            artwork_attempts[str(game.app_id)] = has_art
+                        save_artwork_attempts_cache(artwork_attempts)
                     else:
                         logger.info(f"[SYNC PHASE] All games have complete artwork, skipping download")
 
@@ -4548,6 +4613,34 @@ class Plugin:
                 _backup_cache_file(get_unifidb_metadata_cache_path())
                 _backup_cache_file(get_metacritic_metadata_cache_path())
                 logger.info("Force Sync: Cache backups created (*.bak files)")
+
+                # Clear negative cache entries so force sync retries everything
+                logger.info("Force Sync: Clearing negative cache entries for fresh retry...")
+                _real_steam = load_steam_real_appid_cache()
+                _neg_steam = sum(1 for v in _real_steam.values() if v == -1)
+                if _neg_steam > 0:
+                    _real_steam = {k: v for k, v in _real_steam.items() if v != -1}
+                    save_steam_real_appid_cache(_real_steam)
+                    logger.info(f"Force Sync: Cleared {_neg_steam} negative Steam presence entries")
+
+                _unifidb = load_unifidb_metadata_cache()
+                _neg_unifidb = sum(1 for v in _unifidb.values() if v is None)
+                if _neg_unifidb > 0:
+                    _unifidb = {k: v for k, v in _unifidb.items() if v is not None}
+                    save_unifidb_metadata_cache(_unifidb)
+                    logger.info(f"Force Sync: Cleared {_neg_unifidb} negative unifiDB entries")
+
+                _sgdb = load_steam_appid_cache()
+                _neg_sgdb = sum(1 for v in _sgdb.values() if v == -1)
+                if _neg_sgdb > 0:
+                    _sgdb = {k: v for k, v in _sgdb.items() if v != -1}
+                    save_steam_appid_cache(_sgdb)
+                    logger.info(f"Force Sync: Cleared {_neg_sgdb} negative SGDB entries")
+
+                _art_path = get_artwork_attempts_cache_path()
+                if _art_path.exists():
+                    _art_path.unlink()
+                    logger.info("Force Sync: Cleared artwork attempts cache")
                 
                 self.sync_progress.status = "fetching"
                 self.sync_progress.current_game = {
@@ -4747,6 +4840,9 @@ class Plugin:
                                     real_steam_cache[game.app_id] = steam_app_id
                                     if metadata:
                                         steam_metadata_cache[steam_app_id] = metadata
+                                else:
+                                    # Negative cache: remember we tried and found no Steam match
+                                    real_steam_cache[game.app_id] = -1
                             except asyncio.TimeoutError:
                                 logger.warning(f"[SteamPresence] Timeout for {game.title}")
                             except Exception as e:
@@ -4804,6 +4900,8 @@ class Plugin:
                                         return (game.title.lower(), cache_data)
                                     else:
                                         logger.debug(f"[unifiDB CDN] No match found for {game.title}")
+                                        # Negative cache: store None so we don't retry next sync
+                                        return (game.title.lower(), None)
                                 except Exception as e:
                                     logger.warning(f"[unifiDB CDN] Error for {game.title}: {e}")
                                     await self.sync_progress.increment_unifidb(game.title)
@@ -4821,7 +4919,8 @@ class Plugin:
                                 new_cache_entries[result[0]] = result[1]
 
                         if new_cache_entries:
-                            logger.info(f"Force Sync: Fetched unifiDB metadata for {len(new_cache_entries)}/{len(games_needing_unifidb)} games via CDN")
+                            found_count = sum(1 for v in new_cache_entries.values() if v is not None)
+                            logger.info(f"Force Sync: unifiDB CDN: {found_count} found, {len(new_cache_entries) - found_count} not found (cached) out of {len(games_needing_unifidb)} games")
                             unifidb_cache.update(new_cache_entries)
                             save_unifidb_metadata_cache(unifidb_cache)
                         else:
@@ -4835,18 +4934,21 @@ class Plugin:
                     # STEP 1: Identify games needing SGDB lookup (not in cache)
                     seen_app_ids = set()
                     games_needing_sgdb_lookup = []
-                    
+
                     for game in all_games:
                         if game.app_id in seen_app_ids:
                             continue
                         seen_app_ids.add(game.app_id)
-                        
-                        # Check cache first
+
+                        # Check cache first (skip negative cache sentinels: -1 means no SGDB match)
                         if game.app_id in steam_appid_cache:
-                            game.steam_app_id = steam_appid_cache[game.app_id]
+                            cached_val = steam_appid_cache[game.app_id]
+                            if cached_val > 0:
+                                game.steam_app_id = cached_val
+                            # else: -1 sentinel, skip lookup but don't set steam_app_id
                         else:
                             games_needing_sgdb_lookup.append(game)
-                    
+
                     # STEP 2: Parallel SteamGridDB lookups for uncached games
                     if games_needing_sgdb_lookup:
                         logger.info(f"Force Sync: Looking up {len(games_needing_sgdb_lookup)} games on SteamGridDB (parallel)...")
@@ -4858,7 +4960,6 @@ class Plugin:
                             }
                         }
 
-                        
                         # Helper to lookup and store result
                         async def lookup_sgdb(game):
                             try:
@@ -4866,9 +4967,12 @@ class Plugin:
                                 if sgdb_id:
                                     game.steam_app_id = sgdb_id
                                     return (game.app_id, sgdb_id)
+                                else:
+                                    # Negative cache: no SGDB match found
+                                    return (game.app_id, -1)
                             except Exception as e:
                                 logger.debug(f"SGDB lookup failed for {game.title}: {e}")
-                            return None
+                            return None  # Only None on exception → retried next sync
                         
                         # 30 concurrent lookups (10 per source × 3 sources)
                         semaphore = asyncio.Semaphore(30)
@@ -6008,22 +6112,30 @@ class Plugin:
             # Load Steam metadata cache for detailed info
             # This cache contains data from Steam Store API (and RAWG fallback for Steam presence).
             metadata_cache = load_steam_metadata_cache()
-            # Metadata cache also has int keys
-            steam_metadata = metadata_cache.get(steam_app_id, {}) if steam_app_id else {}
 
-            # Resolve Steam presence if missing or invalid
-            if (not steam_app_id) or (not steam_metadata) or (not steam_metadata.get('name')):
-                presence = await self.resolve_steam_presence(title)
-                resolved_app_id = presence.get('steam_appid', 0)
-                resolved_metadata = presence.get('metadata', {})
-                if resolved_app_id:
-                    steam_app_id = resolved_app_id
-                    steam_real_cache[app_id_signed] = resolved_app_id
-                    save_steam_real_appid_cache(steam_real_cache)
-                    if resolved_metadata:
-                        metadata_cache[resolved_app_id] = resolved_metadata
-                        save_steam_metadata_cache(metadata_cache)
-                        steam_metadata = resolved_metadata
+            # Handle negative cache sentinel: -1 means sync already tried and found no Steam match
+            if steam_app_id == -1:
+                steam_app_id = 0
+                steam_metadata = {}
+                # Don't resolve on-demand — rely on unifiDB/Metacritic for metadata
+                logger.debug(f"[MetadataDisplay] Negative cached Steam presence for '{title}', skipping resolve")
+            else:
+                # Metadata cache also has int keys
+                steam_metadata = metadata_cache.get(steam_app_id, {}) if steam_app_id else {}
+
+                # Resolve Steam presence if missing or invalid
+                if (not steam_app_id) or (not steam_metadata) or (not steam_metadata.get('name')):
+                    presence = await self.resolve_steam_presence(title)
+                    resolved_app_id = presence.get('steam_appid', 0)
+                    resolved_metadata = presence.get('metadata', {})
+                    if resolved_app_id:
+                        steam_app_id = resolved_app_id
+                        steam_real_cache[app_id_signed] = resolved_app_id
+                        save_steam_real_appid_cache(steam_real_cache)
+                        if resolved_metadata:
+                            metadata_cache[resolved_app_id] = resolved_metadata
+                            save_steam_metadata_cache(metadata_cache)
+                            steam_metadata = resolved_metadata
 
             # Determine if this game has a real Steam store presence.
             # Only IDs with entries in steam_metadata_cache are confirmed real Steam App IDs
@@ -6198,11 +6310,15 @@ class Plugin:
                 deck_category = cached_deck_category
                 deck_test_results = cached_deck_results
                 sources['deck_compat'] = 'steam_cache'
-            else:
+            elif steam_app_id > 0:
                 deck_info = await self.fetch_steam_deck_compatibility(steam_app_id)
                 deck_category = deck_info.get('category', 0)
                 deck_test_results = deck_info.get('testResults', [])
                 sources['deck_compat'] = 'steam_api' if deck_category > 0 else 'none'
+            else:
+                deck_category = 0
+                deck_test_results = []
+                sources['deck_compat'] = 'none'
 
             result = {
                 'steamAppId': steam_app_id,
@@ -7461,7 +7577,8 @@ class Plugin:
                     os.path.join(get_steam_metadata_cache_path()), # Steam metadata cache
                     os.path.join(get_rawg_metadata_cache_path()), # RAWG metadata cache
                     os.path.join(get_unifidb_metadata_cache_path()), # unifiDB metadata cache
-                    os.path.join(get_metacritic_metadata_cache_path()) # Metacritic metadata cache
+                    os.path.join(get_metacritic_metadata_cache_path()), # Metacritic metadata cache
+                    os.path.join(get_artwork_attempts_cache_path()) # Artwork attempts cache
                 ]
                 
                 # Only delete games.map and registry if we're also deleting game files (destructive mode)
