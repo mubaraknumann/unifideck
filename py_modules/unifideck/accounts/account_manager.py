@@ -22,7 +22,7 @@ try:
 except ImportError:
     VDF_AVAILABLE = False
 
-from .steam_utils import get_logged_in_steam_user, _find_steam_path
+from py_modules.unifideck.steam.steam_utils import get_logged_in_steam_user, _find_steam_path
 
 logger = logging.getLogger(__name__)
 
