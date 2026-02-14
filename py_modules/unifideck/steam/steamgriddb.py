@@ -12,6 +12,9 @@ import aiohttp
 from typing import Optional, List, Dict, Any
 from pathlib import Path
 
+# Import Grid asset class for constructing objects from raw API responses
+from steamgrid.asset import Grid as SGDBGrid
+
 # Import Steam user detection utility
 from py_modules.unifideck.steam.steam_utils import get_logged_in_steam_user
 
@@ -167,11 +170,31 @@ class SteamGridDBClient:
             key=lambda a: (
                 not getattr(a, '_lock', False),     # Official first (False sorts before True)
                 -(getattr(a, 'score', 0) or 0),     # Then highest score
+                -((getattr(a, 'width', 0) or 0) * (getattr(a, 'height', 0) or 0)),  # Then highest resolution
                 -(getattr(a, 'upvotes', 0) or 0) + (getattr(a, 'downvotes', 0) or 0)  # Then best ratio
             )
         )
 
         return sorted_assets[0]
+
+    def _fetch_grids_by_dimensions(self, sgdb_game_id: int, dimensions: str) -> Optional[List]:
+        """Fetch grids from SGDB filtered by dimensions.
+
+        Uses the HTTP client directly to pass the 'dimensions' query parameter
+        which the vendored steamgrid library doesn't expose.
+        """
+        queries = {
+            'dimensions': dimensions,
+            'nsfw': 'false',
+            'humor': 'false',
+        }
+        try:
+            payloads = self.client._http.get_grid([sgdb_game_id], 'game', queries=queries)
+            if payloads:
+                return [SGDBGrid(p, self.client._http) for p in payloads]
+        except Exception as e:
+            logger.debug(f"SGDB grid fetch (dims={dimensions}) failed: {e}")
+        return None
 
     async def download_image(self, url: str, save_path: str, timeout: int = 30) -> bool:
         """Download image from URL to local path
@@ -220,41 +243,69 @@ class SteamGridDBClient:
         # Convert signed int32 to unsigned for Steam filename compatibility
         unsigned_id = app_id if app_id >= 0 else app_id + 2**32
 
-        results = {'grid': False, 'hero': False, 'logo': False, 'icon': False}
-        
+        results = {'grid': False, 'grid_l': False, 'hero': False, 'logo': False, 'icon': False}
+
         # Default to all types if not specified
         if only_types is None:
-            only_types = {'grid', 'hero', 'logo', 'icon'}
+            only_types = {'grid', 'grid_l', 'hero', 'logo', 'icon'}
 
         try:
             loop = asyncio.get_running_loop()
-            
+
             # PHASE 1: Fetch ALL artwork metadata from SGDB API in PARALLEL
-            api_tasks = [
-                loop.run_in_executor(None, self.client.get_grids_by_gameid, [sgdb_game_id]),
-                loop.run_in_executor(None, self.client.get_heroes_by_gameid, [sgdb_game_id]),
-                loop.run_in_executor(None, self.client.get_logos_by_gameid, [sgdb_game_id]),
-                loop.run_in_executor(None, self.client.get_icons_by_gameid, [sgdb_game_id]),
-            ]
-            
-            grids, heroes, logos, icons = await asyncio.gather(*api_tasks, return_exceptions=True)
-            
+            # Use dimension-filtered calls for grids to get proper portrait/landscape results
+            # (without filtering, the 50-result page limit causes landscape grids to be crowded out)
+            need_portrait = 'grid' in only_types
+            need_landscape = 'grid_l' in only_types
+
+            api_tasks = []
+            task_labels = []
+
+            if need_portrait:
+                api_tasks.append(loop.run_in_executor(
+                    None, self._fetch_grids_by_dimensions, sgdb_game_id, '600x900,660x930'))
+                task_labels.append('portrait_grids')
+            if need_landscape:
+                api_tasks.append(loop.run_in_executor(
+                    None, self._fetch_grids_by_dimensions, sgdb_game_id, '920x430,460x215'))
+                task_labels.append('landscape_grids')
+
+            api_tasks.append(loop.run_in_executor(None, self.client.get_heroes_by_gameid, [sgdb_game_id]))
+            task_labels.append('heroes')
+            api_tasks.append(loop.run_in_executor(None, self.client.get_logos_by_gameid, [sgdb_game_id]))
+            task_labels.append('logos')
+            api_tasks.append(loop.run_in_executor(None, self.client.get_icons_by_gameid, [sgdb_game_id]))
+            task_labels.append('icons')
+
+            api_results = await asyncio.gather(*api_tasks, return_exceptions=True)
+
+            # Map results back to named variables
+            fetched = dict(zip(task_labels, api_results))
+            portrait_grids = fetched.get('portrait_grids')
+            landscape_grids = fetched.get('landscape_grids')
+            heroes = fetched.get('heroes')
+            logos = fetched.get('logos')
+            icons = fetched.get('icons')
+
             # PHASE 2: Select best artwork and prepare downloads (only for requested types)
             download_tasks = []
             task_types = []
-            
-            # Grid - only if requested
-            if 'grid' in only_types and grids and not isinstance(grids, Exception):
-                best_grid = self.select_best_artwork(grids)
+
+            # Portrait grid - only if requested
+            if need_portrait and portrait_grids and not isinstance(portrait_grids, Exception):
+                best_grid = self.select_best_artwork(portrait_grids)
                 if best_grid:
                     grid_file = os.path.join(self.grid_path, f"{unsigned_id}p.jpg")
-                    vertical_file = os.path.join(self.grid_path, f"{unsigned_id}.jpg")
                     download_tasks.append(self.download_image(best_grid.url, grid_file))
                     task_types.append('grid')
-                    # Also queue vertical cover
-                    if not os.path.exists(vertical_file):
-                        download_tasks.append(self.download_image(best_grid.url, vertical_file))
-                        task_types.append('vertical')
+
+            # Landscape grid - only if requested
+            if need_landscape and landscape_grids and not isinstance(landscape_grids, Exception):
+                best_landscape = self.select_best_artwork(landscape_grids)
+                if best_landscape:
+                    landscape_file = os.path.join(self.grid_path, f"{unsigned_id}.jpg")
+                    download_tasks.append(self.download_image(best_landscape.url, landscape_file))
+                    task_types.append('grid_l')
             
             # Hero - only if requested
             if 'hero' in only_types and heroes and not isinstance(heroes, Exception):
@@ -310,6 +361,7 @@ class SteamGridDBClient:
             # CDN URLs
             result['urls'] = {
                 'grid': f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_app_id}/library_600x900_2x.jpg",
+                'grid_l': f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_app_id}/header.jpg",
                 'hero': f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_app_id}/library_hero.jpg",
                 'logo': f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_app_id}/logo.png"
             }
@@ -638,14 +690,14 @@ class SteamGridDBClient:
         3. Download Phase: Download unique, selected images CONCURRENTLY
         
         Args:
-            only_types: If provided, only fetch/download these artwork types ('grid', 'hero', 'logo', 'icon'). 
-                       If None, attempt all types.
+            only_types: If provided, only fetch/download these artwork types
+                       ('grid', 'grid_l', 'hero', 'logo', 'icon'). If None, attempt all types.
         """
         final_result = {'success': False, 'steam_app_id': None, 'sources': []}
-        
+
         # Default to all types if not specified
         if only_types is None:
-            only_types = {'grid', 'hero', 'logo', 'icon'}
+            only_types = {'grid', 'grid_l', 'hero', 'logo', 'icon'}
         
         # Unsigned ID for filenames
         unsigned_id = app_id if app_id >= 0 else app_id + 2**32
@@ -720,11 +772,11 @@ class SteamGridDBClient:
                 path = os.path.join(self.grid_path, f"{unsigned_id}p.jpg")
                 task = self.download_image(selected_urls['grid'], path)
                 download_tasks.append((task, 'grid'))
-                
-                # Also save vertical copy (for Steam search view) - tracked, not fire-and-forget
-                v_path = os.path.join(self.grid_path, f"{unsigned_id}.jpg")
-                v_task = self.download_image(selected_urls['grid'], v_path)
-                download_tasks.append((v_task, 'grid_vertical'))
+
+            if 'grid_l' in selected_urls:
+                path = os.path.join(self.grid_path, f"{unsigned_id}.jpg")
+                task = self.download_image(selected_urls['grid_l'], path)
+                download_tasks.append((task, 'grid_l'))
 
             if 'hero' in selected_urls:
                 path = os.path.join(self.grid_path, f"{unsigned_id}_hero.jpg")
@@ -758,27 +810,24 @@ class SteamGridDBClient:
             # Build Source Log
             # e.g. "STEAM:grid+logo GOG:hero+icon"
             summary_parts = []
-            
-            # Group by source (skip grid_vertical as it's just a copy of grid)
+
             by_source = {}
             for k in downloaded:
-                if k == 'grid_vertical':
-                    continue  # Skip - it's a secondary copy, not a distinct asset type
                 src = source_map.get(k, 'UNKNOWN')
                 if src not in by_source: by_source[src] = []
                 by_source[src].append(k)
-                
+
             for src, types in by_source.items():
                 summary_parts.append(f"{src}:{'+'.join(sorted(types))}")
-                
+
             final_result['sources'] = summary_parts
-            final_result['artwork_count'] = len([k for k in downloaded if k != 'grid_vertical'])
+            final_result['artwork_count'] = len(downloaded)
 
             # === PHASE 4: FALLBACK (SGDB) ===
             # If significant art is missing, use SGDB to fill gaps
             # Include icon since no store provides proper icons
             # Respect caller's only_types filter — never download types they didn't request
-            needed = {'grid', 'hero', 'logo', 'icon'}
+            needed = {'grid', 'grid_l', 'hero', 'logo', 'icon'}
             missing = (needed - downloaded) & only_types
             
             if missing and self.client:
@@ -808,11 +857,14 @@ class SteamGridDBClient:
                         # Download Steam art for this type
                         if art_type == 'grid':
                             path = os.path.join(self.grid_path, f"{unsigned_id}p.jpg")
-                            v_path = os.path.join(self.grid_path, f"{unsigned_id}.jpg")
                             if await self.download_image(steam_urls['grid'], path):
                                 downloaded.add('grid')
                                 source_map['grid'] = 'STEAM'
-                                await self.download_image(steam_urls['grid'], v_path)
+                        elif art_type == 'grid_l' and 'grid_l' in steam_urls:
+                            path = os.path.join(self.grid_path, f"{unsigned_id}.jpg")
+                            if await self.download_image(steam_urls['grid_l'], path):
+                                downloaded.add('grid_l')
+                                source_map['grid_l'] = 'STEAM'
                         elif art_type == 'hero':
                             path = os.path.join(self.grid_path, f"{unsigned_id}_hero.jpg")
                             if await self.download_image(steam_urls['hero'], path):
@@ -829,18 +881,16 @@ class SteamGridDBClient:
             # Rebuild final sources summary
             by_source = {}
             for k in downloaded:
-                if k == 'grid_vertical':
-                    continue
                 src = source_map.get(k, 'UNKNOWN')
                 if src not in by_source: by_source[src] = []
                 by_source[src].append(k)
-            
+
             summary_parts = []
             for src, types in by_source.items():
                 summary_parts.append(f"{src}:{'+'.join(sorted(types))}")
-            
+
             final_result['sources'] = summary_parts
-            final_result['artwork_count'] = len([k for k in downloaded if k != 'grid_vertical'])
+            final_result['artwork_count'] = len(downloaded)
                 
             if downloaded:
                 final_result['success'] = True

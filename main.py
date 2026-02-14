@@ -2163,11 +2163,11 @@ class Plugin:
         so custom artwork set via other tools is properly recognized.
 
         Returns:
-            set: Set of missing artwork types (e.g., {'grid', 'hero', 'logo'})
+            set: Set of missing artwork types (e.g., {'grid', 'grid_l', 'hero', 'logo'})
             Icon is excluded from this check since it's optional.
         """
         if not self.steamgriddb or not self.steamgriddb.grid_path:
-            return {'grid', 'hero', 'logo'}
+            return {'grid', 'grid_l', 'hero', 'logo'}
 
         unsigned_id = app_id if app_id >= 0 else app_id + 2**32
         grid_path = Path(self.steamgriddb.grid_path)
@@ -2180,7 +2180,14 @@ class Plugin:
             'logo': f"{unsigned_id}_logo.*",
         }
 
-        return {art_type for art_type, pattern in artwork_patterns.items() if not list(grid_path.glob(pattern))}
+        missing = {art_type for art_type, pattern in artwork_patterns.items() if not list(grid_path.glob(pattern))}
+
+        # Landscape grid needs explicit file check — glob {id}.* would also match {id}p.*, {id}_hero.*, etc.
+        has_grid_l = any((grid_path / f"{unsigned_id}{ext}").exists() for ext in ('.jpg', '.png', '.webp'))
+        if not has_grid_l:
+            missing.add('grid_l')
+
+        return missing
 
     async def fetch_artwork_with_progress(self, game, semaphore, only_types: set = None):
         """Fetch artwork for a single game with concurrency control and timeout
@@ -2233,7 +2240,7 @@ class Plugin:
                 source_str = ' '.join(sources) if sources else 'NO_SOURCE'
 
                 # Log format: [progress] STORE: Title [sources] (artwork_count)
-                logger.info(f"  [{count}/{self.sync_progress.artwork_total}] {game.store.upper()}: {game.title} [{source_str}{sgdb}] ({art_count}/4)")
+                logger.info(f"  [{count}/{self.sync_progress.artwork_total}] {game.store.upper()}: {game.title} [{source_str}{sgdb}] ({art_count}/5)")
 
                 return {'success': result.get('success', False), 'game': game, 'artwork_count': art_count}
             except Exception as e:
