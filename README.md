@@ -64,6 +64,10 @@ That's it! All other tools and dependencies are bundled with the plugin.
 
 https://www.youtube.com/watch?v=lP-90uYd72w
 
+### Antivirus and False Positives
+
+Unifideck is a **SteamOS/Linux-only** plugin. The release ZIP bundles Linux binaries and unsigned scripts, which can be misidentified by Windows Defender or other desktop AV tools. If you see a warning when downloading on Windows, fetch the ZIP directly on your Steam Deck through Decky instead, or build the plugin yourself using the steps below to validate the contents locally.
+
 ## Building
 
 To build the plugin from source (for development or local testing):
