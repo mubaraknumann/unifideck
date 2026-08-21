@@ -385,7 +385,9 @@
       "battlenetClientInstallFailedMessage": "Battle.net istemci yükleyicisi tamamlanmadı. Tekrar deneyin veya ne bildirdiğini görmek için başlatma günlüğüne bakın.",
       "installingBattlenet": "Battle.net üzerinden yükleniyor",
       "installingBattlenetMessage": "Battle.net açılıyor. {{gameTitle}} indirmesini başlatmak için oradan Yükle'ye basın.",
-      "wrapperOpening": "{{client}} açılıyor"
+      "wrapperOpening": "{{client}} açılıyor",
+      "launchWarning": "Başlatma Uyarısı",
+      "companionStartFailed": "{{game_key}} için bir yardımcı program başlatılamadı. Oyunun kendisi normal şekilde başlatıldı."
     },
     "updateComplete": "Güncelleme Tamamlandı!",
     "updateCompleteMessage": "{{title}} güncellendi.",
@@ -761,6 +763,19 @@
       "subtitle": "Bu oyunun hangi dosyayı başlatacağını seçin (örn. bir başlatıcıyı atlayıp oyunu doğrudan çalıştırmak için). Çalışma dizini ve bulut kayıtları etkilenmez.",
       "title": "Çalıştırılabilir dosyayı değiştir. {{game}}",
       "unavailable": "Bu oyunun klasörü okunamadı."
+    },
+    "companions": {
+      "menuItem": "Yardımcı programlar…",
+      "title": "Yardımcı programlar — {{game}}",
+      "subtitle": "Bu oyunla aynı Proton önekinde birlikte başlatılan ek programlar (trainer'lar, hile araçları, yardımcı araçlar). Başlatılamayan bir yardımcı program oyunu asla engellemez.",
+      "add": "Ekle…",
+      "delayHint": "Her zaman en az 10s'lik bir gecikme uygulanır — oyunun ilk açılışıyla birlikte başlatmak aksi halde oyunu başarısız kılabilir.",
+      "empty": "Henüz yardımcı program eklenmedi.",
+      "delaySeconds": "Gecikme: {{seconds}}s",
+      "added": "Yardımcı program eklendi",
+      "addFailed": "Yardımcı program eklenemedi",
+      "removed": "Yardımcı program kaldırıldı",
+      "removeFailed": "Yardımcı program kaldırılamadı"
     }
   },
   "playMeta": {

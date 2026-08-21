@@ -385,7 +385,9 @@
       "battlenetClientInstallFailedMessage": "Le programme d'installation du client Battle.net ne s'est pas terminé. Réessayez, ou consultez le journal de lancement pour voir ce qu'il a signalé.",
       "installingBattlenet": "Installation via Battle.net",
       "installingBattlenetMessage": "Ouverture de Battle.net. Appuyez sur Installer pour lancer le téléchargement de {{gameTitle}}.",
-      "wrapperOpening": "Ouverture de {{client}}"
+      "wrapperOpening": "Ouverture de {{client}}",
+      "launchWarning": "Avertissement de lancement",
+      "companionStartFailed": "Un programme compagnon pour {{game_key}} n'a pas pu démarrer. Le jeu lui-même s'est lancé normalement."
     },
     "updateComplete": "Mise à jour terminée !",
     "updateCompleteMessage": "{{title}} a été mis à jour.",
@@ -761,6 +763,19 @@
       "subtitle": "Choisissez le fichier avec lequel lancer ce jeu (ex. contourner un lanceur et lancer le jeu directement). Le dossier de travail et les sauvegardes cloud ne sont pas affectés.",
       "title": "Modifier l'exécutable. {{game}}",
       "unavailable": "Impossible de lire le dossier de ce jeu."
+    },
+    "companions": {
+      "menuItem": "Programmes compagnons…",
+      "title": "Programmes compagnons — {{game}}",
+      "subtitle": "Programmes supplémentaires (trainers, outils de triche, utilitaires) lancés avec ce jeu dans le même préfixe Proton. Un compagnon qui échoue ne bloque jamais le jeu.",
+      "add": "Ajouter…",
+      "delayHint": "Un délai minimum de 10s est toujours appliqué — un démarrage lors du tout premier lancement du jeu pourrait sinon le faire échouer.",
+      "empty": "Aucun programme compagnon ajouté pour l'instant.",
+      "delaySeconds": "Délai : {{seconds}}s",
+      "added": "Compagnon ajouté",
+      "addFailed": "Impossible d'ajouter le programme compagnon",
+      "removed": "Compagnon supprimé",
+      "removeFailed": "Impossible de supprimer le programme compagnon"
     }
   },
   "playMeta": {

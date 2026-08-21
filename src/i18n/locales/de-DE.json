@@ -385,7 +385,9 @@
       "battlenetClientInstallFailedMessage": "Das Installationsprogramm des Battle.net-Clients wurde nicht abgeschlossen. Versuchen Sie es erneut oder prüfen Sie im Startprotokoll, was gemeldet wurde.",
       "installingBattlenet": "Installation über Battle.net",
       "installingBattlenetMessage": "Battle.net wird geöffnet. Klicken Sie dort auf Installieren, um den Download von {{gameTitle}} zu starten.",
-      "wrapperOpening": "{{client}} wird geöffnet"
+      "wrapperOpening": "{{client}} wird geöffnet",
+      "launchWarning": "Startwarnung",
+      "companionStartFailed": "Ein Begleitprogramm für {{game_key}} konnte nicht gestartet werden. Das Spiel selbst wurde normal gestartet."
     },
     "updateComplete": "Update abgeschlossen!",
     "updateCompleteMessage": "{{title}} wurde aktualisiert.",
@@ -761,6 +763,19 @@
       "subtitle": "Wählen Sie aus, welche Datei dieses Spiel startet (z. B. um einen Launcher zu überspringen und das Spiel direkt auszuführen). Das Arbeitsverzeichnis und Cloud-Spielstände sind nicht betroffen.",
       "title": "Ausführbare Datei ändern. {{game}}",
       "unavailable": "Der Ordner dieses Spiels konnte nicht gelesen werden."
+    },
+    "companions": {
+      "menuItem": "Begleitprogramme…",
+      "title": "Begleitprogramme — {{game}}",
+      "subtitle": "Zusatzprogramme (Trainer, Cheat-Tools, Dienstprogramme), die zusammen mit diesem Spiel im selben Proton-Prefix gestartet werden. Ein fehlgeschlagenes Begleitprogramm blockiert das Spiel nie.",
+      "add": "Hinzufügen…",
+      "delayHint": "Es wird immer eine Mindestverzögerung von 10s angewendet — ein Start direkt beim allerersten Spielstart kann diesen sonst fehlschlagen lassen.",
+      "empty": "Noch keine Begleitprogramme hinzugefügt.",
+      "delaySeconds": "Verzögerung: {{seconds}}s",
+      "added": "Begleitprogramm hinzugefügt",
+      "addFailed": "Begleitprogramm konnte nicht hinzugefügt werden",
+      "removed": "Begleitprogramm entfernt",
+      "removeFailed": "Begleitprogramm konnte nicht entfernt werden"
     }
   },
   "playMeta": {

@@ -76,6 +76,7 @@ from unifideck.rpc.mixins.achievements import AchievementsRPCMixin  # noqa: E402
 from unifideck.rpc.mixins.action import ActionRPCMixin  # noqa: E402
 from unifideck.rpc.mixins.auth_shortcuts import AuthShortcutsRPCMixin  # noqa: E402
 from unifideck.rpc.mixins.cloud_save import CloudSaveRPCMixin  # noqa: E402
+from unifideck.rpc.mixins.companion_executables import CompanionExecutablesRPCMixin  # noqa: E402
 from unifideck.rpc.mixins.download import DownloadRPCMixin  # noqa: E402
 from unifideck.rpc.mixins.edge import EdgeRPCMixin  # noqa: E402
 from unifideck.rpc.mixins.executable import ExecutableRPCMixin  # noqa: E402
@@ -102,6 +103,7 @@ class Plugin(
     AuthShortcutsRPCMixin,
     EdgeRPCMixin,
     ExecutableRPCMixin,
+    CompanionExecutablesRPCMixin,
     SyncRPCMixin,
     LibraryFacetsRPCMixin,
     UIRPCMixin,

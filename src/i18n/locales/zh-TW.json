@@ -394,7 +394,9 @@
       "battlenetClientInstallFailedMessage": "Battle.net 用戶端安裝程式未完成。請重試，或查看啟動記錄了解其回報的內容。",
       "installingBattlenet": "正在透過 Battle.net 安裝",
       "installingBattlenetMessage": "正在開啟 Battle.net。請在其中點選「安裝」以開始下載 {{gameTitle}}。",
-      "wrapperOpening": "正在開啟 {{client}}"
+      "wrapperOpening": "正在開啟 {{client}}",
+      "launchWarning": "啟動警告",
+      "companionStartFailed": "無法為 {{game_key}} 啟動配套程式。遊戲本身已正常啟動。"
     },
     "updateComplete": "更新完畢！",
     "updateCompleteMessage": "{{title}} 已被更新。",
@@ -784,6 +786,19 @@
       "changed": "可執行檔已變更",
       "changeFailed": "無法變更可執行檔",
       "reset": "重設為預設可執行檔"
+    },
+    "companions": {
+      "menuItem": "配套程式…",
+      "title": "配套程式 — {{game}}",
+      "subtitle": "與本遊戲在同一個 Proton 前綴中一起啟動的附加程式（修改器、作弊工具、公用程式）。配套程式啟動失敗絕不會阻擋遊戲。",
+      "add": "新增…",
+      "delayHint": "一律套用最短 10s 的延遲——否則與遊戲首次啟動同時開始可能導致遊戲失敗。",
+      "empty": "尚未新增配套程式。",
+      "delaySeconds": "延遲：{{seconds}}s",
+      "added": "已新增配套程式",
+      "addFailed": "無法新增配套程式",
+      "removed": "已移除配套程式",
+      "removeFailed": "無法移除配套程式"
     }
   },
   "playMeta": {

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from unifideck.launcher.wrapper_stores import is_wrapper_store
 
@@ -15,6 +15,25 @@ KNOWN_STORES: tuple[str, ...] = (
     "ubisoft",
     "battlenet",
 )
+
+
+class CompanionExecutable(NamedTuple):
+    """One extra executable to launch alongside the main game.
+
+    ``path`` is an absolute path — companions are not restricted to the
+    game's install dir (a trainer typically lives in ``~/Downloads``), so
+    unlike the "Change executable" override there is no install-dir
+    containment check; the user picks any file via the OS file picker.
+    ``delay_seconds`` lets a trainer that expects the game window to
+    already exist wait before attaching (many do); a value below the
+    launcher's own minimum (see
+    ``launcher.proton.infrastructure.companions._MIN_COMPANION_DELAY_SECONDS``)
+    is raised to that floor regardless, since starting alongside the main
+    game's very first Wine-prefix initialisation races it and can make the
+    game itself fail to launch.
+    """
+    path: str
+    delay_seconds: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -47,6 +66,14 @@ class LaunchContext:
     action: str | None = None
     bypass_circuit_breaker: bool = False
     steam_app_id: str | None = None
+    # Extra executables to launch alongside the main game, in the same
+    # Proton prefix/env — trainers, cheat tools, companion utilities the
+    # user attached to this game via the "Companion executables" picker.
+    # Resolved at dispatch time from user config. Fired as best-effort
+    # background processes; a companion failing to start never blocks or
+    # fails the main game launch (see
+    # ``launcher.proton.infrastructure.companions``).
+    companion_executables: tuple[CompanionExecutable, ...] = ()
     @property
     def is_xcloud(self) -> bool:
         """Check whether xcloud."""

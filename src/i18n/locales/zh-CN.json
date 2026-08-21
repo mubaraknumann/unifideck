@@ -385,7 +385,9 @@
       "battlenetClientInstallFailedMessage": "Battle.net 客户端安装程序未完成。请重试，或查看启动日志了解其报告的内容。",
       "installingBattlenet": "正在通过 Battle.net 安装",
       "installingBattlenetMessage": "正在打开 Battle.net。请在其中点击“安装”以开始下载 {{gameTitle}}。",
-      "wrapperOpening": "正在打开 {{client}}"
+      "wrapperOpening": "正在打开 {{client}}",
+      "launchWarning": "启动警告",
+      "companionStartFailed": "无法为 {{game_key}} 启动配套程序。游戏本身已正常启动。"
     },
     "updateComplete": "更新已完成！",
     "updateCompleteMessage": "{{title}} 已更新。",
@@ -761,6 +763,19 @@
       "subtitle": "选择此游戏启动的文件（例如：跳过启动器并直接运行游戏）。工作目录和云端存档不受影响。",
       "title": "更改可执行文件。{{game}}",
       "unavailable": "无法读取此游戏的文件夹。"
+    },
+    "companions": {
+      "menuItem": "配套程序…",
+      "title": "配套程序 — {{game}}",
+      "subtitle": "与本游戏在同一 Proton 前缀中一起启动的附加程序（修改器、作弊工具、实用工具）。配套程序启动失败绝不会阻止游戏。",
+      "add": "添加…",
+      "delayHint": "始终应用最短 10s 的延迟——否则与游戏首次启动同时开始可能导致游戏失败。",
+      "empty": "尚未添加配套程序。",
+      "delaySeconds": "延迟：{{seconds}}s",
+      "added": "已添加配套程序",
+      "addFailed": "无法添加配套程序",
+      "removed": "已移除配套程序",
+      "removeFailed": "无法移除配套程序"
     }
   },
   "playMeta": {

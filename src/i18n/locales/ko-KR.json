@@ -385,7 +385,9 @@
       "battlenetClientInstallFailedMessage": "Battle.net 클라이언트 설치 프로그램이 완료되지 않았습니다. 다시 시도하거나 실행 로그에서 보고 내용을 확인하세요.",
       "installingBattlenet": "Battle.net을 통해 설치 중",
       "installingBattlenetMessage": "Battle.net을 여는 중입니다. {{gameTitle}} 다운로드를 시작하려면 거기서 설치를 누르세요.",
-      "wrapperOpening": "{{client}}을(를) 여는 중"
+      "wrapperOpening": "{{client}}을(를) 여는 중",
+      "launchWarning": "실행 경고",
+      "companionStartFailed": "{{game_key}}의 동반 프로그램을 시작할 수 없습니다. 게임 자체는 정상적으로 실행되었습니다."
     },
     "updateComplete": "업데이트 완료!",
     "updateCompleteMessage": "{{title}} 업데이트가 완료되었습니다.",
@@ -761,6 +763,19 @@
       "subtitle": "이 게임이 실행할 파일을 선택하십시오 (예: 런처를 건너뛰고 게임을 직접 실행). 작업 디렉토리와 클라우드 저장 데이터는 영향을 받지 않습니다.",
       "title": "실행 파일 변경. {{game}}",
       "unavailable": "이 게임의 폴더를 읽을 수 없습니다."
+    },
+    "companions": {
+      "menuItem": "동반 프로그램…",
+      "title": "동반 프로그램 — {{game}}",
+      "subtitle": "이 게임과 동일한 Proton 프리픽스에서 함께 실행되는 추가 프로그램(트레이너, 치트 도구, 유틸리티). 동반 프로그램이 시작에 실패해도 게임을 막지 않습니다.",
+      "add": "추가…",
+      "delayHint": "항상 최소 10s의 지연이 적용됩니다 — 게임의 첫 실행과 동시에 시작하면 실패할 수 있습니다.",
+      "empty": "아직 추가된 동반 프로그램이 없습니다.",
+      "delaySeconds": "지연: {{seconds}}s",
+      "added": "동반 프로그램이 추가됨",
+      "addFailed": "동반 프로그램을 추가할 수 없습니다",
+      "removed": "동반 프로그램이 제거됨",
+      "removeFailed": "동반 프로그램을 제거할 수 없습니다"
     }
   },
   "playMeta": {

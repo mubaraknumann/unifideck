@@ -385,7 +385,9 @@
       "battlenetClientInstallFailedMessage": "Het installatieprogramma van de Battle.net-client is niet voltooid. Probeer het opnieuw of bekijk in het startlogboek wat het meldde.",
       "installingBattlenet": "Installeren via Battle.net",
       "installingBattlenetMessage": "Battle.net wordt geopend. Klik daar op Installeren om de download van {{gameTitle}} te starten.",
-      "wrapperOpening": "{{client}} wordt geopend"
+      "wrapperOpening": "{{client}} wordt geopend",
+      "launchWarning": "Startwaarschuwing",
+      "companionStartFailed": "Een begeleidend programma voor {{game_key}} kon niet worden gestart. De game zelf is normaal gestart."
     },
     "updateComplete": "Update voltooid!",
     "updateCompleteMessage": "{{title}} is bijgewerkt.",
@@ -761,6 +763,19 @@
       "subtitle": "Kies welk bestand deze game start (bijv. sla een launcher over en start de game direct). De werkmap en cloudopslag worden niet beïnvloed.",
       "title": "Uitvoerbaar bestand wijzigen. {{game}}",
       "unavailable": "Kon de map van deze game niet lezen."
+    },
+    "companions": {
+      "menuItem": "Begeleidende programma's…",
+      "title": "Begeleidende programma's — {{game}}",
+      "subtitle": "Extra programma's (trainers, cheat-tools, hulpprogramma's) die samen met deze game in hetzelfde Proton-prefix worden gestart. Een begeleidend programma dat niet start, blokkeert de game nooit.",
+      "add": "Toevoegen…",
+      "delayHint": "Er wordt altijd een minimale vertraging van 10s toegepast — samen starten met de allereerste keer dat de game start kan die anders laten mislukken.",
+      "empty": "Nog geen begeleidende programma's toegevoegd.",
+      "delaySeconds": "Vertraging: {{seconds}}s",
+      "added": "Begeleidend programma toegevoegd",
+      "addFailed": "Kon begeleidend programma niet toevoegen",
+      "removed": "Begeleidend programma verwijderd",
+      "removeFailed": "Kon begeleidend programma niet verwijderen"
     }
   },
   "playMeta": {

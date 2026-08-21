@@ -421,8 +421,17 @@ async def run_game_subprocess(
     plan's ``on_process_start`` callback (wired in
     ``prepare_windows_plan``), so cancellation can reach it;
     we clear the reference once the handler returns.
+
+    Any configured companion executables (trainers, etc. — see
+    ``ctx.companion_executables``) are scheduled alongside the main
+    game via ``start_companions`` and reaped once it exits, whether it
+    succeeded, failed, or was cancelled — a companion must never
+    outlive the game it was attached to.
     """
     from unifideck.launcher.proton import dispatch
+    from unifideck.launcher.proton.infrastructure.companions import (
+        start_companions,
+    )
 
     # Report PROTONPATH, not ``state.proton_tool_id``: the state object is
     # shared and ``setup_prefix`` mutates it while borrowing another Proton for
@@ -434,10 +443,12 @@ async def run_game_subprocess(
         "[Helpers] Dispatching Proton launch: store=%s game_id=%s proton=%s",
         ctx.store, ctx.game_id, Path(plan.env["PROTONPATH"]).name,
     )
+    supervisor = start_companions(plan)
     try:
         rc = await dispatch(plan)
     finally:
         svc._active_subprocess = None
+        await supervisor.stop_all()
 
     return rc
 

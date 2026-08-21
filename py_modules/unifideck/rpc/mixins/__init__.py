@@ -16,6 +16,7 @@ Per-mixin scope:
 * ``AchievementsRPCMixin``    — game achievements + last-session summary;
 * ``AuthShortcutsRPCMixin``   — per-store auth-shortcut context + compat tool;
 * ``CloudSaveRPCMixin``       — cloud-save pull/push/status;
+* ``CompanionExecutablesRPCMixin`` — per-game companion-exe (trainer) list;
 * ``DownloadRPCMixin``        — download-queue management;
 * ``EdgeRPCMixin``            — Microsoft Edge install + readiness;
 * ``ExecutableRPCMixin``      — user-settable launch executable per game;
@@ -37,6 +38,7 @@ from .achievements import AchievementsRPCMixin
 from .action import ActionRPCMixin
 from .auth_shortcuts import AuthShortcutsRPCMixin
 from .cloud_save import CloudSaveRPCMixin
+from .companion_executables import CompanionExecutablesRPCMixin
 from .download import DownloadRPCMixin
 from .edge import EdgeRPCMixin
 from .executable import ExecutableRPCMixin
@@ -56,6 +58,7 @@ __all__ = [
     "ActionRPCMixin",
     "AuthShortcutsRPCMixin",
     "CloudSaveRPCMixin",
+    "CompanionExecutablesRPCMixin",
     "DownloadRPCMixin",
     "EdgeRPCMixin",
     "ExecutableRPCMixin",
