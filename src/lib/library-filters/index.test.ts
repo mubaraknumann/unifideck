@@ -20,6 +20,9 @@ vi.mock("../../api/event-bus-client", () => ({
     subscribe: vi.fn(),
   },
 }));
+vi.mock("../steam-bridge/overview-enrichment", () => ({
+  enrichInstalledState: vi.fn(),
+}));
 
 import { call } from "@decky/api";
 import {
@@ -28,7 +31,9 @@ import {
   validThirdPartyCache,
   loadUnifideckCache,
   isUnifideckCacheLoaded,
+  updateSingleGameStatus,
 } from "./index";
+import { enrichInstalledState } from "../steam-bridge/overview-enrichment";
 import type { SteamAppOverview } from "../../types/steam";
 
 const NON_STEAM_APP_TYPE = 1073741824;
@@ -167,5 +172,47 @@ describe("loadUnifideckCache fail-open (UD-043 / UD-008)", () => {
     // this file may have bumped). The scheduled retry fires + resolves.
     await vi.advanceTimersByTimeAsync(10_000);
     expect(unifideckGameCache.has(1234)).toBe(true);
+  });
+});
+
+describe("updateSingleGameStatus install-state propagation", () => {
+  beforeEach(() => {
+    unifideckGameCache.clear();
+    validThirdPartyCache.clear();
+    vi.mocked(enrichInstalledState).mockClear();
+  });
+
+  it("calls enrichInstalledState when a new game is added", () => {
+    updateSingleGameStatus({
+      appId: 999,
+      store: "epic",
+      isInstalled: true,
+    });
+
+    expect(enrichInstalledState).toHaveBeenCalledWith(999, true);
+  });
+
+  it("calls enrichInstalledState when install state changes", () => {
+    unifideckGameCache.set(999, { store: "epic", isInstalled: true });
+
+    updateSingleGameStatus({
+      appId: 999,
+      store: "epic",
+      isInstalled: false,
+    });
+
+    expect(enrichInstalledState).toHaveBeenCalledWith(999, false);
+  });
+
+  it("does NOT call enrichInstalledState when state is unchanged", () => {
+    unifideckGameCache.set(999, { store: "epic", isInstalled: true });
+
+    updateSingleGameStatus({
+      appId: 999,
+      store: "epic",
+      isInstalled: true,
+    });
+
+    expect(enrichInstalledState).not.toHaveBeenCalled();
   });
 });

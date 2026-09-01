@@ -28,8 +28,9 @@ vi.mock("../library-filters", () => ({
 }));
 
 import { call } from "@decky/api";
+import { unifideckGameCache } from "../library-filters";
 import { loadFacets, __resetFacetsForTest } from "../library-facets";
-import { enrichAllShortcuts } from "./overview-enrichment";
+import { enrichAllShortcuts, enrichInstalledState } from "./overview-enrichment";
 
 const mockCall = call as unknown as ReturnType<typeof vi.fn>;
 
@@ -57,6 +58,15 @@ const RECORD = {
   deck_status: "verified",
 };
 
+interface TestPerClientEntry {
+  clientid: string;
+  client_name?: string;
+  display_status?: number;
+  status_percentage?: number;
+  is_available_on_current_platform?: boolean;
+  installed?: boolean;
+}
+
 interface TestOverview {
   appid: number;
   app_type: number;
@@ -69,6 +79,8 @@ interface TestOverview {
   steam_hw_compat_category_packed?: number;
   m_setStoreCategories?: Set<number>;
   m_setStoreTags?: Set<number>;
+  per_client_data?: TestPerClientEntry[];
+  most_available_clientid?: string;
 }
 
 function makeOverview(appid: number, purchasedTime: number): TestOverview {
@@ -133,5 +145,102 @@ describe("overview enrichment — rt_purchased_time", () => {
     enrichAllShortcuts();
 
     expect(foreign.rt_purchased_time).toBe(1747000000);
+  });
+});
+
+describe("install-state enrichment", () => {
+  beforeEach(() => {
+    mockCall.mockReset();
+    __resetFacetsForTest();
+    unifideckGameCache.clear();
+  });
+
+  it("writes installed shape: display_status 11, status_percentage 100", () => {
+    const ov = makeOverview(APPID, 0);
+    installAppStore([ov]);
+
+    enrichInstalledState(APPID, true);
+
+    expect(ov.per_client_data).toHaveLength(1);
+    expect(ov.per_client_data![0]).toMatchObject({
+      clientid: "0",
+      installed: true,
+      display_status: 11,
+      status_percentage: 100,
+    });
+  });
+
+  it("writes not-installed shape: display_status 9, status_percentage absent", () => {
+    const ov = makeOverview(APPID, 0);
+    ov.per_client_data = [
+      {
+        clientid: "0",
+        installed: true,
+        display_status: 11,
+        status_percentage: 100,
+      },
+    ];
+    installAppStore([ov]);
+
+    enrichInstalledState(APPID, false);
+
+    expect(ov.per_client_data![0]).toMatchObject({
+      clientid: "0",
+      installed: false,
+      display_status: 9,
+    });
+    expect("status_percentage" in ov.per_client_data![0]).toBe(false);
+  });
+
+  it("creates per_client_data array when absent", () => {
+    const ov = makeOverview(APPID, 0);
+    installAppStore([ov]);
+
+    enrichInstalledState(APPID, true);
+
+    expect(Array.isArray(ov.per_client_data)).toBe(true);
+  });
+
+  it("is a no-op for non-shortcut app types", () => {
+    const ov = makeOverview(APPID, 0);
+    ov.app_type = 1;
+    installAppStore([ov]);
+
+    enrichInstalledState(APPID, true);
+
+    expect(ov.per_client_data).toBeUndefined();
+  });
+
+  it("is a no-op when overview is absent from appStore", () => {
+    installAppStore([]);
+    expect(() => enrichInstalledState(APPID, true)).not.toThrow();
+  });
+
+  it("enrichAllShortcuts writes install state from cache entry", async () => {
+    mockCall.mockResolvedValue({ success: true, data: { [APPID]: RECORD } });
+    await loadFacets(true);
+    unifideckGameCache.set(APPID, { store: "epic", isInstalled: true });
+    const ov = makeOverview(APPID, 0);
+    installAppStore([ov]);
+
+    enrichAllShortcuts();
+
+    expect(ov.per_client_data![0]).toMatchObject({
+      installed: true,
+      display_status: 11,
+      status_percentage: 100,
+    });
+  });
+
+  it("enrichAllShortcuts skips install-state write when cache entry absent", async () => {
+    mockCall.mockResolvedValue({ success: true, data: { [APPID]: RECORD } });
+    await loadFacets(true);
+    const ov = makeOverview(APPID, 0);
+    installAppStore([ov]);
+
+    enrichAllShortcuts();
+
+    expect(ov.metacritic_score).toBe(81);
+    expect(ov.per_client_data).toBeUndefined();
   });
 });

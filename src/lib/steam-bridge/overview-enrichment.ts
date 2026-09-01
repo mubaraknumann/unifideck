@@ -39,6 +39,15 @@ import {
   registerGameSizeCache,
 } from "../game-size-cache";
 
+interface EnrichablePerClientData {
+  clientid: string;
+  client_name?: string;
+  display_status?: number;
+  status_percentage?: number;
+  is_available_on_current_platform?: boolean;
+  installed?: boolean;
+}
+
 interface EnrichableOverview {
   appid: number;
   app_type: number;
@@ -54,6 +63,8 @@ interface EnrichableOverview {
   size_on_disk?: number;
   m_setStoreCategories?: Set<number>;
   m_setStoreTags?: Set<number>;
+  per_client_data?: EnrichablePerClientData[];
+  most_available_clientid?: string;
 }
 
 type AppMap = Map<number, EnrichableOverview> & {
@@ -163,6 +174,80 @@ function applyFacet(ov: EnrichableOverview, facet: FacetRecord): void {
   setIds(ov.m_setStoreTags, facet.store_tag);
 }
 
+/** Shape Steam itself uses: installed → display_status 11 /
+ *  status_percentage 100; not installed → display_status 9 /
+ *  status_percentage absent. `installed` drives the getter;
+ *  `display_status` drives the renderer's DOM class. */
+function applyPerClientDataShape(
+  entry: EnrichablePerClientData,
+  isInstalled: boolean,
+): void {
+  entry.installed = isInstalled;
+  if (isInstalled) {
+    entry.display_status = 11;
+    entry.status_percentage = 100;
+  } else {
+    entry.display_status = 9;
+    delete entry.status_percentage;
+  }
+}
+
+/** Set the local (`clientid==="0"`) per_client_data entry's install
+ *  state. Defensively also writes whatever `most_available_clientid`
+ *  resolves to in case it differs. */
+function applyInstalledState(
+  ov: EnrichableOverview,
+  isInstalled: boolean,
+): void {
+  if (!ov.per_client_data) ov.per_client_data = [];
+
+  let localEntry = ov.per_client_data.find((e) => e.clientid === "0");
+  if (!localEntry) {
+    localEntry = {
+      clientid: "0",
+      client_name: "",
+      is_available_on_current_platform: true,
+    };
+    ov.per_client_data.push(localEntry);
+  }
+  applyPerClientDataShape(localEntry, isInstalled);
+
+  // Defensive dual-write in case most_available_clientid differs from "0".
+  if (ov.most_available_clientid && ov.most_available_clientid !== "0") {
+    let mostAvailEntry = ov.per_client_data.find(
+      (e) => e.clientid === ov.most_available_clientid,
+    );
+    if (!mostAvailEntry) {
+      mostAvailEntry = {
+        clientid: ov.most_available_clientid,
+        client_name: "",
+        is_available_on_current_platform: true,
+      };
+      ov.per_client_data.push(mostAvailEntry);
+    }
+    applyPerClientDataShape(mostAvailEntry, isInstalled);
+  }
+
+  // Nudge MobX/React reactivity.
+  try {
+    (ov as unknown as { TriggerChange?: () => void }).TriggerChange?.();
+  } catch {
+    /* never break Steam's own write path */
+  }
+}
+
+/** Immediately correct the install-state field for one shortcut's live
+ *  overview, without waiting for the next full enrichment sweep. Safe
+ *  to call even if the overview isn't currently in `m_mapApps` (no-op). */
+export function enrichInstalledState(
+  appid: number,
+  isInstalled: boolean,
+): void {
+  const ov = getAppStore()?.m_mapApps?.get(appid);
+  if (!ov || ov.app_type !== NON_STEAM_APP_TYPE) return;
+  applyInstalledState(ov, isInstalled);
+}
+
 /** Apply EVERYTHING we know for one shortcut overview (facet + cached
  *  playtime + cached size). Cheap and idempotent; used by the bulk
  *  passes AND the m_mapApps.set patch. */
@@ -177,6 +262,11 @@ function applyEnrichment(ov: EnrichableOverview): void {
   }
   const sz = sizeByAppId.get(ov.appid);
   if (typeof sz === "number" && sz > 0) ov.size_on_disk = sz;
+  // Also correct install state.
+  const cacheEntry = unifideckGameCache.get(ov.appid);
+  if (cacheEntry) {
+    applyInstalledState(ov, cacheEntry.isInstalled);
+  }
 }
 
 /** Re-apply enrichment to every shortcut overview currently in the map. */
