@@ -759,6 +759,36 @@
       "subtitle": "اختر الملف الذي يقوم بتشغيل اللعبة (على سبيل المثال: تخطي المشغل وتشغيل اللعبة مباشرة). مجلد العمل والحفظ السحابي لن يتأثرا.",
       "title": "تغيير الملف التنفيذي. {{game}}",
       "unavailable": "تعذر قراءة مجلد هذه اللعبة."
+    },
+    "optiscaler": {
+      "menuItem": "Frame Generation (OptiScaler)…",
+      "title": "Frame Generation (OptiScaler) — {{game}}",
+      "subtitle": "يضيف رفع دقة DLSS / توليد إطارات FSR إلى هذه اللعبة عبر تعديل OptiScaler من Decky-Framegen، ويُنسخ مباشرةً إلى مجلد اللعبة الصحيح.",
+      "fgmodMissing": "لم يتم إعداد Decky-Framegen بعد. ثبّته وشغّل \"Setup OptiScaler Mod\" أولاً.",
+      "statusPatched": "مُرقَّع",
+      "statusNotPatched": "غير مُرقَّع",
+      "installDir": "مجلد اللعبة",
+      "patch": "تطبيق الترقيع",
+      "unpatch": "إزالة الترقيع",
+      "envHint": "يمكن ضبط متغيّرات إعداد OptiScaler (مثل Section_Option=value، راجع ملف README الخاص بـ Decky-Framegen) عبر \"متغيّرات البيئة…\" في قائمة هذه اللعبة — وتُطبَّق هنا أيضًا.",
+      "patched": "تم تطبيق ترقيع Frame Generation",
+      "patchFailed": "تعذّر تطبيق ترقيع Frame Generation",
+      "unpatched": "تمت إزالة ترقيع Frame Generation",
+      "unpatchFailed": "تعذّرت إزالة ترقيع Frame Generation",
+      "envAppliedTitle": "متغيّرات البيئة المُطبَّقة على الترقيع",
+      "envAppliedEmpty": "لا يوجد أي متغيّر مضبوط — راجع \"متغيّرات البيئة…\" في قائمة هذه اللعبة لإضافة بعضها.",
+      "patchedWithEnv": "تم تطبيق ترقيع Frame Generation (تم ضبط {{count}} متغيّر بيئة)"
+    },
+    "gameEnv": {
+      "menuItem": "متغيّرات البيئة…",
+      "title": "متغيّرات البيئة — {{game}}",
+      "subtitle": "متغيّرات البيئة التي تُطبَّق في كل مرة تُشغَّل فيها هذه اللعبة (MangoHud وDXVK_HUD وتعديلات PROTON_* وإعدادات OptiScaler Section_Option=value، …) — بنفس تأثير خيارات التشغيل \"VAR=value %command%\" في Steam، لكنها تبقى بعد Force Sync.",
+      "empty": "لم يتم ضبط أي متغيّرات بيئة بعد.",
+      "keyLabel": "الاسم",
+      "valueLabel": "القيمة",
+      "add": "إضافة",
+      "saved": "تم حفظ متغيّرات البيئة",
+      "saveFailed": "تعذّر حفظ متغيّرات البيئة"
     }
   },
   "playMeta": {

@@ -759,6 +759,36 @@
       "subtitle": "Wybierz plik uruchamiający tę grę (np. pomiń launcher i uruchom grę bezpośrednio). Katalog roboczy oraz zapisy w chmurze nie zostaną naruszone.",
       "title": "Zmień plik wykonywalny. {{game}}",
       "unavailable": "Nie można odczytać folderu tej gry."
+    },
+    "optiscaler": {
+      "menuItem": "Frame Generation (OptiScaler)…",
+      "title": "Frame Generation (OptiScaler) — {{game}}",
+      "subtitle": "Dodaje do tej gry skalowanie DLSS / generowanie klatek FSR za pomocą moda OptiScaler z Decky-Framegen, kopiowanego bezpośrednio do właściwego folderu gry.",
+      "fgmodMissing": "Decky-Framegen nie jest jeszcze skonfigurowany. Zainstaluj go i najpierw uruchom \"Setup OptiScaler Mod\".",
+      "statusPatched": "Załatane",
+      "statusNotPatched": "Niezałatane",
+      "installDir": "Folder gry",
+      "patch": "Zastosuj łatkę",
+      "unpatch": "Usuń łatkę",
+      "envHint": "Zmienne konfiguracyjne OptiScaler (np. Section_Option=value, zobacz README Decky-Framegen) można ustawić w \"Zmienne środowiskowe…\" w menu tej gry — obowiązują również tutaj.",
+      "patched": "Zastosowano łatkę Frame Generation",
+      "patchFailed": "Nie udało się zastosować łatki Frame Generation",
+      "unpatched": "Usunięto łatkę Frame Generation",
+      "unpatchFailed": "Nie udało się usunąć łatki Frame Generation",
+      "envAppliedTitle": "Zmienne środowiskowe zastosowane do łatki",
+      "envAppliedEmpty": "Brak ustawionych — zobacz \"Zmienne środowiskowe…\" w menu tej gry, aby dodać.",
+      "patchedWithEnv": "Zastosowano łatkę Frame Generation (ustawiono {{count}} zmienn(ą/e) środowiskow(ą/e))"
+    },
+    "gameEnv": {
+      "menuItem": "Zmienne środowiskowe…",
+      "title": "Zmienne środowiskowe — {{game}}",
+      "subtitle": "Zmienne środowiskowe stosowane przy każdym uruchomieniu tej gry (MangoHud, DXVK_HUD, poprawki PROTON_*, ustawienia OptiScaler Section_Option=value, …) — taki sam efekt jak opcje uruchamiania \"VAR=value %command%\" w Steam, ale przetrwają Force Sync.",
+      "empty": "Nie ustawiono jeszcze żadnych zmiennych środowiskowych.",
+      "keyLabel": "Nazwa",
+      "valueLabel": "Wartość",
+      "add": "Dodaj",
+      "saved": "Zapisano zmienne środowiskowe",
+      "saveFailed": "Nie udało się zapisać zmiennych środowiskowych"
     }
   },
   "playMeta": {

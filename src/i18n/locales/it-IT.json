@@ -759,6 +759,36 @@
       "subtitle": "Scegli quale file avvia questo gioco (es. saltare un launcher e avviare direttamente il gioco). La cartella di lavoro e i salvataggi cloud non subiranno variazioni.",
       "title": "Modifica eseguibile. {{game}}",
       "unavailable": "Impossibile leggere la cartella di questo gioco."
+    },
+    "optiscaler": {
+      "menuItem": "Frame Generation (OptiScaler)…",
+      "title": "Frame Generation (OptiScaler) — {{game}}",
+      "subtitle": "Aggiunge l'upscaling DLSS / la generazione di fotogrammi FSR a questo gioco tramite il mod OptiScaler di Decky-Framegen, copiato direttamente nella cartella corretta del gioco.",
+      "fgmodMissing": "Decky-Framegen non è ancora configurato. Installalo ed esegui prima \"Setup OptiScaler Mod\".",
+      "statusPatched": "Applicato",
+      "statusNotPatched": "Non applicato",
+      "installDir": "Cartella del gioco",
+      "patch": "Applica patch",
+      "unpatch": "Rimuovi patch",
+      "envHint": "Le variabili di configurazione di OptiScaler (ad es. Section_Option=value, vedi il README di Decky-Framegen) possono essere impostate tramite \"Variabili d'ambiente…\" nel menu di questo gioco — valgono anche qui.",
+      "patched": "Patch Frame Generation applicata",
+      "patchFailed": "Impossibile applicare la patch Frame Generation",
+      "unpatched": "Patch Frame Generation rimossa",
+      "unpatchFailed": "Impossibile rimuovere la patch Frame Generation",
+      "envAppliedTitle": "Variabili d'ambiente applicate alla patch",
+      "envAppliedEmpty": "Nessuna impostata — vedi \"Variabili d'ambiente…\" nel menu di questo gioco per aggiungerne.",
+      "patchedWithEnv": "Patch Frame Generation applicata ({{count}} variabile/i d'ambiente impostata/e)"
+    },
+    "gameEnv": {
+      "menuItem": "Variabili d'ambiente…",
+      "title": "Variabili d'ambiente — {{game}}",
+      "subtitle": "Variabili d'ambiente applicate a ogni avvio di questo gioco (MangoHud, DXVK_HUD, modifiche PROTON_*, impostazioni OptiScaler Section_Option=value, …) — lo stesso effetto delle opzioni di avvio \"VAR=value %command%\" di Steam, ma sopravvive a una Force Sync.",
+      "empty": "Nessuna variabile d'ambiente ancora impostata.",
+      "keyLabel": "Nome",
+      "valueLabel": "Valore",
+      "add": "Aggiungi",
+      "saved": "Variabili d'ambiente salvate",
+      "saveFailed": "Impossibile salvare le variabili d'ambiente"
     }
   },
   "playMeta": {

@@ -759,6 +759,36 @@
       "subtitle": "このゲームが起動するファイルを選択します（ランチャーをスキップしてゲームを直接実行する場合など）。作業ディレクトリとクラウドセーブは影響を受けません。",
       "title": "実行ファイルの変更。{{game}}",
       "unavailable": "このゲームのフォルダを読み取れませんでした。"
+    },
+    "optiscaler": {
+      "menuItem": "Frame Generation (OptiScaler)…",
+      "title": "Frame Generation (OptiScaler) — {{game}}",
+      "subtitle": "Decky-Framegen の OptiScaler mod を使って、DLSS アップスケーリング / FSR フレーム生成をこのゲームに追加します。正しいゲームフォルダーに直接コピーされます。",
+      "fgmodMissing": "Decky-Framegen がまだセットアップされていません。インストールして、先に「Setup OptiScaler Mod」を実行してください。",
+      "statusPatched": "パッチ適用済み",
+      "statusNotPatched": "未適用",
+      "installDir": "ゲームフォルダー",
+      "patch": "パッチを適用",
+      "unpatch": "パッチを削除",
+      "envHint": "OptiScaler の設定用環境変数（例: Section_Option=value、Decky-Framegen の README を参照）は、このゲームのメニューの「環境変数…」から設定でき、ここにも適用されます。",
+      "patched": "Frame Generation パッチを適用しました",
+      "patchFailed": "Frame Generation パッチを適用できませんでした",
+      "unpatched": "Frame Generation パッチを削除しました",
+      "unpatchFailed": "Frame Generation パッチを削除できませんでした",
+      "envAppliedTitle": "パッチに適用された環境変数",
+      "envAppliedEmpty": "未設定です。追加するにはこのゲームのメニューの「環境変数…」を参照してください。",
+      "patchedWithEnv": "Frame Generation パッチを適用しました（環境変数 {{count}} 個を設定）"
+    },
+    "gameEnv": {
+      "menuItem": "環境変数…",
+      "title": "環境変数 — {{game}}",
+      "subtitle": "このゲームを起動するたびに適用される環境変数（MangoHud、DXVK_HUD、PROTON_* の調整、OptiScaler の Section_Option=value 設定など）。Steam の「VAR=value %command%」起動オプションと同じ効果ですが、Force Sync 後も保持されます。",
+      "empty": "環境変数はまだ設定されていません。",
+      "keyLabel": "名前",
+      "valueLabel": "値",
+      "add": "追加",
+      "saved": "環境変数を保存しました",
+      "saveFailed": "環境変数を保存できませんでした"
     }
   },
   "playMeta": {

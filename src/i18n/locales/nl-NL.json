@@ -759,6 +759,36 @@
       "subtitle": "Kies welk bestand deze game start (bijv. sla een launcher over en start de game direct). De werkmap en cloudopslag worden niet beïnvloed.",
       "title": "Uitvoerbaar bestand wijzigen. {{game}}",
       "unavailable": "Kon de map van deze game niet lezen."
+    },
+    "optiscaler": {
+      "menuItem": "Frame Generation (OptiScaler)…",
+      "title": "Frame Generation (OptiScaler) — {{game}}",
+      "subtitle": "Voegt DLSS-upscaling / FSR-frame-generatie toe aan deze game via de OptiScaler-mod van Decky-Framegen, rechtstreeks naar de juiste gamemap gekopieerd.",
+      "fgmodMissing": "Decky-Framegen is nog niet ingesteld. Installeer het en voer eerst \"Setup OptiScaler Mod\" uit.",
+      "statusPatched": "Gepatcht",
+      "statusNotPatched": "Niet gepatcht",
+      "installDir": "Gamemap",
+      "patch": "Patch toepassen",
+      "unpatch": "Patch verwijderen",
+      "envHint": "OptiScaler-configuratievariabelen (bijv. Section_Option=value, zie de README van Decky-Framegen) kunnen worden ingesteld via \"Omgevingsvariabelen…\" in het menu van deze game — ze gelden hier ook.",
+      "patched": "Frame Generation-patch toegepast",
+      "patchFailed": "Kon Frame Generation-patch niet toepassen",
+      "unpatched": "Frame Generation-patch verwijderd",
+      "unpatchFailed": "Kon Frame Generation-patch niet verwijderen",
+      "envAppliedTitle": "Op de patch toegepaste omgevingsvariabelen",
+      "envAppliedEmpty": "Geen ingesteld — zie \"Omgevingsvariabelen…\" in het menu van deze game om er toe te voegen.",
+      "patchedWithEnv": "Frame Generation-patch toegepast ({{count}} omgevingsvariabele(n) ingesteld)"
+    },
+    "gameEnv": {
+      "menuItem": "Omgevingsvariabelen…",
+      "title": "Omgevingsvariabelen — {{game}}",
+      "subtitle": "Omgevingsvariabelen die elke keer worden toegepast wanneer deze game start (MangoHud, DXVK_HUD, PROTON_*-aanpassingen, OptiScaler Section_Option=value-instellingen, …) — hetzelfde effect als Steams \"VAR=value %command%\"-opstartopties, maar het overleeft een Force Sync.",
+      "empty": "Nog geen omgevingsvariabelen ingesteld.",
+      "keyLabel": "Naam",
+      "valueLabel": "Waarde",
+      "add": "Toevoegen",
+      "saved": "Omgevingsvariabelen opgeslagen",
+      "saveFailed": "Kon omgevingsvariabelen niet opslaan"
     }
   },
   "playMeta": {

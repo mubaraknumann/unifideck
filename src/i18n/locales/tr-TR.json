@@ -759,6 +759,36 @@
       "subtitle": "Bu oyunun hangi dosyayı başlatacağını seçin (örn. bir başlatıcıyı atlayıp oyunu doğrudan çalıştırmak için). Çalışma dizini ve bulut kayıtları etkilenmez.",
       "title": "Çalıştırılabilir dosyayı değiştir. {{game}}",
       "unavailable": "Bu oyunun klasörü okunamadı."
+    },
+    "optiscaler": {
+      "menuItem": "Frame Generation (OptiScaler)…",
+      "title": "Frame Generation (OptiScaler) — {{game}}",
+      "subtitle": "Decky-Framegen'in OptiScaler modu aracılığıyla bu oyuna DLSS ölçekleme / FSR kare üretimi ekler, doğrudan doğru oyun klasörüne kopyalanır.",
+      "fgmodMissing": "Decky-Framegen henüz kurulmadı. Kurun ve önce \"Setup OptiScaler Mod\" çalıştırın.",
+      "statusPatched": "Yamalandı",
+      "statusNotPatched": "Yamalanmadı",
+      "installDir": "Oyun klasörü",
+      "patch": "Yamayı uygula",
+      "unpatch": "Yamayı kaldır",
+      "envHint": "OptiScaler yapılandırma değişkenleri (örn. Section_Option=value, Decky-Framegen README'sine bakın) bu oyunun menüsündeki \"Ortam değişkenleri…\" üzerinden ayarlanabilir — burada da geçerlidir.",
+      "patched": "Frame Generation yaması uygulandı",
+      "patchFailed": "Frame Generation yaması uygulanamadı",
+      "unpatched": "Frame Generation yaması kaldırıldı",
+      "unpatchFailed": "Frame Generation yaması kaldırılamadı",
+      "envAppliedTitle": "Yamaya uygulanan ortam değişkenleri",
+      "envAppliedEmpty": "Hiçbiri ayarlanmadı — eklemek için bu oyunun menüsündeki \"Ortam değişkenleri…\" bölümüne bakın.",
+      "patchedWithEnv": "Frame Generation yaması uygulandı ({{count}} ortam değişkeni ayarlandı)"
+    },
+    "gameEnv": {
+      "menuItem": "Ortam değişkenleri…",
+      "title": "Ortam değişkenleri — {{game}}",
+      "subtitle": "Bu oyun her başlatıldığında uygulanan ortam değişkenleri (MangoHud, DXVK_HUD, PROTON_* ayarları, OptiScaler Section_Option=value ayarları, …) — Steam'in \"VAR=value %command%\" başlatma seçenekleriyle aynı etki, ancak Force Sync sonrasında da korunur.",
+      "empty": "Henüz ortam değişkeni ayarlanmadı.",
+      "keyLabel": "Ad",
+      "valueLabel": "Değer",
+      "add": "Ekle",
+      "saved": "Ortam değişkenleri kaydedildi",
+      "saveFailed": "Ortam değişkenleri kaydedilemedi"
     }
   },
   "playMeta": {

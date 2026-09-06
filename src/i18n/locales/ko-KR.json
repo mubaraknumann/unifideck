@@ -759,6 +759,36 @@
       "subtitle": "이 게임이 실행할 파일을 선택하십시오 (예: 런처를 건너뛰고 게임을 직접 실행). 작업 디렉토리와 클라우드 저장 데이터는 영향을 받지 않습니다.",
       "title": "실행 파일 변경. {{game}}",
       "unavailable": "이 게임의 폴더를 읽을 수 없습니다."
+    },
+    "optiscaler": {
+      "menuItem": "Frame Generation (OptiScaler)…",
+      "title": "Frame Generation (OptiScaler) — {{game}}",
+      "subtitle": "Decky-Framegen의 OptiScaler 모드를 통해 이 게임에 DLSS 업스케일링 / FSR 프레임 생성을 추가하며, 올바른 게임 폴더에 직접 복사됩니다.",
+      "fgmodMissing": "Decky-Framegen이 아직 설정되지 않았습니다. 설치한 후 먼저 \"Setup OptiScaler Mod\"를 실행하세요.",
+      "statusPatched": "패치됨",
+      "statusNotPatched": "패치되지 않음",
+      "installDir": "게임 폴더",
+      "patch": "패치 적용",
+      "unpatch": "패치 제거",
+      "envHint": "OptiScaler 구성 환경 변수(예: Section_Option=value, Decky-Framegen의 README 참조)는 이 게임 메뉴의 \"환경 변수…\"에서 설정할 수 있으며 여기에도 적용됩니다.",
+      "patched": "Frame Generation 패치가 적용됨",
+      "patchFailed": "Frame Generation 패치를 적용할 수 없습니다",
+      "unpatched": "Frame Generation 패치가 제거됨",
+      "unpatchFailed": "Frame Generation 패치를 제거할 수 없습니다",
+      "envAppliedTitle": "패치에 적용된 환경 변수",
+      "envAppliedEmpty": "설정된 항목이 없습니다 — 추가하려면 이 게임 메뉴의 \"환경 변수…\"를 참조하세요.",
+      "patchedWithEnv": "Frame Generation 패치가 적용됨(환경 변수 {{count}}개 설정)"
+    },
+    "gameEnv": {
+      "menuItem": "환경 변수…",
+      "title": "환경 변수 — {{game}}",
+      "subtitle": "이 게임을 시작할 때마다 적용되는 환경 변수(MangoHud, DXVK_HUD, PROTON_* 조정, OptiScaler Section_Option=value 설정 등) — Steam의 \"VAR=value %command%\" 시작 옵션과 동일한 효과이지만 Force Sync 후에도 유지됩니다.",
+      "empty": "아직 설정된 환경 변수가 없습니다.",
+      "keyLabel": "이름",
+      "valueLabel": "값",
+      "add": "추가",
+      "saved": "환경 변수가 저장됨",
+      "saveFailed": "환경 변수를 저장할 수 없습니다"
     }
   },
   "playMeta": {

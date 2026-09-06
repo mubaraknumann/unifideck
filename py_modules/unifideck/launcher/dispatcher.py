@@ -322,12 +322,21 @@ def _game_context(
         work_dir=Path(work_dir) if work_dir else plugin_dir,
         plugin_dir=plugin_dir,
         raw_options=raw_options,
-        env_overrides=env_overrides_from(raw_options),
+        env_overrides={
+            **env_overrides_from(raw_options),
+            **_resolve_game_env_overrides(store, game_id),
+        },
         is_launch_action=True,
         auth_store=None,
         steam_app_id=str(app_id) if app_id else None,
         bypass_circuit_breaker=_resolve_bypass_flag(store, game_id),
     )
+
+
+def _resolve_game_env_overrides(store: str, game_id: str) -> dict[str, str]:
+    """Per-game persisted env overrides — see ``game_env_overrides``."""
+    from .game_env_overrides import resolve_game_env_overrides
+    return resolve_game_env_overrides(store, game_id, _resolve_plugin_dir())
 
 def _detect_special_action() -> tuple[str | None, str | None, bool]:
     """Detect a non-launch action from ``UNIFIDECK_<STORE>_ACTION``.

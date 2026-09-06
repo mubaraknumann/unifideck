@@ -759,6 +759,36 @@
       "subtitle": "Выберите, какой файл запускает эту игру (например, чтобы пропустить лаунчер и запустить игру напрямую). Рабочая папка и облачные сохранения не изменятся.",
       "title": "Изменить исполняемый файл. {{game}}",
       "unavailable": "Не удалось прочитать папку этой игры."
+    },
+    "optiscaler": {
+      "menuItem": "Frame Generation (OptiScaler)…",
+      "title": "Frame Generation (OptiScaler) — {{game}}",
+      "subtitle": "Добавляет в эту игру масштабирование DLSS / генерацию кадров FSR с помощью мода OptiScaler из Decky-Framegen, копируемого прямо в нужную папку игры.",
+      "fgmodMissing": "Decky-Framegen ещё не настроен. Установите его и сначала запустите \"Setup OptiScaler Mod\".",
+      "statusPatched": "Пропатчено",
+      "statusNotPatched": "Не пропатчено",
+      "installDir": "Папка игры",
+      "patch": "Применить патч",
+      "unpatch": "Удалить патч",
+      "envHint": "Переменные конфигурации OptiScaler (например, Section_Option=value, см. README Decky-Framegen) можно задать через \"Переменные среды…\" в меню этой игры — они применяются и здесь.",
+      "patched": "Патч Frame Generation применён",
+      "patchFailed": "Не удалось применить патч Frame Generation",
+      "unpatched": "Патч Frame Generation удалён",
+      "unpatchFailed": "Не удалось удалить патч Frame Generation",
+      "envAppliedTitle": "Переменные среды, применённые к патчу",
+      "envAppliedEmpty": "Не заданы — откройте \"Переменные среды…\" в меню этой игры, чтобы добавить.",
+      "patchedWithEnv": "Патч Frame Generation применён (задано переменных среды: {{count}})"
+    },
+    "gameEnv": {
+      "menuItem": "Переменные среды…",
+      "title": "Переменные среды — {{game}}",
+      "subtitle": "Переменные среды, применяемые при каждом запуске этой игры (MangoHud, DXVK_HUD, настройки PROTON_*, параметры OptiScaler Section_Option=value, …) — тот же эффект, что и параметры запуска \"VAR=value %command%\" в Steam, но они сохраняются после Force Sync.",
+      "empty": "Переменные среды ещё не заданы.",
+      "keyLabel": "Имя",
+      "valueLabel": "Значение",
+      "add": "Добавить",
+      "saved": "Переменные среды сохранены",
+      "saveFailed": "Не удалось сохранить переменные среды"
     }
   },
   "playMeta": {

@@ -759,6 +759,36 @@
       "subtitle": "Wählen Sie aus, welche Datei dieses Spiel startet (z. B. um einen Launcher zu überspringen und das Spiel direkt auszuführen). Das Arbeitsverzeichnis und Cloud-Spielstände sind nicht betroffen.",
       "title": "Ausführbare Datei ändern. {{game}}",
       "unavailable": "Der Ordner dieses Spiels konnte nicht gelesen werden."
+    },
+    "optiscaler": {
+      "menuItem": "Frame Generation (OptiScaler)…",
+      "title": "Frame Generation (OptiScaler) — {{game}}",
+      "subtitle": "Fügt diesem Spiel DLSS-Upscaling / FSR-Frame-Generation über den OptiScaler-Mod von Decky-Framegen hinzu, direkt in den richtigen Spielordner kopiert.",
+      "fgmodMissing": "Decky-Framegen ist noch nicht eingerichtet. Installiere es und führe zuerst \"Setup OptiScaler Mod\" aus.",
+      "statusPatched": "Gepatcht",
+      "statusNotPatched": "Nicht gepatcht",
+      "installDir": "Spielordner",
+      "patch": "Patch anwenden",
+      "unpatch": "Patch entfernen",
+      "envHint": "OptiScaler-Konfigurationsvariablen (z. B. Section_Option=value, siehe README von Decky-Framegen) lassen sich über \"Umgebungsvariablen…\" im Menü dieses Spiels setzen — sie gelten auch hier.",
+      "patched": "Frame-Generation-Patch angewendet",
+      "patchFailed": "Frame-Generation-Patch konnte nicht angewendet werden",
+      "unpatched": "Frame-Generation-Patch entfernt",
+      "unpatchFailed": "Frame-Generation-Patch konnte nicht entfernt werden",
+      "envAppliedTitle": "Auf den Patch angewendete Umgebungsvariablen",
+      "envAppliedEmpty": "Keine gesetzt — siehe \"Umgebungsvariablen…\" im Menü dieses Spiels, um welche hinzuzufügen.",
+      "patchedWithEnv": "Frame-Generation-Patch angewendet ({{count}} Umgebungsvariable(n) gesetzt)"
+    },
+    "gameEnv": {
+      "menuItem": "Umgebungsvariablen…",
+      "title": "Umgebungsvariablen — {{game}}",
+      "subtitle": "Umgebungsvariablen, die bei jedem Start dieses Spiels angewendet werden (MangoHud, DXVK_HUD, PROTON_*-Anpassungen, OptiScaler Section_Option=value-Einstellungen, …) — gleicher Effekt wie Steams \"VAR=value %command%\"-Startoptionen, überlebt aber eine Force Sync.",
+      "empty": "Noch keine Umgebungsvariablen gesetzt.",
+      "keyLabel": "Name",
+      "valueLabel": "Wert",
+      "add": "Hinzufügen",
+      "saved": "Umgebungsvariablen gespeichert",
+      "saveFailed": "Umgebungsvariablen konnten nicht gespeichert werden"
     }
   },
   "playMeta": {

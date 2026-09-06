@@ -782,6 +782,36 @@
       "changed": "Executable changed",
       "changeFailed": "Couldn't change executable",
       "reset": "Reset to default executable"
+    },
+    "optiscaler": {
+      "menuItem": "Frame Generation (OptiScaler)…",
+      "title": "Frame Generation (OptiScaler) — {{game}}",
+      "subtitle": "Adds DLSS upscaling / FSR frame generation to this game via Decky-Framegen's OptiScaler mod, copied directly into the correct game folder.",
+      "fgmodMissing": "Decky-Framegen isn't set up yet. Install it and run \"Setup OptiScaler Mod\" first.",
+      "statusPatched": "Patched",
+      "statusNotPatched": "Not patched",
+      "installDir": "Game folder",
+      "patch": "Apply patch",
+      "unpatch": "Remove patch",
+      "envHint": "OptiScaler config env vars (e.g. Section_Option=value, see Decky-Framegen's README) can be set via \"Environment variables…\" on this game's menu — they apply here too.",
+      "envAppliedTitle": "Environment variables applied to the patch",
+      "envAppliedEmpty": "None set — see \"Environment variables…\" on this game's menu to add some.",
+      "patched": "Frame Generation patch applied",
+      "patchedWithEnv": "Frame Generation patch applied ({{count}} env var(s) set)",
+      "patchFailed": "Couldn't apply Frame Generation patch",
+      "unpatched": "Frame Generation patch removed",
+      "unpatchFailed": "Couldn't remove Frame Generation patch"
+    },
+    "gameEnv": {
+      "menuItem": "Environment variables…",
+      "title": "Environment variables — {{game}}",
+      "subtitle": "Environment variables applied every time this game launches (MangoHud, DXVK_HUD, PROTON_* tweaks, OptiScaler Section_Option=value settings, ...) — the same effect as Steam's \"VAR=value %command%\" launch options, but it survives a Force Sync.",
+      "empty": "No environment variables set yet.",
+      "keyLabel": "Name",
+      "valueLabel": "Value",
+      "add": "Add",
+      "saved": "Environment variables saved",
+      "saveFailed": "Couldn't save environment variables"
     }
   },
   "playMeta": {

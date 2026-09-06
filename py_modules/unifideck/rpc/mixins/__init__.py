@@ -19,9 +19,11 @@ Per-mixin scope:
 * ``DownloadRPCMixin``        — download-queue management;
 * ``EdgeRPCMixin``            — Microsoft Edge install + readiness;
 * ``ExecutableRPCMixin``      — user-settable launch executable per game;
+* ``GameEnvRPCMixin``         — general per-game environment-variable overrides;
 * ``LaunchRPCMixin``          — launch / circuit breaker;
 * ``LibraryFacetsRPCMixin``   — per-shortcut facets for native Sort/Filters;
 * ``ObservabilityRPCMixin``   — metrics, watchdog, replay;
+* ``OptiScalerRPCMixin``      — per-game Frame Generation (OptiScaler) patch;
 * ``PlaytimeRPCMixin``        — per-game playtime stats;
 * ``StorageRPCMixin``         — storage locations + browseable devices;
 * ``StoreRPCMixin``           — auth + login state;
@@ -40,9 +42,11 @@ from .cloud_save import CloudSaveRPCMixin
 from .download import DownloadRPCMixin
 from .edge import EdgeRPCMixin
 from .executable import ExecutableRPCMixin
+from .game_env import GameEnvRPCMixin
 from .launch import LaunchRPCMixin
 from .library_facets import LibraryFacetsRPCMixin
 from .observability import ObservabilityRPCMixin
+from .optiscaler import OptiScalerRPCMixin
 from .playtime import PlaytimeRPCMixin
 from .storage import StorageRPCMixin
 from .store import StoreRPCMixin
@@ -59,9 +63,11 @@ __all__ = [
     "DownloadRPCMixin",
     "EdgeRPCMixin",
     "ExecutableRPCMixin",
+    "GameEnvRPCMixin",
     "LaunchRPCMixin",
     "LibraryFacetsRPCMixin",
     "ObservabilityRPCMixin",
+    "OptiScalerRPCMixin",
     "PlaytimeRPCMixin",
     "StorageRPCMixin",
     "StoreRPCMixin",

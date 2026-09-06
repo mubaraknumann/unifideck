@@ -759,6 +759,36 @@
       "subtitle": "选择此游戏启动的文件（例如：跳过启动器并直接运行游戏）。工作目录和云端存档不受影响。",
       "title": "更改可执行文件。{{game}}",
       "unavailable": "无法读取此游戏的文件夹。"
+    },
+    "optiscaler": {
+      "menuItem": "Frame Generation (OptiScaler)…",
+      "title": "Frame Generation (OptiScaler) — {{game}}",
+      "subtitle": "通过 Decky-Framegen 的 OptiScaler mod 为该游戏添加 DLSS 超分辨率 / FSR 帧生成，直接复制到正确的游戏文件夹中。",
+      "fgmodMissing": "Decky-Framegen 尚未设置。请先安装并运行“Setup OptiScaler Mod”。",
+      "statusPatched": "已修补",
+      "statusNotPatched": "未修补",
+      "installDir": "游戏文件夹",
+      "patch": "应用补丁",
+      "unpatch": "移除补丁",
+      "envHint": "OptiScaler 配置环境变量（例如 Section_Option=value，参见 Decky-Framegen 的 README）可通过该游戏菜单中的“环境变量…”设置——它们在这里同样适用。",
+      "patched": "已应用 Frame Generation 补丁",
+      "patchFailed": "无法应用 Frame Generation 补丁",
+      "unpatched": "已移除 Frame Generation 补丁",
+      "unpatchFailed": "无法移除 Frame Generation 补丁",
+      "envAppliedTitle": "已应用到补丁的环境变量",
+      "envAppliedEmpty": "未设置——请查看该游戏菜单中的“环境变量…”进行添加。",
+      "patchedWithEnv": "已应用 Frame Generation 补丁（已设置 {{count}} 个环境变量）"
+    },
+    "gameEnv": {
+      "menuItem": "环境变量…",
+      "title": "环境变量 — {{game}}",
+      "subtitle": "每次启动该游戏时应用的环境变量（MangoHud、DXVK_HUD、PROTON_* 调整、OptiScaler Section_Option=value 设置等）——与 Steam 的“VAR=value %command%”启动选项效果相同，但在 Force Sync 后仍然保留。",
+      "empty": "尚未设置任何环境变量。",
+      "keyLabel": "名称",
+      "valueLabel": "值",
+      "add": "添加",
+      "saved": "环境变量已保存",
+      "saveFailed": "无法保存环境变量"
     }
   },
   "playMeta": {

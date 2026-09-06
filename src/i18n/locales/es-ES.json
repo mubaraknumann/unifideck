@@ -759,6 +759,36 @@
       "subtitle": "Elige qué archivo inicia este juego (por ejemplo, omitir un lanzador y ejecutar el juego directamente). El directorio de trabajo y los guardados en la nube no se verán afectados.",
       "title": "Cambiar ejecutable. {{game}}",
       "unavailable": "No se pudo leer la carpeta de este juego."
+    },
+    "optiscaler": {
+      "menuItem": "Frame Generation (OptiScaler)…",
+      "title": "Frame Generation (OptiScaler) — {{game}}",
+      "subtitle": "Añade escalado DLSS / generación de fotogramas FSR a este juego mediante el mod OptiScaler de Decky-Framegen, copiado directamente en la carpeta correcta del juego.",
+      "fgmodMissing": "Decky-Framegen aún no está configurado. Instálalo y ejecuta primero \"Setup OptiScaler Mod\".",
+      "statusPatched": "Parcheado",
+      "statusNotPatched": "Sin parchear",
+      "installDir": "Carpeta del juego",
+      "patch": "Aplicar parche",
+      "unpatch": "Quitar parche",
+      "envHint": "Las variables de configuración de OptiScaler (p. ej. Section_Option=value, consulta el README de Decky-Framegen) pueden definirse en \"Variables de entorno…\" del menú de este juego; también se aplican aquí.",
+      "patched": "Parche de Frame Generation aplicado",
+      "patchFailed": "No se pudo aplicar el parche de Frame Generation",
+      "unpatched": "Parche de Frame Generation eliminado",
+      "unpatchFailed": "No se pudo eliminar el parche de Frame Generation",
+      "envAppliedTitle": "Variables de entorno aplicadas al parche",
+      "envAppliedEmpty": "Ninguna definida: consulta \"Variables de entorno…\" en el menú de este juego para añadir algunas.",
+      "patchedWithEnv": "Parche de Frame Generation aplicado ({{count}} variable(s) de entorno definidas)"
+    },
+    "gameEnv": {
+      "menuItem": "Variables de entorno…",
+      "title": "Variables de entorno — {{game}}",
+      "subtitle": "Variables de entorno que se aplican cada vez que se inicia este juego (MangoHud, DXVK_HUD, ajustes PROTON_*, opciones OptiScaler Section_Option=value, …): el mismo efecto que las opciones de inicio \"VAR=value %command%\" de Steam, pero sobrevive a una Force Sync.",
+      "empty": "Aún no hay variables de entorno definidas.",
+      "keyLabel": "Nombre",
+      "valueLabel": "Valor",
+      "add": "Añadir",
+      "saved": "Variables de entorno guardadas",
+      "saveFailed": "No se pudieron guardar las variables de entorno"
     }
   },
   "playMeta": {

@@ -759,6 +759,36 @@
       "subtitle": "Виберіть, який файл запускає цю гру (наприклад, щоб обійти лаунчер і запустити гру напряму). Робоча папка та хмарні збереження не зміняться.",
       "title": "Змінити виконуваний файл. {{game}}",
       "unavailable": "Не вдалося прочитати папку цієї гри."
+    },
+    "optiscaler": {
+      "menuItem": "Frame Generation (OptiScaler)…",
+      "title": "Frame Generation (OptiScaler) — {{game}}",
+      "subtitle": "Додає до цієї гри масштабування DLSS / генерацію кадрів FSR за допомогою мода OptiScaler із Decky-Framegen, що копіюється безпосередньо в потрібну папку гри.",
+      "fgmodMissing": "Decky-Framegen ще не налаштовано. Встановіть його та спершу запустіть \"Setup OptiScaler Mod\".",
+      "statusPatched": "Пропатчено",
+      "statusNotPatched": "Не пропатчено",
+      "installDir": "Папка гри",
+      "patch": "Застосувати патч",
+      "unpatch": "Видалити патч",
+      "envHint": "Змінні конфігурації OptiScaler (наприклад, Section_Option=value, див. README Decky-Framegen) можна задати через \"Змінні середовища…\" у меню цієї гри — вони застосовуються й тут.",
+      "patched": "Патч Frame Generation застосовано",
+      "patchFailed": "Не вдалося застосувати патч Frame Generation",
+      "unpatched": "Патч Frame Generation видалено",
+      "unpatchFailed": "Не вдалося видалити патч Frame Generation",
+      "envAppliedTitle": "Змінні середовища, застосовані до патча",
+      "envAppliedEmpty": "Не задано — відкрийте \"Змінні середовища…\" у меню цієї гри, щоб додати.",
+      "patchedWithEnv": "Патч Frame Generation застосовано (задано змінних середовища: {{count}})"
+    },
+    "gameEnv": {
+      "menuItem": "Змінні середовища…",
+      "title": "Змінні середовища — {{game}}",
+      "subtitle": "Змінні середовища, що застосовуються під час кожного запуску цієї гри (MangoHud, DXVK_HUD, налаштування PROTON_*, параметри OptiScaler Section_Option=value, …) — той самий ефект, що й параметри запуску \"VAR=value %command%\" у Steam, але вони зберігаються після Force Sync.",
+      "empty": "Змінні середовища ще не задано.",
+      "keyLabel": "Ім'я",
+      "valueLabel": "Значення",
+      "add": "Додати",
+      "saved": "Змінні середовища збережено",
+      "saveFailed": "Не вдалося зберегти змінні середовища"
     }
   },
   "playMeta": {
