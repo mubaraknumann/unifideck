@@ -1,8 +1,6 @@
 """
 UPC session facade — propagate auth state across Wine prefixes.
 
-OP-60a | py_modules/unifideck/stores/ubisoft/session/facade.py
-
 UPC stores its auth state (credentials, refresh tokens, machine GUID)
 inside the Wine prefix where the user signed in. To launch games from
 other prefixes we have to copy that state into each prefix on demand.
@@ -10,34 +8,38 @@ other prefixes we have to copy that state into each prefix on demand.
 ``UbisoftSession`` is the orchestration class for this propagation. It
 delegates to:
 
-* ``reader.py`` (OP-60c) — read sessions out of the auth prefix;
-* ``payload.py`` (OP-60b) — copy credentials/artifacts to target prefixes;
-* ``propagator.py`` (OP-60d) — orchestrate propagation across multiple
+* ``reader.py`` — read sessions out of the auth prefix;
+* ``payload.py`` — copy credentials/artifacts to target prefixes;
+* ``propagator.py`` — orchestrate propagation across multiple
   game prefixes when the auth state changes.
 
-The session facade exposes the ``_read_machine_guid`` helper used by
-the payload module's DPAPI-guard logic to refuse copying credentials
-into a prefix with a different machine GUID (would corrupt the DPAPI
-key vault).
+* ``lock.py`` — serialise all of that against the launcher process.
+
+The session facade exposes the ``_read_machine_guid`` helper used by the
+payload module to refuse copying credentials into a prefix of a different
+identity. That guard is conservative, not cryptographic: Wine's DPAPI does
+not key on the machine GUID (see ``payload.py``'s note), so a GUID match is
+never the reason a session does or does not work.
 """
 
 from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Any
 
 from unifideck.stores.ubisoft.config import UbisoftConfig
 from unifideck.stores.ubisoft.paths import UbisoftPrefixPaths
 
+from .lock import session_lock
 from .payload import _PayloadSync
 from .propagator import _CredentialPropagator
 from .reader import _CredentialReader
 
 logger = logging.getLogger(__name__)
 _CAPTURE_SENTINEL = "credentials_captured"
-
 
 class UbisoftSession:
     """Ubisoft session."""
@@ -65,8 +67,17 @@ class UbisoftSession:
         )
 
     def has_valid_credentials(self, prefix_path: str) -> bool:
-        """Check whether valid credentials."""
+        """Whether a plausible vault EXISTS in this prefix.
+
+        Presence, not state: a signed-OUT vault satisfies this. Use it to
+        answer "is there something here to copy / inject", never "is the
+        user signed in" — :meth:`is_signed_in` answers that one.
+        """
         return self._reader.has_valid_credentials(prefix_path)
+
+    def is_signed_in(self, prefix_path: str) -> bool:
+        """Whether this prefix holds a vault with an account attached."""
+        return self._reader.is_signed_in(prefix_path)
 
     def get_credential_mtime(self, prefix_path: str) -> float:
         """Get credential mtime."""
@@ -90,44 +101,115 @@ class UbisoftSession:
 
     def propagate_all_to_all(self) -> None:
         """Propagate all to all."""
-        self._propagator.propagate_all_to_all()
+        with self._serialised():
+            self._propagator.propagate_all_to_all()
 
     def purge_credentials_from_all(self) -> int:
         """Purge credentials from all game prefixes + the template."""
-        return self._propagator.purge_credentials_from_all()
+        with self._serialised():
+            return self._propagator.purge_credentials_from_all()
 
     def inject_into_prefix(self, prefix_path: str) -> bool:
         """Inject into prefix."""
-        return self._propagator.inject_into_prefix(prefix_path)
+        with self._serialised():
+            return self._propagator.inject_into_prefix(prefix_path)
+
+    def _serialised(self) -> AbstractContextManager[bool]:
+        """The cross-process session lock, over ``data_dir``.
+
+        Held around every operation that REWRITES credential files, so a
+        backend fan-out cannot interleave with the launcher seeding or
+        capturing a prefix. Read-only helpers are deliberately outside it.
+        """
+        return session_lock(self._config.data_dir_expanded)
 
     def ensure_auth_state_in_prefixes(
         self,
         prefix_paths: list[str],
     ) -> int:
-        """Ensure auth state in prefixes."""
+        """Seed ``prefix_paths`` from the auth prefix, refreshing it first.
+
+        The refresh is the durability half of post-play capture. Capture runs
+        on ``GAME_STOPPED`` and can legitimately not run at all — the bus
+        watchdog cancels it, the backend restarts between the game exiting and
+        the handler finishing, the user force-quits. When it does not run, the
+        rotated refresh token stays in the game prefix and ``.upc-auth`` keeps
+        a token the server has already retired. Nothing notices until the next
+        fresh install seeds that dead token into a new prefix and UPC opens on
+        the login screen, which is a confusing distance from the cause.
+
+        So before seeding, promote the freshest signed-in vault on the device
+        into the auth prefix. Measured 2026-09-05: two consecutive captures
+        were cancelled at ~5s, the game prefix held a vault 2m26s newer than
+        the auth prefix, and the install nine minutes later signed the user
+        out. This closes that window whatever caused the capture to be missed.
+        """
+        with self._serialised():
+            self._refresh_auth_from_freshest_prefix()
         return self._propagator.ensure_auth_state_in_prefixes(
             prefix_paths,
         )
 
+    def _refresh_auth_from_freshest_prefix(self) -> None:
+        """Capture into auth from the newest signed-in game prefix, if any.
+
+        Only ever moves auth FORWARD: a candidate must be signed in and
+        strictly newer than what auth already holds. ``_capture_locked``
+        re-checks both, so this picks the candidate and lets the one guarded
+        path do the writing rather than opening a second one.
+        """
+        auth_dir = self._config.auth_prefix_dir_expanded
+        auth_mtime = self._reader.get_credential_mtime(auth_dir)
+        best: tuple[float, str] | None = None
+        for prefix_path in self._paths.iter_all_game_prefix_paths():
+            if not self._reader.is_signed_in(prefix_path):
+                continue
+            mtime = self._reader.get_credential_mtime(prefix_path)
+            if mtime <= auth_mtime:
+                continue
+            if best is None or mtime > best[0]:
+                best = (mtime, prefix_path)
+        if best is None:
+            return
+        logger.info(
+            "[UbisoftSession] %s holds a newer signed-in vault than the auth "
+            "prefix (%+.0fs) — capturing it before seeding",
+            Path(best[1]).name, best[0] - auth_mtime,
+        )
+        self._capture_locked(best[1])
+
     def retroactive_sync(self) -> dict[str, Any]:
         """Retroactive sync."""
-        return self._propagator.retroactive_sync()
+        with self._serialised():
+            return self._propagator.retroactive_sync()
 
     def capture(self, prefix_path: str) -> str | None:
         """Capture."""
+        with self._serialised():
+            return self._capture_locked(prefix_path)
+
+    def _capture_locked(self, prefix_path: str) -> str | None:
+        """:meth:`capture`, with the session lock already held."""
         if not self._reader.has_valid_credentials(prefix_path):
             return None
         auth_dir = self._config.auth_prefix_dir_expanded
         source_is_auth = (
             Path(prefix_path).resolve() == Path(auth_dir).resolve()
         )
-        # Never propagate a regressed (logged-out) credential. UPC's
-        # ``ConnectSecureStorage.dat`` shrinks on logout; a game/launch/uninstall
-        # capture whose source is SMALLER than the live auth credential is a
-        # logout/stale token — skip the whole capture so neither the credential
-        # nor the (unguarded) auth-cache artifacts can carry it into the auth
-        # prefix or the template. (The auth prefix itself is exempt: it is the
-        # source of truth and may legitimately shrink on the user's own logout.)
+        # Never propagate a signed-OUT session. A vault UPC has signed out of
+        # holds no account, so capturing from it would carry the sign-out into
+        # the auth prefix and the template — and the auth-cache artifacts
+        # travel unguarded, so this has to skip the WHOLE capture, not just
+        # the credential copy. (The auth prefix itself is exempt: it is the
+        # source of truth and signs out legitimately.)
+        #
+        # Two earlier spellings of this test were both wrong, which is why
+        # :meth:`_CredentialReader.is_signed_in` now decides it by reading the
+        # vault: file size was the GH #435 ratchet, and "has a ``user.dat``
+        # beside it" never fired at all because the template clone puts
+        # ``user.dat`` in every prefix. With the guard inert, one signed-out
+        # game prefix reached this point on 2026-09-05, was captured into
+        # ``.upc-auth``, and was then fanned out over every other prefix.
         if not source_is_auth and self._source_is_logged_out(
             prefix_path, auth_dir,
         ):
@@ -195,9 +277,9 @@ class UbisoftSession:
         credential, UPC did not accept what we gave it — the stored token is
         dead server-side (Ubisoft rotates and invalidates; see the uninstall
         capture-back note). No local copy can revive it, and because
-        ``capture`` correctly refuses to overwrite a "logged-in" credential
-        with a smaller one, nothing else notices: every later install injects
-        the same dead token and the user is asked to sign in forever.
+        ``capture`` correctly refuses to capture back FROM a signed-out
+        prefix, nothing else notices: every later install injects the same
+        dead token and the user is asked to sign in forever.
 
         Deliberately read-only — it reports, it does not purge. Clearing a
         user's credentials is their call (QAM → Ubisoft → Sign out), not a
@@ -213,15 +295,18 @@ class UbisoftSession:
         return self._source_is_logged_out(prefix_path, auth_dir)
 
     def _source_is_logged_out(self, prefix_path: str, auth_dir: str) -> bool:
-        """True if ``prefix_path``'s credential is smaller than auth's.
+        """True if ``prefix_path`` holds a signed-OUT UPC session.
 
-        The logout signature (see :meth:`_CredentialReader.get_credential_size`).
-        Returns False when either side has no readable credential, so a first
-        capture that seeds an empty auth prefix still flows.
+        Decided by shape — a vault with no ``user.dat`` beside it — not by
+        comparing sizes against the auth prefix. See
+        :meth:`_CredentialReader.is_signed_in` for why the size comparison had
+        to go (GH #435: it froze the auth prefix on a dead token).
+
+        ``auth_dir`` is no longer read; it stays in the signature because
+        callers pass it and it keeps the two call sites symmetrical.
         """
-        src = self._reader.get_credential_size(prefix_path)
-        auth = self._reader.get_credential_size(auth_dir)
-        return bool(auth and src and src < auth)
+        del auth_dir
+        return not self._reader.is_signed_in(prefix_path)
 
     def _read_stored_mtime(self) -> float:
         """Read stored mtime."""

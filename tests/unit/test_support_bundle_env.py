@@ -173,7 +173,8 @@ def test_missing_dmi_degrades_instead_of_crashing(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
 ) -> None:
     """CI containers and VMs have no DMI directory."""
-    monkeypatch.setattr(probe_device, "_DMI", tmp_path / "absent")
+    monkeypatch.delenv("UNIFIDECK_DEVICE_TYPE", raising=False)
+    monkeypatch.setattr(probe_device, "DMI_PATH", tmp_path / "absent")
     block = probe_device.device_block()
     assert block["available"] is False
     assert "note" in block
@@ -221,7 +222,7 @@ def test_proxy_variables_are_presence_only(monkeypatch: pytest.MonkeyPatch) -> N
 def test_session_env_records_presence_without_values(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(probe_conflicts.procscan, "iter_processes", lambda: [])
+    monkeypatch.setattr(probe_conflicts.procscan, "iter_processes", list)
     block = probe_conflicts.session_env_block()
     assert block["steam_running"] is False
     assert block["variables"] == {}

@@ -1,7 +1,5 @@
 """Embedded-browser OAuth flow for GOG.
 
-OP-50h | py_modules/unifideck/stores/gog/auth.py
-
 GOG's OAuth flow requires the user to authenticate against the
 GOG.com login page in a real browser. ``GOGBrowserAuth`` orchestrates
 the embedded CDP browser:
@@ -9,7 +7,7 @@ the embedded CDP browser:
 * opens the GOG OAuth URL in the browser overlay;
 * injects a small script to capture the redirect URL containing the
   authorization code;
-* hands the code off to ``tokens/oauth.py`` (OP-52c) for exchange
+* hands the code off to ``tokens/oauth.py`` for exchange
   against access/refresh tokens.
 
 Failure modes (user cancels, network drops, CDP disconnect) are
@@ -33,7 +31,6 @@ from .tokens import ExchangeOutcome, GOGTokenManager
 
 logger = logging.getLogger(__name__)
 _GOG_COOKIE_DOMAIN = "gog.com"
-
 
 class GOGBrowserAuth:
     """Gogbrowser auth."""

@@ -23,7 +23,6 @@
  * is the safety net.
  */
 import { definePlugin } from "@decky/api";
-import { FaGamepad } from "react-icons/fa";
 import { FC } from "react";
 import { initI18n } from "./i18n";
 import { SteamBridge } from "./lib/steam-bridge";
@@ -40,6 +39,8 @@ import { applyAppStorePatch } from "./lib/steam-bridge/app-store-patcher";
 import { loadCompatCacheFromBackend } from "./lib/protondb-cache";
 import { runBootstrapTasks } from "./bootstrap-tasks";
 import { startLauncherToastPoll } from "./services/launcherToasts";
+import { startPluginUpdateNotice } from "./services/pluginUpdateNotice";
+import { PluginIcon, PluginTitleView } from "./components/PluginBadge";
 import { startBootEventListener } from "./services/boot-event-listener";
 import { downloadStore } from "./stores/download-store";
 import { syncStore } from "./stores/sync-store";
@@ -144,6 +145,15 @@ export default definePlugin(() => {
   } catch (e) {
     console.error("[Unifideck] launcher toast poll start failed:", e);
   }
+  // Announce a new plugin release: a capped toast plus the durable dot on
+  // our QAM icon/title. Boot-time — the backend's 6-hour poller only ever
+  // wrote a log line, so before this the only way to notice an update was
+  // to open the QAM and read the version header.
+  try {
+    handles.pluginUpdateNotice = startPluginUpdateNotice();
+  } catch (e) {
+    console.error("[Unifideck] plugin update notice start failed:", e);
+  }
   // Spoof non-Steam Unifideck shortcuts as Steam Store games so
   // Steam's own UI surfaces (library tile, AppDetails page,
   // friend presence) render real cover art + descriptions instead
@@ -164,9 +174,13 @@ export default definePlugin(() => {
   });
   return {
     name: "Unifideck",
-    titleView: <div>Unifideck</div>,
+    // Components, not static nodes: Decky renders both of these in the
+    // QAM (the plugin-list row and the open-plugin header), so they are
+    // where the pending-update dot lives. See components/PluginBadge.tsx
+    // for why Decky's own `_updates` badge is not used.
+    titleView: <PluginTitleView />,
     content: <PanelContent />,
-    icon: <FaGamepad />,
+    icon: <PluginIcon />,
     onDismount: () => {
       console.log("[Unifideck] Plugin unloading");
       runTeardown(handles);

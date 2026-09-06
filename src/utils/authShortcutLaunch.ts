@@ -52,7 +52,25 @@ export type AuthShortcutConfig = {
    *  launch_wait_ms}). Sourced from `rpcRoutes` so a backend
    *  rename is a one-file change. */
   contextRpcMethod: RouteName;
+  /** Shortcut display name for the `storefront` action, e.g.
+   *  "Epic Games Store". */
+  storeAppName: string;
+  /** store_game_id prefix for the `storefront` action, e.g.
+   *  "epic:epic-store". Distinct from `tempStoreIdPrefix` so a log
+   *  line or an id scan can tell a shop launch from a sign-in. */
+  storefrontStoreIdPrefix: string;
 };
+
+/**
+ * What the launcher should do with this shortcut.
+ *
+ * `auth` opens the store's OAuth page; `storefront` opens its shop in
+ * the same Edge profile, so the session established by a prior `auth`
+ * is still there and the user is already signed in. The frontend
+ * behaviour is identical — the difference is entirely inside the
+ * launcher, keyed off the `UNIFIDECK_<STORE>_ACTION` token.
+ */
+export type ShortcutAction = "auth" | "storefront";
 
 /**
  * Outcome of a single auth-shortcut launch attempt :
@@ -72,6 +90,8 @@ const EPIC_AUTH_CONFIG: AuthShortcutConfig = {
   appName: "Epic Games Sign-In",
   actionEnvVar: "UNIFIDECK_EPIC_ACTION",
   contextRpcMethod: rpcRoutes.getEpicAuthShortcutContext,
+  storeAppName: "Epic Games Store",
+  storefrontStoreIdPrefix: "epic:epic-store",
 };
 
 const GOG_AUTH_CONFIG: AuthShortcutConfig = {
@@ -81,6 +101,8 @@ const GOG_AUTH_CONFIG: AuthShortcutConfig = {
   appName: "GOG Sign-In",
   actionEnvVar: "UNIFIDECK_GOG_ACTION",
   contextRpcMethod: rpcRoutes.getGogAuthShortcutContext,
+  storeAppName: "GOG Store",
+  storefrontStoreIdPrefix: "gog:gog-store",
 };
 
 const AMAZON_AUTH_CONFIG: AuthShortcutConfig = {
@@ -90,6 +112,8 @@ const AMAZON_AUTH_CONFIG: AuthShortcutConfig = {
   appName: "Amazon Games Sign-In",
   actionEnvVar: "UNIFIDECK_AMAZON_ACTION",
   contextRpcMethod: rpcRoutes.getAmazonAuthShortcutContext,
+  storeAppName: "Prime Gaming",
+  storefrontStoreIdPrefix: "amazon:amazon-store",
 };
 
 const MICROSOFT_AUTH_CONFIG: AuthShortcutConfig = {
@@ -99,6 +123,8 @@ const MICROSOFT_AUTH_CONFIG: AuthShortcutConfig = {
   appName: "Microsoft Sign-In",
   actionEnvVar: "UNIFIDECK_MICROSOFT_ACTION",
   contextRpcMethod: rpcRoutes.getMicrosoftAuthShortcutContext,
+  storeAppName: "Xbox Store",
+  storefrontStoreIdPrefix: "microsoft:ms-store",
 };
 
 /** Log tag. */
@@ -136,9 +162,15 @@ interface AuthShortcutContextRPC {
  */
 export async function launchAuthViaShortcut(
   config: AuthShortcutConfig,
+  action: ShortcutAction = "auth",
 ): Promise<AuthShortcutLaunchResult> {
   const tag = logTag(config);
-  console.log(`${tag} Starting auth shortcut launch flow`);
+  const isShop = action === "storefront";
+  const appName = isShop ? config.storeAppName : config.appName;
+  const idPrefix = isShop
+    ? config.storefrontStoreIdPrefix
+    : config.tempStoreIdPrefix;
+  console.log(`${tag} Starting ${action} shortcut launch flow`);
   const raw = await call<[], unknown>(config.contextRpcMethod);
   const ctx = unwrapRpcEnvelope<AuthShortcutContextRPC>(raw, {
     route: config.contextRpcMethod,
@@ -163,10 +195,10 @@ export async function launchAuthViaShortcut(
       error: "Steam shortcut launch APIs are unavailable",
     };
   }
-  const tempStoreId = `${config.tempStoreIdPrefix}-${Date.now()}`;
-  const tempLaunchOptions = `${tempStoreId} ${config.actionEnvVar}=auth`;
+  const tempStoreId = `${idPrefix}-${Date.now()}`;
+  const tempLaunchOptions = `${tempStoreId} ${config.actionEnvVar}=${action}`;
   const tempAppId = await createTemporaryShortcut({
-    appName: config.appName,
+    appName,
     launcherPath: ctx.launcher_path,
     launchOptions: tempLaunchOptions,
     logTag: logTag(config),
@@ -175,16 +207,16 @@ export async function launchAuthViaShortcut(
     return {
       success: false,
       error:
-        `${config.appName} could not be prepared in Steam. ` +
+        `${appName} could not be prepared in Steam. ` +
         `Restart Steam once and try again.`,
     };
   }
   const alreadyRunning = isShortcutAppRunning(tempAppId);
   try {
     steamApps.SpecifyCompatTool?.(tempAppId, "");
-    // Best-effort: give the login window a keyboard/mouse layout so the
-    // store sign-in page is navigable. Fully guarded — never blocks the
-    // launch (see applyWebBrowserLayout).
+    // Best-effort: give the window a keyboard/mouse layout so the store
+    // page is navigable — a sign-in form or a shop, both need it. Fully
+    // guarded, never blocks the launch (see applyWebBrowserLayout).
     applyWebBrowserLayout(tempAppId);
     steamApps.SetShortcutLaunchOptions(tempAppId, tempLaunchOptions);
     const runGameId = getShortcutRunGameId(tempAppId);
@@ -194,8 +226,20 @@ export async function launchAuthViaShortcut(
     );
     steamApps.RunGame(runGameId, "", -1, 100);
     scheduleTemporaryShortcutCleanup(tempAppId, logTag(config));
-    console.log(`${tag} Auth launched via RunGame (appId=${tempAppId})`);
-    return { success: true, already_running: alreadyRunning, appId: tempAppId };
+    console.log(`${tag} ${action} launched via RunGame (appId=${tempAppId})`);
+    // Both keys, deliberately. `ShortcutLaunchResult` declares `app_id`
+    // and `AuthDispatcher` reads `launchResult.app_id`, but this function
+    // only ever returned `appId` — so the app-stopped backstop silently
+    // never installed for these four stores, and a sign-in whose event
+    // was lost hung the button for the full 10-minute ceiling instead of
+    // ~20s. The storefront flow needs the appid too, to know when the
+    // shop window closed.
+    return {
+      success: true,
+      already_running: alreadyRunning,
+      appId: tempAppId,
+      app_id: tempAppId,
+    };
   } catch (error) {
     console.error(`${tag} Shortcut launch failed:`, error);
     return {
@@ -241,3 +285,32 @@ export const launchAmazonAuthViaShortcut =
 export const launchMicrosoftAuthViaShortcut =
   (): Promise<AuthShortcutLaunchResult> =>
     launchAuthViaShortcut(MICROSOFT_AUTH_CONFIG);
+
+// ─── Storefront launchers ────────────────────────────────────
+/**
+ * Shop-window counterparts of the four sign-in launchers above.
+ *
+ * Same shortcut → RunGame → launcher pipeline, same per-store config;
+ * only the action token differs. The launcher then opens Edge on the
+ * store's shop URL using the SAME profile the sign-in used, which is
+ * what carries the session over — see
+ * `py_modules/unifideck/launcher/flows/storefront.py`.
+ */
+export const launchEpicStorefrontViaShortcut =
+  (): Promise<AuthShortcutLaunchResult> =>
+    launchAuthViaShortcut(EPIC_AUTH_CONFIG, "storefront");
+
+/** GOG shop. See {@link launchEpicStorefrontViaShortcut}. */
+export const launchGogStorefrontViaShortcut =
+  (): Promise<AuthShortcutLaunchResult> =>
+    launchAuthViaShortcut(GOG_AUTH_CONFIG, "storefront");
+
+/** Prime Gaming, where Amazon titles are claimed rather than bought. */
+export const launchAmazonStorefrontViaShortcut =
+  (): Promise<AuthShortcutLaunchResult> =>
+    launchAuthViaShortcut(AMAZON_AUTH_CONFIG, "storefront");
+
+/** Xbox / Game Pass. See {@link launchEpicStorefrontViaShortcut}. */
+export const launchMicrosoftStorefrontViaShortcut =
+  (): Promise<AuthShortcutLaunchResult> =>
+    launchAuthViaShortcut(MICROSOFT_AUTH_CONFIG, "storefront");

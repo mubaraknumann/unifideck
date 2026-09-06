@@ -36,11 +36,6 @@ from .device_identity import (
     DeviceIdentityError,
     FakeDeviceIdentity,
 )
-from .ephemeral_creds import (
-    EphemeralCredentialContext,
-    EphemeralCredentialError,
-    InPlaceEphemeralFile,
-)
 from .redaction import redact_for_audit
 from .secure_io import (
     SecureIOError,
@@ -51,16 +46,15 @@ from .secure_token_store import (
     SecureTokenStore,
     SecureTokenStoreError,
 )
+from .token_file import EncryptedTokenFile
 
 __all__ = [
     "DeviceFingerprint",
     "DeviceIdentity",
     "DeviceIdentityError",
-    "EphemeralCredentialContext",
-    "EphemeralCredentialError",
+    "EncryptedTokenFile",
     "FakeDeviceIdentity",
     "FingerprintState",
-    "InPlaceEphemeralFile",
     "SecureIOError",
     "SecureTokenStore",
     "SecureTokenStoreError",

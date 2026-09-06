@@ -204,7 +204,7 @@ def build_umu_argv(
         str(params.get("game_directory") or ""),
         str(params["game_executable"]),
     )
-    argv: list[str] = list(plan.state.wrappers)
+    argv: list[str] = []
     argv.extend(_str_list(params, "launch_command"))
     argv.append(exe)
     argv.extend(_str_list(params, "game_parameters"))

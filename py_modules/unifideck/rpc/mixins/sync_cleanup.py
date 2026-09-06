@@ -1,7 +1,5 @@
 """Full-cleanup RPC machinery for :class:`SyncRPCMixin`.
 
-OP-26f-bis | rpc/mixins/sync_cleanup.py
-
 Extracted from ``rpc/mixins/sync.py`` to keep that file under the
 550-LOC volumetry cap. Holds the "Delete all Unifideck data" flow —
 shortcut removal, grid-artwork wipe, store sign-out, credential
@@ -15,13 +13,12 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from unifideck.core import marker_sweep
+from unifideck.core import cleanup_sweeps, marker_sweep
+from unifideck.core.compat_bridge import to_unsigned
 from unifideck.core.safe_delete import safe_rmtree
-from unifideck.rpc.mixins import cleanup_sweeps
 from unifideck.rpc.mixins.cleanup_finalize import _CleanupFinalizeMixin
 
 logger = logging.getLogger(__name__)
-
 
 class CleanupRPCMixin(_CleanupFinalizeMixin):
     """"Delete all Unifideck data" flow + its app_id collectors."""
@@ -207,7 +204,7 @@ class CleanupRPCMixin(_CleanupFinalizeMixin):
                 continue
             app_id = entry.get("appid")
             if isinstance(app_id, int):
-                keep.add(app_id if app_id >= 0 else app_id + 0x100000000)
+                keep.add(to_unsigned(app_id))
         return keep
 
     async def _delete_nonsteam_artwork(self, keep_appids: set[int]) -> int:

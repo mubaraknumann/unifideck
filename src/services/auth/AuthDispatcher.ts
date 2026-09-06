@@ -42,6 +42,7 @@ import {
 import { launchUbisoftAuthViaShortcut } from "../../utils/ubisoftShortcutLaunch";
 import { launchBattlenetAuthViaShortcut } from "../../utils/battlenetShortcutLaunch";
 import { prepareForSync } from "../../lib/steam-bridge/prepare-sync";
+import { storeReportsConnected } from "./store-status";
 import type { StoreId, AuthResult } from "../../types/api";
 
 const AUTH_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes ceiling
@@ -56,35 +57,6 @@ const DEDUPE_WINDOW_MS = 3000;
  *  flushes its token as it shuts down, so a successful sign-in's
  *  ``STORE_AUTH_COMPLETE`` routinely lands *after* the app has stopped. */
 const AUTH_APP_STOPPED_GRACE_MS = 20 * 1000;
-
-/**
- * Whether the backend currently considers ``store`` signed in.
- *
- * Reuses ``check_store_status`` — the probe behind the stores tab's
- * badges — rather than adding a second source of truth for the same
- * question. Any failure answers ``false``: this only ever *rescues* a
- * flow that was about to be called failed, so an unreachable backend
- * must leave that verdict alone.
- */
-async function storeReportsConnected(store: StoreId): Promise<boolean> {
-  try {
-    const raw = await call<[], unknown>(rpcRoutes.checkStoreStatus);
-    const data = unwrapRpcEnvelope<unknown>(raw, {
-      route: rpcRoutes.checkStoreStatus,
-      throwing: false,
-    });
-    if (!Array.isArray(data)) return false;
-    return data.some(
-      (e) =>
-        e &&
-        typeof e === "object" &&
-        (e as Record<string, unknown>).store_id === store &&
-        Boolean((e as Record<string, unknown>).available),
-    );
-  } catch {
-    return false;
-  }
-}
 
 /** Auth event payload. */
 interface AuthEventPayload {

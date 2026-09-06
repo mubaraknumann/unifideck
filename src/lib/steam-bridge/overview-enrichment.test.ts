@@ -50,11 +50,12 @@ const RECORD = {
   review_percentage: 95,
   // The sync that first saw this game — the value that used to leak.
   date_added_unix: 1784412946,
-  deck_category: 3,
+  compat_category: 3,
+  compat_status: "verified",
+  compat_categories: { deck: 3, machine: 2, steamos: 2 },
   store_category: [2, 1],
   store_tag: [1, 23],
   protondb_tier: "platinum",
-  deck_status: "verified",
 };
 
 interface TestOverview {
@@ -118,8 +119,11 @@ describe("overview enrichment — rt_purchased_time", () => {
     expect(ov.rt_steam_release_date).toBe(RELEASE_UNIX);
     expect(ov.review_score_with_bombs).toBe(8);
     expect(ov.review_percentage_with_bombs).toBe(95);
-    // low 2 bits carry the Deck-compat category (3 = Verified)
-    expect(ov.steam_hw_compat_category_packed).toBe(3);
+    // Each device's rating lands in its own 2-bit slot: deck at 0,
+    // steamos at 4, machine at 6. Writing only the Deck's is what made
+    // our shortcuts invisible to a Steam Machine's native filters.
+    // deck=3 | steamos=2<<4 | machine=2<<6 === 0b10_10_0011
+    expect(ov.steam_hw_compat_category_packed).toBe(0b10_10_0011);
     expect([...ov.m_setStoreCategories!]).toEqual([2, 1]);
     expect([...ov.m_setStoreTags!]).toEqual([1, 23]);
   });

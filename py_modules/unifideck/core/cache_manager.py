@@ -1,7 +1,5 @@
 """Disk-backed TTL cache — per-namespace stores managed centrally.
 
-OP-08k | py_modules/unifideck/core/cache_manager.py
-
 Two cooperating types:
 
 * ``CacheStore``   — one named cache backed by a single
@@ -23,6 +21,8 @@ Files are written with ``chmod 0600`` so cache contents
 owner-readable.
 """
 
+from __future__ import annotations
+
 import contextlib
 import copy
 import json
@@ -32,7 +32,6 @@ from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
-
 
 class CacheStore:
     """One named cache with TTL, disk persistence, and backup recovery."""
@@ -272,7 +271,6 @@ class CacheStore:
             if tmp.exists():
                 with contextlib.suppress(OSError):
                     tmp.unlink()
-
 
 class CacheManager:
     """Top-level facade owning a directory of named ``CacheStore`` instances."""

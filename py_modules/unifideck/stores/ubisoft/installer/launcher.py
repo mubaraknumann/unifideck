@@ -1,8 +1,6 @@
 """
 UPC installer subprocess launcher — wine-runs UbisoftConnectInstaller.exe.
 
-OP-56d | py_modules/unifideck/stores/ubisoft/installer/launcher.py
-
 ``UbisoftInstallerLauncher`` wraps the ``proton run`` / ``wine`` call
 that launches the UPC installer executable inside a dedicated prefix.
 It handles:
@@ -30,7 +28,6 @@ from .launch_env import UpcLaunchEnvBuildError
 if TYPE_CHECKING:
     from .installer import UbisoftInstaller
 logger = logging.getLogger(__name__)
-
 
 class _LauncherInstall:
     """Launcher install."""

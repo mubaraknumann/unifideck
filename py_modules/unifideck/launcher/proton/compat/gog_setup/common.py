@@ -8,16 +8,13 @@ match what gogdl writes (same locations staging used).
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from unifideck.launcher.proton.infrastructure.container_escape import (
-    escape_argv,
-)
+from unifideck.launcher.proton.infrastructure.setup_run import run_setup_exe
 
 if TYPE_CHECKING:
     from unifideck.launcher.proton.infrastructure.core import ProtonLaunchPlan
@@ -130,34 +127,15 @@ async def run_wine(
 ) -> bool:
     """Run a Windows exe in the game's prefix via umu. True on rc 0.
 
-    Reuses the plan's env (PROTONPATH / STEAM_COMPAT_DATA_PATH already
-    set by proton_prepare), overriding GAMEID/STORE/PROTON_VERB for a
-    generic setup invocation. Setup installers often exit non-zero for
-    "already installed", so callers treat failures as non-fatal.
+    Thin ``STORE=gog`` binding of :func:`setup_run.run_setup_exe`, which owns
+    the umu spawn for every prefix-setup step and carries the reason none of
+    them may call a Proton's ``wine`` directly.
+
+    This is the one setup site with an unbounded wait — no timeout, no retry,
+    no wineserver reap — so anything that wedges a helper here wedges the
+    launch outright rather than costing a timeout budget. GOG's setup steps
+    are full Windows installers and a bounded wait would cut them off inside
+    a prefix; the registry writers, which are quick and sit on the launch hot
+    path, pass a timeout instead.
     """
-    env = dict(plan.env)
-    env["GAMEID"] = "umu-0"
-    env["STORE"] = "gog"
-    env["PROTON_VERB"] = "run"
-    # Escape Steam's pressure-vessel when Force-Compat wrapped us, or every
-    # setup step nests a second container and returns rc=1 — observed as 9
-    # straight failures (scriptinterpreter + all four vcredists) in a field
-    # bundle, silently leaving the prefix without its redistributables.
-    # No-op when unwrapped. See infrastructure.container_escape.
-    cmd = escape_argv(
-        [str(plan.python_bin), str(plan.umu_wrapper), exe, *args], env, None,
-    )
-    logger.info("[gog_setup] run: %s %s", Path(exe).name, " ".join(args[:4]))
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd, env=env,
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
-        )
-        rc = await proc.wait()
-    except OSError as e:
-        logger.warning("[gog_setup] run failed to spawn: %s", e)
-        return False
-    if rc != 0:
-        logger.warning("[gog_setup] command rc=%d (%s)", rc, Path(exe).name)
-    return rc == 0
+    return await run_setup_exe(plan, exe, args, store="gog", label="gog_setup")

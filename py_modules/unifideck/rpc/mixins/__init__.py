@@ -1,60 +1,69 @@
-"""RPC mixin classes — alternative composition path to handler groups.
+"""RPC mixin classes — the plugin's RPC surface, composed via inheritance.
 
-OP-26 | py_modules/unifideck/rpc/mixins/__init__.py
+Each mixin declares a few public coroutines that are mixed into
+``class Plugin(...)`` in ``main.py``. ``@auto_wrap_rpc_methods`` then
+rewrites every public coroutine to return a typed ``Result[T]`` envelope.
 
-The mixins are the **older** composition style for the RPC
-surface: each one declares a few methods that get mixed into
-the plugin class via multiple inheritance, rather than being
-attached at runtime via ``composer.bind_handlers``.
-
-Both styles coexist in v1.3 for migration reasons; new RPC
-methods should be added to a handler group (``handlers/``)
-rather than a mixin. The mixins remain wired in for backward
-compatibility with code that already imports them.
+``__all__`` must re-export every mixin composed in ``main.py``. That
+agreement is machine-enforced by ``scripts/validate_architecture.py``
+(see the ``unifideck-drift-guard`` skill): after adding a mixin, update
+both ``main.py`` and this file's imports and ``__all__`` together.
 
 Per-mixin scope:
 
-* ``ActionRPCMixin``         — ``unifideck://`` URI dispatch;
-* ``CloudFailureRPCMixin``   — cloud-failure UX configuration;
-* ``ConfigValidationRPCMixin`` — config-validation status;
-* ``DownloadRPCMixin``       — download-queue management;
-* ``LaunchRPCMixin``         — launch / circuit breaker;
-* ``ObservabilityRPCMixin``  — metrics, watchdog, replay;
-* ``PlaytimeRPCMixin``       — per-game playtime stats;
-* ``SecurityRPCMixin``       — audit log + brute-force state;
-* ``StoreRPCMixin``          — auth + login state;
-* ``SyncRPCMixin``           — library sync + game info;
-* ``UIRPCMixin``             — Steam-UI manipulation + locale.
-
-Re-exports every mixin class as a public name.
+* ``AccountRPCMixin``         — Steam account-switch detection + migration;
+* ``ActionRPCMixin``          — ``unifideck://`` URI dispatch;
+* ``AchievementsRPCMixin``    — game achievements + last-session summary;
+* ``AuthShortcutsRPCMixin``   — per-store auth-shortcut context + compat tool;
+* ``CloudSaveRPCMixin``       — cloud-save pull/push/status;
+* ``DownloadRPCMixin``        — download-queue management;
+* ``EdgeRPCMixin``            — Microsoft Edge install + readiness;
+* ``ExecutableRPCMixin``      — user-settable launch executable per game;
+* ``LaunchRPCMixin``          — launch / circuit breaker;
+* ``LibraryFacetsRPCMixin``   — per-shortcut facets for native Sort/Filters;
+* ``ObservabilityRPCMixin``   — metrics, watchdog, replay;
+* ``PlaytimeRPCMixin``        — per-game playtime stats;
+* ``StorageRPCMixin``         — storage locations + browseable devices;
+* ``StoreRPCMixin``           — auth + login state;
+* ``SyncRPCMixin``            — library sync + game info;
+* ``UIRPCMixin``              — Steam-UI manipulation + locale;
+* ``UpdaterRPCMixin``         — self-update + release notes.
 """
 
 from __future__ import annotations
 
+from .account import AccountRPCMixin
+from .achievements import AchievementsRPCMixin
 from .action import ActionRPCMixin
-from .cloud_failure import CloudFailureRPCMixin
+from .auth_shortcuts import AuthShortcutsRPCMixin
 from .cloud_save import CloudSaveRPCMixin
-from .config_validation import ConfigValidationRPCMixin
 from .download import DownloadRPCMixin
+from .edge import EdgeRPCMixin
+from .executable import ExecutableRPCMixin
 from .launch import LaunchRPCMixin
+from .library_facets import LibraryFacetsRPCMixin
 from .observability import ObservabilityRPCMixin
 from .playtime import PlaytimeRPCMixin
-from .security import SecurityRPCMixin
+from .storage import StorageRPCMixin
 from .store import StoreRPCMixin
 from .sync import SyncRPCMixin
 from .ui import UIRPCMixin
 from .updater import UpdaterRPCMixin
 
 __all__ = [
+    "AccountRPCMixin",
+    "AchievementsRPCMixin",
     "ActionRPCMixin",
-    "CloudFailureRPCMixin",
+    "AuthShortcutsRPCMixin",
     "CloudSaveRPCMixin",
-    "ConfigValidationRPCMixin",
     "DownloadRPCMixin",
+    "EdgeRPCMixin",
+    "ExecutableRPCMixin",
     "LaunchRPCMixin",
+    "LibraryFacetsRPCMixin",
     "ObservabilityRPCMixin",
     "PlaytimeRPCMixin",
-    "SecurityRPCMixin",
+    "StorageRPCMixin",
     "StoreRPCMixin",
     "SyncRPCMixin",
     "UIRPCMixin",

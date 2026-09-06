@@ -12,11 +12,13 @@
  * interval re-renders consumers so the countdown is visible.
  *
  * The cooldown duration is configurable at runtime via
- * `setSyncCooldownMs` — SyncContext calls it on mount with the
- * value from `get_sync_status().cooldown_ms` so power users can
- * tune it via the backend config without a code change. Default
- * matches staging (5s) to undo the 30s regression that ships in
- * for-pr-0.7 before this hook is wired through.
+ * `setSyncCooldownMs`, which `SyncStore._pollOnce` calls with the
+ * `cooldown_ms` field of `get_sync_progress()` — so power users can
+ * tune it via the backend config without a code change. (That field
+ * comes from `SyncService.get_status()`; the `get_sync_status` route
+ * that once fronted it was a dead alias of `get_sync_progress` and
+ * was deleted in the audit §1.2 pass.) Default matches staging (5s)
+ * to undo the 30s regression that shipped in for-pr-0.7.
  */
 import { useEffect, useState } from "react";
 import { useEventBus } from "../api/event-bus-client";
@@ -30,8 +32,8 @@ let cooldownEndsAt = 0;
 /** Active cooldown duration. Mutable via `setSyncCooldownMs`. */
 let cooldownMs = DEFAULT_COOLDOWN_MS;
 
-/** Override the active cooldown. Called once at SyncContext mount
- *  after fetching `get_sync_status().cooldown_ms` from the backend.
+/** Override the active cooldown. Called by `SyncStore._pollOnce`
+ *  with the `cooldown_ms` field of `get_sync_progress()`.
  *  Falls back to the default if the value is invalid. */
 export function setSyncCooldownMs(ms: number): void {
   if (!Number.isFinite(ms) || ms < 0) return;

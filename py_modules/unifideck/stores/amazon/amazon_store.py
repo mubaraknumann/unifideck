@@ -1,15 +1,13 @@
 """Amazon Games store — Layer-4 implementation of the unified store interface.
 
-OP-49a | py_modules/unifideck/stores/amazon/amazon_store.py
-
 ``AmazonStore`` is the orchestration class that wires every Amazon
 sub-component together and exposes them through the ``StoreBase``
 contract. It owns one instance each of :
 
-* ``AmazonAuthFlow`` (OP-49b)      — embedded-browser OAuth flow.
-* ``AmazonLibraryReader`` (OP-49c) — owned-games library reader.
-* ``AmazonInstaller`` (OP-49d)     — install/uninstall pipeline.
-* ``AmazonUpdateChecker`` (OP-49e) — periodic update polling.
+* ``AmazonAuthFlow`` — embedded-browser OAuth flow.
+* ``AmazonLibraryReader`` — owned-games library reader.
+* ``AmazonInstaller`` — install/uninstall pipeline.
+* ``AmazonUpdateChecker`` — periodic update polling.
 
 Amazon Games uses ``nile`` (a community CLI mirror of the Amazon
 Games launcher) for the actual downloads ; the store class is the
@@ -24,7 +22,7 @@ appropriate sub-component.
 
 from __future__ import annotations
 
-import json
+import asyncio
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -40,14 +38,19 @@ from unifideck.core.types import (
     Result,
     StoreInfo,
 )
-from unifideck.security import emit_external_auth_check_failed
 from unifideck.services.shortcut import ShortcutService
+from unifideck.stores.shared.browser_auth_rebuild import (
+    BrowserAuthRebuildMixin,
+)
+from unifideck.stores.shared.cli_credentials import read_cli_user_json
+from unifideck.stores.shared.install_status import merge_install_status
+from unifideck.stores.shared.installed_path import install_path_from_record
 from unifideck.stores.shared.store_base import StoreBase
 from unifideck.utils.config_helpers import get_cfg
 
 from .amazon_auth import AmazonAuthFlow
 from .amazon_install import AmazonInstaller, ProgressCallback
-from .amazon_library import AmazonLibraryReader, merge_install_status
+from .amazon_library import AmazonLibraryReader
 from .amazon_updates import AmazonUpdateChecker
 
 if TYPE_CHECKING:
@@ -56,8 +59,7 @@ if TYPE_CHECKING:
     from unifideck.event_bus.event_bus import EventBus
 logger = logging.getLogger(__name__)
 
-
-class AmazonStore(StoreBase):
+class AmazonStore(BrowserAuthRebuildMixin, StoreBase):
     """Amazon store."""
 
     store_info = StoreInfo(
@@ -65,13 +67,11 @@ class AmazonStore(StoreBase):
         display_name="Amazon Games",
         auth_method="oauth",
         icon_asset="amazon.png",
-        uses_wine=False,
         supports_install=True,
     )
     CLI_TOOL = CLITool(
         name="nile",
         search_paths=["bin/nile"],
-        version_flag="--version",
     )
 
     def __init__(
@@ -120,39 +120,19 @@ class AmazonStore(StoreBase):
         # against the just-injected monitor.
         self._browser_monitor = browser_monitor
         self._amazon_cfg = amazon_cfg
-        self._bus_ref = bus
         self._auth: AmazonAuthFlow | None = None
         self._rebuild_auth_after_injection()
 
-    def _rebuild_auth_after_injection(self) -> None:
-        """Build the ``AmazonAuthFlow`` if a browser monitor is set.
-
-        Idempotent : the injector may call this multiple times, so
-        we early-return if ``_auth`` is already wired against the
-        current ``_browser_monitor``.
-        """
-        if self._auth is not None:
-            return
-        monitor = getattr(self, "_browser_monitor", None)
-        if monitor is None:
-            logger.debug(
-                "[AmazonStore] no browser_monitor; auth disabled",
-            )
-            return
-        orchestrator = AuthOrchestrator(
-            bus=self._bus_ref,
-            browser_monitor=monitor,
-            store_name="amazon",
-        )
-        self._auth = AmazonAuthFlow(
-            bus=self._bus_ref,
+    def _build_auth_flow(self, orchestrator: AuthOrchestrator) -> AmazonAuthFlow:
+        """Amazon's half of ``BrowserAuthRebuildMixin``."""
+        return AmazonAuthFlow(
+            bus=self._bus,
             orchestrator=orchestrator,
             cli_path=self.cli_path,
             success_markers=self._amazon_cfg[
                 "nile_register_success_markers"
             ],
         )
-        logger.info("[AmazonStore] auth flow wired")
 
     async def is_available(self) -> bool:
         """Check whether available."""
@@ -161,39 +141,75 @@ class AmazonStore(StoreBase):
         return ok
 
     def _check_nile_authenticated(self) -> bool:
-        """Check NILE authenticated."""
-        if not self.cli_path:
-            emit_external_auth_check_failed(
-                self._bus,
-                "amazon",
-                "cli_not_found",
-                "nile binary missing from search paths",
-            )
-            return False
-        user_file = str(Path(get_cfg(
+        """Check NILE authenticated.
+
+        Shares its reader with Epic (``stores/shared/cli_credentials``),
+        including the 0600 hardening that also covers
+        ``quarantine_corrupt_user_file``'s ``.corrupt-*`` copies — a rename
+        preserves the original mode, and those copies still hold live
+        credentials.
+
+        One behaviour gained by sharing: the object check. This copy called
+        ``data.get`` on whatever ``json.load`` returned, so a ``user.json``
+        holding a JSON *array* raised ``AttributeError`` out of the
+        store-status path. Epic's copy had the guard; now both do.
+        """
+        return read_cli_user_json(
+            "amazon",
+            self.cli_path,
+            str(Path(get_cfg(
                 self._config,
                 "stores.amazon.user_file",
                 "~/.config/nile/user.json",
-            )).expanduser())
-        if not Path(user_file).is_file():
-            return False
-        try:
-            with Path(user_file).open(encoding="utf-8") as f:
-                data = json.load(f)
-        except (OSError, json.JSONDecodeError) as e:
-            logger.debug(
-                "[AmazonStore] user.json invalid: %s",
-                e,
+            )).expanduser()),
+            self._bus,
+            validate=lambda data: "customer_info" in data.get("extensions", {}),
+        )
+
+    async def prepare_web_session(self) -> Result:
+        """Give the browser a signed-in amazon.com before the shop opens.
+
+        nile signs in through Amazon's *device registration* flow, which
+        authorises the device but leaves the shared Edge profile without
+        the auth cookies a signed-in amazon.com needs — so the shop
+        opened logged out even though the store itself worked. Exchange
+        nile's refresh token for website cookies (what Amazon's own apps
+        do) and plant them where Edge will read them.
+
+        Only Amazon needs this. The other browser stores sign in through
+        ordinary web logins that leave a session behind on their own.
+
+        Best-effort throughout: a failure here means the shop opens with
+        whatever session the profile already had, never that the cart
+        stops working.
+        """
+        from unifideck.auth.edge_browser.cookie_writer import write_cookies
+        from unifideck.auth.edge_browser.edge import PROFILE_DIR, EdgeBrowser
+        from unifideck.stores.amazon.web_session import fetch_website_cookies
+
+        # A running Edge owns the cookie DB and flushes its in-memory
+        # copy over it on exit, so anything written underneath is lost.
+        # Refuse rather than write something that cannot take effect.
+        edge = getattr(self, "_edge", None)
+        if edge is not None and any(
+            EdgeBrowser.cdp_alive(port)
+            for port in (
+                edge.cdp_port,
+                edge.xcloud_cdp_port(),
+                edge.storefront_cdp_port(),
             )
-            emit_external_auth_check_failed(
-                self._bus,
-                "amazon",
-                "parse_error",
-                f"{type(e).__name__}",
+        ):
+            logger.info(
+                "[AmazonStore] Edge is running — skipping cookie write",
             )
-            return False
-        extensions = data.get("extensions", {})
-        return "customer_info" in extensions
+            return Result(success=False, store="amazon", error="edge_running")
+        cookies = await fetch_website_cookies()
+        if not cookies:
+            return Result(success=False, store="amazon", error="no_web_cookies")
+        written = await asyncio.to_thread(
+            write_cookies, PROFILE_DIR, cookies,
+        )
+        return Result(success=written > 0, store="amazon")
 
     async def start_auth(self, **kwargs: Any) -> AuthResult:
         """Start auth."""
@@ -263,7 +279,9 @@ class AmazonStore(StoreBase):
                 )
             owned = await self._library.read_owned_games()
             installed = await self._library.read_installed_ids()
-            return merge_install_status(owned, installed)
+            # nile records the directory under ``path``; it can outlive the
+            # files, so it is re-checked against disk.
+            return merge_install_status(owned, installed, path_key="path")
         except Exception:
             logger.exception("[AmazonStore] get_library failed")
             return []
@@ -320,8 +338,9 @@ class AmazonStore(StoreBase):
         """
         installed = await self._library.read_installed_ids()
         info = installed.get(game_id) if isinstance(installed, dict) else None
-        path = info.get("path") if isinstance(info, dict) else None
-        return path if isinstance(path, str) and path else None
+        # nile calls the field ``path``; GOG and Ubisoft call it
+        # ``install_path``. That literal is the only per-store difference.
+        return install_path_from_record(info, key="path")
 
     async def get_official_url(self, game_id: str) -> str | None:
         """Get official URL."""

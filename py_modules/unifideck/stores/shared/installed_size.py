@@ -13,50 +13,106 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import os
+from collections.abc import Callable
 from typing import Any
 
 from unifideck.launcher.wrapper_stores import prefix_owns_game_install
 
+#: ``st_blocks`` is defined in 512-byte units regardless of the filesystem's
+#: own block size. This is POSIX, not a guess about ext4.
+_BLOCK_BYTES = 512
+
+_SizeOf = Callable[[os.stat_result], int]
+
+
+def _apparent(st: os.stat_result) -> int:
+    """The file's length — what it claims to be, holes included."""
+    return st.st_size
+
+
+def _allocated(st: os.stat_result) -> int:
+    """The blocks actually committed to it — what it really costs."""
+    return st.st_blocks * _BLOCK_BYTES
+
 
 def dir_size_bytes(path: str) -> int:
-    """Sum the on-disk byte size of every regular file under ``path``.
+    """Sum the *apparent* byte size of every regular file under ``path``.
 
     Iterative ``os.scandir`` walk (reuses each ``DirEntry``'s cached
     stat, so it's cheaper than ``os.walk`` + ``os.stat`` on large
     install trees). Symlinks are not followed — avoids cycles and
     double-counting. Unreadable entries are skipped: this only feeds a
     size display, so a partial total beats an error.
+
+    This is the right measure for a **finished** install, which is what
+    every caller here is sizing. A completed game has no holes, so
+    apparent and allocated agree, and apparent is the one that survives a
+    compressing filesystem: on Bazzite's btrfs the allocated figure is
+    smaller than the size the user sees everywhere else.
+
+    It is emphatically **not** the right measure for an install still in
+    flight — see :func:`dir_allocated_bytes`.
     """
+    return _walk(path, _apparent)
+
+
+def dir_allocated_bytes(path: str) -> int:
+    """Sum the bytes actually committed to disk under ``path``.
+
+    Same walk as :func:`dir_size_bytes`, counting allocated blocks rather
+    than file length, so a sparse file contributes what it has really
+    been given rather than what it has reserved.
+
+    This exists because vendor clients pre-allocate. Ubisoft Connect
+    creates every file in the game at its full final length the moment it
+    accepts the job, so the apparent size of a 2.4 GB install reaches
+    2.4 GB seconds in and then never changes again. A wrapper-store
+    install watcher that reads progress from apparent size therefore sees
+    a download that is instantly finished and perfectly stable — which is
+    exactly how a Splinter Cell install came to be declared complete 18
+    minutes early, releasing the download queue's single slot to the next
+    game while UPC was still writing.
+
+    Progress must be measured with this; a finished install's footprint
+    must not.
+    """
+    return _walk(path, _allocated)
+
+
+def _walk(path: str, size_of: _SizeOf) -> int:
+    """Total ``size_of`` across every regular file under ``path``."""
     total = 0
     stack = [path]
     while stack:
-        subdirs, size = _scan_one_dir(stack.pop())
+        subdirs, size = _scan_one_dir(stack.pop(), size_of)
         stack.extend(subdirs)
         total += size
     return total
 
 
-def _scan_one_dir(current: str) -> tuple[list[str], int]:
+def _scan_one_dir(current: str, size_of: _SizeOf) -> tuple[list[str], int]:
     """Return ``(subdir paths, summed file bytes)`` for one directory level."""
     subdirs: list[str] = []
     total = 0
     try:
         with os.scandir(current) as it:
             for entry in it:
-                total += _entry_size(entry, subdirs)
+                total += _entry_size(entry, subdirs, size_of)
     except OSError:
         return subdirs, total
     return subdirs, total
 
 
-def _entry_size(entry: os.DirEntry[str], subdirs: list[str]) -> int:
+def _entry_size(
+    entry: os.DirEntry[str], subdirs: list[str], size_of: _SizeOf,
+) -> int:
     """Queue directories onto *subdirs*; return a file's byte size (else 0)."""
     try:
         if entry.is_dir(follow_symlinks=False):
             subdirs.append(entry.path)
             return 0
         if entry.is_file(follow_symlinks=False):
-            return entry.stat(follow_symlinks=False).st_size
+            return size_of(entry.stat(follow_symlinks=False))
     except OSError:
         return 0
     return 0

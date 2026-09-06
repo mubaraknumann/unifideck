@@ -24,8 +24,8 @@
  *  - plain writable fields → assign (metacritic, rt_* dates, reviews,
  *    playtime, size);
  *  - `store_category` getter → mutate `m_setStoreCategories` (Players);
- *  - `steam_deck_compat_category` getter → write
- *    `steam_hw_compat_category_packed` (Deck-compat).
+ *  - per-device compat getters → write
+ *    `steam_hw_compat_category_packed` (see `compat-packed.ts`).
  */
 import { call } from "@decky/api";
 import { rpcRoutes } from "../../api/rpc-routes";
@@ -34,6 +34,7 @@ import { EventBusClient } from "../../api/event-bus-client";
 import { Events } from "../../types/events";
 import { unifideckGameCache } from "../library-filters";
 import { getFacet, loadFacets, type FacetRecord } from "../library-facets";
+import { packCompat } from "./compat-packed";
 import {
   onGameSizeInvalidated,
   registerGameSizeCache,
@@ -155,9 +156,15 @@ function applyFacet(ov: EnrichableOverview, facet: FacetRecord): void {
   if (typeof facet.review_percentage === "number") {
     ov.review_percentage_with_bombs = facet.review_percentage;
   }
-  if (facet.deck_category > 0) {
-    const cur = ov.steam_hw_compat_category_packed ?? 0;
-    ov.steam_hw_compat_category_packed = (cur & ~3) | (facet.deck_category & 3);
+  // Write EVERY track we know, not just the Deck's. Steam picks the
+  // field to read from the device it is running on, so a Machine reads
+  // bits 6-7 — which we never used to set, making our shortcuts
+  // invisible to its native filters and badges.
+  if (facet.compat_categories) {
+    ov.steam_hw_compat_category_packed = packCompat(
+      ov.steam_hw_compat_category_packed ?? 0,
+      facet.compat_categories,
+    );
   }
   setIds(ov.m_setStoreCategories, facet.store_category);
   setIds(ov.m_setStoreTags, facet.store_tag);

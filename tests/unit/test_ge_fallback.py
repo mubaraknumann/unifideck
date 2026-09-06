@@ -37,6 +37,7 @@ async def test_fallback_skipped_when_already_ge_proton(tmp_path, monkeypatch):
     root = tmp_path / "prefix"
     root.mkdir()
     plan = _plan(root, "GE-Proton10-34")
+    monkeypatch.setattr(gf, "_resolve_ge_proton", lambda: (Path("/opt/ge/proton"), "GE-Proton10-34"))
     retry = MagicMock()
     monkeypatch.setattr(pi, "_run_createprefix_with_retry", retry)
 

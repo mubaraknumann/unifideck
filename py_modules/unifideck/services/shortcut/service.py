@@ -264,16 +264,29 @@ class ShortcutService(
 
         A refusal is silent from the UI's point of view otherwise: the
         sync reports success and the library simply does not change.
+
+        ``LAUNCHER_STAGE`` is the toast channel the frontend actually
+        consumes, in both processes this service runs in — the plugin
+        backend (replay buffer → ``boot-event-listener``) and the launcher
+        subprocess, which ``build_service_subset`` also builds a
+        ``ShortcutService`` in (bus forwarder → bridge file →
+        ``launcherToasts`` poll). The previous ``TOAST_NOTIFICATION`` emit
+        reached neither, so this toast never fired once since it was
+        written — the very silence its docstring exists to prevent.
+
+        ``duration_ms`` is explicit because the string is a full paragraph
+        and the frontend's 7.5s error default cuts the read short.
         """
-        from unifideck.core.types.events import Events
+        from unifideck.launcher.rpc import emit_stage
 
         try:
-            await self._bus.emit(
-                Events.TOAST_NOTIFICATION,
+            await emit_stage(
+                self._bus,
+                i18n_key="toasts.shortcuts.writeRefused",
+                game_title="",
                 severity="error",
                 duration_ms=12000,
-                i18n_key="toasts.shortcuts.writeRefused",
-                params={"reason": reason},
+                i18n_params={"reason": reason},
             )
         except Exception as e:
             logger.warning(

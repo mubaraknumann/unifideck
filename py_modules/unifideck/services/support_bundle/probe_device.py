@@ -5,10 +5,15 @@ Hardware and OS identity. Every block here reads ``/sys``, ``/proc``,
 Python version check.
 
 The single most valuable line in a bundle is ``product_name``: a Steam
-Deck LCD reports ``Jupiter``, an OLED reports ``Galileo``, and anything
-else means the reporter is not on a Deck at all. Half of "works for me"
-is a different device class, and until now nothing in a bug report told
-us which one we were looking at.
+Deck LCD reports ``Jupiter``, an OLED reports ``Galileo``, a Steam
+Machine reports ``Fremont``, and anything else means the reporter is on
+hardware we do not recognise. Half of "works for me" is a different
+device class, and until now nothing in a bug report told us which one we
+were looking at.
+
+The raw fields are dumped here, but the *classification* comes from
+``utils/device.py`` — this module reads the same ``DMI_PATH`` rather
+than keeping its own copy of the path or the codename tables.
 """
 from __future__ import annotations
 
@@ -22,14 +27,13 @@ import time
 from pathlib import Path
 from typing import Any
 
-from unifideck.utils.device import detect_device_type
+from unifideck.utils.device import DMI_PATH, detect_device_type, device_override
 from unifideck.utils.vulkan import as_dict, detect_32bit_vulkan
 
 from . import procscan
 
 logger = logging.getLogger(__name__)
 
-_DMI = Path("/sys/devices/virtual/dmi/id")
 _DMI_FIELDS = (
     "sys_vendor", "product_name", "product_family",
     "board_name", "bios_version", "bios_date",
@@ -74,13 +78,26 @@ def device_block() -> dict[str, Any]:
     ``device_type`` is the *derived* class (deck/machine/other) rather
     than another raw field, so a bundle states what the hardware is
     instead of leaving a reader to recognise a codename.
+
+    ``device_type_forced`` is set when a developer override is in play.
+    Without it a bundle would report a device class the raw DMI fields
+    right above it contradict, and the reader would trust the summary.
     """
-    if not _DMI.is_dir():
-        return {"available": False, "note": "no DMI (VM, container, or CI)"}
+    forced = device_override()
+    if not DMI_PATH.is_dir():
+        block: dict[str, Any] = {
+            "available": False, "note": "no DMI (VM, container, or CI)",
+        }
+        if forced is not None:
+            block["device_type"] = forced.value
+            block["device_type_forced"] = True
+        return block
     values: dict[str, Any] = {"available": True}
     for field in _DMI_FIELDS:
-        values[field] = _read_line(_DMI / field) or "unknown"
+        values[field] = _read_line(DMI_PATH / field) or "unknown"
     values["device_type"] = detect_device_type().value
+    if forced is not None:
+        values["device_type_forced"] = True
     # Valve really does export these mixed-case; upper-casing them
     # would read nothing.
     values["steam_deck_env"] = os.environ.get("SteamDeck", "")  # noqa: SIM112

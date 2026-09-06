@@ -59,6 +59,18 @@ import type { DownloadItem, DownloadQueueInfo } from "../types/downloads";
 
 // ── Helpers (moved from DownloadContext) ─────────────────
 
+/** Pull the queue item out of any `DOWNLOAD_*` payload.
+ *  All of them carry the same `item` the `get_download_queue` RPC
+ *  returns, so no field translation is needed — and `item.id` is
+ *  already the `"<store>:<game_id>"` string the backend builds. */
+function extractItem(payload: unknown): DownloadItem | null {
+  if (!payload || typeof payload !== "object") return null;
+  const item = (payload as { item?: unknown }).item;
+  if (!item || typeof item !== "object") return null;
+  const id = (item as { id?: unknown }).id;
+  return typeof id === "string" && id ? (item as DownloadItem) : null;
+}
+
 /** Pull the appId out of a DOWNLOAD_* terminal event payload. */
 function extractAppId(payload: unknown): number | null {
   if (!payload || typeof payload !== "object") return null;
@@ -77,18 +89,9 @@ function extractFailure(payload: unknown): {
   title?: string;
 } {
   if (!payload || typeof payload !== "object") return {};
-  const item = (
-    payload as { item?: { error_message?: unknown; game_title?: unknown } }
-  ).item;
-  const itemError =
-    item && typeof item === "object"
-      ? (item as { error_message?: unknown }).error_message
-      : undefined;
+  const item = extractItem(payload);
+  const itemError = item?.error_message;
   const topError = (payload as { error?: unknown }).error;
-  const title =
-    item && typeof item === "object"
-      ? (item as { game_title?: unknown }).game_title
-      : undefined;
   return {
     error:
       typeof itemError === "string" && itemError
@@ -96,20 +99,33 @@ function extractFailure(payload: unknown): {
         : typeof topError === "string"
         ? topError
         : undefined,
-    title: typeof title === "string" ? title : undefined,
+    title: typeof item?.game_title === "string" ? item.game_title : undefined,
   };
 }
 
-/** Build the `"<store>:<game_id>"` key from a terminal payload. */
-function extractStoreGameId(payload: unknown): string | null {
-  if (!payload || typeof payload !== "object") return null;
-  const item = (payload as { item?: { store?: unknown; game_id?: unknown } })
-    .item;
-  if (!item || typeof item !== "object") return null;
-  const store = (item as { store?: unknown }).store;
-  const gameId = (item as { game_id?: unknown }).game_id;
-  if (typeof store !== "string" || typeof gameId !== "string") return null;
-  return `${store}:${gameId}`;
+/**
+ * Merge a `download_progress` payload into the snapshot.
+ *
+ * Returns `prev` *unchanged* — the same object, so `useSyncExternalStore`
+ * skips the re-render — whenever the event doesn't describe the row on
+ * screen. The previous version wrote every progress event onto
+ * `queue.current` without checking whose it was, which is only harmless
+ * while the backend's `max_concurrent` is 1.
+ *
+ * Exported for unit tests: this is pure, the surrounding store is not.
+ */
+export function mergeProgressIntoSnapshot(
+  prev: DownloadSnapshot,
+  payload: unknown,
+): DownloadSnapshot {
+  const queue = prev.queue;
+  const item = extractItem(payload);
+  if (!queue || !queue.current || !item) return prev;
+  if (queue.current.id !== item.id) return prev;
+  return {
+    ...prev,
+    queue: { ...queue, current: { ...queue.current, ...item } },
+  };
 }
 
 /** Normalise the backend's queue shape to the frontend DTO. */
@@ -172,23 +188,7 @@ class DownloadStoreImpl {
 
     this._unsubs.push(
       EventBusClient.subscribe("download_progress", (payload) => {
-        this._setSnapshot((prev) => ({
-          ...prev,
-          queue: prev.queue && {
-            ...prev.queue,
-            current: prev.queue.current && {
-              ...prev.queue.current,
-              progress_percent:
-                (payload.progress as number) ??
-                prev.queue.current.progress_percent,
-              speed_mbps:
-                (payload.speed_mbps as number) ?? prev.queue.current.speed_mbps,
-              eta_seconds:
-                (payload.eta_seconds as number) ??
-                prev.queue.current.eta_seconds,
-            },
-          },
-        }));
+        this._setSnapshot((prev) => mergeProgressIntoSnapshot(prev, payload));
       }),
     );
 
@@ -203,8 +203,10 @@ class DownloadStoreImpl {
         // the size caches to forget.
         invalidateGameSize(appId);
       }
-      const storeGameId = extractStoreGameId(payload);
-      if (storeGameId) this._wrapperLaunched.delete(storeGameId);
+      // `item.id` is the same `"<store>:<game_id>"` key the wrapper-install
+      // signal sends as `store_game_id`, so it clears the dedup entry.
+      const itemId = extractItem(payload)?.id;
+      if (itemId) this._wrapperLaunched.delete(itemId);
       void this._fetchQueue();
     };
 

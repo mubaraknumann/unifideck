@@ -27,6 +27,8 @@ from typing import TYPE_CHECKING, Any
 import aiohttp
 
 from unifideck.compatibility import CompatLibrary
+from unifideck.compatibility.library import needs_refetch
+from unifideck.core.sync_generation import UNTAGGED_RUN_ID, run_id_of
 from unifideck.core.types import Game
 from unifideck.core.types.events import Events
 from unifideck.event_bus.event_bus_devex import auto_wire, subscribe
@@ -129,19 +131,30 @@ class CompatibilityService:
             return
         if kwargs.get("active") is not False:
             return
+        # ``sync_kwargs`` is the only shape any emitter has ever sent. The
+        # flat ``kwargs.get("games")`` / ``kwargs.get("is_force")`` fallback
+        # that used to sit here was for "older emitters that haven't been
+        # migrated yet" — there were none, in the whole history of the file.
+        # Audit register item 41; found by the new subscribe-side arm of
+        # validate_event_schemas.py.
         sync_kwargs = kwargs.get("sync_kwargs") or {}
-        games = sync_kwargs.get("games") or kwargs.get("games", [])
-        is_force = bool(sync_kwargs.get("is_force") or kwargs.get("is_force"))
+        games = sync_kwargs.get("games") or []
+        is_force = bool(sync_kwargs.get("is_force"))
         prior = self._enrichment_task
         if prior is not None and not prior.done():
             prior.cancel()
         self._enrichment_task = asyncio.create_task(
-            self._run_enrichment(games, is_force=is_force),
+            self._run_enrichment(
+                games, is_force=is_force,
+                run_id=run_id_of(sync_kwargs),
+                skip=bool(sync_kwargs.get("skip_chain")),
+            ),
             name="compatibility-enrichment",
         )
 
     async def _run_enrichment(
         self, games: list[Game], *, is_force: bool = False,
+        run_id: int = UNTAGGED_RUN_ID, skip: bool = False,
     ) -> None:
         """Per-game ProtonDB + Deck-Verified lookup, concurrent under a semaphore.
 
@@ -149,11 +162,27 @@ class CompatibilityService:
         cached (mirrors ``MetadataService._partition_games``) — they
         tick the progress counter instantly and cost zero HTTP.
         ``is_force`` skips the partition and refreshes every entry.
+
+        ``run_id`` is echoed on the phase-done event so a late emit cannot
+        drain a newer sync's pending set (``core/sync_generation.py``).
         """
         total = len(games)
         progress = self._bus.get_sync_progress() if hasattr(self._bus, "get_sync_progress") else None
+        # Set when a newer sync's ``_on_artwork_phase_done`` cancelled this
+        # run. The old unconditional emit in ``finally`` announced
+        # ``proton_meta`` done on behalf of a run that had been replaced,
+        # dropping the phase from the *new* generation's pending set before
+        # its own compat pass had started. MetadataService already drew this
+        # distinction; this is the same guard. It also avoids awaiting
+        # ``bus.emit`` while a CancelledError is propagating.
+        cancelled_by_replace = False
         try:
-            if not games:
+            if not games or skip:
+                if skip:
+                    logger.info(
+                        "[CompatibilityService] compat skipped — library "
+                        "unchanged since the last completed chain",
+                    )
                 return
             if progress is not None:
                 progress.start_compat(total)
@@ -171,16 +200,62 @@ class CompatibilityService:
                 await self._fetch_pending(
                     pending, progress, total, refresh=is_force,
                 )
+        except asyncio.CancelledError:
+            cancelled_by_replace = True
+            logger.info(
+                "[CompatibilityService] compat fetch cancelled — "
+                "newer sync took over",
+            )
+            raise
+        finally:
+            # Partial ratings are still valid ratings, so a cancelled run
+            # flushes what it resolved before bowing out.
+            self._flush_compat_caches()
+            if not cancelled_by_replace:
+                await self._bus.emit(
+                    Events.POST_SYNC_PHASE_CHANGED,
+                    phase="proton_meta", active=False,
+                    total=total, done=total,
+                    run_id=run_id,
+                )
+                logger.info(
+                    "[CompatibilityService] compat fetch finished (%d games)",
+                    total,
+                )
+
+    async def repair_missing(self, games: list[Game]) -> int:
+        """Resolve compat ratings for ``games``, outside the sync chain.
+
+        Used by :class:`~unifideck.services.post_sync_reconcile.
+        PostSyncReconcileService` to close the tail an interrupted sync
+        left behind. Deliberately does **not** touch ``SyncProgress`` or
+        emit ``POST_SYNC_PHASE_CHANGED``: those belong to a sync run, and
+        a phase event emitted at boot would drain a pending set that no
+        run owns — which would mark a chain complete that never happened.
+
+        Args:
+            games: the subset already known to be missing a rating.
+
+        Returns:
+            How many games were attempted.
+        """
+        if not games:
+            return 0
+        sem = asyncio.Semaphore(self._max_concurrent())
+        try:
+            async with aiohttp.ClientSession() as session:
+                await asyncio.gather(
+                    *(
+                        self._fetch_one(
+                            g, sem, None, refresh=False, session=session,
+                        )
+                        for g in games
+                    ),
+                    return_exceptions=True,
+                )
         finally:
             self._flush_compat_caches()
-            await self._bus.emit(
-                Events.POST_SYNC_PHASE_CHANGED,
-                phase="proton_meta", active=False, total=total, done=total,
-            )
-            logger.info(
-                "[CompatibilityService] compat fetch finished (%d games)",
-                total,
-            )
+        return len(games)
 
     @staticmethod
     async def _tick_skipped(skipped: list[Game], progress: Any | None) -> None:
@@ -271,17 +346,15 @@ class CompatibilityService:
 
     @staticmethod
     def _needs_self_heal(entry: dict[str, Any]) -> bool:
-        """Pre-``deck_test_results`` cache entries get ONE upgrade fetch.
+        """Cache entries below the current schema get ONE upgrade fetch.
 
-        The ``dtr_checked`` stamp (written by ``CompatLibrary``)
-        marks the upgrade as attempted so games with genuinely no
-        published test results stop re-fetching every sync.
+        The schema stamp (written by ``CompatLibrary``) marks the
+        upgrade as attempted, so a title with genuinely no published
+        rating stops re-fetching every sync. This is the twin of
+        ``CompatLibrary.needs_refetch`` and delegates to it — the two
+        deciding differently would mean re-fetching forever or never.
         """
-        return (
-            entry.get("deck_status", "unknown") != "unknown"
-            and not entry.get("deck_test_results")
-            and not entry.get("dtr_checked")
-        )
+        return needs_refetch(entry)
 
     async def _fetch_one(
         self,

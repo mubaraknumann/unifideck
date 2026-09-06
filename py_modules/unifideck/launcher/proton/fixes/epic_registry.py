@@ -1,15 +1,27 @@
+"""fixes/epic_registry.py — Epic/Uplay install keys for a Ubisoft prefix.
+
+Writes the ``EpicGamesLauncher`` manifest keys (and the matching
+``Ubisoft\\Launcher\\Installs`` entries when the title carries a ``-UplayId``)
+that EOS-aware Ubisoft titles read to decide they are installed.
+
+Every key goes in through umu (:func:`setup_run.run_setup_exe`), never a
+Proton's ``files/bin/wine`` — see that module for why a bare Wine invocation
+against a Proton prefix destroys the shared Proton install.
+"""
+
 from __future__ import annotations
 
-import asyncio
-import contextlib
 import json
 import logging
-import os
 import re
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
+
+from unifideck.launcher.proton.infrastructure.setup_run import run_setup_exe
+
+if TYPE_CHECKING:
+    from unifideck.launcher.proton.infrastructure.core import ProtonLaunchPlan
 
 logger = logging.getLogger(__name__)
 _UPLAY_ID_RE = re.compile(r"-UplayId=\s*(\d+)")
@@ -19,26 +31,8 @@ class RegistryInjectionResult:
     success: bool
     keys_written: int
     reason: str = ""
-def _normalize_prefix_root(prefix_path: Path) -> Path:
-    """Normalize prefix root."""
-    p = prefix_path.resolve()
-    while p.name == "pfx":
-        p = p.parent
-    return p
-def _select_active_wineprefix(prefix_root: Path) -> Path:
-    """Select active wineprefix."""
-    pfx_path = prefix_root / "pfx"
-    with contextlib.suppress(OSError):
-        if (
-            pfx_path.is_symlink()
-            and pfx_path.resolve() == prefix_root.resolve()
-        ):
-            return prefix_root
-    if (pfx_path / "system.reg").is_file():
-        return pfx_path
-    if (prefix_root / "system.reg").is_file():
-        return prefix_root
-    return pfx_path
+
+
 def _linux_to_wine_path(linux_path: str) -> str:
     """Linux to WINE path."""
     wine_path = "Z:" + linux_path.replace("/", "\\")
@@ -73,18 +67,7 @@ def _load_installed_json(
         )
         return None
     return cast("dict[Any, Any] | None", app)
-def _find_wine_binary() -> Path | None:
-    """Find WINE binary."""
-    proton_path = os.environ.get("PROTONPATH")
-    if not proton_path:
-        return None
-    wine_bin = (
-        Path(proton_path) / "files" / "bin" / "wine"
-    )
-    return wine_bin if wine_bin.is_file() else None
-
 def _build_reg_commands(
-    wine_bin: Path,
     game_id: str,
     wine_install_path: str,
     uplay_id: str | None,
@@ -93,14 +76,14 @@ def _build_reg_commands(
     """Build reg commands."""
     commands: list[list[str]] = [
         [
-            str(wine_bin), "reg", "add",
+            "add",
             "HKEY_LOCAL_MACHINE\\Software\\Epic Games\\EpicGamesLauncher",
             "/v", "AppDataPath", "/t", "REG_SZ",
             "/d", "C:\\ProgramData\\Epic\\EpicGamesLauncher\\Data\\",
             "/f",
         ],
         [
-            str(wine_bin), "reg", "add",
+            "add",
             (
                 "HKEY_LOCAL_MACHINE\\Software\\WOW6432Node\\Epic Games"
                 "\\EpicGamesLauncher\\Manifests\\" + game_id
@@ -109,7 +92,7 @@ def _build_reg_commands(
             "/d", wine_install_path, "/f",
         ],
         [
-            str(wine_bin), "reg", "add",
+            "add",
             (
                 "HKEY_CURRENT_USER\\Software\\Epic Games"
                 "\\EpicGamesLauncher\\Manifests\\" + game_id
@@ -121,7 +104,7 @@ def _build_reg_commands(
     if uplay_id:
         commands.extend([
             [
-                str(wine_bin), "reg", "add",
+                "add",
                 (
                     "HKEY_LOCAL_MACHINE\\Software\\WOW6432Node\\Ubisoft"
                     "\\Launcher\\Installs\\" + uplay_id
@@ -130,7 +113,7 @@ def _build_reg_commands(
                 "/d", wine_install_path, "/f",
             ],
             [
-                str(wine_bin), "reg", "add",
+                "add",
                 (
                     "HKEY_LOCAL_MACHINE\\Software\\WOW6432Node\\Ubisoft"
                     "\\Launcher\\Installs\\" + uplay_id
@@ -142,66 +125,24 @@ def _build_reg_commands(
     return commands
 
 async def _run_reg_commands(
+    plan: ProtonLaunchPlan,
     commands: list[list[str]],
-    env: dict[str, Any],
 ) -> int:
+    """Apply each ``reg.exe add`` through umu; return how many succeeded.
 
-    """Run reg commands."""
+    Serial, not gathered: they all write the same prefix registry, and a
+    single wineserver serialises them anyway.
+    """
     ok_count = 0
     for cmd in commands:
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                env=env,
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            try:
-                _, stderr = await asyncio.wait_for(
-                    proc.communicate(), timeout=30,
-                )
-            except TimeoutError:
-                logger.exception(
-                    "[epic_registry] reg add timed out: %s",
-                    cmd[3],
-                )
-                with contextlib.suppress(ProcessLookupError):
-                    proc.kill()
-                continue
-            if proc.returncode == 0:
-                ok_count += 1
-            else:
-                logger.error(
-                    "[epic_registry] reg add failed: %s: %s",
-                    cmd[3],
-                    stderr.decode(errors="replace").strip(),
-                )
-        except (OSError, subprocess.SubprocessError):
-            logger.exception("[epic_registry] reg add spawn error")
-            continue
+        ok = await run_setup_exe(
+            plan, "reg.exe", cmd, timeout_s=30, label="epic_registry",
+        )
+        if ok:
+            ok_count += 1
+        else:
+            logger.error("[epic_registry] reg add failed: %s", cmd[1])
     return ok_count
-async def _kill_wineserver(
-    wine_bin: Path, wineprefix: Path,
-) -> None:
-    """Kill wineserver."""
-    wineserver = wine_bin.parent / "wineserver"
-    if not wineserver.is_file():
-        return
-    env = dict(os.environ)
-    env["WINEPREFIX"] = str(wineprefix)
-    with contextlib.suppress(TimeoutError, OSError,
-        subprocess.SubprocessError,):
-        proc = await asyncio.create_subprocess_exec(
-            str(wineserver), "--kill",
-            env=env,
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
-        )
-        await asyncio.wait_for(proc.wait(), timeout=10)
-        logger.info(
-            "[epic_registry] killed stale wineserver "
-            "after setup",
-        )
 def _resolve_install_paths(
     app: dict[str, Any],
 ) -> tuple[str, str | None] | None:
@@ -221,13 +162,20 @@ def _error_result(reason: str) -> RegistryInjectionResult:
     return RegistryInjectionResult(
         success=False, keys_written=0, reason=reason,
     )
+
+
 async def setup_registry(
+    plan: ProtonLaunchPlan,
     game_id: str,
-    prefix_path: Path,
     legendary_config: Path,
 ) -> RegistryInjectionResult:
-    """Setup registry."""
-    prefix_root = _normalize_prefix_root(prefix_path)
+    """Write the Epic/Uplay install keys into the plan's prefix.
+
+    The prefix is not a parameter: ``run_setup_exe`` runs inside the one
+    ``plan.env`` already points at (``STEAM_COMPAT_DATA_PATH`` /
+    ``PROTONPATH`` from ``proton_prepare``), which is the same prefix the
+    real launch is about to use.
+    """
     app = _load_installed_json(legendary_config, game_id)
     if app is None:
         return _error_result("installed_json_missing_or_unreadable")
@@ -238,24 +186,12 @@ async def setup_registry(
         )
         return _error_result("no_install_path")
     wine_install_path, uplay_id = paths
-    wine_bin = _find_wine_binary()
-    if wine_bin is None:
-        logger.error(
-            "[epic_registry] PROTONPATH not set or wine "
-            "binary missing",
-        )
-        return _error_result("wine_binary_not_found")
-    active_prefix = _select_active_wineprefix(prefix_root)
-    env = dict(os.environ)
-    env["WINEPREFIX"] = str(active_prefix)
     commands = _build_reg_commands(
-        wine_bin=wine_bin,
         game_id=game_id,
         wine_install_path=wine_install_path,
         uplay_id=uplay_id,
     )
-    ok_count = await _run_reg_commands(commands, env)
-    await _kill_wineserver(wine_bin, active_prefix)
+    ok_count = await _run_reg_commands(plan, commands)
     total = len(commands)
     all_ok = ok_count == total
     logger.info(

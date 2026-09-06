@@ -47,9 +47,16 @@ async def test_warmup_runs_for_prefix_stores(tmp_path, store):
     assert bus.emit.await_args.args[0] == Events.DOWNLOAD_STARTED
 
 
-@pytest.mark.parametrize("store", ["ubisoft", "microsoft"])
+@pytest.mark.parametrize("store", ["ubisoft"])
 @pytest.mark.asyncio
 async def test_warmup_skipped_for_excluded_stores(tmp_path, store):
+    """Skipped for a wrapper store: UPC bootstraps its own prefix.
+
+    ``microsoft`` used to be listed here too, as a second store-name arm.
+    It is gone, and the parametrize is kept (rather than inlined) because
+    the rule is a category — ``uses_manual_download_phase`` — not a name,
+    and a future wrapper store belongs in this list.
+    """
     svc, bus = _service(tmp_path)
     hook = AsyncMock()
     svc.set_prefix_warmup(hook)
@@ -60,6 +67,33 @@ async def test_warmup_skipped_for_excluded_stores(tmp_path, store):
     hook.assert_not_awaited()
     assert item.download_phase == "downloading"  # unchanged default
     bus.emit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_cloud_store_never_reaches_warmup_because_install_is_refused(
+    tmp_path,
+):
+    """Why the ``microsoft`` arm above could be dropped.
+
+    Warmup runs from ``_on_install_success`` only, and the cloud-only
+    store now refuses every install (audit §3.5, register item 11) — so
+    the arm guarded a path that cannot be taken. Asserting the *reason*
+    beats re-asserting the defensive branch: a branch test passes even if
+    the store starts reporting phantom successes, which is the bug the
+    refusal fixed.
+    """
+    from unifideck.stores.microsoft.microsoft_store import MicrosoftStore
+
+    bus = MagicMock()
+    bus.emit = AsyncMock()
+    cache = MagicMock()
+    cache.get.return_value = None
+    store = MicrosoftStore(bus, cache, plugin_dir="/plugin")
+
+    result = await store.install_game("9NXR0000TEST")
+
+    assert result.success is False
+    assert result.error_code == "not_supported"
 
 
 @pytest.mark.asyncio

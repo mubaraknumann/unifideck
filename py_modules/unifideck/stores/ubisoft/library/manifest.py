@@ -1,8 +1,6 @@
 """
 Per-game manifest — typed view of UPC's per-game configuration.
 
-OP-57e | py_modules/unifideck/stores/ubisoft/library/manifest.py
-
 A UPC manifest is the YAML-like blob describing how a game is launched,
 patched, and updated. ``UbisoftGameManifest`` is the typed parser for
 that blob: it extracts the executable name, supported languages, save
@@ -30,7 +28,6 @@ from unifideck.stores.ubisoft.id_map import UbisoftIdMap
 
 logger = logging.getLogger(__name__)
 
-
 def _first_non_empty(
     raw: dict[str, Any],
     keys: tuple[str, ...],
@@ -43,7 +40,6 @@ def _first_non_empty(
             if stripped:
                 return stripped
     return ""
-
 
 @dataclass
 class _VisibleManifestIndex:
@@ -65,7 +61,6 @@ class _VisibleManifestIndex:
     def matches(self, game_id: str, norm_title: str) -> bool:
         """Matches."""
         return game_id in self.ids or norm_title in self.norms
-
 
 class _VisibleManifestProcessor:
     """Visible manifest processor."""
@@ -155,15 +150,16 @@ class _VisibleManifestProcessor:
             "name": entry.get("title") or "",
             "source": "visible_manifest",
         }
-        for field_name in (
-            "install_id",
-            "launch_id",
-            "ubisoftconnect_game_id",
-        ):
+        for field_name in ("install_id", "launch_id"):
             value = str(entry.get(field_name) or "").strip()
             if value:
                 fields[field_name] = value
-        return self._id_map.merge_entry(cache_key, fields)
+        # The deeplink id goes through the precedence gate so a manifest
+        # product_id can't displace a registry-confirmed id (#436).
+        connect_id = str(entry.get("ubisoftconnect_game_id") or "").strip()
+        return self._id_map.set_connect_id(
+            cache_key, connect_id, "manifest", fields,
+        )
 
     def _build_index(
         self,

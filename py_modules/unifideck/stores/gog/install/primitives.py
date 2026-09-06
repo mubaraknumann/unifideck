@@ -1,7 +1,5 @@
 """Filesystem primitives shared by install/uninstall.
 
-OP-51b | py_modules/unifideck/stores/gog/install/primitives.py
-
 ``GOGFolderOps`` is a stateless helper class exposing static methods
 for the recurring filesystem operations of the install pipeline:
 
@@ -41,7 +39,6 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-
 def _unlink_quietly(path: Path, counters: dict[str, int]) -> None:
     """``unlink`` a single file, mutating counters on success/failure.
 
@@ -63,7 +60,6 @@ def _unlink_quietly(path: Path, counters: dict[str, int]) -> None:
         return
     counters["deleted"] += 1
 
-
 def _rmdir_quietly(path: Path) -> None:
     """``rmdir`` swallowing OSError.
 
@@ -76,7 +72,6 @@ def _rmdir_quietly(path: Path) -> None:
     """
     with contextlib.suppress(OSError):
         path.rmdir()
-
 
 def _iter_bottom_up(root: Path) -> list[Path]:
     """Return every descendant of ``root`` sorted deepest-first.
@@ -99,7 +94,6 @@ def _iter_bottom_up(root: Path) -> list[Path]:
         return sorted(root.rglob("*"), key=lambda p: len(p.parts), reverse=True)
     except OSError:
         return []
-
 
 class GOGFolderOps:
     """Gogfolder ops."""

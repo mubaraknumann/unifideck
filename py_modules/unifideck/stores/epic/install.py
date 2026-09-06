@@ -1,7 +1,5 @@
 """Epic Games installer — install/uninstall pipeline using legendary.
 
-OP-48d | py_modules/unifideck/stores/epic/install.py
-
 ``EpicInstaller`` orchestrates installs through ``legendary`` :
 
 1. **preflight** — verify legendary binary, resolve base path, build
@@ -11,7 +9,7 @@ OP-48d | py_modules/unifideck/stores/epic/install.py
 3. **subprocess** — spawn legendary with structured progress callbacks
    (parses legendary's stdout for "+ Downloaded: X/Y" lines);
 4. **finalize** — resolve the launchable .exe (delegate to
-   ``exe_resolver.py``, OP-48g), write the ``.unifideck-id`` marker,
+   ``exe_resolver.py``), write the ``.unifideck-id`` marker,
    register with the install registry, regenerate manifest.
 
 The uninstall path is symmetric : remove install dir, drop registry
@@ -42,10 +40,13 @@ from unifideck.core.types import Events, InstallResult, Result
 from unifideck.event_bus.event_bus import EventBus
 from unifideck.stores.shared import dlc
 from unifideck.stores.shared.cli_install_helpers import (
+    DEFAULT_STALL_TIMEOUT_S,
+    InstallStalledError,
     TailRingBuffer,
     drain_install_output,
+    join_tail,
     parse_eta_seconds,
-    parse_progress_line,
+    parse_percent_re,
     parse_speed_bps,
     terminate_process_tree,
     wait_with_timeout,
@@ -66,7 +67,6 @@ _PROGRESS_RE = re.compile(r"(\d+(?:\.\d+)?)\s*%")
 # and merges dict updates onto the queue item — see DownloadWorker.
 ProgressCallback = Callable[[float | dict[str, Any]], Awaitable[None]]
 
-
 @dataclass
 class _RunOutcome:
     """Result of one ``legendary install`` subprocess run.
@@ -80,7 +80,6 @@ class _RunOutcome:
     rc: int
     tail: str = ""
 
-
 def _format_exit_error(outcome: _RunOutcome) -> str:
     """Turn a failed run into an error string.
 
@@ -92,25 +91,21 @@ def _format_exit_error(outcome: _RunOutcome) -> str:
     base = f"legendary_exit_{outcome.rc}"
     return f"{base}: {outcome.tail}" if outcome.tail else base
 
-
 # How legendary dies when its Selective Downloads prompt can't read
 # stdin (``sdl_prompt`` → bare ``input()`` → EOFError). Retrying is
 # pointless — attempt two hits the same prompt — so the DLC fallback
 # must not burn a whole second download on it.
 _PROMPT_CRASH_MARKERS = ("EOFError", "sdl_prompt")
 
-
 def _is_prompt_crash(tail: str) -> bool:
     """True when legendary died on an unanswerable interactive prompt."""
     return any(marker in tail for marker in _PROMPT_CRASH_MARKERS)
-
 
 # legendary guards install/import/move with a FileLock on
 # ``installed.json.lock`` and allows exactly one at a time. When it can't
 # take the lock it logs this at CRITICAL and then **exits 0**, so the
 # refusal is indistinguishable from success by exit code alone.
 _LOCK_REFUSAL_MARKER = "Failed to acquire installed data lock"
-
 
 def _no_install_error(outcome: _RunOutcome) -> str:
     """Name a ``rc == 0`` run that installed nothing.
@@ -123,7 +118,6 @@ def _no_install_error(outcome: _RunOutcome) -> str:
             f"holding legendary's install lock — {outcome.tail}"
         )
     return f"legendary_exit_0_no_install: {outcome.tail or '(no output captured)'}"
-
 
 class EpicInstaller:
     """Epic installer."""
@@ -181,19 +175,14 @@ class EpicInstaller:
                 store="epic",
                 game_id=game_id,
             )
-        await self._bus.emit(
-            Events.DOWNLOAD_STARTED,
-            store="epic",
-            game_id=game_id,
-        )
         outcome = await self._run_install_with_dlc_fallback(
             base, game_id, progress_cb, language,
         )
         logger.info("[EpicInstall] legendary exit_code=%d", outcome.rc)
         if outcome.rc != 0:
-            return await self._fail(game_id, _format_exit_error(outcome))
+            return self._fail(game_id, _format_exit_error(outcome))
         if not await self._install_was_recorded(game_id, outcome):
-            return await self._fail(game_id, _no_install_error(outcome))
+            return self._fail(game_id, _no_install_error(outcome))
         return await self._complete_install(game_id, base, language)
 
     async def _prepare_base_dir(self, base: str) -> str | None:
@@ -220,14 +209,17 @@ class EpicInstaller:
             await asyncio.to_thread(write_app_language, game_id, language)
         return await self._finalize_install(game_id, base)
 
-    async def _fail(self, game_id: str, error: str) -> InstallResult:
-        """Emit the one terminal ``DOWNLOAD_FAILED`` and wrap the error."""
-        await self._bus.emit(
-            Events.DOWNLOAD_FAILED,
-            store="epic",
-            game_id=game_id,
-            error=error,
-        )
+    def _fail(self, game_id: str, error: str) -> InstallResult:
+        """Wrap a terminal error in a failing ``InstallResult``.
+
+        Emits nothing. ``DownloadWorker`` is the sole emitter of every
+        ``DOWNLOAD_*`` event for all seven stores: it turns this envelope
+        into the one ``DOWNLOAD_FAILED`` (``_emit_failure``), and only its
+        payload carries the queue item the UI needs — the game title for
+        the toast and ``error_message`` for the history row. This method
+        used to emit its own store-shaped copy, which reached the frontend
+        as a second, title-less failure toast.
+        """
         return InstallResult(
             success=False,
             error=error,
@@ -272,9 +264,11 @@ class EpicInstaller:
         already downloaded. So when the DLC-inclusive attempt fails on a
         DLC-capable store, retry once with ``--skip-dlcs`` (an explicit
         skip — with ``--yes`` legendary would otherwise still auto-install
-        DLC) to recover the playable base game. No ``DOWNLOAD_FAILED`` is
-        emitted for the first attempt; only ``install_game`` emits the
-        terminal failure if the retry also fails.
+        DLC) to recover the playable base game. A recovered install must
+        not look like a failure to the user: the first attempt reports
+        nothing, and only the ``InstallResult`` ``install_game`` finally
+        returns decides whether ``DownloadWorker`` emits
+        ``DOWNLOAD_FAILED``.
 
         Install tags are resolved once and reused across both attempts —
         the retry differs only in its DLC flag.
@@ -314,19 +308,27 @@ class EpicInstaller:
             env=clean_cli_env(),
         )
         tail_buf = TailRingBuffer()
+        stalled: InstallStalledError | None = None
         drain_exc: BaseException | None = None
         try:
             await self._drain_install_output(proc, game_id, progress_cb, tail_buf)
+        except InstallStalledError as e:
+            stalled = e
         except BaseException as e:
             drain_exc = e
-        if drain_exc is not None:
+        if stalled is not None or drain_exc is not None:
             # Cancelling the download task only unwinds *our* coroutine —
             # legendary keeps running, and its multiprocessing children
             # keep legendary's install lock held, which makes every later
             # install exit 0 without installing. Kill the tree before
-            # propagating, or a cancel poisons the whole queue.
+            # propagating, or a cancel poisons the whole queue. A stall
+            # takes the same exit: the queue is serial, so a wedged
+            # legendary blocks every game behind it until it is killed.
             await terminate_process_tree(proc, "[epic_install]")
+        if drain_exc is not None:
             raise drain_exc
+        if stalled is not None:
+            return _RunOutcome(rc=-1, tail=join_tail(str(stalled), tail_buf))
         rc = await self._wait_with_timeout(proc)
         return _RunOutcome(rc=rc, tail=tail_buf.tail())
 
@@ -372,6 +374,7 @@ class EpicInstaller:
             game_id,
             progress_cb,
             functools.partial(self._handle_install_line, tail_buf=tail_buf),
+            stall_s=DEFAULT_STALL_TIMEOUT_S,
         )
 
     async def _wait_with_timeout(self, proc: Any) -> int:
@@ -414,7 +417,7 @@ class EpicInstaller:
             tail_buf.append(line)
             logger.debug("[legendary install] %s", line)
             return
-        pct = parse_progress_line(line, _PROGRESS_RE)
+        pct = parse_percent_re(line, _PROGRESS_RE)
         if pct is None:
             return
         update: dict[str, Any] = {"percentage": pct}
@@ -422,12 +425,6 @@ class EpicInstaller:
         if eta is not None:
             update["eta_seconds"] = eta
         await self._safe_progress(progress_cb, update)
-        await self._bus.emit(
-            Events.DOWNLOAD_PROGRESS,
-            store="epic",
-            game_id=game_id,
-            progress=pct,
-        )
 
     async def _safe_progress(
         self, progress_cb: ProgressCallback | None, update: dict[str, Any],
@@ -465,12 +462,14 @@ class EpicInstaller:
                 executable_relative=exe_relative,
                 platform="windows",
             )
-        await self._bus.emit(
-            Events.DOWNLOAD_COMPLETE,
-            store="epic",
-            game_id=game_id,
-            install_path=install_path,
-        )
+        # No ``DOWNLOAD_COMPLETE`` here. The install is not finished at this
+        # point: ``DownloadWorker`` still has to run prefix warmup (up to
+        # 600s of createprefix + winetricks + cloud-save pull) while the row
+        # sits in its "preparing" phase, and it emits the one completion
+        # afterwards, carrying the ``Game`` record that flips the shortcut's
+        # install tag. Emitting from here announced the install as done
+        # minutes early — the same premature-completion trap that broke
+        # Battle.net installs (see launcher/wrapper_prefix_probe.py).
         return InstallResult(
             success=True,
             store="epic",

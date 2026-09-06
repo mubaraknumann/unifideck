@@ -1,8 +1,6 @@
 """
 Load installed-state from Unifideck install markers.
 
-OP-57c | py_modules/unifideck/stores/ubisoft/library/data_loader.py
-
 ``_DataLoader`` walks every per-game install directory under
 ``UbisoftConfig.default_install_base_expanded`` and reads each
 ``.unifideck-id`` marker into a dict keyed by ``install_id``.
@@ -38,7 +36,6 @@ if TYPE_CHECKING:
     ParseConfigurationsFn = Callable[[str], list[GameConfig]]
     ParseOwnershipFn = Callable[[str], list[int]]
 logger = logging.getLogger(__name__)
-
 
 class _DataLoader:
     """Data loader."""

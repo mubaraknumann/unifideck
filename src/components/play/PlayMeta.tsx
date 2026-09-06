@@ -20,13 +20,15 @@ import {
   useRef,
   useState,
 } from "react";
-import { Focusable } from "@decky/ui";
+import { DialogButton, Focusable } from "@decky/ui";
 import { useTranslation } from "react-i18next";
+import { useCircuitState } from "../../hooks/useCircuitState";
 import { useGameSize } from "../../hooks/useGameSize";
 import { useGamePlaytime } from "../../hooks/useGamePlaytime";
 import { useGameMetadata } from "../../hooks/useGameMetadata";
 import { getThemeableClasses } from "../../lib/steam-bridge";
 import { PLAY_FOCUS_CSS } from "./play.css";
+import { useStoreCapability } from "../../hooks/useStoreCapability";
 
 /**
  * Class-name builders that make our buttons visible to CSS Loader
@@ -293,7 +295,6 @@ export function formatPlaytime(
 }
 
 /** Stores with cloud-save sync — mirrors `useCloudSaveStatus`. */
-const CLOUD_SAVE_STORES = new Set(["gog", "epic"]);
 
 /**
  * `cloud_saves` tri-state → i18n key, indexed by `String(value)`.
@@ -377,7 +378,15 @@ export const MetaInline: FC<MetaInlineProps> = ({
   // (syncing / in sync / no support / unresolved), so a static
   // "Supported/Unknown" beside it is redundant at best and contradictory at
   // worst — an enabled button next to the word "Unknown" reads like a bug.
-  const showCloudSaves = !installed && !!store && CLOUD_SAVE_STORES.has(store);
+  // Second copy of the same set, removed — its own comment said it mirrored
+  // useCloudSaveStatus. Both now read the backend-derived capability.
+  const supportsCloudSaves = useStoreCapability(store, "supports_cloud_saves");
+  const showCloudSaves = !installed && !!store && supportsCloudSaves;
+  // Circuit-breaker state. Rendered only while the breaker is actually open,
+  // so an ordinary game never carries a diagnostic badge — but when it IS
+  // open the user previously got nothing at all: no message, no badge, and
+  // no way to reset short of waiting out the window (audit item 4a).
+  const circuit = useCircuitState(store, gameId);
   // Size is fetched out-of-band (see useGameSize) so a slow store
   // lookup never blocks this row from rendering. Keyed on `installed`
   // so the on-disk size replaces the pre-install download size once
@@ -475,6 +484,56 @@ export const MetaInline: FC<MetaInlineProps> = ({
           value={t(CLOUD_SAVE_VALUE_KEY[String(metadata.data?.cloud_saves)])}
         />
       )}
+      {circuit.open && (
+        <CircuitBadge
+          failureCount={circuit.failureCount}
+          onReset={() => void circuit.reset()}
+          onForceLaunch={() => void circuit.forceLaunch()}
+        />
+      )}
     </div>
+  );
+};
+
+/**
+ * "N recent launch failures" + the two ways out.
+ *
+ * Every string here already existed, translated, in all 16 locales
+ * (`library.circuitBreaker.*`) with nothing rendering them — the exact shape
+ * audit §1.1.2 describes, where the material shipped and only the delivery
+ * was missing. Zero new strings.
+ *
+ * Shown only when the breaker is open. A permanent failure counter would be
+ * noise on a healthy game and would make the badge easy to ignore on an
+ * unhealthy one.
+ */
+const CircuitBadge: FC<{
+  failureCount: number;
+  onReset: () => void;
+  onForceLaunch: () => void;
+}> = ({ failureCount, onReset, onForceLaunch }) => {
+  const { t } = useTranslation();
+  return (
+    <Focusable
+      style={{ display: "flex", alignItems: "center", gap: 8 }}
+      title={t("library.circuitBreaker.badgeTooltip", { count: failureCount })}
+    >
+      <MetaItem
+        label={t("library.circuitBreaker.badgeRecent", { count: failureCount })}
+        value=""
+      />
+      <DialogButton
+        style={{ minWidth: 0, padding: "4px 10px" }}
+        onClick={onForceLaunch}
+      >
+        {t("library.circuitBreaker.forceLaunchButton")}
+      </DialogButton>
+      <DialogButton
+        style={{ minWidth: 0, padding: "4px 10px" }}
+        onClick={onReset}
+      >
+        {t("library.circuitBreaker.resetButton")}
+      </DialogButton>
+    </Focusable>
   );
 };

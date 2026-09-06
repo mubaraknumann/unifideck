@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 
 from unifideck.core.types.events import Events
 from unifideck.event_bus.event_bus_devex import auto_wire, subscribe
+from unifideck.utils.config_helpers import merge_str_list_mapping
 
 if TYPE_CHECKING:
     from unifideck.event_bus.event_bus import EventBus
@@ -52,7 +53,9 @@ class ProbeReactionService:
         """Store refs, init history deque, auto_wire."""
         self._bus = bus
         self._watchdog = watchdog
-        self._mapping = self._load_mapping(config)
+        self._mapping = merge_str_list_mapping(
+            config, "probes.probe_to_handlers", PROBE_TO_HANDLERS,
+        )
         self._history: deque[dict[str, Any]] = deque(maxlen=HISTORY_MAX_ENTRIES)
 
         # ``auto_wire(self, bus)`` walks ``self``'s methods
@@ -63,31 +66,6 @@ class ProbeReactionService:
         # not a bus method, so the hasattr check returned
         # False and every subscription was silently dropped.
         auto_wire(self, self._bus)
-
-    @staticmethod
-    def _load_mapping(config: object | None) -> dict[str, list[str]]:
-        """Merge user config at ``probes.probe_to_handlers`` with defaults."""
-        mapping = PROBE_TO_HANDLERS.copy()
-
-        # Early-return guards flatten what was a 5-level pyramid
-        # (if config / try / if dict / for / if list-of-str) into
-        # a single linear pass. Each guard handles one failure
-        # mode and falls back to the defaults already in ``mapping``.
-        if config is None or not hasattr(config, "get"):
-            return mapping
-        try:
-            user_mapping = config.get("probes.probe_to_handlers")
-        except Exception as e:
-            # User overrides for probes.probe_to_handlers may be
-            # malformed or missing; fall back to defaults.
-            logger.debug("[ProbeReaction] user handler-mapping load failed: %s", e)
-            return mapping
-        if not isinstance(user_mapping, dict):
-            return mapping
-        for k, v in user_mapping.items():
-            if isinstance(v, list) and all(isinstance(i, str) for i in v):
-                mapping[k] = v
-        return mapping
 
     def get_history(self) -> list[dict[str, Any]]:
         """Return a snapshot of the in-session probe history."""
@@ -119,7 +97,13 @@ class ProbeReactionService:
         extraction out so the loop body is a flat "if affected,
         quarantine each".
         """
-        if not self._watchdog or not hasattr(self._watchdog, "force_quarantine"):
+        # ``quarantine_preemptive`` is the real method name on
+        # ``HandlerWatchdog``. This read ``force_quarantine`` — a method that
+        # exists nowhere in the tree — and the ``hasattr`` guard swallowed the
+        # mismatch silently, so nothing was ever quarantined even when the
+        # handler ran. Audit register item 4h; same wrong-name class as the
+        # ``rc``/``exit_code`` split in ``launch_history`` (correction C-2).
+        if not self._watchdog or not hasattr(self._watchdog, "quarantine_preemptive"):
             return
 
         for probe in probes:
@@ -132,7 +116,7 @@ class ProbeReactionService:
                     "[ProbeReaction] Preemptively quarantining %s due to %s failure",
                     handler_name, probe_id,
                 )
-                self._watchdog.force_quarantine(
+                self._watchdog.quarantine_preemptive(
                     handler_name, reason=f"{probe_id} probe failed",
                 )
 

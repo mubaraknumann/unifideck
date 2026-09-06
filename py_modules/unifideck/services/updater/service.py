@@ -6,9 +6,12 @@ dataclass, filters to only installable ``.zip`` assets, and
 provides version-comparison helpers for the update UI.
 
 Caches release data for 1 hour to avoid hammering the API.
-A background polling task checks every 6 hours and emits
-``PLUGIN_UPDATE_AVAILABLE`` on the EventBus when a newer
-version is found.
+A background polling task re-checks every 6 hours to keep that
+cache warm and logs when a newer version is found; it does not
+emit an event. The user-facing notice (a capped toast plus the
+dot on the plugin's QAM icon) is raised frontend-side by
+``src/services/pluginUpdateNotice.tsx``, which polls
+``check_plugin_update`` off this same cache.
 
 This service does NOT perform the actual installation — that's
 handled by the frontend calling Decky Loader's built-in

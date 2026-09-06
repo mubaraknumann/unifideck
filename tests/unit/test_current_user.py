@@ -153,27 +153,19 @@ def test_rebind_user_paths_calls_setters_and_resets_cache():
         def set_grid_dir(self, p):
             self.grid = p
 
-    class _Proton:
-        def __init__(self):
-            self.cfg = None
-        def set_config_vdf_path(self, p):
-            self.cfg = p
-
     class _Services:
         def __init__(self):
             self.shortcut = _Shortcut()
             self.artwork = _Artwork()
-            self.proton = _Proton()
 
     svc = _Services()
     cu.rebind_user_paths(svc, Path("/steam"), _REAL_ACCOUNT)
     assert svc.shortcut.path.endswith(f"userdata/{_REAL_ACCOUNT}/config/shortcuts.vdf")
     assert svc.artwork.grid.endswith(f"userdata/{_REAL_ACCOUNT}/config/grid")
-    assert svc.proton.cfg.endswith(f"userdata/{_REAL_ACCOUNT}/config/localconfig.vdf")
 
 
 def test_rebind_tolerates_missing_services():
     class _Empty:
         pass
-    # No shortcut/artwork/proton attrs — must not raise.
+    # No shortcut/artwork attrs — must not raise.
     cu.rebind_user_paths(_Empty(), Path("/steam"), _REAL_ACCOUNT)

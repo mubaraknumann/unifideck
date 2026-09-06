@@ -1,8 +1,6 @@
 """
 Build the auth-context dict the frontend renders.
 
-OP-58b | py_modules/unifideck/stores/ubisoft/auth/context.py
-
 When the user clicks "Sign in to Ubisoft Connect" in the QAM panel,
 the frontend calls an RPC that returns an "auth context" dict
 containing:
@@ -28,7 +26,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 _SGDB_UBISOFT_CONNECT_ID = 5270094
 _AUTH_SHORTCUT_NAME = "Ubisoft Connect"
-
 
 class _AuthContext:
     """Auth context."""

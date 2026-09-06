@@ -279,8 +279,8 @@ class CDPClient:
                 return None
             except Exception as e:
                 # WS likely dropped mid-send ("no close frame received or
-                # sent"). Drop the dead socket so get_cdp_client() picks
-                # up a fresh one on the next call.
+                # sent"). Drop the dead socket so the next ``connect()``
+                # establishes a fresh one.
                 logger.warning(
                     "[CDPClient] send failed on %s: %s — marking disconnected",
                     method,
@@ -302,10 +302,10 @@ class CDPClient:
         """Recv loop.
 
         Marks the client disconnected when the loop exits (clean close
-        OR error) so the next get_cdp_client() call reconnects from
-        scratch. Without this, a dropped socket silently stays
-        "connected" forever and every later RPC fails with the same
-        close-frame error.
+        OR error) so the next ``connect()`` reconnects from scratch.
+        Without this, a dropped socket silently stays "connected"
+        forever and every later RPC fails with the same close-frame
+        error.
         """
         if self._ws is None:
             logger.warning(

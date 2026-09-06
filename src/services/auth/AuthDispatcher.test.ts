@@ -18,6 +18,20 @@ vi.mock("@decky/api", () => ({
   call: (...args: unknown[]) => mockCall(...args),
 }));
 
+// Reached transitively: AuthDispatcher → prepare-sync → stores/sync-store,
+// which imports `showModal`. The real `@decky/ui` runs `initModuleCache()` at
+// import time against `window.webpackChunksteamui`, which does not exist
+// outside the Steam webview, so importing it here throws before any test runs.
+vi.mock("@decky/ui", () => ({ showModal: vi.fn() }));
+
+// The post-login sync awaits this before the RPC. Its three steps talk to
+// SteamClient, which is absent here, so the real one rejects and the `.then`
+// holding `request_auth_sync` never runs. What is under test is that the
+// dispatcher fires the RPC *after* preparing, not what preparing does.
+vi.mock("../../lib/steam-bridge/prepare-sync", () => ({
+  prepareForSync: vi.fn(() => Promise.resolve(undefined)),
+}));
+
 type Handler = (payload: unknown) => void;
 const subscribers = new Map<string, Set<Handler>>();
 vi.mock("../../api/event-bus-client", () => ({

@@ -12,8 +12,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any
 
+from unifideck.rpc.mixins._compat_payload import compat_category
 from unifideck.rpc.mixins._library_facets import (
-    _deck_category,
     build_enrichment_map,
     build_facet_record,
 )
@@ -69,6 +69,9 @@ def _cache_with(**overrides: dict[str, Any]) -> _Cache:
             str(_REAL): {
                 "protondb_tier": "platinum",
                 "deck_status": "verified",
+                "deck_category": 3,
+                "machine_status": "playable",
+                "machine_category": 2,
             },
         },
         "steam_reviews": {
@@ -97,11 +100,15 @@ def test_facet_fields_assembled_from_caches() -> None:
     assert rec["review_score"] == 8
     assert rec["review_percentage"] == 95
     assert rec["date_added_unix"] == 1690000000
-    assert rec["deck_category"] == 3  # verified
+    # Resolved for the running device (a Deck in CI/dev).
+    assert rec["compat_category"] == 3  # verified
+    assert rec["compat_status"] == "verified"
+    # Every track rides along for the packed bitfield, unresolved.
+    assert rec["compat_categories"]["deck"] == 3
+    assert rec["compat_categories"]["machine"] == 2
     assert rec["store_category"] == [2, 1]
     assert rec["store_tag"] == [1, 23]
     assert rec["protondb_tier"] == "platinum"
-    assert rec["deck_status"] == "verified"
 
 
 def test_cold_cache_degrades_to_empty() -> None:
@@ -117,16 +124,55 @@ def test_missing_reviews_and_date_added_are_none_zero() -> None:
     assert rec["date_added_unix"] == 0
 
 
-def test_deck_category_protondb_optimism_fallback() -> None:
+def test_deck_ladder_is_unchanged_by_the_track_parameter() -> None:
+    """The Deck path must behave exactly as it did before tracks existed.
+
+    These are the original assertions verbatim, with the track passed
+    explicitly. If any of them move, the change stopped being a rename.
+    """
+    deck = lambda e: compat_category(e, "deck")  # noqa: E731
     # Valve "unknown" but ProtonDB platinum/native → Playable (2).
-    assert _deck_category({"deck_status": "unknown", "protondb_tier": "platinum"}) == 2
-    assert _deck_category({"deck_status": "", "protondb_tier": "native"}) == 2
+    assert deck({"deck_status": "unknown", "protondb_tier": "platinum"}) == 2
+    assert deck({"deck_status": "", "protondb_tier": "native"}) == 2
     # Valve rating always wins when present.
-    assert _deck_category({"deck_status": "verified", "protondb_tier": "gold"}) == 3
-    assert _deck_category({"deck_status": "playable"}) == 2
+    assert deck({"deck_status": "verified", "protondb_tier": "gold"}) == 3
+    assert deck({"deck_status": "playable"}) == 2
     # No signal → Unknown (0); a low ProtonDB tier is NOT optimistic.
-    assert _deck_category({"protondb_tier": "gold"}) == 0
-    assert _deck_category({}) == 0
+    assert deck({"protondb_tier": "gold"}) == 0
+    assert deck({}) == 0
+
+
+def test_ladder_reads_the_requested_track_only() -> None:
+    """Valve rates each device independently — no cross-device borrowing."""
+    entry = {
+        "deck_category": 3, "deck_status": "verified",
+        "machine_category": 0, "machine_status": "unknown",
+    }
+    assert compat_category(entry, "deck") == 3
+    # Machine is unrated and there is no ProtonDB tier to promote it, so
+    # it must NOT inherit the Deck's verdict.
+    assert compat_category(entry, "machine") == 0
+
+
+def test_machine_track_promotes_independently() -> None:
+    """The measured case: Playable on Deck, Verified on Machine."""
+    entry = {
+        "deck_category": 2, "deck_status": "playable",
+        "machine_category": 3, "machine_status": "verified",
+    }
+    assert compat_category(entry, "deck") == 2
+    assert compat_category(entry, "machine") == 3
+
+
+def test_warm_cache_without_category_ints_still_rates() -> None:
+    """Entries predating the per-track ints carry only a status string.
+
+    They must keep rating until the schema self-heal rewrites them,
+    or a warm Deck reads as Unknown for its whole library at startup.
+    """
+    assert compat_category({"deck_status": "verified"}, "deck") == 3
+    assert compat_category({"deck_status": "unsupported"}, "deck") == 1
+    assert compat_category({"steamos_status": "compatible"}, "steamos") == 2
 
 
 def test_unmapped_shortcut_absent_from_map() -> None:
@@ -198,3 +244,31 @@ def test_games_path_falls_back_to_real_appid_enumeration() -> None:
     # steam_real_appid; metacritic comes only from Steam's appdetails.
     rec = build_enrichment_map(_cache_with(), None)[str(_SHORTCUT_UNSIGNED)]
     assert rec["metacritic"] == 81
+
+def test_deck_ladder_matches_the_pre_track_implementation_exhaustively() -> None:
+    """Sweep every (deck_status, protondb_tier) pair the cache can hold.
+
+    The pre-change ladder is inlined here rather than imported, because the
+    point is to pin behaviour that no longer exists in the tree. Verified
+    against this developer's real 1000-entry warm cache at the time of the
+    change: zero mismatches.
+    """
+
+    def pre_change_ladder(entry: dict[str, Any]) -> int:
+        status = str(entry.get("deck_status", "")).lower()
+        category = {"verified": 3, "playable": 2, "unsupported": 1}.get(status, 0)
+        if category == 0:
+            tier = str(entry.get("protondb_tier", "")).lower()
+            if tier in ("platinum", "native"):
+                return 2
+        return category
+
+    statuses = ["verified", "playable", "unsupported", "unknown", "", None]
+    tiers = ["platinum", "native", "gold", "silver", "bronze", "borked",
+             "pending", "", None]
+    for status in statuses:
+        for tier in tiers:
+            entry: dict[str, Any] = {"deck_status": status, "protondb_tier": tier}
+            assert compat_category(entry, "deck") == pre_change_ladder(entry), (
+                f"deck ladder changed for status={status!r} tier={tier!r}"
+            )

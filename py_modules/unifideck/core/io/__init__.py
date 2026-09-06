@@ -1,7 +1,5 @@
 """Async file I/O helpers + safe-file-op decorator.
 
-OP-08c | py_modules/unifideck/core/io/__init__.py
-
 Two complementary surfaces:
 
 * ``async_file_ops`` — namespace module with async wrappers

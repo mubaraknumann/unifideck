@@ -64,14 +64,17 @@ def test_ms_images_empty_when_no_usable_purposes():
     assert _extract_ms_images([]) == {}
 
 
-def test_match_shim_reexports_shared_util():
-    # The SGDB ``match`` module is now a shim over the shared util; pin
-    # that it forwards the exact same objects so the two can't drift.
-    from unifideck.steam.steamgriddb import match as shim
-    from unifideck.utils import title_match as canon
-
-    for name in (
-        "normalize_for_match", "strip_edition_suffix",
-        "score_match", "clean_search_query", "EDITION_SUFFIXES",
-    ):
-        assert getattr(shim, name) is getattr(canon, name)
+#
+# ``test_match_shim_reexports_shared_util`` lived here. It pinned that
+# ``steam/steamgriddb/match.py`` forwarded the same objects as
+# ``utils/title_match.py`` so the two could not drift. The shim is gone
+# (audit register item 24, check 12): its docstring claimed the SGDB package
+# imported it via ``from .match import ...``, and the only occurrence of that
+# string in the tree was the docstring itself — nothing in production ever
+# imported it, and this test was its sole importer.
+#
+# The test is deleted rather than repointed because the drift it guarded is
+# now impossible: there is one module. Per audit §3.1, the durable fix removes
+# every copy but the one a machine checks, and a check on a copy that cannot
+# exist is what keeps the copy alive. ``unifideck.utils.title_match`` is the
+# canonical home and has its own coverage.

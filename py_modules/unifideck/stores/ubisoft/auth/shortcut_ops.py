@@ -1,8 +1,6 @@
 """
 Shortcut registry operations — read/write entries for the auth shortcut.
 
-OP-58f | py_modules/unifideck/stores/ubisoft/auth/shortcut_ops.py
-
 Thin abstraction layer over ``services.shortcut.ShortcutService`` for
 the operations the auth flow needs: ``register_auth_shortcut``,
 ``locate_auth_shortcut_appid``, ``remove_stale_auth_shortcut``. Keeps
@@ -20,7 +18,6 @@ if TYPE_CHECKING:
     from unifideck.stores.ubisoft.config import UbisoftConfig
 _LEGACY_AUTH_SHORTCUT_STORE_ID = "ubisoft:.template"
 logger = logging.getLogger(__name__)
-
 
 class _ShortcutRegistryOps:
     """Shortcut registry ops."""

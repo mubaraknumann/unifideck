@@ -294,3 +294,33 @@ def live_client_prefixes(
         if image_name(proc_field(pid, "cmdline")) in images:
             found[prefix] = Path(prefix)
     return list(found.values())
+
+
+# ── Opening the client: one toast, one wording ──────────────────────
+
+# The client the user actually sees, per store. Interpolated into the
+# shared toast so the two stores differ only by name.
+_CLIENT_NAMES = {"ubisoft": "Ubisoft Connect", "battlenet": "Battle.net"}
+
+
+def announce_client_open(store: str) -> None:
+    """Toast that ``store``'s client is opening. Nothing more.
+
+    One line, one variable. It used to vary by store *and* editorialise:
+    Ubisoft said "Signing in to Ubisoft Connect / Sign in there, then
+    return." while Battle.net said "Battle.net Sign-In / Opening the
+    Battle.net client so you can sign in…" — two different voices for
+    the same event, both telling the user what to do next as though
+    that needed explaining, and both still saying "sign in" when the
+    user had pressed the cart.
+
+    No title key, so this renders as a title with no body (see
+    ``showLauncherToast``). Kept here rather than in either handler so
+    a third wrapper store cannot reintroduce the divergence.
+    """
+    from unifideck.launcher.frontend_bridge import launcher_toast
+
+    launcher_toast(
+        i18n_key="toasts.launcher.wrapperOpening",
+        i18n_params={"client": _CLIENT_NAMES.get(store, store)},
+    )

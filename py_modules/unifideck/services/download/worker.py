@@ -177,10 +177,16 @@ class _WorkerMixin:
         store = self._registry.get_store(item.store)
         if not store:
             raise RuntimeError(f"Store {item.store} not found in registry")
-        # Microsoft/xCloud games are streamed, not downloaded.
-        if item.store == "microsoft":
-            await self._reject_microsoft(item)
-            return
+        # NOTE: there is deliberately no store-name branch here for the
+        # cloud-only store. One existed — `_reject_microsoft` — and it
+        # bypassed `_emit_failure`, so the queue row never reached "failed"
+        # and never got an `error` set, while the toast echoed a hardcoded
+        # English sentence straight past `friendlyDownloadError`'s code
+        # table. The store itself now refuses with `not_supported` (audit
+        # §3.5, register item 11), so the ordinary failure path below does
+        # the whole job: correct row state, one classified error, one
+        # translated toast. A store's own refusal is the right place for
+        # this; the worker should not need to know which stores can install.
         await self._begin_install(item)
 
         async def progress_cb(progress: float | dict[str, Any]) -> None:
@@ -196,21 +202,6 @@ class _WorkerMixin:
                 result.error,
             )
             await self._emit_failure(item, result.error, key)
-
-    async def _reject_microsoft(self, item: DownloadItem) -> None:
-        """Emit DOWNLOAD_FAILED for cloud-only Microsoft titles."""
-        from unifideck.core.types.events import Events
-
-        logger.warning(
-            "[DownloadWorker] Microsoft games are cloud-only, cannot download",
-        )
-        if self._bus:
-            await self._bus.emit(
-                Events.DOWNLOAD_FAILED,
-                item=item.to_dict(),
-                error="Microsoft games are streamed via Xbox Cloud Gaming",
-                error_type="cloud_only",
-            )
 
     async def _begin_install(self, item: DownloadItem) -> None:
         """Flip the item to ``running`` and emit DOWNLOAD_STARTED.
@@ -294,6 +285,18 @@ class _WorkerMixin:
                 key,
                 item.language,
             )
+        # A separate staging directory for the downloaded artifact, for a
+        # store whose install is "fetch an archive, then unpack it" and whose
+        # archive therefore needs room of its own. Keyed off the field, not
+        # off a store name: only the store that accepts the kwarg ever sets
+        # it (nothing else populates ``DownloadItem.download_dir``), so the
+        # worker does not need to know which store that is — same reasoning
+        # as the deleted ``_reject_microsoft`` branch above.
+        if item.download_dir:
+            extra["download_dir"] = item.download_dir
+            logger.info(
+                "[DownloadWorker] %s download_dir=%s", key, item.download_dir,
+            )
         return await store.install_game(  # type: ignore[call-arg]
             item.game_id,
             item.install_path or None,
@@ -324,10 +327,13 @@ class _WorkerMixin:
         item.status = "complete"
         item.end_time = time.time()
         logger.info("[DownloadWorker] completed install for %s", key)
-        # Build a Game record so the ShortcutService listener registers
-        # the shortcut. We do NOT emit GAME_INSTALLED here — ArtworkService
-        # fetches cover art during the post-install sync pass and
-        # re-emitting causes duplicate SteamGridDB lookups.
+        # Build a Game record so the ShortcutService listener flips the
+        # shortcut's install tag. DOWNLOAD_COMPLETE is the only event this
+        # needs: ``mark_installed`` then emits SHORTCUT_INSTALL_STATE_CHANGED,
+        # which is what every install-state reader subscribes to. No separate
+        # install event — the shortcut and its cover art were created during
+        # the library sync and ``mark_installed`` preserves the appid, so
+        # re-fetching artwork here would only duplicate SteamGridDB lookups.
         game = await build_installed_game(
             item, result, store, getattr(self, "_launcher_path", ""),
         )
@@ -348,7 +354,7 @@ class _WorkerMixin:
         """Run install-time prefix setup, surfaced as a "preparing" phase.
 
         Only for the stores that own a per-game prefix — Ubisoft bootstraps its
-        own prefix via UPC, and Microsoft is cloud-only, so both are skipped.
+        own prefix via UPC, so it is skipped.
         Also skipped for a GOG *Linux-native* depot (root-level ``start.sh`` —
         the same signal ``GOGExeResolver``/the native-launch DOSBox dispatch
         use): those games never touch Proton/Wine, so creating a prefix for
@@ -361,7 +367,10 @@ class _WorkerMixin:
         picks up the new ``download_phase`` (same mechanism Ubisoft's
         "manual" phase uses).
         """
-        if uses_manual_download_phase(item.store) or item.store == "microsoft":
+        # The cloud-only store used to be named here too. It no longer needs
+        # to be: this runs on the success path only, and that store now
+        # refuses every install outright, so the arm was unreachable.
+        if uses_manual_download_phase(item.store):
             return
         if item.store == "gog" and (Path(item.install_path) / "start.sh").is_file():
             logger.info(
@@ -472,11 +481,20 @@ class _WorkerMixin:
     async def _update_progress(self, item: DownloadItem, progress: Any) -> None:
         """Progress callback invoked from the store's ``install_game``.
 
-        Stores emit progress in two shapes:
-        - Epic/Amazon pass a bare ``float`` (0.0-100.0).
+        Stores report progress in two shapes:
+        - Epic/Amazon pass a bare ``float`` (0.0-100.0), or a partial
+          ``dict`` when one output line only carries some of the fields.
         - GOG/Ubisoft pass a ``dict`` with ``percentage``,
           ``downloaded_bytes``, ``total_bytes``, ``speed_bps``,
-          ``eta_seconds``, ``phase``, ``phase_message``.
+          ``eta_seconds``, ``phase``.
+
+        Either way the merged item is what gets emitted, as ``item=`` —
+        the same shape as every other ``DOWNLOAD_*`` event and byte-for-byte
+        what ``get_download_queue`` hands the frontend, so the UI applies it
+        by row id instead of guessing that it belongs to the visible row.
+        Carrying the whole item also means ``download_phase`` /
+        ``download_phase`` reaches the row on the progress tick rather than on
+        the next queue refetch.
         """
         if isinstance(progress, (int, float)):
             item.progress = float(progress)
@@ -489,9 +507,5 @@ class _WorkerMixin:
 
             await self._bus.emit(
                 Events.DOWNLOAD_PROGRESS,
-                store=item.store,
-                game_id=item.game_id,
-                progress=item.progress,
-                speed_mbps=item.speed_mbps,
-                eta_seconds=item.eta_seconds,
+                item=item.to_dict(),
             )

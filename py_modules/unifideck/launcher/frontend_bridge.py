@@ -100,6 +100,7 @@ def launcher_toast(
     i18n_params: dict[str, Any] | None = None,
     severity: str | None = None,
     game_title: str = "",
+    duration_ms: int | None = None,
 ) -> None:
     """Emit a LAUNCHER_STAGE toast from launcher code that has no bus.
 
@@ -107,6 +108,12 @@ def launcher_toast(
     writes it straight to the bridge file. Use this from deep launch
     helpers (umu retry, compat/prereq install, store handlers) where
     threading the ``EventBus`` through would be impractical.
+
+    ``duration_ms`` overrides the frontend's per-severity default toast
+    duration — same meaning as ``emit_stage``'s. The two builders must
+    stay in step: a field one produces and the other doesn't is a
+    payload that renders differently depending on which process emitted
+    it.
 
     No-op inside a ``suppress_launcher_toasts`` scope (e.g. the install-time
     prefix warmup reusing these launch helpers).
@@ -124,6 +131,8 @@ def launcher_toast(
         payload["i18n_params"] = i18n_params
     if severity is not None:
         payload["severity"] = severity
+    if duration_ms is not None:
+        payload["duration_ms"] = duration_ms
     record_event(_LAUNCHER_STAGE, payload)
 
 

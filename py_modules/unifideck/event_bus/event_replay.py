@@ -1,14 +1,12 @@
 """Event replay buffer — per-event-type ring buffers of recent events.
 
-OP-09d | py_modules/unifideck/event_bus/event_replay.py
-
 ``EventReplayBuffer`` is **not** a single FIFO of all events — it's
 a dict of per-event-type ``deque(maxlen=...)`` buffers. Different
 event types get different caps:
 
 * high-frequency events (``SYNC_PROGRESS``, ``DOWNLOAD_PROGRESS``)
   → cap 50 (recent progress only);
-* lifecycle events (``GAME_INSTALLED``, ``STORE_AUTH_COMPLETE``)
+* lifecycle events (``GAME_UNINSTALLED``, ``STORE_AUTH_COMPLETE``)
   → cap 10-20 (full history of recent state changes);
 * anything else → fallback cap (20).
 
@@ -47,13 +45,11 @@ MAX_SNAPSHOT_ENTRIES = 500
 _DEFAULT_CAPS: dict[Events, int] = {
     Events.SYNC_PROGRESS: 50,
     Events.DOWNLOAD_PROGRESS: 50,
-    Events.GAME_INSTALLED: 20,
     Events.GAME_UNINSTALLED: 20,
     Events.STORE_AUTH_COMPLETE: 10,
     Events.STORE_LOGOUT: 10,
 }
 _FALLBACK_CAP = 20
-
 
 @dataclass
 class _RecordedEvent:
@@ -89,7 +85,6 @@ class _RecordedEvent:
             "kwargs": self.kwargs,
             "timestamp": round(self.timestamp, 3),
         }
-
 
 class EventReplayBuffer:
     """Per-event-type ring buffers with custom caps."""

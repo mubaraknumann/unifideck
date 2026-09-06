@@ -1,7 +1,5 @@
 """Heuristic .exe locator for installed Windows games.
 
-OP-08g | py_modules/unifideck/core/exe_finder.py
-
 Many stores hand back an install path but not the launcher
 ``.exe`` itself — Unifideck has to scan the install directory
 and pick the right binary. ``ExeFinder`` implements a
@@ -24,6 +22,7 @@ score-based search:
 Exported as both a class and a module-level singleton
 ``exe_finder``.
 """
+from __future__ import annotations
 
 import contextlib
 import logging
@@ -58,6 +57,16 @@ WRAPPER_EXES = {
     "unrealcefsubprocess.exe",
 }
 
+#: Vendor download-staging directories. Nothing launchable ever lives in one:
+#: the client empties it as the last step of an install, so a binary picked
+#: from inside is a path that stops existing the moment the game is playable.
+#:
+#: ``uplay_download`` is Ubisoft Connect's. It is named again in
+#: ``stores/ubisoft/library/detection_helpers.UPC_STAGING_DIR``, where the
+#: same directory carries a second meaning (its emptiness is UPC's completion
+#: signal). The two are deliberately not shared: ``core`` sits below
+#: ``stores`` and must not import from it.
+STAGING_DIRS = frozenset({"uplay_download"})
 
 class ExeFinder:
     """Score-based .exe picker for game install directories."""
@@ -112,6 +121,9 @@ class ExeFinder:
         * ``dirs.clear()`` at the cap prunes the walk
           early (``os.walk`` only descends into dirs still
           in the mutable list).
+        * ``STAGING_DIRS`` are pruned the same way, so a
+          vendor's download staging tree is never even
+          scored — see that constant for why.
         * Skip non-``.exe`` files and the
           ``WRAPPER_EXES`` blocklist.
 
@@ -125,6 +137,7 @@ class ExeFinder:
         for root, dirs, files in os.walk(install_path):
             rel = os.path.relpath(root, install_path)
             depth = 0 if rel == "." else rel.count(os.sep) + 1
+            dirs[:] = [d for d in dirs if d not in STAGING_DIRS]
             if depth > 3:
                 dirs.clear()
                 continue
@@ -211,6 +224,5 @@ class ExeFinder:
             best_path,
         )
         return cast("str | None", best_path)
-
 
 exe_finder = ExeFinder()

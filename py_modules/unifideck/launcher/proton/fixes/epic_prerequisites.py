@@ -1,7 +1,5 @@
 """epic_prerequisites.py — Run per-game prerequisite installers before legendary launch.
 
-# OP-44f | py_modules/unifideck/launcher/proton/fixes/epic_prerequisites.py | Depends: (none)
-
 Some Epic titles ship a ``prereq_info`` block in legendary's
 ``installed.json`` pointing at a Windows installer (Ubisoft Connect
 bootstrap, Visual C++ redistributables, …) that must run inside the
@@ -25,6 +23,9 @@ from unifideck.launcher.proton.infrastructure.container_escape import (
     escape_argv,
 )
 from unifideck.launcher.proton.infrastructure.core import ProtonLaunchPlan
+from unifideck.launcher.proton.infrastructure.prefix_layout import (
+    normalize_prefix_root,
+)
 
 logger = logging.getLogger(__name__)
 _INSTALLER_TIMEOUT_S = 600
@@ -36,7 +37,6 @@ _LEGENDARY_CONFIG_CANDIDATES = (
     ),
 )
 
-
 async def apply_epic_prerequisites(plan: ProtonLaunchPlan) -> bool:
     """Apply EPIC prerequisites.
 
@@ -47,7 +47,7 @@ async def apply_epic_prerequisites(plan: ProtonLaunchPlan) -> bool:
     helper.
     """
     game_id = plan.context.game_id
-    prefix_root = _normalize_prefix_root(plan.prefix_path)
+    prefix_root = normalize_prefix_root(plan.prefix_path)
     new_marker, legacy_marker = _get_marker_paths(game_id, prefix_root)
     if new_marker.is_file() or legacy_marker.is_file():
         logger.debug(
@@ -96,15 +96,6 @@ async def apply_epic_prerequisites(plan: ProtonLaunchPlan) -> bool:
         )
     return ok
 
-
-def _normalize_prefix_root(prefix_path: Path) -> Path:
-    """Normalize prefix root."""
-    p = prefix_path.resolve()
-    while p.name == "pfx":
-        p = p.parent
-    return p
-
-
 def _get_marker_paths(game_id: str, prefix_root: Path) -> tuple[Path, Path]:
     """Get marker paths.
 
@@ -125,7 +116,6 @@ def _get_marker_paths(game_id: str, prefix_root: Path) -> tuple[Path, Path]:
     )
     legacy_marker = prefix_root / f".unifideck_prereqs_{game_id}.done"
     return new_marker, legacy_marker
-
 
 def _get_prereq_info(game_id: str) -> dict[str, Any] | None:
     """Get prereq info."""
@@ -153,7 +143,6 @@ def _get_prereq_info(game_id: str) -> dict[str, Any] | None:
     prereq["install_path"] = entry.get("install_path", "")
     return prereq
 
-
 def _find_legendary_installed_json() -> Path | None:
     """Find LEGENDARY installed JSON."""
     for candidate in _LEGENDARY_CONFIG_CANDIDATES:
@@ -161,7 +150,6 @@ def _find_legendary_installed_json() -> Path | None:
         if installed.is_file():
             return installed
     return None
-
 
 async def _run_prerequisite(
     plan: ProtonLaunchPlan,
@@ -183,7 +171,6 @@ async def _run_prerequisite(
     cmd = _build_prereq_cmd(plan, full_installer, prereq)
     return await _spawn_installer(cmd, env)
 
-
 def _build_prereq_env(
     plan: ProtonLaunchPlan, prefix_root: Path,
 ) -> dict[str, str]:
@@ -198,7 +185,6 @@ def _build_prereq_env(
     env.pop("LD_PRELOAD", None)
     return env
 
-
 def _build_prereq_cmd(
     plan: ProtonLaunchPlan,
     full_installer: Path,
@@ -210,7 +196,6 @@ def _build_prereq_cmd(
     if isinstance(args, str) and args.strip():
         cmd.extend(args.split())
     return cmd
-
 
 async def _spawn_installer(cmd: list[str], env: dict[str, str]) -> bool:
     """Spawn installer.
@@ -251,7 +236,6 @@ async def _spawn_installer(cmd: list[str], env: dict[str, str]) -> bool:
         _log_filtered_output(stdout.decode("utf-8", errors="replace"))
     return True
 
-
 def _log_filtered_output(text: str) -> None:
     """Log filtered output."""
     markers = ("error", "warn", "install", "success", "fail", "complete", "info:")
@@ -259,7 +243,6 @@ def _log_filtered_output(text: str) -> None:
         lower = line.lower()
         if any(m in lower for m in markers):
             logger.info("[epic_prerequisites]   %s", line.strip())
-
 
 def _write_marker_sync(marker_path: Path, body: str) -> None:
     """Write marker sync."""
@@ -270,7 +253,6 @@ def _write_marker_sync(marker_path: Path, body: str) -> None:
         logger.debug(
             "[epic_prerequisites] marker write failed: %s", e,
         )
-
 
 def _cleanup_legacy_marker(legacy_marker: Path) -> None:
     """Cleanup legacy marker."""

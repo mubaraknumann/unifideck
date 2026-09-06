@@ -28,6 +28,24 @@ import { SteamRestartModal } from "../components/modals/SteamRestartModal";
 
 const PROGRESS_POLL_MS = 500;
 
+/** Sentinel for an event that carries no usable `run_id`. */
+const UNTAGGED_RUN_ID = -1;
+
+/**
+ * Read a generation id off an event payload.
+ *
+ * Mirrors `run_id_of` in `core/sync_generation.py`. Returns
+ * `UNTAGGED_RUN_ID` when the key is absent or not a real number, so a
+ * replayed pre-migration event degrades to "always current" rather than
+ * being silently dropped.
+ */
+function readRunId(payload: unknown): number {
+  const raw = (payload as Record<string, unknown>)?.run_id;
+  return typeof raw === "number" && Number.isInteger(raw)
+    ? raw
+    : UNTAGGED_RUN_ID;
+}
+
 // ── Snapshot type ────────────────────────────────────────
 
 export interface SyncSnapshot {
@@ -52,6 +70,16 @@ class SyncStoreImpl {
   private _pendingPhases = new Set<string>();
   private _observedActiveSync = false;
   private _pendingRestart = false;
+  // Generation of the sync we are currently draining phases for, latched
+  // from `sync_started`. `_pendingPhases` is a single mutable set that
+  // `sync_started` replaces wholesale, so without a run id a phase-done
+  // event from a superseded sync drained THIS sync's set — which flipped
+  // isSyncing to false and popped the Steam-restart modal while the live
+  // sync was still downloading artwork. Measured 2026-08-29: three artwork
+  // batches alive at once, one announcing done for a 645-game generation
+  // against a library that had been 1242 games for two minutes.
+  // `null` = no tagged sync seen yet (fail open, see `_isStaleRun`).
+  private _currentRunId: number | null = null;
 
   /** Start subscriptions and initial state restore. */
   start(): void {
@@ -76,6 +104,12 @@ class SyncStoreImpl {
             ? phases
             : ["artwork", "metadata", "proton_meta"],
         );
+        // Latch this run's generation; later phase events must match it.
+        this._currentRunId = readRunId(payload);
+        // A new generation supersedes any restart armed by the previous
+        // one — that reconcile's counters described a library state this
+        // run is about to replace.
+        this._pendingRestart = false;
         this._update({ isSyncing: true, isCancelling: false });
         EventBusClient.bumpToFast();
         this._startPolling();
@@ -103,6 +137,8 @@ class SyncStoreImpl {
           (payload as Record<string, unknown>)?.active ?? false,
         );
         if (active || !phase) return;
+        // Ignore a phase-done belonging to a superseded generation.
+        if (this._isStaleRun(payload)) return;
         this._pendingPhases.delete(phase);
         if (this._pendingPhases.size === 0) {
           this._update({ isSyncing: false, isCancelling: false });
@@ -128,10 +164,24 @@ class SyncStoreImpl {
     );
 
     this._unsubs.push(
-      EventBusClient.subscribe("sync_failed", () => {
-        this._pendingPhases.clear();
-        this._update({ isSyncing: false, isCancelling: false });
-        this._stopPolling();
+      EventBusClient.subscribe("sync_failed", (payload) => {
+        // `sync_failed` is emitted PER STORE — its only emitter is
+        // `_sync_one_store`'s exception path, and its payload is
+        // {store, error}. It does not mean the run ended: the loop
+        // carries on with the remaining stores and finalizes normally,
+        // reporting the failure through SYNC_COMPLETE's `errors`.
+        //
+        // Treating it as terminal (clearing `_pendingPhases`, flipping
+        // isSyncing off) meant one flaky store left the set empty, so the
+        // very next phase-done saw size === 0 and fired the Steam-restart
+        // modal after metadata — before artwork and compat had run. Leave
+        // the phase set alone; the drain and the 1800s backend watchdog
+        // both still terminate the run.
+        console.warn(
+          "[SyncStore] store failed during sync:",
+          (payload as Record<string, unknown>)?.store,
+          (payload as Record<string, unknown>)?.error,
+        );
       }),
     );
 
@@ -149,8 +199,16 @@ class SyncStoreImpl {
 
     this._unsubs.push(
       EventBusClient.subscribe("shortcut_reconcile_complete", (payload) => {
+        if (this._isStaleRun(payload)) return;
         const added = Number(payload?.added ?? 0);
         const removed = Number(payload?.removed ?? 0);
+        // Deliberately NOT armed on `reclaimed`, even though the payload
+        // now carries it. `_try_reclaim_orphan` is tried ahead of the
+        // LaunchOptions match, so every already-registered game counts as
+        // reclaimed on every sync (997 of them on a sync that added and
+        // removed nothing) — arming on it would show the restart modal
+        // after literally every sync. Only added/removed change what
+        // Steam needs to re-read.
         if (added > 0 || removed > 0) {
           this._pendingRestart = true;
         }
@@ -182,6 +240,23 @@ class SyncStoreImpl {
   /** Notify the store that a cancel was requested. */
   notifyCancelRequested(): void {
     this._update({ isCancelling: true, progress: null });
+  }
+
+  /**
+   * Whether an event belongs to a run older than the one being drained.
+   *
+   * Fails open in both untagged directions — an event with no `run_id`,
+   * or a store that has not yet latched one from `sync_started` — so a
+   * partially-migrated backend keeps the pre-run-id behaviour instead of
+   * stranding `_pendingPhases` forever (which would hang the progress bar
+   * and mean the restart modal never fires again).
+   */
+  private _isStaleRun(payload: unknown): boolean {
+    const incoming = readRunId(payload);
+    if (incoming === UNTAGGED_RUN_ID || this._currentRunId === null) {
+      return false;
+    }
+    return incoming !== this._currentRunId;
   }
 
   // ── useSyncExternalStore API ──────────────────────────

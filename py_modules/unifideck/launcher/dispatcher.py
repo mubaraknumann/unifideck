@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 from unifideck.core.types.results import Result
 
+from .argv_options import env_overrides_from, parse_argv, promote_env_tokens
 from .types.context import LaunchContext
 from .types.errors import GameNotFoundError, LauncherError
 from .types.exit_codes import ExitCode
@@ -20,48 +21,6 @@ if TYPE_CHECKING:
     from unifideck.services.shortcut import ShortcutService
 
 logger = logging.getLogger(__name__)
-def _parse_argv(argv: list[str]) -> tuple[str, str]:
-    """Parse argv."""
-    if len(argv) < 2:
-        raise GameNotFoundError(
-            "missing store:game_id argument",
-            context={"argv": argv},
-        )
-    game_key = argv[1]
-    if ":" not in game_key:
-        raise GameNotFoundError(
-            f"malformed game key {game_key!r}, "
-            "expected 'store:game_id'",
-            context={"game_key": game_key},
-        )
-    raw_options = " ".join(argv[2:])
-    return game_key, raw_options
-
-
-def _promote_env_tokens(raw_options: str) -> None:
-    """Promote ``KEY=value`` tokens from launch options to ``os.environ``.
-
-    Steam passes plugin launch options to the wrapper as argv,
-    not as env vars : a shortcut configured with launch options
-    ``"amazon:amazon-auth UNIFIDECK_AMAZON_ACTION=auth"`` arrives
-    as ``sys.argv[1:] = ["amazon:amazon-auth", "UNIFIDECK_AMAZON_ACTION=auth"]``.
-
-    The auth-detection path (and other downstream code) reads
-    these flags from ``os.environ``, so we promote any
-    bare ``KEY=value`` token in the joined raw options string
-    into the process environment before that code runs.
-    Only tokens starting with ``UNIFIDECK_`` are promoted —
-    don't pollute the env with arbitrary user-supplied args.
-    """
-    for token in raw_options.split():
-        if "=" not in token:
-            continue
-        key, _, value = token.partition("=")
-        if not key.startswith("UNIFIDECK_"):
-            continue
-        # Don't clobber an existing real env var — caller wins
-        # in case Steam ever evolves to pass env vars properly.
-        os.environ.setdefault(key, value)
 def _resolve_plugin_dir() -> Path:
     """Resolve plugin dir."""
     from unifideck.core.paths import resolve_plugin_dir
@@ -129,13 +88,13 @@ async def _build_context(
     shortcut_svc: ShortcutService,
 ) -> LaunchContext:
     """Build context."""
-    game_key, raw_options = _parse_argv(argv)
+    game_key, raw_options = parse_argv(argv)
     store, game_id = game_key.split(":", 1)
 
     # Steam passes launch options as argv, not as env vars — promote
     # any ``UNIFIDECK_*=value`` tokens so the rest of the dispatcher
     # can read them from ``os.environ`` as it expects.
-    _promote_env_tokens(raw_options)
+    promote_env_tokens(raw_options)
 
     # Non-launch action path. Two kinds, both keyed by
     # ``UNIFIDECK_<STORE>_ACTION``:
@@ -262,13 +221,21 @@ def _special_action_context(
         return _wrapper_install_context(
             store, game_id, raw_options, action_store or store,
         )
-    return _auth_context(store, game_id, raw_options, action_store)
+    return _action_context(
+        store, game_id, raw_options, action_store, action or "auth")
 
 
-def _auth_context(
+def _action_context(
     store: str, game_id: str, raw_options: str, auth_store: str | None,
+    action: str = "auth",
 ) -> LaunchContext:
-    """Context for an auth shortcut (no game target)."""
+    """Context for an auth or storefront shortcut (no game target).
+
+    Both mean "open a window for this store, there is no game here", so
+    they share one builder; ``action`` is what ``_handle_auth_path``
+    routes on. Parameterised rather than copied: a fifth near-identical
+    ``LaunchContext`` builder would push this file over its LOC cap.
+    """
     plugin_dir = _resolve_plugin_dir()
     return LaunchContext(
         store=store,
@@ -277,9 +244,10 @@ def _auth_context(
         work_dir=plugin_dir,
         plugin_dir=plugin_dir,
         raw_options=raw_options,
+        env_overrides=env_overrides_from(raw_options),
         is_launch_action=False,
         auth_store=auth_store,
-        action="auth",
+        action=action,
         bypass_circuit_breaker=False,
     )
 
@@ -306,6 +274,7 @@ def _wrapper_install_context(
         work_dir=plugin_dir,
         plugin_dir=plugin_dir,
         raw_options=raw_options,
+        env_overrides=env_overrides_from(raw_options),
         is_launch_action=False,
         auth_store=wrapper_store,
         action="install",
@@ -325,6 +294,7 @@ def _xcloud_context(
         work_dir=plugin_dir,
         plugin_dir=plugin_dir,
         raw_options=raw_options,
+        env_overrides=env_overrides_from(raw_options),
         is_launch_action=True,
         auth_store=None,
         bypass_circuit_breaker=False,
@@ -352,6 +322,7 @@ def _game_context(
         work_dir=Path(work_dir) if work_dir else plugin_dir,
         plugin_dir=plugin_dir,
         raw_options=raw_options,
+        env_overrides=env_overrides_from(raw_options),
         is_launch_action=True,
         auth_store=None,
         steam_app_id=str(app_id) if app_id else None,
@@ -361,10 +332,15 @@ def _game_context(
 def _detect_special_action() -> tuple[str | None, str | None, bool]:
     """Detect a non-launch action from ``UNIFIDECK_<STORE>_ACTION``.
 
-    Returns ``(store, action, is_launch_action)``. ``auth`` is valid for
-    every store; ``install`` is valid for the *wrapper* stores only, where
-    it opens the vendor client so the user can start the download. Anything
-    else (or no token) is a normal game launch (``(None, None, True)``).
+    Returns ``(store, action, is_launch_action)``. ``auth`` and
+    ``storefront`` are valid for every store; ``install`` is valid for the
+    *wrapper* stores only, where it opens the vendor client so the user can
+    start the download. Anything else (or no token) is a normal game launch
+    (``(None, None, True)``).
+
+    ``storefront`` is deliberately NOT wrapper-gated: every store has a
+    shop. Which *kind* — web storefront or the vendor client's own Store
+    tab — ``_handle_auth_path`` decides, ``is_wrapper_store`` first.
 
     The wrapper test goes through ``is_wrapper_store`` rather than a literal
     ``== "ubisoft"``: that literal is why ``UNIFIDECK_BATTLENET_ACTION=install``
@@ -383,6 +359,8 @@ def _detect_special_action() -> tuple[str | None, str | None, bool]:
     for candidate_store, action in action_env.items():
         if action == "auth":
             return candidate_store, "auth", False
+        if action == "storefront":
+            return candidate_store, "storefront", False
         if action == "install" and is_wrapper_store(candidate_store):
             return candidate_store, "install", False
     return None, None, True
@@ -438,7 +416,7 @@ async def _run_with_id(argv: list[str]) -> int:
 
     """Run with ID."""
     try:
-        game_key, _ = _parse_argv(argv)
+        game_key, _ = parse_argv(argv)
         logger.info(
             "[launcher.dispatcher] request received: %s", game_key,
         )

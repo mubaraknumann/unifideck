@@ -1,7 +1,5 @@
 """Bus handler watchdog — timeout, quarantine, recovery.
 
-OP-10a | py_modules/unifideck/event_bus/supervision/watchdog_handler.py
-
 ``HandlerWatchdog`` enforces a per-handler timeout: every bus
 emission goes through ``invoke`` which wraps the handler call in
 ``asyncio.wait_for``. On timeout, the handler is cancelled and
@@ -47,7 +45,6 @@ logger = logging.getLogger(__name__)
 DEFAULT_HANDLER_TIMEOUT_SEC = 5.0
 DEFAULT_QUARANTINE_THRESHOLD = 10
 
-
 @dataclass
 class HandlerTimeoutMetrics:
     """Per-handler watchdog state and counters.
@@ -70,7 +67,6 @@ class HandlerTimeoutMetrics:
     consecutive_timeouts: int = 0
     quarantined: bool = False
     last_error: str | None = None
-
 
 class HandlerWatchdog:
     """Per-handler timeout supervisor with quarantine on repeated failure."""
@@ -228,7 +224,7 @@ class HandlerWatchdog:
     ) -> bool:
         """Quarantine a handler **before** it gets a chance to time out.
 
-        Used by ``ProbeReactionService`` (OP-12e) when a runtime
+        Used by ``ProbeReactionService`` when a runtime
         probe reports that a capability the handler depends on
         is currently broken — quarantining pre-emptively avoids
         wasted timeouts that would only end up at the same
@@ -308,7 +304,6 @@ class HandlerWatchdog:
                 metrics.name,
                 metrics.consecutive_timeouts,
             )
-
 
 class HandlerQuarantinedError(Exception):
     """Raised by ``HandlerWatchdog.invoke`` when the handler is suspended."""

@@ -1,7 +1,5 @@
 """Amazon Games update checker — periodic polling for new versions.
 
-OP-49e | py_modules/unifideck/stores/amazon/amazon_updates.py
-
 ``AmazonUpdateChecker`` periodically queries nile for the latest
 version manifest of each installed game and compares it against the
 locally-recorded version (stored in the ``.unifideck-id`` marker).
@@ -12,7 +10,7 @@ locally-recorded version (stored in the ``.unifideck-id`` marker).
 * ``stop()``                      — graceful shutdown.
 
 Update application itself is delegated to the installer pipeline
-(``amazon_install.py``, OP-49d) which re-runs nile in update mode.
+(``amazon_install.py``) which re-runs nile in update mode.
 Rate-limiting protects against hammering the Amazon API on initial
 library boot.
 """
@@ -31,7 +29,6 @@ from unifideck.stores.amazon.nile_lock import nile_cli_lock
 from .amazon_library import AmazonLibraryReader
 
 logger = logging.getLogger(__name__)
-
 
 class AmazonUpdateChecker:
     """Amazon update checker."""

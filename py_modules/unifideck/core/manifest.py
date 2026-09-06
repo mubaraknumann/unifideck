@@ -1,26 +1,40 @@
-"""Per-game install manifest — write/read/discover.
+"""Per-game install manifest — build and write.
 
-OP-08j | py_modules/unifideck/core/manifest.py
+py_modules/unifideck/core/manifest.py
 
-When Unifideck installs a game (or detects an existing
-install), it drops a small JSON manifest file
-(``.unifideck_manifest.json`` by default) inside the game's
-directory. The manifest records the store + game_id + title
-+ executable path so a later discovery pass can re-attach
-the install to Unifideck without re-querying every store.
+When Unifideck installs a game it drops a small JSON manifest
+file (``.unifideck_manifest.json`` by default) inside the game's
+directory, recording store + game_id + title + executable path.
+Epic and Amazon write one at the end of a successful install.
 
-Three public surfaces:
+Two public surfaces:
 
-* ``GameManifest`` dataclass + ``DiscoveryResult`` — typed
-  records;
-* ``build_manifest`` / ``write_manifest`` / ``read_manifest``
-  — single-game CRUD;
-* ``discover_all`` (+ thin wrappers ``discover_installed_games``
-  and ``discover_and_log``) — walk every configured game
-  root, read manifests, emit ``GAME_INSTALLED`` events.
+* ``GameManifest`` dataclass — the typed record;
+* ``build_manifest`` / ``write_manifest`` — compose and persist.
 
-All disk I/O goes through ``asyncio.to_thread`` so reads /
-writes don't block the event loop on slow storage.
+**Who reads what this writes.** Nothing in this module — which is what
+made ``write_manifest`` look write-only to audit §1.4 g, which proposed
+deleting it. The reader is :mod:`unifideck.core.marker_sweep`, where the
+file is ``_MANIFEST_MARKER``: ``iter_marked_dirs`` parses its ``store``
+and ``store_id`` back out, and ``find_for_game`` / ``sweep_game`` /
+``sweep_all`` use that as *proof Unifideck created this directory* before
+deleting anything. That proof is the only thing that lets uninstall and
+"Delete all data" clean up a game installed outside the default library
+root — a custom folder or an SD card, which the store CLIs do not scan.
+Drop the write and those installs are stranded on disk while uninstall
+reports success. Keep the two modules' contract in mind together.
+
+This module used to own a discovery pass as well (``discover_all``
+and friends, walking every game root to re-attach installs by
+emitting ``GAME_INSTALLED``). It had no callers — only
+``vulture_whitelist`` entries — and its ``GAME_INSTALLED`` emit
+was the sole emit site for an event two services subscribed to,
+making both look alive while neither could ever run. Install
+state now flows through ``DOWNLOAD_COMPLETE`` →
+``ShortcutService.mark_installed`` → ``SHORTCUT_INSTALL_STATE_CHANGED``.
+
+All disk I/O goes through ``asyncio.to_thread`` so writes don't
+block the event loop on slow storage.
 """
 
 from __future__ import annotations
@@ -28,13 +42,11 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
-from unifideck.core.types import Events
-from unifideck.event_bus.event_bus import EventBus
 from unifideck.utils.config_helpers import get_cfg
 
 if TYPE_CHECKING:
@@ -127,44 +139,6 @@ class GameManifest:
             )
         except (KeyError, TypeError):
             return None
-
-
-@dataclass
-class DiscoveryResult:
-    """Aggregate counters returned by ``discover_all``.
-
-    Attributes:
-        scanned_directories: total game roots walked.
-        manifests_found:     manifests successfully parsed.
-        games_registered:    games for which the
-            ``GAME_INSTALLED`` event was emitted (less
-            than ``manifests_found`` when the bus rejected
-            some emissions).
-        errors:              free-form error strings;
-            populated on per-directory or per-emit
-            failures but doesn't abort the scan.
-    """
-
-    scanned_directories: int = 0
-    manifests_found: int = 0
-    games_registered: int = 0
-    errors: list[str] = field(default_factory=list)
-
-    def to_dict(self) -> dict[str, Any]:
-        """Serialise the counters as a JSON-friendly dict.
-
-        ``errors`` is shallow-copied so the caller can
-        treat the dict as immutable.
-
-        Returns:
-            Four-key dict ready for RPC return.
-        """
-        return {
-            "scanned_directories": self.scanned_directories,
-            "manifests_found": self.manifests_found,
-            "games_registered": self.games_registered,
-            "errors": list(self.errors),
-        }
 
 
 def build_manifest(
@@ -293,228 +267,3 @@ async def write_manifest(
     except OSError:
         logger.exception("[discovery] write_manifest %s:%s failed", store, store_id)
         return False
-
-
-async def read_manifest(
-    game_dir: str,
-    config: ConfigManager | None = None,
-) -> GameManifest | None:
-    """Read + parse a manifest from ``game_dir``, or ``None`` on any failure.
-
-    Tolerates the three common failure modes:
-
-    * **No manifest file** → ``None``;
-    * **OSError on open** → ``None`` (logged at DEBUG —
-      expected during discovery when scanning
-      arbitrary dirs);
-    * **JSONDecodeError** → ``None`` (corrupt manifest);
-    * **Missing required fields** → ``None`` (handled
-      inside ``GameManifest.from_dict``).
-
-    All disk I/O is offloaded to a thread.
-
-    Args:
-        game_dir: directory expected to contain the
-            manifest file.
-        config: optional ``ConfigManager`` for filename
-            override.
-
-    Returns:
-        ``GameManifest`` on success, ``None`` otherwise.
-    """
-    filename = get_cfg(
-        config,
-        "discovery.manifest_filename",
-        DEFAULT_MANIFEST_FILENAME,
-    )
-    path = Path(game_dir) / filename
-
-    def _read_sync() -> dict[str, Any] | None:
-        """Open + parse + close. Returns None on missing file or bad JSON.
-
-        Closure over ``path``. Three-arm error policy
-        absorbed inside: missing file → None; JSON /
-        OSError → None + DEBUG log. The caller
-        (``read_manifest``) then runs the dict through
-        ``GameManifest.from_dict`` for the typed
-        conversion.
-        """
-        if not path.is_file():
-            return None
-        try:
-            with path.open(encoding="utf-8") as f:
-                return cast("dict[str, Any] | None", json.load(f))
-        except (OSError, json.JSONDecodeError) as e:
-            logger.debug("[discovery] read %s failed: %s", path, e)
-            return None
-
-    raw = await asyncio.to_thread(_read_sync)
-    if raw is None:
-        return None
-    return GameManifest.from_dict(raw)
-
-
-async def discover_all(
-    bus: EventBus | None = None,
-    config: ConfigManager | None = None,
-) -> DiscoveryResult:
-    """Walk every configured game root, read manifests, emit GAME_INSTALLED.
-
-    Pipeline:
-
-    1. Resolve game roots via
-       ``utils.paths.get_all_game_directories``.
-    2. For each root, list immediate subdirs and try to
-       read a manifest from each.
-    3. For every manifest found, emit
-       ``GAME_INSTALLED`` on the bus (if a bus was
-       supplied).
-
-    Returns aggregate counters so the caller can log /
-    surface scan health.
-
-    OSError on a root walks into ``errors`` but doesn't
-    abort other roots — partial-success semantics.
-
-    Args:
-        bus: optional event bus to emit on. ``None``
-            still scans + counts but skips emissions.
-        config: optional ``ConfigManager``.
-
-    Returns:
-        ``DiscoveryResult`` with counters.
-    """
-    from unifideck.utils.paths import get_all_game_directories
-
-    result = DiscoveryResult()
-    roots = await asyncio.to_thread(get_all_game_directories, config)
-    result.scanned_directories = len(roots)
-    logger.info("[discovery] scanning %d roots", len(roots))
-    for root in roots:
-        try:
-            await _scan_one_root(root, bus, result, config)
-        except OSError as e:
-            result.errors.append(f"{root}: {e}")
-    logger.info(
-        "[discovery] done — %d manifests, %d games registered, %d errors",
-        result.manifests_found,
-        result.games_registered,
-        len(result.errors),
-    )
-    return result
-
-
-async def _scan_one_root(
-    root: str,
-    bus: EventBus | None,
-    result: DiscoveryResult,
-    config: ConfigManager | None,
-) -> None:
-    """Walk one game root, reading every manifest and emitting events.
-
-    List immediate subdirs of ``root`` (one level deep —
-    no recursive walk; the convention is that each game
-    has its own top-level dir under the root). For each
-    subdir, read its manifest and, if present, emit
-    ``GAME_INSTALLED`` with the manifest's data.
-
-    Per-subdir failures (manifest unreadable, bus emit
-    failure) are recorded in ``result.errors`` but don't
-    abort the scan.
-
-    Args:
-        root: one game-root path from
-            ``get_all_game_directories``.
-        bus: optional event bus.
-        result: shared result accumulator (mutated).
-        config: optional config manager.
-    """
-
-    def _list(p: str) -> list[str]:
-        """Return subdirectory paths under ``p`` (one level deep).
-
-        Used inside ``_scan_one_root`` to enumerate the
-        per-game directories under one game root. Only
-        directories — files at the root level are
-        skipped. Returns ``str`` paths (not ``Path``)
-        because the caller passes them to
-        ``read_manifest`` which takes a string.
-
-        Args:
-            p: root directory to enumerate.
-
-        Returns:
-            List of subdirectory paths.
-        """
-        root_path = Path(p)
-        return [str(entry) for entry in root_path.iterdir() if entry.is_dir()]
-
-    try:
-        subdirs = await asyncio.to_thread(_list, root)
-    except OSError:
-        return
-    for game_dir in subdirs:
-        manifest = await read_manifest(game_dir, config)
-        if manifest is None:
-            continue
-        result.manifests_found += 1
-        if bus is not None:
-            try:
-                await bus.emit(
-                    Events.GAME_INSTALLED,
-                    store=manifest.store,
-                    game_id=manifest.store_id,
-                    title=manifest.title,
-                    install_path=game_dir,
-                    executable=manifest.executable_relative,
-                )
-                result.games_registered += 1
-            except (RuntimeError, asyncio.CancelledError, AttributeError, OSError) as e:
-                result.errors.append(
-                    f"{manifest.store}:{manifest.store_id}: {e}",
-                )
-
-
-async def discover_installed_games(
-    registry: Any | None = None,
-    bus: EventBus | None = None,
-    config: ConfigManager | None = None,
-) -> dict[str, Any] | DiscoveryResult:
-    """Run ``discover_all`` and return a JSON-friendly dict.
-
-    Compatibility wrapper for callers expecting a dict
-    return rather than the typed ``DiscoveryResult``.
-    Notably, the ``registry`` arg is accepted for
-    backward signature compatibility but currently
-    unused.
-
-    Args:
-        registry: unused (legacy parameter).
-        bus: optional event bus.
-        config: optional config manager.
-
-    Returns:
-        Dict from ``DiscoveryResult.to_dict``, or the raw
-        result if it somehow lacks the method.
-    """
-    result = await discover_all(bus=bus, config=config)
-    return result.to_dict() if hasattr(result, "to_dict") else result
-
-
-async def discover_and_log(
-    bus: EventBus | None = None,
-    config: ConfigManager | None = None,
-) -> DiscoveryResult:
-    """Alias for ``discover_all`` — keeps a verb-style name on the API.
-
-    Some legacy call sites use this name; kept exported
-    to avoid churn during the migration.
-
-    Args:
-        bus: optional event bus.
-        config: optional config manager.
-
-    Returns:
-        ``DiscoveryResult`` from ``discover_all``.
-    """
-    return await discover_all(bus=bus, config=config)

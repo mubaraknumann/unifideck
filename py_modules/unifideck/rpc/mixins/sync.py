@@ -1,6 +1,4 @@
 """Sync RPC mixin for Plugin class.
-
-OP-26f | rpc/mixins/sync.py
 """
 from __future__ import annotations
 
@@ -21,7 +19,6 @@ logger = logging.getLogger(__name__)
 # (``store.get_game_size`` shells out to legendary / gogdl). Keeps the
 # ``get_game_size_bytes`` RPC from hanging on a slow or offline store.
 _SIZE_LOOKUP_TIMEOUT_S = 30.0
-
 
 class SyncRPCMixin(CleanupRPCMixin):
     """Library sync, progress, and game queries.
@@ -80,15 +77,14 @@ class SyncRPCMixin(CleanupRPCMixin):
             force=True, resync_artwork=resync_artwork, **kw,
         )
 
-    async def get_sync_status(self) -> Any:
-        """Return whether a sync is running + last completion time."""
-        return self.sync_service.get_status()
-
     async def get_sync_progress(self) -> Any:
-        """Return per-store progress during an in-flight sync.
+        """Return the full sync snapshot: in-flight progress + status.
 
-        Progress is bundled into ``get_status`` — there is no
-        separate ``get_progress`` on :class:`SyncService`.
+        Progress, the ``syncing`` flag and ``cooldown_ms`` are all
+        bundled into ``get_status`` — there is no separate
+        ``get_progress`` on :class:`SyncService`. This is the only
+        route onto that snapshot; a ``get_sync_status`` alias that
+        returned the identical call was removed as dead (audit §1.2).
         """
         return self.sync_service.get_status()
 

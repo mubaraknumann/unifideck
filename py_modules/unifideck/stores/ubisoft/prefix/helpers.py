@@ -1,16 +1,19 @@
 """
 Wine prefix helpers — symlink fixups, marker writing, basic file ops.
 
-OP-59b | py_modules/unifideck/stores/ubisoft/prefix/helpers.py
-
 Helper class with a grab-bag of operations the prefix builders rely on:
 
-* ``fix_pfx_symlink`` — fixes the legacy ``<prefix>/pfx`` symlink some
-  Proton versions expect;
-* ``write_bootstrap_marker`` — writes the marker file that flags a
-  prefix as "Unifideck-managed";
-* ``has_bootstrap_marker`` — checks a prefix for the marker;
+* ``fix_pfx_symlink`` — repairs a ``<prefix>/pfx`` symlink pointing at the
+  wrong target. **Not** the same job as
+  ``shared/prefix_clone.ensure_pfx_symlink``, which creates a *missing*
+  one; their guards are opposites and neither substitutes for the other;
+* ``write_bootstrap_marker`` — stamps a prefix as "Unifideck-managed",
+  through ``shared/prefix_clone.write_marker``;
 * misc. ``Path``-based wrappers around create/delete/check operations.
+
+Cloning itself is **not** here any more: every clone goes through
+``shared/prefix_clone.rsync_clone``, which is where the ``--checksum``
+rule for repairing an existing prefix is stated and enforced.
 
 Kept as a separate module so the builders can stay focused on the
 high-level construction logic.
@@ -20,17 +23,22 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import datetime
 import logging
 import os
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from unifideck.stores.shared.prefix_clone import (
+    PrefixMarker,
+    rsync_clone,
+    write_marker,
+)
 
 if TYPE_CHECKING:
     from .manager import UbisoftPrefixManager
 logger = logging.getLogger(__name__)
 _SILENT_INSTALL_FLAG = "/S"
-
 
 class _PrefixHelpers:
     """Prefix helpers."""
@@ -51,9 +59,9 @@ class _PrefixHelpers:
         )
         try:
             await asyncio.to_thread(lambda: Path(prefix_path).mkdir(parents=True, exist_ok=True))
-            ok = await self.rsync_clone(
-                self._parent._config.template_dir_expanded,
-                prefix_path,
+            ok = await rsync_clone(
+                Path(self._parent._config.template_dir_expanded),
+                Path(prefix_path),
                 exclude_games=False,
             )
             if not ok:
@@ -129,9 +137,9 @@ class _PrefixHelpers:
         )
         try:
             await asyncio.to_thread(lambda: Path(template_dir).mkdir(parents=True, exist_ok=True))
-            ok = await self.rsync_clone(
-                game_prefix,
-                template_dir,
+            ok = await rsync_clone(
+                Path(game_prefix),
+                Path(template_dir),
                 exclude_games=False,
             )
             if not ok:
@@ -171,10 +179,17 @@ class _PrefixHelpers:
         )
         try:
             await asyncio.to_thread(lambda: Path(template_dir).mkdir(parents=True, exist_ok=True))
-            ok = await self.rsync_clone(
-                auth_dir,
-                template_dir,
+            # ``checksum``: one caller
+            # (``regenerate_template_from_auth_if_diverged``) rmtrees the
+            # template first, but the sign-in path reaches here with the old
+            # template still in place — so this is a repair, and rsync's
+            # size-plus-mtime quick check would skip the identity files it
+            # exists to replace. See ``prefix_clone.rsync_clone``.
+            ok = await rsync_clone(
+                Path(auth_dir),
+                Path(template_dir),
                 exclude_games=True,
+                checksum=True,
             )
             if not ok:
                 logger.error(
@@ -272,52 +287,16 @@ class _PrefixHelpers:
             return False
         return True
 
-    async def rsync_clone(
-        self,
-        src: str,
-        dst: str,
-        *,
-        exclude_games: bool,
-    ) -> bool:
-        """Rsync clone."""
-        args: list[str] = ["rsync", "-a"]
-        if exclude_games:
-            args.append("--exclude=games")
-        args.extend([f"{src}/", f"{dst}/"])
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                *args,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-        except OSError:
-            logger.exception("[UbisoftPrefixManager] rsync spawn failed")
-            return False
-        try:
-            _stdout, stderr = await asyncio.wait_for(
-                proc.communicate(),
-                timeout=30 * 60,
-            )
-        except TimeoutError:
-            logger.exception(
-                "[UbisoftPrefixManager] rsync timed out — killing",
-            )
-            with contextlib.suppress(ProcessLookupError):
-                proc.kill()
-            await proc.wait()
-            return False
-        if proc.returncode != 0:
-            logger.error(
-                "[UbisoftPrefixManager] rsync failed (%d): %s",
-                proc.returncode,
-                stderr.decode(errors="replace")[:300],
-            )
-            return False
-        return True
-
     @staticmethod
     def fix_pfx_symlink(prefix_dir: str) -> None:
-        """Fix pfx symlink."""
+        """Repair a ``<prefix>/pfx`` symlink that points somewhere wrong.
+
+        Not a copy of ``prefix_clone.ensure_pfx_symlink``, and the two are
+        not interchangeable — their guards are opposites. This one returns
+        early when the link is **absent** and retargets a **wrong existing**
+        link; that one returns early when a link is **present** and creates
+        a **missing** one. Neither can do the other's job.
+        """
         pfx_link = str(Path(prefix_dir) / "pfx")
         if not Path(pfx_link).is_symlink():
             return
@@ -350,24 +329,31 @@ class _PrefixHelpers:
         source: str,
         space_id: str | None,
     ) -> None:
-        """Write bootstrap marker."""
-        marker_path = str(Path(prefix_dir) / self._parent._config.bootstrap_marker)
-        # UTC keeps the marker comparable across machines and survives
-        # DST transitions on the user's locale.
-        created_at = datetime.datetime.now(datetime.UTC).isoformat()
-        lines = [source, f"created={created_at}"]
-        if space_id:
-            lines.insert(1, f"game={space_id}")
-        try:
-            with Path(marker_path).open("w",
-                encoding="utf-8",
-            ) as f:
-                f.write("\n".join(lines) + "\n")
-        except OSError as e:
-            logger.warning(
-                "[UbisoftPrefixManager] could not write bootstrap marker: %s",
-                e,
-            )
+        """Stamp a prefix as ours, in the shared ``PrefixMarker`` shape.
+
+        **The filename does not change** and must not: prefix ownership is
+        proved by ``compatdata_scan.MARKER_PREFIXES``, which matches
+        ``unifideck_ubisoft_bootstrap.marker`` through its ``unifideck_``
+        arm, and every prefix already on a user's disk carries that name.
+
+        Only the *content* moved, from plaintext lines to the JSON every
+        other wrapper store writes. Safe because all five readers of this
+        marker test ``is_file()`` and none parses it — so a prefix written
+        by an older build still reads correctly. The converse does not
+        hold: ``prefix_clone.is_owned_by`` reports False for a legacy
+        plaintext marker, so no Ubisoft path may be moved onto it until
+        those markers are upgraded in place.
+        """
+        write_marker(
+            Path(prefix_dir),
+            self._parent._config.bootstrap_marker,
+            PrefixMarker(
+                store="ubisoft",
+                created_at=time.time(),
+                source=source,
+                game_id=space_id,
+            ),
+        )
 
     def try_inject_auth_state(
         self,

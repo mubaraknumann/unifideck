@@ -1,7 +1,5 @@
 """Library-cache persistence mixin for :class:`SyncService`.
 
-OP-08l-ter | core/sync_cache_mixin.py
-
 Extracted from ``core/sync_service.py`` to keep that file under the
 550-LOC volumetry cap. Owns the on-disk ``library_cache.json`` round
 trip — loaded once at construction, saved after every finalize and
@@ -26,7 +24,6 @@ if TYPE_CHECKING:
     from unifideck.config import ConfigManager
 
 logger = logging.getLogger(__name__)
-
 
 class _SyncCacheMixin:
     """``library_cache.json`` load/save for :class:`SyncService`."""
@@ -116,7 +113,6 @@ class _SyncCacheMixin:
             )
         except Exception as e:
             logger.warning("[SyncService] Failed to save library cache: %s", e)
-
 
 def _deserialize_libraries(
     libraries_data: dict[str, Any],

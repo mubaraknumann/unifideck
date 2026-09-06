@@ -1,7 +1,5 @@
 """Event priority enum — ordering hints for the dispatcher.
 
-OP-09b | py_modules/unifideck/event_bus/event_priority.py
-
 ``EventPriority`` is an ``IntEnum`` with three levels used by
 ``PriorityDispatcher`` to order event delivery:
 
@@ -44,13 +42,9 @@ class EventPriority(IntEnum):
     NORMAL = 1
     BACKGROUND = 2
 
-
 _DEFAULT_PRIORITY: dict[Events, EventPriority] = {
-    Events.PLUGIN_LOADED: EventPriority.CRITICAL,
-    Events.PLUGIN_UNLOADING: EventPriority.CRITICAL,
     Events.GAME_LAUNCHED: EventPriority.CRITICAL,
     Events.GAME_STOPPED: EventPriority.CRITICAL,
-    Events.GAME_INSTALLED: EventPriority.NORMAL,
     Events.GAME_UNINSTALLED: EventPriority.NORMAL,
     Events.GAME_UPDATE_AVAILABLE: EventPriority.BACKGROUND,
     Events.SYNC_STARTED: EventPriority.NORMAL,
@@ -68,7 +62,6 @@ _DEFAULT_PRIORITY: dict[Events, EventPriority] = {
     Events.DOWNLOAD_CANCELLED: EventPriority.NORMAL,
     Events.DOWNLOAD_FAILED: EventPriority.NORMAL,
     Events.DOWNLOAD_PROGRESS: EventPriority.BACKGROUND,
-    Events.STORE_ERROR: EventPriority.BACKGROUND,
 }
 COALESCE_KEY: dict[Events, str] = {
     # SYNC_PROGRESS is intentionally NOT coalesced — when it is,
@@ -79,7 +72,6 @@ COALESCE_KEY: dict[Events, str] = {
     # coalescing benefit doesn't apply.
     Events.DOWNLOAD_PROGRESS: "download_id",
 }
-
 
 def get_priority(event: Events | str) -> EventPriority:
     """Return the canonical ``EventPriority`` for ``event``.
@@ -104,7 +96,6 @@ def get_priority(event: Events | str) -> EventPriority:
         return _DEFAULT_PRIORITY.get(resolved, EventPriority.NORMAL)
     except ValueError:
         return EventPriority.NORMAL
-
 
 def get_coalesce_key(event: Events | str) -> str:
     """Return the coalescing-key kwarg name for ``event``.

@@ -1,7 +1,5 @@
 """Amazon Games installer — install / uninstall pipeline using nile.
 
-OP-49d | py_modules/unifideck/stores/amazon/amazon_install.py
-
 ``AmazonInstaller`` orchestrates installs and uninstalls via the
 ``nile`` CLI. The install pipeline :
 
@@ -12,7 +10,7 @@ OP-49d | py_modules/unifideck/stores/amazon/amazon_install.py
 3. **subprocess** — spawn nile with structured progress callbacks
    (parses nile's stdout for "downloaded X/Y bytes" lines);
 4. **finalize** — parse the fuel.json from ``amazon_fuel.py``
-   (OP-49f) to extract the launch executable, write the
+ to extract the launch executable, write the
    ``.unifideck-id`` marker, register with the install registry.
 
 The uninstall path is symmetric : remove install dir, drop registry
@@ -41,27 +39,28 @@ from unifideck.core.safe_delete import canonical_prefix, safe_rmtree
 from unifideck.core.types import Events, InstallResult, Result
 from unifideck.event_bus.event_bus import EventBus
 from unifideck.stores.shared.cli_install_helpers import (
+    DEFAULT_STALL_TIMEOUT_S,
+    InstallStalledError,
     TailRingBuffer,
     drain_install_output,
-    parse_progress_line,
+    join_tail,
+    parse_percent_re,
+    parse_transfer_progress,
+    terminate_process_tree,
     wait_with_timeout,
 )
 
 from . import amazon_fuel
 from .amazon_library import AmazonLibraryReader
-from .amazon_progress import parse_progress_line as parse_nile_progress
 
 logger = logging.getLogger(__name__)
 # Nile's ProgressBar emits lines like:
 #   = Progress: 42.50 123456789/987654321, Running for: 00:01:30, ETA: ...
-# The old regex (`\[\s*(\d+)\s*%\s*\]`) expected `[ 42% ]` which nile
-# never produces, so zero progress was ever captured.
-# New primary regex matches nile's actual format; the fallback covers
-# any tool that emits `[ NN% ]` brackets (e.g. future CLI updates).
-_PROGRESS_RE = re.compile(r"Progress:\s*([\d.]+)")
+# which is byte-for-byte the shape gogdl emits, so ``parse_transfer_progress``
+# handles both (audit §3.2 — this used to be two near-verbatim copies).
+# The bracket regex is a fallback for any tool that emits `[ NN% ]`.
 _PROGRESS_RE_BRACKET = re.compile(r"\[\s*([\d.]+)\s*%\s*\]")
 ProgressCallback = Callable[[Any], Awaitable[None]]
-
 
 @dataclass
 class _RunOutcome:
@@ -78,7 +77,6 @@ class _RunOutcome:
     rc: int
     tail: str = ""
     spawn_error: str | None = None
-
 
 def _format_exit_error(outcome: _RunOutcome) -> str:
     """Turn a failed run into an error string.
@@ -97,7 +95,6 @@ def _format_exit_error(outcome: _RunOutcome) -> str:
         return f"nile_spawn_failed: {outcome.spawn_error}"
     base = f"nile_exit_{outcome.rc}"
     return f"{base}: {outcome.tail}" if outcome.tail else base
-
 
 class AmazonInstaller:
     """Amazon installer."""
@@ -153,23 +150,12 @@ class AmazonInstaller:
                 store="amazon",
                 game_id=game_id,
             )
-        await self._bus.emit(
-            Events.DOWNLOAD_STARTED,
-            store="amazon",
-            game_id=game_id,
-        )
         outcome = await self._run_install(base, game_id, progress_cb, verb)
         if outcome.rc != 0:
             error = _format_exit_error(outcome)
             logger.error(
                 "[AmazonInstall] %s failed for %s: %s",
                 verb, game_id, outcome.tail or "(no output captured)",
-            )
-            await self._bus.emit(
-                Events.DOWNLOAD_FAILED,
-                store="amazon",
-                game_id=game_id,
-                error=error,
             )
             return InstallResult(
                 success=False,
@@ -207,12 +193,6 @@ class AmazonInstaller:
                 "directory found on disk; nile said: %s",
                 game_id, base, tail or "(no output captured)",
             )
-            await self._bus.emit(
-                Events.DOWNLOAD_FAILED,
-                store="amazon",
-                game_id=game_id,
-                error=error,
-            )
             return InstallResult(
                 success=False,
                 error=error,
@@ -236,24 +216,18 @@ class AmazonInstaller:
             )
         except OSError as exc:
             logger.exception("[AmazonInstall] write_manifest failed for %s", install_path)
-            await self._bus.emit(
-                Events.DOWNLOAD_FAILED,
-                store="amazon",
-                game_id=game_id,
-                error=f"manifest_write: {exc}",
-            )
             return InstallResult(
                 success=False,
                 error=f"manifest_write: {exc}",
                 store="amazon",
                 game_id=game_id,
             )
-        await self._bus.emit(
-            Events.DOWNLOAD_COMPLETE,
-            store="amazon",
-            game_id=game_id,
-            install_path=install_path,
-        )
+        # No ``DOWNLOAD_COMPLETE`` here — see the same note in
+        # ``stores/epic/install.py``. ``DownloadWorker`` owns every
+        # ``DOWNLOAD_*`` emit for all seven stores; the install is still
+        # mid-flight at this point because prefix warmup has not run yet,
+        # and only the worker's payload carries the ``Game`` record the
+        # shortcut service needs to flip the install tag.
         return InstallResult(
             success=True,
             store="amazon",
@@ -293,6 +267,7 @@ class AmazonInstaller:
             logger.exception("[AmazonInstall] cannot spawn %s", cmd[0])
             return _RunOutcome(rc=-2, spawn_error=str(e))
         tail_buf = TailRingBuffer()
+        stalled: InstallStalledError | None = None
         drain_exc: BaseException | None = None
         try:
             await self._drain_install_output(
@@ -301,11 +276,25 @@ class AmazonInstaller:
                 progress_cb,
                 tail_buf,
             )
+        except InstallStalledError as e:
+            stalled = e
         except BaseException as e:
             drain_exc = e
-        rc = await self._wait_with_timeout(proc)
+        if stalled is not None or drain_exc is not None:
+            # Kill the tree BEFORE waiting, which is the whole fix here.
+            # Cancelling this task only unwinds our coroutine; nile keeps
+            # running and keeps writing into the game directory after the
+            # row already reads "Cancelled". Worse, the wait below used to
+            # come first, so a cancel blocked for the full install timeout
+            # (an hour) — and ``DownloadService.cancel`` awaits this task,
+            # so the cancel RPC itself hung with it. Epic has always had
+            # these two steps in this order.
+            await terminate_process_tree(proc, "[amazon_install]")
         if drain_exc is not None:
             raise drain_exc
+        if stalled is not None:
+            return _RunOutcome(rc=-1, tail=join_tail(str(stalled), tail_buf))
+        rc = await self._wait_with_timeout(proc)
         return _RunOutcome(rc=rc, tail=tail_buf.tail())
 
     def _build_install_cmd(self, base: str, game_id: str, verb: str = "install") -> list[str]:
@@ -341,6 +330,7 @@ class AmazonInstaller:
             game_id,
             progress_cb,
             functools.partial(self._handle_install_line, tail_buf=tail_buf),
+            stall_s=DEFAULT_STALL_TIMEOUT_S,
         )
 
     async def _wait_with_timeout(self, proc: Any) -> int:
@@ -365,10 +355,10 @@ class AmazonInstaller:
         ``tail_buf`` so a failing install can surface the real reason
         instead of a bare exit code.
         """
-        updated = parse_nile_progress(line, self._current_progress)
+        updated = parse_transfer_progress(line, self._current_progress)
         if not updated:
             # Fallback to check bracket format
-            pct = parse_progress_line(line, _PROGRESS_RE_BRACKET)
+            pct = parse_percent_re(line, _PROGRESS_RE_BRACKET)
             if pct is not None:
                 self._current_progress["progress_percent"] = pct
                 updated = True
@@ -378,6 +368,10 @@ class AmazonInstaller:
             logger.debug("[nile install] %s", line)
             return
 
+        # The callback is the only report: it merges this tick onto the
+        # queue item (``worker_helpers.apply_dict_progress`` reads both
+        # ``progress_percent`` and ``speed_bps``) and the worker emits the
+        # one ``DOWNLOAD_PROGRESS`` from there.
         if progress_cb is not None:
             try:
                 await progress_cb(dict(self._current_progress))
@@ -386,14 +380,6 @@ class AmazonInstaller:
                     "[amazon_install] progress_cb raised: %s",
                     e,
                 )
-        await self._bus.emit(
-            Events.DOWNLOAD_PROGRESS,
-            store="amazon",
-            game_id=game_id,
-            progress=self._current_progress.get("progress_percent", 0.0),
-            speed_mbps=self._current_progress.get("speed_bps", 0.0) / (1024 * 1024),
-            eta_seconds=self._current_progress.get("eta_seconds", 0),
-        )
 
     async def _resolve_install_path(self, game_id: str, base: str) -> str | None:
         """Resolve install path from nile's installed.json or fallback.

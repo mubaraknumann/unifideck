@@ -1,7 +1,5 @@
 """Per-handler latency metrics — track invocation timing per subscriber.
 
-OP-10b | py_modules/unifideck/event_bus/supervision/metrics_handler.py
-
 Two cooperating types:
 
 * ``HandlerLatencyStats`` — one record per handler, accumulating
@@ -21,7 +19,7 @@ profiling concerns.
 Used by:
 
 * the dev UI ("which handler is slow?" panel);
-* the watchdog (OP-10a) to decide which handler to quarantine
+* the watchdog to decide which handler to quarantine
   when bus throughput drops.
 """
 
@@ -33,7 +31,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 ROLLING_WINDOW_SIZE = 100
-
 
 @dataclass
 class HandlerLatencyStats:
@@ -135,7 +132,6 @@ class HandlerLatencyStats:
         qs = statistics.quantiles(self._window, n=20)
         self.p50_ms = qs[9]
         self.p95_ms = qs[18]
-
 
 class HandlerLatencyCollector:
     """Top-level registry of per-handler latency stats."""

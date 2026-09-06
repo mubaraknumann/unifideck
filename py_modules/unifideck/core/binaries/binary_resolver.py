@@ -19,18 +19,15 @@ in PATH.
 Reference: Technical Document v1.0 — Section 3.4.2 (BinaryResolver +
 ExeFinder), Figure 12.
 """
-import contextlib
 import logging
 import shutil
 import stat
-import subprocess
 from pathlib import Path
 from typing import Any
 
 from unifideck.core.types.domain import CLITool
 
 from .binary_signatures import verify_bundled_binary
-from .cli_env import clean_cli_env
 
 logger = logging.getLogger(__name__)
 
@@ -84,8 +81,6 @@ class BinaryResolver:
         path = resolver.resolve(
             CLITool("legendary", ["bin/legendary"]),
         )
-        if path:
-            version = resolver.check_version(tool, path)
     """
 
     def __init__(self, config: Any | None = None) -> None:
@@ -96,11 +91,7 @@ class BinaryResolver:
         # works; we use ``Any`` rather than constraining to
         # ConfigManager to keep this module free of upstream
         # dependencies for testing.
-        self._version_timeout = 10
-        if config is not None:
-            with contextlib.suppress(TypeError, ValueError):
-                self._version_timeout = int(config.get(
-                    "binary_resolver.version_check_timeout_seconds"))
+        del config  # no per-resolver config knobs remain (see item 44)
 
     def resolve(self, tool: CLITool) -> str | None:
         """Locate the binary for a CLI tool.
@@ -152,53 +143,19 @@ class BinaryResolver:
         )
         return None
 
-    def check_version(
-        self, tool: CLITool, binary_path: str,
-    ) -> str | None:
-        """Run ``<binary> <version_flag>`` and return the first
-        non-empty line of output.
-
-        Args:
-          tool: CLITool with version_flag (e.g. '--version').
-          binary_path: Absolute path to the binary.
-
-        Returns:
-          Version string or None if version check fails.
-
-        """
-        try:
-            result = subprocess.run(
-                [binary_path, tool.version_flag],
-                capture_output=True,
-                text=True,
-                timeout=self._version_timeout,
-                # Same scrubbed env the real invocations get — otherwise the
-                # probe can succeed (or fail) under conditions the actual run
-                # never sees, which is worse than not probing at all.
-                env=clean_cli_env(),
-                check=False,
-            )
-        except (
-            subprocess.TimeoutExpired,
-            FileNotFoundError,
-            OSError,
-        ) as e:
-            logger.warning(
-                "[BinaryResolver] version check failed for "
-                "%s: %s",
-                tool.name, e,
-            )
-            return None
-        version = (
-            result.stdout.strip() or result.stderr.strip()
-        ).splitlines()
-        if version:
-            v = version[0].strip()
-            logger.debug(
-                "[BinaryResolver] %s version: %s", tool.name, v,
-            )
-            return v
-        return None
+    # There is deliberately no ``check_version``. It existed with zero
+    # callers — the only apparent call site was inside this class's own
+    # ``Usage::`` docstring block — and ``CLITool.min_version`` was never
+    # compared to anything, for any store. So the "version check" the audit
+    # credited Epic and Amazon with (and GOG with bypassing) never existed.
+    #
+    # Deleted rather than built, because a version string is the weaker of
+    # two guarantees the project already has: bundled binaries are pinned by
+    # SHA-256 in ``package.json``'s ``remote_binary`` and verified by
+    # ``binary_signatures``. And the one real version constraint in the tree
+    # is a **maximum** — nile is pinned at 1.1.2 because 1.2.0 deletes the
+    # ``user.json`` the Amazon reader needs — which ``min_version`` could not
+    # have expressed anyway. Audit register item 44.
 
 
 # Singleton instance — shared across all stores

@@ -9,6 +9,7 @@ cache management.
 from __future__ import annotations
 
 import logging
+from collections.abc import Awaitable, Callable
 
 from unifideck.launcher.proton.handlers.battlenet import battlenet_launch
 from unifideck.launcher.types.errors import UmuRuntimeError
@@ -64,6 +65,19 @@ def _apply_prefix_language(plan: ProtonLaunchPlan) -> None:
         logger.warning("[launcher.proton] prefix language setup failed: %s", err)
 
 
+# Stores with a launch handler of their own; everything else runs through
+# ``generic_launch``. A map rather than an if-chain so a test can assert the
+# coverage: for a *wrapper* store an absent row is not a graceful fallback but
+# a silent failure — ``generic_launch`` expects an exe path the vendor client
+# owns, so the game never starts. See
+# ``tests/unit/test_wrapper_store_dispatch_coverage.py``.
+_STORE_LAUNCHERS: dict[str, Callable[[ProtonLaunchPlan], Awaitable[int]]] = {
+    "battlenet": battlenet_launch,
+    "ubisoft": ubisoft_launch,
+    "epic": epic_launch,
+}
+
+
 async def dispatch(plan: ProtonLaunchPlan) -> int:
     """Dispatch.
 
@@ -116,14 +130,8 @@ async def dispatch(plan: ProtonLaunchPlan) -> int:
     # already busy; see ``language_setup.registry_io``.
     _apply_prefix_language(plan)
 
-    store = plan.context.store
-    if store == "battlenet":
-        return await battlenet_launch(plan)
-    if store == "ubisoft":
-        return await ubisoft_launch(plan)
-    if store == "epic":
-        return await epic_launch(plan)
-    return await generic_launch(plan)
+    handler = _STORE_LAUNCHERS.get(plan.context.store, generic_launch)
+    return await handler(plan)
 
 
 __all__ = [

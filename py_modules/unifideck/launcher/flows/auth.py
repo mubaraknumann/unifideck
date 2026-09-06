@@ -29,8 +29,12 @@ def _read_config_int(key: str, default: int) -> int:
     """Read config int."""
     from unifideck.utils.config_helpers import read_config_int_cold_start
     return read_config_int_cold_start(key, default)
-def _read_auth_url(store: str) -> str:
-    """Read auth URL."""
+def read_auth_url(store: str) -> str:
+    """The OAuth URL the backend wrote for ``store``, or raise.
+
+    Shared with the storefront flow, which redeems the same file to
+    run a token reconcile once the shop window closes.
+    """
     filename = _AUTH_URL_FILES.get(store)
     if filename is None:
         raise GameNotFoundError(
@@ -88,7 +92,7 @@ async def handle_store_auth(
             "Microsoft Edge flatpak required for OAuth",
             context={"store": store},
         )
-    auth_url = _read_auth_url(store)
+    auth_url = read_auth_url(store)
     logger.info(
         "[launcher.auth] %s auth URL resolved (%d chars)",
         label, len(auth_url),
@@ -110,6 +114,32 @@ async def _wait_for_auth_end(edge_browser: EdgeBrowser) -> None:
     max_seconds = _read_config_int(
         "launcher.auth_max_seconds", _MAX_AUTH_SECONDS,
     )
+    await wait_for_browser_exit(
+        edge_browser, max_seconds, log_tag="launcher.auth",
+    )
+
+
+async def wait_for_browser_exit(
+    edge_browser: EdgeBrowser,
+    max_seconds: int,
+    *,
+    log_tag: str,
+) -> None:
+    """Block until the Edge window closes, or ``max_seconds`` elapses.
+
+    The block is the point: the launcher process must outlive the
+    window, because Steam ends the shortcut's gamescope session the
+    moment the process exits and that tears the window down with it.
+
+    Shared with the storefront flow, which needs the same behaviour on
+    a much longer ceiling (a user browses a shop for far longer than
+    they sign in). ``log_tag`` names the calling flow so the timeout
+    warning is attributable.
+
+    Falls back to a polling loop when there is no process handle —
+    ``launch_*`` returned True but ``self.process`` was cleared, e.g.
+    a crash detected in between.
+    """
     proc = edge_browser.process
     if proc is not None:
         loop = asyncio.get_event_loop()
@@ -120,8 +150,7 @@ async def _wait_for_auth_end(edge_browser: EdgeBrowser) -> None:
             )
         except TimeoutError:
             logger.warning(
-                "[launcher.auth] auth flow reached %ds timeout",
-                max_seconds,
+                "[%s] browser reached %ds timeout", log_tag, max_seconds,
             )
         return
     elapsed = 0.0

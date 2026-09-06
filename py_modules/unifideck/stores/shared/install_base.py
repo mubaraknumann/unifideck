@@ -11,9 +11,12 @@ handling both layouts seen in the field:
   * SteamOS flat:   ``/run/media/<label>``
   * udisks2 nested: ``/run/media/<user>/<label>``
 
-Moved here from ``stores/ubisoft/config.py`` when Battle.net became the
-second consumer. The logic is unchanged; only the trailing store-specific
-directory is now a parameter rather than hardcoded to ``Games/Ubisoft``.
+Moved here from ``stores/ubisoft/config.py`` and generalised — the trailing
+store-specific directory is a parameter rather than a hardcoded
+``Games/Ubisoft``. **Ubisoft is still the only caller**
+(``ubisoft/config.py``); an earlier version of this docstring claimed
+Battle.net was a second consumer, which was never true. The generalisation
+is worth keeping regardless, but do not read it as evidence of two callers.
 
 This seeds a *default* only. Live install detection re-scans removable
 media at scan time, so a stale value is harmless — the path simply will not

@@ -19,6 +19,7 @@ third-party HTTP client.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -33,6 +34,10 @@ import urllib.request
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+
+from unifideck.launcher.proton.infrastructure.ge_install_lock import (
+    install_lock,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -424,9 +429,25 @@ def _promote_extracted(staging: Path, tag: str) -> Path | None:
     _make_executable(proton)
 
     dest = COMPAT_TOOLS_DIR / tag
-    if dest.exists():
-        shutil.rmtree(dest, ignore_errors=True)
-    shutil.move(extracted, dest)
+    # Rename-aside, never rmtree-then-move. ``dest`` may be the Proton a game
+    # or a live ``umu-run`` is executing out of right now: deleting it first
+    # leaves a window with no tag directory at all, and pulls the files out
+    # from under that process. Two renames on one filesystem (staging is
+    # created inside COMPAT_TOOLS_DIR) leave the path always resolvable, and a
+    # process holding the old tree's inodes keeps working until it exits.
+    aside = COMPAT_TOOLS_DIR / f".{tag}.old-{os.getpid()}"
+    try:
+        if dest.exists():
+            dest.rename(aside)
+        extracted.rename(dest)
+    except OSError as e:
+        logger.warning("[ge_installer] could not publish %s: %s", tag, e)
+        with contextlib.suppress(OSError):
+            if aside.exists() and not dest.exists():
+                aside.rename(dest)
+        return None
+    finally:
+        shutil.rmtree(aside, ignore_errors=True)
     final = dest / "proton"
     if not os.access(final, os.X_OK):
         return None
@@ -473,6 +494,13 @@ def ensure_latest_ge(
     when the release can't be fetched (offline / GitHub down) or the
     download/extract fails. When the latest is already validly installed
     it just refreshes the marker and returns it without downloading.
+
+    The install itself is serialised across processes by :func:`ge_install_lock.install_lock`
+    and re-checked under it with the STRONG :func:`is_proton_install_complete`
+    rather than the presence-only ``installed_ge_proton_path``. The weak check
+    is false during a publish, so without the re-check the loser of a race
+    would download and republish over the directory the winner just installed
+    — and over whatever is running out of it.
     """
     release = _fetch_latest_release(timeout)
     if not release:
@@ -492,8 +520,16 @@ def ensure_latest_ge(
         logger.warning("[ge_installer] no .tar.gz asset found for %s", tag)
         return None
 
-    logger.info("[ge_installer] downloading GE-Proton %s", tag)
-    script = _download_and_install(tag, url, progress_cb)
+    with install_lock():
+        settled = installed_ge_proton_path(tag)
+        if settled and is_proton_install_complete(settled):
+            _write_marker(tag)
+            logger.info(
+                "[ge_installer] GE-Proton %s installed while we waited", tag,
+            )
+            return settled, tag
+        logger.info("[ge_installer] downloading GE-Proton %s", tag)
+        script = _download_and_install(tag, url, progress_cb)
     if not script:
         return None
     _write_marker(tag)

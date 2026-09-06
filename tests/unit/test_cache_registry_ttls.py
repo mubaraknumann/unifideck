@@ -35,3 +35,7 @@ def test_identity_caches_never_expire() -> None:
     assert ttls["shortcut_added"] == 0
     assert ttls["compat"] == 0
     assert ttls["artwork_attempts"] == 0
+    # The title a ``steam_real_appid`` miss was searched under. Must share
+    # that cache's lifetime: expiring it alone would make every cached miss
+    # look title-less, i.e. stale, and re-search the whole library.
+    assert ttls["steam_appid_miss"] == 0

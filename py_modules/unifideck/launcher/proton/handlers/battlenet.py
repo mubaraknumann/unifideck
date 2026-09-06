@@ -43,14 +43,12 @@ from pathlib import Path
 from unifideck.launcher import wrapper_session
 from unifideck.launcher.frontend_bridge import launcher_toast
 from unifideck.launcher.game_title import resolve_title
+from unifideck.launcher.proton.handlers import battlenet_auth_wsi as auth_wsi
 from unifideck.launcher.proton.handlers import battlenet_bootstrap as bootstrap
 from unifideck.launcher.proton.handlers import battlenet_login_state as login_state
 from unifideck.launcher.proton.handlers import battlenet_session as session
 from unifideck.launcher.proton.handlers import battlenet_watch as watch
 from unifideck.launcher.proton.handlers import battlenet_wsi, wrapper_clients
-from unifideck.launcher.proton.handlers.battlenet_auth_retry import (
-    auth_retry_worthwhile,
-)
 from unifideck.launcher.proton.handlers.battlenet_client import (
     find_client_exe,
     find_launcher_exe,
@@ -463,10 +461,7 @@ async def battlenet_auth_launch(plan: ProtonLaunchPlan) -> int:
             titled=False,
             prefix=str(plan.prefix_path),
         )
-    launcher_toast(
-        "toasts.launcher.signingInBattlenetMessage",
-        i18n_title_key="toasts.launcher.signingInBattlenet",
-    )
+    wrapper_clients.announce_client_open("battlenet")
     # The same clearing every other path does before starting a client, and
     # for a sharper reason here: this run uses the default
     # ``PROTON_VERB=waitforexitandrun``, whose ``wineserver -w`` blocks on the
@@ -477,11 +472,6 @@ async def battlenet_auth_launch(plan: ProtonLaunchPlan) -> int:
     await _release_other_clients(plan)
     await _clear_stale_session(plan)
     argv = [str(plan.python_bin), str(plan.umu_wrapper), str(launcher_exe)]
-    # reap_wineserver=False so a stop from the UI unwinds through
-    # _client_teardown's SIGTERM instead of SIGKILLing the client outright:
-    # the token the client rotated during sign-in lives in CachedData.db and
-    # is lost if it never gets to flush. See watch.stop_client.
-    #
     # The readiness latch is what stops this reopening a window the user just
     # closed. This run takes the default ``max_attempts=2``, and the recoverable
     # test is rc-and-duration only: closing the sign-in window inside
@@ -491,12 +481,14 @@ async def battlenet_auth_launch(plan: ProtonLaunchPlan) -> int:
     # reopens when I close it", and for rc 2 and 74 it also wiped the shared
     # umu runtime cache on the way through. Whether the renderer was ever seen
     # separates the two: a crash during renderer init never reaches it.
-    async with _client_teardown(plan), watch.watch_readiness(plan.prefix_path) as ready:
-        rc = await run_umu_with_retry(
-            argv, env=plan.env, on_start=plan.on_process_start,
-            reap_wineserver=False,
-            should_retry=lambda: auth_retry_worthwhile(plan, ready),
-        )
+    #
+    # The same latch drives the WSI measurement in ``auth_wsi``, which is the
+    # sign-in half of what ``_start_client_here`` has always done for the
+    # client. It cannot be folded into ``run_umu_with_retry``: the abort it
+    # recovers from returns rc 0.
+    rc = await auth_wsi.run_auth_client(
+        plan, argv, teardown=_client_teardown, clear_stale=_clear_stale_session,
+    )
     plan.state.game_exit_code = rc
     return rc
 

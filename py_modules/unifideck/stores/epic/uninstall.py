@@ -1,7 +1,5 @@
 """Epic uninstall primitives — file removal + legendary bookkeeping.
 
-OP-48k | py_modules/unifideck/stores/epic/uninstall.py
-
 Extracted from ``install.py`` when that module hit the volumetry cap.
 These are the mechanics ``EpicInstaller.uninstall_game`` orchestrates;
 it keeps the policy (what order, what to report) and they do the work.
@@ -18,7 +16,7 @@ All functions are free functions taking what they need explicitly — they
 never touched installer state beyond the CLI path and its timeout.
 
 .. note::
-   ``_is_safe_to_delete`` duplicates ``unifideck.core.safe_delete`` (OP-58),
+   ``_is_safe_to_delete`` duplicates ``unifideck.core.safe_delete``,
    which is stricter: it resolves symlinks, rejects every ancestor of
    ``$HOME``, and requires depth ≥ 4 where this requires ≥ 3.
    Consolidating is worth doing, but it *tightens* deletion — a custom
@@ -42,7 +40,6 @@ from .legendary import legendary_config_dir
 
 logger = logging.getLogger(__name__)
 
-
 def read_legendary_install_path(game_id: str) -> str | None:
     """Read a game's ``install_path`` from legendary's ``installed.json``.
 
@@ -60,7 +57,6 @@ def read_legendary_install_path(game_id: str) -> str | None:
         p = entry.get("install_path")
         return p if isinstance(p, str) and p else None
     return None
-
 
 def purge_legendary_install_entry(game_id: str) -> None:
     """Drop a game from legendary's ``installed.json``.
@@ -86,13 +82,11 @@ def purge_legendary_install_entry(game_id: str) -> None:
                 "[EpicUninstall] could not rewrite installed.json: %s", e,
             )
 
-
 def _is_safe_to_delete(p: Path) -> bool:
     """Guard against ``rmtree`` on the home dir, ``/``, or shallow roots."""
     resolved = p.resolve()
     home = Path.home().resolve()
     return resolved not in (home, Path("/")) and len(resolved.parts) >= 3
-
 
 async def best_effort_legendary_uninstall(
     cli_path: str, game_id: str, timeout: float,  # noqa: ASYNC109 — timeout forwarded to asyncio.wait_for on a subprocess, not an asyncio.timeout context
@@ -125,7 +119,6 @@ async def best_effort_legendary_uninstall(
             proc.kill()
         logger.warning("[EpicUninstall] legendary uninstall timed out")
 
-
 async def delete_install_dir(install_path: str | None, game_id: str) -> bool:
     """``rmtree`` the install dir. Returns True if it's gone after."""
     if not install_path:
@@ -147,7 +140,6 @@ async def delete_install_dir(install_path: str | None, game_id: str) -> bool:
     gone = not await asyncio.to_thread(p.exists)
     logger.info("[EpicUninstall] deleted %s (gone=%s)", p, gone)
     return gone
-
 
 async def delete_prefix(game_id: str) -> None:
     """Remove the game's Proton prefix (``delete_prefix`` path)."""

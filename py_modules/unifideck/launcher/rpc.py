@@ -24,6 +24,7 @@ async def emit_stage(
  i18n_title_key: str | None = None,
  i18n_params: dict[str, Any] | None = None,
  severity: str | None = None,
+ duration_ms: int | None = None,
 ) -> None:
     """Emit a LAUNCHER_STAGE toast event.
 
@@ -33,11 +34,21 @@ async def emit_stage(
     single-line toast when it is absent). ``i18n_params`` fills
     placeholders like ``{{version}}`` in either key, and ``severity``
     (``info``/``warning``/``error``) selects the toast styling.
+
+    ``duration_ms`` overrides how long the toast stays up. Omit it for
+    the frontend's per-severity default (5s, 7.5s for warning/error);
+    pass it when the message is long enough that the default truncates
+    the read (the shortcut write-refusal paragraph is the case that
+    added this).
     """
     logger.debug(
     "[launcher.rpc] stage: key=%s title=%s game=%s prio=%s",
     i18n_key, i18n_title_key, game_title, priority,
    )
+    # NOTE: ``frontend_bridge.launcher_toast`` builds this same payload for
+    # launcher code with no bus (38 of the 46 backend toast sites). The two
+    # must stay in step; pinned by
+    # ``test_the_two_toast_builders_produce_the_same_payload_shape``.
     payload: dict[str, Any] = {
         "i18n_key": i18n_key,
         "game_title": game_title,
@@ -49,4 +60,6 @@ async def emit_stage(
         payload["i18n_params"] = i18n_params
     if severity is not None:
         payload["severity"] = severity
+    if duration_ms is not None:
+        payload["duration_ms"] = duration_ms
     await bus.emit(Events.LAUNCHER_STAGE, **payload)

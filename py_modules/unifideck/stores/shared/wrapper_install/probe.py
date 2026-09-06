@@ -19,17 +19,27 @@ Four questions, deliberately no more:
 
 ``measure``
     Bytes on disk so far. Feeds the "Installing… (N GB)" tick, and — only for a
-    store with no better signal — the completion rule.
+    store with no better signal — the completion rule. It must count *allocated*
+    blocks, not file length: both vendor clients pre-allocate the whole game up
+    front, so apparent size reaches its final value within seconds of the
+    download starting and then never moves again. Use
+    :func:`~unifideck.stores.shared.installed_size.dir_allocated_bytes`.
 
 ``is_complete``
     The store's authoritative "the install is finished", or ``None`` when it has
-    none. This split matters. Ubisoft has to infer completion from the install
-    directory's size holding steady, and that heuristic is known to fire early:
-    a mid-download pause (a chunk being verified, a network stall, a phase
-    change) looks exactly like "done". Battle.net does not have to guess —
-    ``product.db`` carries ``installed``/``playable``/``update_complete``, and
-    all three flip in a single write. A store that can answer is believed; only
-    one that answers ``None`` falls back to the heuristic.
+    none. Both stores can answer today, by different routes: Battle.net reads
+    ``product.db``, which carries ``installed``/``playable``/``update_complete``
+    and flips all three in a single write; Ubisoft reads whether UPC has drained
+    its ``uplay_download/`` staging directory. A store that can answer is
+    believed; only one that answers ``None`` falls back to the size heuristic.
+
+    Answering ``False`` is not a formality — it *suppresses* the heuristic for
+    that poll. That is the whole reason the verdict is three-valued rather than
+    a bool, and it is what keeps a mid-download pause (a chunk being verified, a
+    network stall, a phase change) from reading as "done". Ubisoft used to
+    return ``None`` throughout and rode the heuristic the entire way; combined
+    with an apparent-size ``measure`` it declared a 2.4 GB install complete
+    41 seconds in, releasing the download queue's single slot 18 minutes early.
 
 And one optional fifth, ``status_message``, which is not about recognising
 anything. It is about the wait being legible. A correct 28-minute wait and a

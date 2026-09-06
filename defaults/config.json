@@ -120,6 +120,12 @@
     "battlenet": {
       "data_dir": "~/.local/share/unifideck",
       "prefixes_dir": "~/.local/share/unifideck/prefixes/battlenet"
+    },
+    "gamevault": {
+      "config_file": "~/.local/share/unifideck/gamevault_config.json",
+      "default_install_root": "~/Games/GameVault",
+      "download_dir": "~/.local/share/unifideck/gamevault_downloads",
+      "default_vault_dir": "~/Games/UnifideckVault"
     }
   },
   "metadata": {
@@ -221,9 +227,7 @@
     "settings_path": "~/.local/share/unifideck/proton_settings.json",
     "shortcuts_registry_path": "~/.local/share/unifideck/shortcuts_registry.json"
   },
-  "binary_resolver": {
-    "version_check_timeout_seconds": 10
-  },
+  "binary_resolver": {},
   "i18n": {
     "locales": [
       {

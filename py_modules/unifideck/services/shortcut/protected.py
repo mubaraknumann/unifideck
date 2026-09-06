@@ -33,7 +33,27 @@ PROTECTED_IDS: frozenset[str] = frozenset({
     # ``microsoft:ms-auth-temp-*``) that never reach shortcuts.vdf, so
     # there is nothing to protect here. The old persistent 0.6.x
     # ``microsoft:ms-auth`` row MUST stay sweepable so reconcile can
-    # remove it on the next sync — do not add it back.
+    # remove it on the next sync — do not add it back. It is listed in
+    # :data:`LEGACY_SWEEP_IDS` instead.
+})
+
+# The exact inverse of :data:`PROTECTED_IDS`: full-ids from an earlier
+# release that are always stale, whatever the current library says.
+#
+# These exist because the reconcile sweep is otherwise gated on the store
+# having answered this sync (see ``events._sweepable_stores``), and this
+# row belongs to a store the affected user has usually never signed into
+# — someone who upgraded from 0.6.x and left Microsoft alone. Gating the
+# whole store on availability so one dead row gets collected is what made
+# the sweep able to delete a signed-out store's entire library. Naming
+# the row is the narrow fix; widening the rule was the wide one.
+#
+# Add to this set only for an id no current code path can create. If a
+# live flow can still produce it, it is not legacy — fix the flow.
+LEGACY_SWEEP_IDS: frozenset[str] = frozenset({
+    # 0.6.x wrote a persistent Microsoft auth shortcut; 0.7's auth flow
+    # is frontend-managed and ephemeral, so nothing recreates this.
+    "microsoft:ms-auth",
 })
 
 # Prefix-protected — when an auth shortcut uses a per-session id
@@ -60,3 +80,14 @@ def is_protected(full_id: str | None) -> bool:
     return len(parts) == 2 and any(
         parts[1].startswith(prefix) for prefix in PROTECTED_PREFIXES
     )
+
+
+def is_legacy_sweepable(full_id: str | None) -> bool:
+    """Return True for a :data:`LEGACY_SWEEP_IDS` member.
+
+    Callers must still check :func:`is_protected` first — protection
+    always wins. The two sets are asserted disjoint by
+    ``test_sync_failed_store_keeps_shortcuts``, because an id in both
+    would resolve differently depending on call order.
+    """
+    return bool(full_id) and full_id in LEGACY_SWEEP_IDS

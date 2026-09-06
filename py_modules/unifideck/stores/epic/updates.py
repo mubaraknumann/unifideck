@@ -1,7 +1,5 @@
 """Epic Games update checker — on-demand scan via legendary.
 
-OP-48e | py_modules/unifideck/stores/epic/updates.py
-
 ``EpicUpdateChecker`` asks ``legendary`` which installed games have a
 newer build than the one on disk, and applies an update when asked.
 
@@ -22,7 +20,7 @@ frontend asks (``check_game_update``), and
 login on every App-Details page open.
 
 Update application is delegated to the installer pipeline
-(``install.py``, OP-48d) — legendary has no separate ``update`` verb,
+(``install.py``) — legendary has no separate ``update`` verb,
 it re-runs ``install`` and reuses the existing install directory.
 """
 
@@ -42,7 +40,6 @@ from .legendary import fetch_info
 from .library import EpicLibraryReader
 
 logger = logging.getLogger(__name__)
-
 
 class EpicUpdateChecker:
     """Epic update checker."""

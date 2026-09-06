@@ -1,7 +1,5 @@
 """HTTP helpers — SSL context builder + JSON GET wrapper.
 
-OP-50i | py_modules/unifideck/stores/gog/http.py
-
 Two small module-level helpers shared by ``library.py``, ``dlc.py``,
 ``updates.py`` and ``tokens/oauth.py``:
 
@@ -33,7 +31,6 @@ from unifideck.core.net import ssl_ctx_permissive
 
 _logger = logging.getLogger(__name__)
 
-
 class TransientNetworkError(Exception):
     """Raised by ``fetch_json_get(raise_on_transient=True)`` on a retryable failure.
 
@@ -46,7 +43,6 @@ class TransientNetworkError(Exception):
     would just fail again).
     """
 
-
 def build_ssl_context() -> ssl.SSLContext:
     """Build ssl context.
 
@@ -57,7 +53,6 @@ def build_ssl_context() -> ssl.SSLContext:
     step with ``CERTIFICATE_VERIFY_FAILED``.
     """
     return ssl_ctx_permissive("GOG OAuth — outdated Deck cert store")
-
 
 async def fetch_json_get(
     url: str,
@@ -96,7 +91,6 @@ async def fetch_json_get(
         log_prefix,
         raise_on_transient,
     )
-
 
 def _fetch_json_get_sync(
     url: str,

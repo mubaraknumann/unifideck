@@ -1,7 +1,5 @@
 """Download data models — the per-item record + error classification.
 
-OP-15c | py_modules/unifideck/services/download/models.py
-
 ``DownloadItem`` is the frozen dataclass describing one queued
 download : store, game_id, target path, language, current state
 (queued / running / paused / done / failed), progress (bytes done
@@ -23,7 +21,6 @@ from typing import Any
 # ``download_history.json`` so the list survives restarts + plugin
 # reinstalls.
 MAX_FINISHED_HISTORY = 10
-
 
 @dataclass
 class DownloadItem:
@@ -55,6 +52,7 @@ class DownloadItem:
     # User-picked install language (GOG multi-language games),
     # verbatim store language code. Empty = use the store default.
     language: str = ""
+    download_dir: str = ""
     progress: float = 0.0
     status: str = "queued"
     error: str = ""
@@ -68,6 +66,13 @@ class DownloadItem:
     end_time: float | None = None
     storage_location: str = "internal"
     download_phase: str = "downloading"
+    #: A wrapper store's own account of why nothing is moving — e.g.
+    #: Battle.net's "queued behind the Agent's self-update", read out of the
+    #: Agent's log rather than guessed. Currently **computed and discarded**:
+    #: no frontend renders it (audit register item 49). Kept because the
+    #: signal is real and measured. GOG's decorative producers of this field,
+    #: which restated the localized phase label in hardcoded English, were
+    #: deleted instead (item 45).
     phase_message: str = ""
     # Operation type, recorded by the enqueue path — NOT inferred.
     # ``install_game`` enqueues ``False``; ``update_game`` enqueues
@@ -146,7 +151,6 @@ class DownloadItem:
         if "is_update" not in d and "was_previously_installed" in d:
             d["is_update"] = d["was_previously_installed"]
         return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
-
 
 def classify_download_error(exc: Exception) -> str:
     """Map an exception's message to a typed error code.

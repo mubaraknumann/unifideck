@@ -1,8 +1,6 @@
 """
 UPC binary resolution — find the right executable for the install in a prefix.
 
-OP-55d | py_modules/unifideck/stores/ubisoft/binaries.py
-
 ``UbisoftBinaryResolver`` locates the Ubisoft Connect / UPC executable
 inside a Wine prefix. Modern UPC ships ``UbisoftConnect.exe`` (Electron-
 based UI) and a legacy ``upc.exe`` (the original launcher); newly
@@ -55,7 +53,6 @@ _STEAM_COMMON_CANDIDATES = (
     str(Path("~") / ".steam" / "root" / "steamapps" / "common"),
 )
 _COMPAT_TOOLS_DIR = "~/.local/share/Steam/compatibilitytools.d"
-
 
 class UbisoftBinaryResolver:
     """Ubisoft binary resolver."""

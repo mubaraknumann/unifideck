@@ -1,7 +1,5 @@
 """Well-known path helpers — locate the plugin's install directory.
 
-OP-08f | py_modules/unifideck/core/paths.py
-
 The plugin can be installed in various places depending on
 the environment (Decky's default location, a custom dev
 install, a CI checkout). This module centralises the lookup
@@ -32,7 +30,6 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 _DECKY_DEFAULT_PATH = Path.home() / "homebrew" / "plugins" / "unifideck"
-
 
 def resolve_plugin_dir(start: Path | None = None) -> Path:
     """Return the plugin's root directory using a 4-step fallback chain.
@@ -77,7 +74,6 @@ def resolve_plugin_dir(start: Path | None = None) -> Path:
         _DECKY_DEFAULT_PATH,
     )
     return _DECKY_DEFAULT_PATH
-
 
 def resolve_py_modules_dir() -> Path:
     """Return the ``py_modules/`` directory inside the plugin root.

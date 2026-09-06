@@ -14,9 +14,16 @@ import logging
 import os
 from pathlib import Path
 
+from .constants import MANIFEST_FILE
+
 logger = logging.getLogger(__name__)
 
-_MANIFEST_NAME = ".unifideck_sync.json"
+# Was a local literal. ``constants.py`` exists precisely to hold this and
+# said so ("renaming the manifest filename only touches one file") while
+# being imported by nothing — this module and ``safety.py`` each carried
+# their own copy, so a rename needed three edits. The filename is an
+# on-disk marker, so one definition is the point.
+_MANIFEST_NAME = MANIFEST_FILE
 
 
 async def read_manifest(directory: str) -> dict[str, float]:

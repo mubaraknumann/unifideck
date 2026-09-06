@@ -1,8 +1,6 @@
 """
 UPC game uninstall pipeline — removes a game cleanly from the prefix.
 
-OP-56g | py_modules/unifideck/stores/ubisoft/installer/uninstall.py
-
 ``UbisoftUninstaller`` removes an installed Ubisoft game from disk and
 from every state-tracking layer:
 
@@ -36,7 +34,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 _PROTOCOL_UNINSTALL_TIMEOUT_S = 60.0
 _DELETE_MIN_PATH_DEPTH = 4
-
 
 class _UninstallPipeline:
     """Uninstall pipeline."""

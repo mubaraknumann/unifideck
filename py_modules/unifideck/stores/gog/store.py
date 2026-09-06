@@ -1,20 +1,18 @@
 """GOG store — Layer-4 implementation of the unified store interface.
 
-OP-50a | py_modules/unifideck/stores/gog/store.py
-
 ``GOGStore`` is the orchestration class that wires every sub-component
 of the GOG sub-package together and exposes them through the
 ``StoreBase`` contract used by the rest of the plugin (RPC mixins,
 service layer, registry). It owns one instance each of:
 
-* ``GOGConfig`` (OP-50b)         — frozen configuration snapshot.
-* ``GOGTokenManager`` (OP-52a)   — OAuth tokens + persistence.
-* ``GOGLibrary`` (OP-50c)        — owned-games library facade.
-* ``GOGInstaller`` (OP-51a)      — install/uninstall pipeline.
-* ``GOGUpdatesChecker`` (OP-50g) — update polling.
-* ``GOGDlcManager`` (OP-50f)     — DLC enumeration + install.
-* ``GOGBrowserAuth`` (OP-50h)    — embedded-browser OAuth flow.
-* ``GOGExeResolver`` (OP-50e)    — locate the launchable .exe.
+* ``GOGConfig`` — frozen configuration snapshot.
+* ``GOGTokenManager`` — OAuth tokens + persistence.
+* ``GOGLibrary`` — owned-games library facade.
+* ``GOGInstaller`` — install/uninstall pipeline.
+* ``GOGUpdatesChecker`` — update polling.
+* ``GOGDlcManager`` — DLC enumeration + install.
+* ``GOGBrowserAuth`` — embedded-browser OAuth flow.
+* ``GOGExeResolver`` — locate the launchable .exe.
 
 Implements the standard ``StoreBase`` API: ``store_info``, ``is_authed``,
 ``auth``, ``logout``, ``library``, ``install``, ``uninstall``, ``launch``,
@@ -35,6 +33,7 @@ from unifideck.auth.orchestrator import AuthOrchestrator
 from unifideck.core.safe_delete import canonical_prefix, safe_rmtree
 from unifideck.core.types import (
     AuthResult,
+    CLITool,
     Events,
     Game,
     InstallResult,
@@ -42,6 +41,11 @@ from unifideck.core.types import (
     StoreInfo,
 )
 from unifideck.services.shortcut import ShortcutService
+from unifideck.stores.shared.browser_auth_rebuild import (
+    BrowserAuthRebuildMixin,
+)
+from unifideck.stores.shared.install_status import merge_install_status
+from unifideck.stores.shared.installed_path import install_path_from_record
 from unifideck.stores.shared.store_base import StoreBase
 from unifideck.utils.locale import get_unifideck_locale
 
@@ -51,7 +55,7 @@ from .config import GOG_AUTH_URL_FILE, GOGConfig
 from .dlc import GOGDlcManager
 from .exe_resolver import GOGExeResolver
 from .install import GOGInstaller
-from .library import GOGLibrary, merge_install_status
+from .library import GOGLibrary
 from .sessions import GOGSessions
 from .tokens import GOGTokenManager
 from .updates import GOGUpdatesChecker
@@ -62,8 +66,7 @@ if TYPE_CHECKING:
     from unifideck.event_bus.event_bus import EventBus
 logger = logging.getLogger(__name__)
 
-
-class GOGStore(StoreBase):
+class GOGStore(BrowserAuthRebuildMixin, StoreBase):
     """Gogstore."""
 
     store_info = StoreInfo(
@@ -71,8 +74,12 @@ class GOGStore(StoreBase):
         display_name="GOG",
         auth_method="oauth",
         icon_asset="gog.png",
-        uses_wine=False,
         supports_install=True,
+    )
+
+    CLI_TOOL = CLITool(
+        name="gogdl",
+        search_paths=["bin/gogdl"],
     )
 
     def __init__(
@@ -96,6 +103,9 @@ class GOGStore(StoreBase):
         self._shortcut_service = shortcut_service
         self._edge = edge_browser
         self._tokens = GOGTokenManager(self._gog_config, bus=bus)
+        # Set before either _build_gogdl_submodules() path below, so
+        # is_available never reads an unset attribute.
+        self._gogdl_bin: str = ""
         self._build_core_components()
         # Auth is late-bound : at boot ``browser_monitor`` is
         # ``None`` (auto-discovery doesn't see the service
@@ -134,7 +144,9 @@ class GOGStore(StoreBase):
         :meth:`_rebuild_auth_after_injection` once the monitor wires in —
         ``_auth`` may have refreshed tokens in the meantime.
         """
-        gogdl_bin = self._resolve_gogdl_bin()
+        # Cached on the instance so ``is_available`` can gate on it without
+        # re-running the resolver (and its hash check) on every status poll.
+        gogdl_bin = self._gogdl_bin = self._resolve_gogdl_bin()
         self._installer = GOGInstaller(
             config=self._gog_config,
             tokens=self._tokens,
@@ -161,39 +173,41 @@ class GOGStore(StoreBase):
             resolve_install_info=self._library.get_installed_game_info,
         )
 
-    def _rebuild_auth_after_injection(self) -> None:
-        """(Re-)build the GOG browser-auth flow once a monitor is set.
-
-        Called by `store_injector` after the OAuth browser
-        monitor has been wired into the container. Idempotent —
-        early-returns if `_auth` is already built.
-        """
-        if self._auth is not None:
-            return
-        monitor = getattr(self, "_browser_monitor", None)
-        if monitor is None:
-            logger.debug(
-                "[GOGStore] no browser_monitor; auth disabled",
-            )
-            return
-        orchestrator = AuthOrchestrator(
-            bus=self._bus,
-            browser_monitor=monitor,
-            store_name="gog",
-        )
-        self._auth = GOGBrowserAuth(
+    def _build_auth_flow(self, orchestrator: AuthOrchestrator) -> GOGBrowserAuth:
+        """GOG's half of ``BrowserAuthRebuildMixin``."""
+        return GOGBrowserAuth(
             bus=self._bus,
             orchestrator=orchestrator,
             tokens=self._tokens,
             config=self._gog_config,
         )
-        # Rebuild the gogdl-driven submodules so they reference the live
-        # token manager — `_auth` may have refreshed tokens in the meantime.
+
+    def _after_auth_flow_built(self) -> None:
+        """Rebuild the gogdl-driven submodules against the live tokens.
+
+        The only store that needs this hook: ``_auth`` may have refreshed
+        tokens, and the installer / DLC / update submodules captured the
+        token manager when they were built. Skipping it leaves
+        ``_gogdl_bin`` empty, so ``is_available`` refuses and every install
+        dies at spawn.
+        """
         self._build_gogdl_submodules()
-        logger.info("[GOGStore] auth flow wired")
 
     async def is_available(self) -> bool:
-        """Check whether available."""
+        """Check whether available.
+
+        The gogdl gate matches Epic's and Amazon's, which both refuse when
+        their CLI is missing. Without it a broken gogdl left GOG showing
+        **connected** — the library syncs fine, because that path is pure
+        HTTP — and every install then died at spawn time with a raw
+        ``OSError`` string in the download row (audit §3.2).
+        """
+        if not self._gogdl_bin:
+            logger.warning(
+                "[GOGStore] gogdl unavailable — reporting store as unavailable",
+            )
+            self._cached_available = False
+            return False
         if not self._gog_config.is_valid():
             self._cached_available = False
             return False
@@ -280,7 +294,14 @@ class GOGStore(StoreBase):
             installed = await asyncio.to_thread(
                 self._library.get_installed_map,
             )
-            return merge_install_status(owned, installed)
+            # Two GOG-only arguments, both load-bearing — see
+            # ``shared/install_status`` for why neither generalises:
+            # the scanned ``executable`` is absolute and reconcile needs
+            # it to write the games.map launch row, and the map comes from
+            # a live walk so re-statting every directory is pure cost.
+            return merge_install_status(
+                owned, installed, exe_key="executable", verify_dir=False,
+            )
         except Exception:
             logger.exception(
                 "[GOGStore] get_library install overlay failed; "
@@ -372,8 +393,7 @@ class GOGStore(StoreBase):
         info = await asyncio.to_thread(
             self._library.get_installed_game_info, game_id,
         )
-        path = info.get("install_path") if isinstance(info, dict) else None
-        return path if isinstance(path, str) and path else None
+        return install_path_from_record(info)
 
     async def get_game_achievements(
         self, game_id: str, force: bool = False,
@@ -410,8 +430,19 @@ class GOGStore(StoreBase):
         """GOG's authoritative total time played for ``game_id``, in seconds."""
         return await self._sessions.get_total_secs(game_id)
 
+    # ── DLC: implemented end to end, reachable from nowhere ──────────────
+    #
+    # unwired: :meth:`get_game_dlcs`, :meth:`install_dlc` and
+    # :meth:`get_game_store_url` have no callers — no RPC route, no frontend.
+    # **No store has a DLC surface**, so this is not a GOG gap: audit §3.5
+    # bullet 4 records it as "amazon lacks DLC", which reads per-store and is
+    # really a feature nobody has. Kept rather than deleted (working logic
+    # against a live API); decide as one unit — build the surface, or delete
+    # this, the manager and ``shared/dlc.py`` together. NOT
+    # ``get_available_languages``: that is live, feeding the language picker.
+
     async def get_game_dlcs(self, game_id: str) -> list[dict[str, Any]]:
-        """Get game dlcs."""
+        """Get game dlcs. (unwired — see the note above.)"""
         return await self._dlc.get_game_dlcs(game_id)
 
     async def get_available_languages(self, game_id: str) -> list[str]:
@@ -425,7 +456,7 @@ class GOGStore(StoreBase):
         base_path: str | None = None,
         progress_cb: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
     ) -> Result:
-        """Install dlc."""
+        """Install dlc. (unwired — see the DLC note above.)"""
         return await self._dlc.install_dlc(
             game_id=game_id,
             dlc_id=dlc_id,
@@ -434,7 +465,7 @@ class GOGStore(StoreBase):
         )
 
     async def get_game_store_url(self, game_id: str) -> str | None:
-        """Get game store URL."""
+        """Get game store URL. (unwired — see the DLC note above.)"""
         return await self._dlc.get_game_store_url(game_id)
 
     async def get_game_slug(self, game_id: str) -> str | None:
@@ -474,23 +505,32 @@ class GOGStore(StoreBase):
         return self._library.migrate_old_markers()
 
     def _resolve_gogdl_bin(self) -> str:
-        """Resolve GOGDL bin."""
-        if not self._plugin_dir:
-            logger.warning(
-                "[GOGStore] no plugin_dir; gogdl path unresolvable",
-            )
+        """Locate ``gogdl`` through the shared resolver, like Epic and Amazon.
+
+        This used to hardcode ``<plugin>/bin/gogdl``, ``is_file()``-check it
+        and return the path *anyway* when the check failed. Going through
+        ``StoreBase._find_binary`` restores three things the hand-rolled
+        version skipped (audit §3.2):
+
+        * the **SHA256 check** — ``binary_resolver`` verifies a Tier-1 hit
+          against ``_KNOWN_HASHES``, which already carries a ``gogdl`` entry
+          that nothing was ever comparing against. A half-applied update or
+          a hand-swapped binary now costs one ERROR line instead of days of
+          triage aimed at "GOG is broken";
+        * the **executable-bit test** — ``is_file()`` passes on a file whose
+          exec bit was lost in transit (the exact case
+          ``scripts/ensure_executable_bits.py`` exists for), where the
+          resolver skips it and falls through;
+        * **Tier 2/3 fallback** to ``PATH`` and ``~/.local/bin``.
+
+        Returns ``""`` when nothing was found, which ``is_available`` reads
+        as "this store cannot install" — the same gate Epic and Amazon have.
+        """
+        path = self._find_binary(self.CLI_TOOL)
+        if not path:
+            logger.warning("[GOGStore] gogdl binary not found in any tier")
             return ""
-        path = str(Path(self._plugin_dir) / "bin" / "gogdl")
-        if not Path(path).is_file():
-            logger.warning(
-                "[GOGStore] gogdl binary not found at %s",
-                path,
-            )
-        else:
-            logger.info(
-                "[GOGStore] using gogdl at %s",
-                path,
-            )
+        logger.info("[GOGStore] using gogdl at %s", path)
         return path
 
     def _browser_monitor_from_auth(self) -> OAuthBrowserMonitor | None:

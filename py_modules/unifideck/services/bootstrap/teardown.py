@@ -1,7 +1,5 @@
 """Symmetric shutdown — counterpart to ``bootstrap_services``.
 
-OP-13f | py_modules/unifideck/services/bootstrap/teardown.py
-
 ``stop_all_services(container)`` walks the service container in
 reverse construction order and calls each service's ``stop()``
 coroutine (or skips silently if absent). Used by ``Plugin._unload`` to
@@ -17,7 +15,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .container import ServiceContainer
 logger = logging.getLogger(__name__)
-
 
 async def stop_all_services(container: ServiceContainer) -> None:
     """Tear down every service in reverse-dependency order.

@@ -39,6 +39,8 @@ import sys
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from unifideck.config import ConfigManager
 
 logger = logging.getLogger(__name__)
@@ -163,3 +165,46 @@ def read_config_int_cold_start(key: str, default: int) -> int:
     if not isinstance(node, int) or node <= 0:
         return default
     return node
+
+
+def merge_str_list_mapping(
+    config: Any,
+    key: str,
+    defaults: Mapping[str, list[str]],
+) -> dict[str, list[str]]:
+    """Overlay a user-supplied ``{str: [str]}`` map at *key* onto *defaults*.
+
+    The two probe services — ``FeatureFlagService`` (``probes.
+    probe_to_features``) and ``ProbeReactionService`` (``probes.
+    probe_to_handlers``) — each held a byte-identical copy of this, and one
+    cited the other in a comment rather than sharing it (audit register
+    item 47).
+
+    Every malformed shape falls back rather than raising, at three
+    granularities: no config or an unreadable key yields the defaults
+    untouched; a non-dict override yields the defaults untouched; and a
+    single bad entry is skipped while its well-formed siblings still apply.
+    That last one is the reason this validates per key instead of
+    per document — one typo in ``config.json`` must not silently discard
+    the rest of a user's probe overrides.
+
+    Values are taken by reference, so *defaults* is copied but its lists
+    are not: callers must treat the result as read-only, which both do.
+
+    Args:
+        config: the live manager, or ``None``. Typed ``Any`` rather than
+            ``ConfigManager | None`` because both callers declare their own
+            parameter ``object | None`` — the duck-typing this module's
+            docstring describes, where tests pass a stub and prod passes the
+            real class. Narrowing here would only push a cast onto them.
+        key: dotted config path holding the override map.
+        defaults: the built-in mapping; never mutated.
+    """
+    mapping = dict(defaults)
+    user_mapping = get_cfg(config, key, None)
+    if not isinstance(user_mapping, dict):
+        return mapping
+    for name, value in user_mapping.items():
+        if isinstance(value, list) and all(isinstance(i, str) for i in value):
+            mapping[name] = value
+    return mapping

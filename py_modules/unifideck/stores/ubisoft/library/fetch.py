@@ -1,8 +1,6 @@
 """
 Fetch the owned-games catalog from the UPC user data.
 
-OP-57b | py_modules/unifideck/stores/ubisoft/library/fetch.py
-
 ``_LibraryFetch`` reads the UPC catalog from the user's Wine prefix
 (``ownership`` and ``configurations`` directories) and returns the
 parsed owned-games list. Delegates to ``parser.py`` and
@@ -38,7 +36,6 @@ ParseConfigurationsFn = Callable[[str], "list[GameConfig]"]
 ParseOwnershipFn = Callable[[str], list[int]]
 logger = logging.getLogger(__name__)
 
-
 class _PreparedLibrary(NamedTuple):
     """The owned-games working set, ready to hand to the game builder.
 
@@ -52,7 +49,6 @@ class _PreparedLibrary(NamedTuple):
     base_catalog_norms: set[str]
     id_backfill: int
     uuid_backfill: int
-
 
 class _LibraryFetcher:
     """Library fetcher."""
@@ -113,6 +109,9 @@ class _LibraryFetcher:
         prepared = await self._prepare_library(
             configs, owned_set, owned_uuids, installed, force=force,
         )
+        # Repair a map poisoned before #436 was fixed (one deeplink id
+        # shared by two games) before the rebuild re-derives the ids.
+        await asyncio.to_thread(self._id_map.sweep_conflicting_connect_ids)
         connect_ids = await asyncio.to_thread(self._id_map.read_connect_ids)
         games = self._builder.build_games_from_configs(
             prepared.matched_configs,

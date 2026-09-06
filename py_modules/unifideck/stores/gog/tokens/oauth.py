@@ -1,17 +1,15 @@
 """OAuth protocol — exchange auth code for tokens, refresh expired tokens.
 
-OP-52c | py_modules/unifideck/stores/gog/tokens/oauth.py
-
 ``_TokenOAuth`` speaks GOG's OAuth 2.0 endpoint :
 
 * ``exchange_code(auth_code)`` — exchanges the authorization code
-  obtained from ``auth.py`` (OP-50h) for access/refresh tokens and
+  obtained from ``auth.py`` for access/refresh tokens and
   reports the outcome as an :class:`ExchangeOutcome`;
 * ``refresh(refresh_token)`` — POSTs the refresh token and returns a
   new pair of access/refresh tokens (GOG rotates refresh tokens, so
   the old refresh token becomes invalid after refresh).
 
-HTTP calls go through ``http.py`` (OP-50i) for the bundled CA chain.
+HTTP calls go through ``http.py`` for the bundled CA chain.
 The code-exchange path distinguishes a *transient* network failure
 (``http.py`` raises :class:`TransientNetworkError`, and we retry a
 few times) from a *definitive* auth failure (bad/consumed code, bad
@@ -51,14 +49,12 @@ logger = logging.getLogger(__name__)
 _MAX_EXCHANGE_ATTEMPTS = 3
 _BACKOFF_SECONDS = (1.0, 2.0)
 
-
 class ExchangeOutcome(Enum):
     """Result of a GOG authorization-code exchange."""
 
     OK = "ok"
     AUTH_FAILED = "auth_failed"
     NETWORK_FAILED = "network_failed"
-
 
 class _TokenOAuth:
     """Token oauth."""
@@ -226,6 +222,5 @@ class _TokenOAuth:
             )
             return False
         return await self._save(access, refresh)
-
 
 _ = Any

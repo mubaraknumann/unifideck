@@ -146,14 +146,20 @@ def _patch_subprocess(
     return seen, kwargs_seen
 
 
-def _emitted(bus: AsyncMock, event_value: str) -> list[dict[str, Any]]:
-    """Return the kwargs of every ``bus.emit`` call for one event."""
+def _download_events(bus: AsyncMock) -> list[str]:
+    """Names of every ``DOWNLOAD_*`` event the installer emitted.
+
+    Always empty: ``DownloadWorker`` is the sole emitter of the download
+    lifecycle, and the installer reports through its ``InstallResult``
+    only (audit item #4).
+    """
     out = []
     for call in bus.emit.await_args_list:
         args, kwargs = call
         name = args[0] if args else kwargs.get("event")
-        if getattr(name, "value", name) == event_value:
-            out.append(kwargs)
+        value = getattr(name, "value", name)
+        if isinstance(value, str) and value.startswith("download_"):
+            out.append(value)
     return out
 
 
@@ -547,9 +553,10 @@ async def test_prompt_crash_is_not_retried(
     # Only ONE attempt: the DLC fallback would hit the same prompt, so
     # retrying just doubled the user's wait before the same failure.
     assert len(seen) == 1
-    failures = _emitted(inst._bus, "download_failed")
-    assert len(failures) == 1
-    assert "EOFError" in failures[0]["error"]
+    # The failure travels back as the InstallResult, not as an event of the
+    # installer's own — the worker emits the single DOWNLOAD_FAILED.
+    assert _download_events(inst._bus) == []
+    assert "EOFError" in result.error
 
 
 def test_prompt_crash_detection() -> None:

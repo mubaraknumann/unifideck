@@ -69,15 +69,6 @@
     "validationErrors.homeRoot": "Не можна використовувати домашній кореневий каталог",
     "freeSpaceLabel": "{{label}} ({{freeSpace}} ГБ вільно)"
   },
-  "gameGrid": {
-    "loading": "Завантаження ігор...",
-    "noGamesFound": "Ігор не знайдено",
-    "noGamesHint": "Спробуйте синхронізувати бібліотеки в налаштуваннях Unifideck",
-    "showingGames": "Показано ігор: {{count}}",
-    "installed": "Встановлено",
-    "notInstalled": "Не встановлено",
-    "playtime": "Зіграно: {{hours}} год. {{minutes}} хв."
-  },
   "downloadsTab": {
     "currentDownload": "ПОТОЧНЕ ЗАВАНТАЖЕННЯ",
     "queuedDownloads": "У ЧЕРЗІ ({{count}})",
@@ -154,9 +145,9 @@
     "connected": "Підключено",
     "checking": "Перевірка...",
     "authenticate": "Увійти",
-    "legendaryNotInstalled": "⚠️ Встановлення утиліти Epic Games...",
-    "nileNotInstalled": "⚠️ Утиліту Amazon Games не знайдено",
-    "error": "Помилка. Перевірте журнали"
+    "error": "Помилка. Перевірте журнали",
+    "storefrontOpening": "Відкриття магазину {{store}}...",
+    "storefrontFailed": "Не вдалося відкрити магазин {{store}}"
   },
   "librarySync": {
     "title": "СИНХРОНІЗАЦІЯ БІБЛІОТЕКИ",
@@ -258,6 +249,8 @@
     "ubisoftLauncherAlreadyOpenMessage": "Ubisoft Connect вже запущено для цього встановлення.",
     "ubisoftLauncherOpenFailed": "Не вдалося запустити Ubisoft Connect",
     "ubisoftLauncherOpenFailedMessage": "Не вдалося запустити Ubisoft Connect для встановлення.",
+    "ubisoftSignInExpired": "Термін входу в Ubisoft минув",
+    "ubisoftSignInExpiredMessage": "Збережені дані входу в Ubisoft більше не приймаються. Вийдіть і увійдіть знову в налаштуваннях Unifideck, щоб відновити з'єднання.",
     "multipartDetected": "Виявлено багатокомпонентне завантаження",
     "multipartMessage": "Будь ласка, зачекайте завершення процесу",
     "downloadFailed": "Завантаження не вдалося",
@@ -349,10 +342,10 @@
       "installingUbisoft": "Встановлення через Ubisoft Connect",
       "installingUbisoftMessage": "Відкриття Ubisoft Connect. Почніть встановлення у вікні лаунчера.",
       "protonReadyBody": "{{version}} готовий до використання",
+      "externalProtonOutdatedTitle": "Доступне оновлення GE-Proton",
+      "externalProtonOutdatedBody": "Доступна остання версія {{version}}. Будь ласка, оновіть через зовнішній менеджер.",
       "protonReadyTitle": "Proton готовий",
       "protonSwitchedTo": "Тепер використовується {{version}}",
-      "signingInUbisoft": "Вхід у Ubisoft Connect",
-      "signingInUbisoftMessage": "Відкриття Ubisoft Connect. Увійдіть там, а потім поверніться.",
       "ubisoftPrefixNotReady": "Ubisoft Connect не готовий",
       "ubisoftPrefixNotReadyMessage": "Не вдалося підготувати префікс Ubisoft Connect для цієї гри. Спробуйте встановити ще раз; якщо помилка повторюється, повторно запустіть синхронізацію бібліотеки.",
       "ubisoftAuthPrefixNotReady": "Ubisoft Connect не готовий",
@@ -390,10 +383,9 @@
       "battlenetInstallerDownloadFailedMessage": "Не вдалося завантажити інсталятор Battle.net. Перевірте підключення та повторіть спробу.",
       "battlenetClientInstallFailed": "Не вдалося встановити Battle.net",
       "battlenetClientInstallFailedMessage": "Інсталятор клієнта Battle.net не завершив роботу. Повторіть спробу або перегляньте в журналі запуску, що він повідомив.",
-      "signingInBattlenet": "Вхід у Battle.net",
-      "signingInBattlenetMessage": "Відкриття клієнта Battle.net для входу…",
       "installingBattlenet": "Встановлення через Battle.net",
-      "installingBattlenetMessage": "Відкриття Battle.net. Натисніть там «Встановити», щоб почати завантаження {{gameTitle}}."
+      "installingBattlenetMessage": "Відкриття Battle.net. Натисніть там «Встановити», щоб почати завантаження {{gameTitle}}.",
+      "wrapperOpening": "Відкриття {{client}}"
     },
     "updateComplete": "Оновлення завершено!",
     "updateCompleteMessage": "{{title}} оновлено.",
@@ -401,7 +393,6 @@
     "updateCancelledMessage": "Оновлення {{title}} було скасовано.",
     "updateFailed": "Оновлення не вдалося",
     "updateFailedMessage": "Не вдалося розпочати оновлення.",
-    "storeError": "Не вдалося зв'язатися з магазином {{store}} ({{errType}})",
     "captureLogsStarted": "Збір журналів...",
     "captureLogsStartedMessage": "Створення діагностичного архіву в теці «Завантаження». Це триває кілька секунд.",
     "captureLogsDone": "Журнали зібрано",
@@ -417,9 +408,7 @@
       "openStorageManager": "Звільнити місце",
       "signInToStore": "Увійти",
       "retrySync": "Повторити",
-      "retryLibrarySync": "Оновити бібліотеку",
-      "openSaveFolder": "Відкрити папку збережень",
-      "showLogs": "Показати логи"
+      "retryLibrarySync": "Оновити бібліотеку"
     },
     "library": {
       "_comment": "Toasts emitted by SyncService when a per-store library sync fails. The retry button triggers a fire-and-forget refresh via the unifideck://refresh-library/<store> verb; the user doesn't wait for the result inline, the Library view picks it up through its SYNC_PROGRESS subscription.",
@@ -485,6 +474,7 @@
       "authExpired": "Сесія авторизації закінчилася. Будь ласка, увійдіть знову",
       "toolMissing": "Необхідна утиліта завантаження не знайдена",
       "processFailed": "Завантаження перервалося. Будь ласка, спробуйте ще раз",
+      "stalled": "Завантаження зупинилося без прогресу. Спробуйте ще раз.",
       "directoryNotFound": "Не вдалося знайти встановлені файли гри",
       "lockConflict": "Виконується інша операція. Спробуйте пізніше",
       "ubisoftClient": "Помилка клієнта Ubisoft Connect. Спробуйте виправити префікс",
@@ -551,7 +541,8 @@
     "amazon": "Amazon",
     "ubisoft": "Ubisoft",
     "microsoft": "Microsoft",
-    "battlenet": "Battle.net"
+    "battlenet": "Battle.net",
+    "gamevault": "GameVault"
   },
   "unifiedLibrary": {
     "error": "Помилка Unifideck",
@@ -598,11 +589,14 @@
       "never": "Ніколи"
     },
     "compatibility": {
-      "modalTitle": "Сумісність зі Steam Deck",
+      "modalTitleDeck": "Сумісність зі Steam Deck",
+      "modalTitleMachine": "Сумісність зі Steam Machine",
+      "modalTitleSteamOS": "Сумісність зі SteamOS",
       "viewOnProtonDb": "Подивитися на ProtonDB",
       "close": "Закрити",
       "verified": "СУМІСНО",
       "playable": "МОЖНА ГРАТИ",
+      "compatible": "СУМІСНА",
       "unsupported": "НЕ ПІДТРИМУЄТЬСЯ",
       "unknown": "НЕВІДОМО"
     },
@@ -703,8 +697,7 @@
     "signInRequired": "Увійдіть, щоб грати",
     "syncSkippedNoSubscription": "Активну підписку Xbox Game Pass не знайдено. Вашу бібліотеку xCloud не синхронізовано.",
     "syncSkippedTierUnknown": "Підписку Xbox Game Pass виявлено, але рівень визначити не вдалося. Синхронізацію пропущено, щоб уникнути показу недоступних ігор.",
-    "subscriptionCheckFailed": "Не вдалося перевірити підписку Xbox Game Pass. Синхронізацію xCloud пропущено. Спробуйте ще раз, коли підключення стане стабільним.",
-    "subscriptionDetected": "Виявлено активну підписку Xbox Game Pass {{tier}}."
+    "subscriptionCheckFailed": "Не вдалося перевірити підписку Xbox Game Pass. Синхронізацію xCloud пропущено. Спробуйте ще раз, коли підключення стане стабільним."
   },
   "playButton": {
     "play": "Грати",
@@ -1009,9 +1002,14 @@
     "installingButton": "Встановлення...",
     "installingTitle": "Встановлення плагіна",
     "latestLabel": "остання",
+    "manageButton": "Оновити",
+    "manageButtonAvailable": "Оновити (доступна v{{version}})",
+    "manageTitle": "Оновлення плагіна",
     "modalTitle": "UNIFIDECK v{{version}}. Опис випуску",
     "noBackend": "Бекенд Decky недоступний.",
     "noReleaseNotes": "Опис змін відсутній.",
+    "noticeBody": "Версію v{{version}} можна встановити в налаштуваннях Unifideck.",
+    "noticeTitle": "Доступне оновлення Unifideck",
     "reinstallButton": "Перевстановити версію v{{version}}",
     "refreshFailedMessage": "Не вдалося перевірити інформацію про останню версію. Перевірте з'єднання та спробуйте ще раз.",
     "releaseGoneMessage": "Цей випуск більше недоступний. Перевірте оновлення та виберіть знову.",
@@ -1052,5 +1050,36 @@
     "title": "КОЛЕКЦІЇ STEAM",
     "enabled": "Колекції увімкнено",
     "disabled": "Колекції вимкнено"
+  },
+  "reconcile": {
+    "repairedTitle": "Дані бібліотеки відновлено",
+    "repairedBody": "Доповнено обкладинок: {{artwork}}, метаданих: {{metadata}}, записів сумісності: {{compat}} — після перерваної синхронізації."
+  },
+  "gamevault": {
+    "connectTitle": "Підключитися до GameVault",
+    "connect": "Підключити",
+    "connecting": "Підключення…",
+    "cancel": "Скасувати",
+    "modeRemote": "Підключитися до віддаленого сервера",
+    "modeRemoteDescription": "Увійдіть на сервер GameVault, який ви розміщуєте деінде.",
+    "modeLocal": "Використати теку на цьому пристрої",
+    "modeLocalDescription": "Імпортуйте архіви ігор без DRM, які вже є тут. Сервер не потрібен.",
+    "localTitle": "Локальна тека з іграми",
+    "localIntro": "Покладіть архіви ігор до цієї теки — вони з'являться у бібліотеці після наступної синхронізації.",
+    "vaultDir": "Тека з архівами",
+    "vaultDirDescription": "Де ви зберігаєте архіви ігор.",
+    "browse": "Огляд…",
+    "serverUrl": "URL сервера",
+    "username": "Ім'я користувача",
+    "password": "Пароль",
+    "verifySsl": "Перевіряти SSL-сертифікат",
+    "verifySslDescription": "Вимкніть для самопідписаних сертифікатів",
+    "downloadDir": "Директорія завантаження архівів",
+    "downloadDirDescription": "Тимчасова директорія для завантаження архівів. Залиште порожнім для використання за замовчуванням.",
+    "downloadDirPlaceholder": "~/.local/share/unifideck/gamevault_downloads",
+    "errorServerUrlRequired": "Будь ласка, введіть URL сервера",
+    "errorUsernameRequired": "Будь ласка, введіть ім'я користувача",
+    "errorPasswordRequired": "Будь ласка, введіть пароль",
+    "errorConnection": "Не вдалося підключитися до сервера GameVault"
   }
 }

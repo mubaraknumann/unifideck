@@ -6,10 +6,46 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from unifideck.core.sync_generation import UNTAGGED_RUN_ID, run_id_of
 from unifideck.core.types import Events, Game
 from unifideck.event_bus.event_bus_devex import subscribe
 
+from .stale_predicate import SweepableStores
+
 logger = logging.getLogger(__name__)
+
+# Budget for the post-sync reconcile handler.
+#
+# ``HandlerWatchdog``'s 5s default is smaller than the work: a healthy
+# 1242-game reconcile measured 4.9s on this Deck (2026-08-29 02:15:00 →
+# 02:15:05), and 0.9s at 1229 games. So the margin was a few hundred
+# milliseconds, and any contention on the loop pushed it over — the
+# watchdog cancelled the handler mid-reconcile twice in one session, at
+# 9.5s and 11.6s. A cancelled reconcile leaves shortcuts.vdf unwritten
+# and never emits SHORTCUT_RECONCILE_COMPLETE, so the user gets neither
+# their shortcuts nor the restart prompt (GOG's 228 games had no
+# shortcuts for five minutes because of exactly this).
+#
+# 120s matches ``PER_STORE_FETCH_TIMEOUT_SECONDS`` — generous enough that
+# only a genuinely wedged reconcile trips it, which is what the watchdog
+# is for. Note this only takes effect because ``_register_with_watchdog``
+# now forwards the ``@subscribe(timeout=...)`` override; it used to drop
+# it, leaving every handler on the 5s default.
+RECONCILE_TIMEOUT_SECONDS = 120.0
+
+
+def _is_stale_run(kwargs: dict[str, Any], current: int | None) -> bool:
+    """Whether a phase event belongs to a run older than ``current``.
+
+    Fails open in both untagged directions — an event with no ``run_id``,
+    or a service that has not yet seen a tagged ``SYNC_COMPLETE`` — so a
+    partially-migrated emitter degrades to the old always-run behaviour
+    rather than silently skipping the icon pass forever.
+    """
+    incoming = run_id_of(kwargs)
+    if incoming == UNTAGGED_RUN_ID or current is None:
+        return False
+    return incoming != current
 
 
 def _find_icon_for_appid(grid_dir: str, appid: int) -> str:
@@ -19,6 +55,13 @@ def _find_icon_for_appid(grid_dir: str, appid: int) -> str:
     Returns ``""`` when no file is found — caller treats empty
     as "no update needed".
     """
+    # NOT the same conversion as ``core.compat_bridge.to_unsigned``, despite
+    # looking like it — do not fold the two together. That one is a pure
+    # signed→unsigned reinterpretation; this one additionally *forces* the
+    # high bit, which is the invariant ``games_map.py`` establishes when it
+    # generates an appid (``crc32(key) | 0x80000000``). Steam names grid
+    # files with that form, so the OR is what makes the filename right even
+    # if a caller ever hands us an id from another source.
     unsigned = (appid & 0xFFFFFFFF) | 0x80000000
     for ext in (".jpg", ".png"):
         candidate = Path(grid_dir) / f"{unsigned}_icon{ext}"
@@ -114,6 +157,51 @@ async def _update_icons_from_grid(svc: Any) -> int:
             )
     return updated
 
+
+def _sweepable_stores(payload: dict[str, Any]) -> SweepableStores:
+    """The stores whose stale shortcuts this sync is allowed to delete.
+
+    **A store's shortcuts may only be swept when we hold a current,
+    authoritative statement of what that store contains** — that is, the
+    store was fetched this run *and* answered without error. Everything
+    else keeps its shortcuts.
+
+    This used to read ``registered_stores`` instead: every registered
+    store was sweepable, whether or not it had answered. The reasoning was
+    sound for what it named (phantom Ubisoft rows and the legacy
+    ``microsoft:ms-auth`` row should not linger forever) but the rule was
+    far wider than the reason, and it overrode the guard
+    ``_is_stale_managed_shortcut`` documents as *"how staging avoided
+    nuking the user's Epic shortcuts after they logged out of Epic"*.
+    A store contributes zero games without owning zero games in four ways:
+    it raised, it timed out, it returned ``None`` ("I could not read"), or
+    it was unavailable and never fetched at all. Each of those deleted
+    every shortcut that store owned. The last one records no error, so it
+    was invisible in the logs too.
+
+    That is not hypothetical. GOG's ``is_available`` now refuses when
+    ``bin/gogdl`` is missing or non-executable (audit §3.2, correctly) —
+    so under the old rule a half-applied update that lost the exec bit
+    made the next sync delete every GOG shortcut in the library.
+
+    Kept deliberately: a store that answers with an *empty* library is
+    still swept, which is the phantom-row cleanup the widening existed
+    for. The cost of the narrowing is that those rows now survive until
+    the store is signed in again, which is the strictly safer failure
+    mode — a stale tile costs one sync, a deleted library costs the
+    user's library. The one artifact that cannot be reached that way is
+    handled by name; see ``protected.LEGACY_SWEEP_IDS``.
+    """
+    fetched = payload.get("stores_synced") or []
+    errors = payload.get("errors") or {}
+    if not isinstance(fetched, (list, tuple, set)):
+        return SweepableStores(frozenset())
+    failed = set(errors) if isinstance(errors, dict) else set()
+    return SweepableStores(
+        frozenset(s for s in fetched if isinstance(s, str) and s not in failed),
+    )
+
+
 if TYPE_CHECKING:
     # This is a mixin; `self` will be the ShortcutService facade
     # at runtime. The facade provides ``mark_installed``,
@@ -157,7 +245,7 @@ class EventsMixin:
         ) -> int | None: ...
         async def reconcile(
             self, games: Sequence[Game], *, force: bool = ...,
-            valid_stores: set[str] | None = ...,
+            valid_stores: SweepableStores | None = ...,
         ) -> dict[str, int]: ...
 
     @subscribe(Events.DOWNLOAD_COMPLETE)
@@ -193,7 +281,7 @@ class EventsMixin:
         if isinstance(store, str) and isinstance(game_id, str):
             await self.mark_uninstalled(store, game_id)
 
-    @subscribe(Events.SYNC_COMPLETE)
+    @subscribe(Events.SYNC_COMPLETE, timeout=RECONCILE_TIMEOUT_SECONDS)
     async def _on_sync_complete(self, **kwargs: Any) -> None:
         """Reconcile shortcuts against the new library state.
 
@@ -204,20 +292,18 @@ class EventsMixin:
         overwrites our writes on its next shutdown otherwise).
         """
         games = kwargs.get("games", [])
+        # Latch the generation even on the empty-library early return, so
+        # ``_on_artwork_phase_done`` always compares against the newest run
+        # this service has seen rather than a stale one.
+        self._last_run_id = run_id_of(kwargs)
         if not games:
             return
         is_force = bool(kwargs.get("is_force", False))
-        # Widen the stale-sweep to every registered store (not just the
-        # ones that returned games) so shortcuts for a logged-out or
-        # empty store — phantom Ubisoft entries, the legacy
-        # ``microsoft:ms-auth`` row — get dropped on this sync instead of
-        # lingering forever.
-        registered = kwargs.get("registered_stores")
-        valid_stores = set(registered) if registered else None
+        valid_stores = _sweepable_stores(kwargs)
         logger.info(
             "[ShortcutService] SYNC_COMPLETE → reconciling %d games "
-            "(force=%s, valid_stores=%s)",
-            len(games), is_force, sorted(valid_stores) if valid_stores else None,
+            "(force=%s, sweepable_stores=%s)",
+            len(games), is_force, sorted(valid_stores),
         )
         result = await self.reconcile(
             games, force=is_force, valid_stores=valid_stores,
@@ -225,6 +311,7 @@ class EventsMixin:
         added = result.get("added", 0)
         removed = result.get("removed", 0)
         kept = result.get("kept", 0)
+        reclaimed = result.get("reclaimed", 0)
         # ``self._bus`` is provided by the host (ShortcutService
         # facade); silently skip the emit if for some reason it's
         # unavailable so a missing bus never breaks reconcile.
@@ -234,7 +321,17 @@ class EventsMixin:
         await bus.emit(
             Events.SHORTCUT_RECONCILE_COMPLETE,
             added=added, removed=removed, kept=kept,
+            # Reclaiming re-attaches orphaned VDF rows to the library by
+            # appid. It was computed and then dropped on the floor, so a
+            # reconcile that only reclaimed (``added=0 removed=0
+            # reclaimed=997``, observed 2026-08-29 02:20) told the
+            # frontend nothing had changed and no restart was offered —
+            # even though the rows Steam had in memory were stale.
+            reclaimed=reclaimed,
             total=len(games),
+            # Generation this reconcile belongs to, so the frontend can
+            # ignore one that arrives for a superseded run.
+            run_id=run_id_of(kwargs),
         )
 
     @subscribe(Events.POST_SYNC_PHASE_CHANGED)
@@ -245,6 +342,23 @@ class EventsMixin:
         if kwargs.get("phase") != "artwork":
             return
         if kwargs.get("active") is not False:
+            return
+        # Only rewrite icons for the generation that is actually current.
+        # An orphaned batch used to reach here minutes after its sync was
+        # superseded and rewrite shortcuts.vdf from its own stale view —
+        # observed 2026-08-29 02:17:12, "updated icons for 510 shortcuts"
+        # against a 645-game generation when the library was 1242.
+        #
+        # The current generation is the one from the last SYNC_COMPLETE this
+        # service handled; there is deliberately no SyncService reference
+        # here, because a ``getattr(self, "_sync_service", None)`` that never
+        # resolves is a check that silently never runs.
+        if _is_stale_run(kwargs, getattr(self, "_last_run_id", None)):
+            logger.info(
+                "[ShortcutService] skipping icon update — artwork phase "
+                "belongs to superseded run %s (current %s)",
+                kwargs.get("run_id"), getattr(self, "_last_run_id", None),
+            )
             return
         logger.info("[ShortcutService] artwork phase done — updating icons")
         await _update_icons_from_grid(self)

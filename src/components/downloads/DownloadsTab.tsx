@@ -24,10 +24,10 @@
  * `ShortcutService.mark_installed` / `mark_uninstalled`, and it is what
  * *causes* the `installed` flag this list filters on
  * (`SyncService._on_shortcut_install_state_changed`), so a refetch on it is
- * guaranteed to see the new state. GAME_INSTALLED — which this used to
- * listen for — has no runtime emitter at all (the download worker
- * deliberately doesn't emit it, to avoid duplicate SteamGridDB lookups),
- * which is why a finished install never appeared until the tab remounted.
+ * guaranteed to see the new state. This used to listen for GAME_INSTALLED,
+ * which had no runtime emitter at all, which is why a finished install never
+ * appeared until the tab remounted. That event has since been removed
+ * outright so nothing can subscribe to it again.
  */
 import { FC, useCallback, useEffect, useMemo, useRef } from "react";
 import {

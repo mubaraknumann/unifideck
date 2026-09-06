@@ -1,8 +1,6 @@
 """
 Per-game specialists — engine-specific quirks for selected Ubisoft titles.
 
-OP-55j | py_modules/unifideck/stores/ubisoft/specialists.py
-
 A handful of Ubisoft games need special handling because their engine
 (e.g. AnvilNext, Dunia, Snowdrop) has known interactions with Wine /
 Proton: anti-cheat layers, DRM-bound saves, controller-glyph remapping,
@@ -40,7 +38,6 @@ from unifideck.stores.ubisoft.session import UbisoftSession
 
 logger = logging.getLogger(__name__)
 
-
 @dataclass(frozen=True, slots=True)
 class UbisoftSpecialists:
     """Ubisoft specialists."""
@@ -56,7 +53,6 @@ class UbisoftSpecialists:
     installer: UbisoftInstaller
     auth: UbisoftAuth
 
-
 @dataclass(frozen=True)
 class _UbisoftFoundations:
     """Ubisoft foundations."""
@@ -66,7 +62,6 @@ class _UbisoftFoundations:
     binaries: Any
     id_map: UbisoftIdMap
 
-
 @dataclass(frozen=True)
 class _UbisoftRuntimeChain:
     """Ubisoft runtime chain."""
@@ -74,7 +69,6 @@ class _UbisoftRuntimeChain:
     session: UbisoftSession
     installer_cache: UbisoftInstallerCache
     prefix_mgr: UbisoftPrefixManager
-
 
 def _build_ubisoft_foundations(
     config_mgr: Any,
@@ -101,7 +95,6 @@ def _build_ubisoft_foundations(
         id_map=id_map,
     )
 
-
 def _build_ubisoft_runtime_chain(
     f: _UbisoftFoundations,
 ) -> _UbisoftRuntimeChain:
@@ -124,7 +117,6 @@ def _build_ubisoft_runtime_chain(
         installer_cache=installer_cache,
         prefix_mgr=prefix_mgr,
     )
-
 
 def _build_ubisoft_auth(
     *,
@@ -152,7 +144,6 @@ def _build_ubisoft_auth(
             steamgriddb=steamgriddb,
         ),
     )
-
 
 def build_ubisoft_specialists(
     *,

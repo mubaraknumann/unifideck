@@ -289,3 +289,152 @@ def test_a_service_without_the_keyword_still_works() -> None:
     sm = _ShortcutService()
     appid = asyncio.run(ensure_auth_shortcut(sm, BATTLENET_WITH_PREFIX, "/plugin"))
     assert appid == -12345 + 2**32
+
+
+# ── SHORTCUT_CREATED: the artwork announcement ────────────────────
+#
+# ``ArtworkService._on_shortcut_created`` filters on ``is_auth`` and covers the
+# tile via SteamGridDB. It was subscribed and unreachable for the project's
+# whole life (audit §1.3), so Battle.net's persistent "Battle.net" tile
+# rendered bare. Ubisoft is unaffected — it has its own artwork path and does
+# not route through this module.
+
+
+class _RecordingBus:
+    """Captures emits so the payload can be asserted against the consumer."""
+
+    def __init__(self) -> None:
+        self.emits: list[tuple[str, dict[str, Any]]] = []
+
+    async def emit(self, event: Any, **kwargs: Any) -> None:
+        self.emits.append((str(event), kwargs))
+
+
+def test_a_new_shortcut_announces_itself_for_artwork() -> None:
+    sm = _ShortcutService()
+    bus = _RecordingBus()
+
+    asyncio.run(ensure_auth_shortcut(sm, BATTLENET, "/plugin", bus=bus))
+
+    assert [e for e, _ in bus.emits] == ["shortcut_created"]
+    _, payload = bus.emits[0]
+    # Asserted against what the CONSUMER reads, not what felt natural to send:
+    # the handler returns early unless ``is_auth`` is truthy and both
+    # ``app_id`` and ``store`` are present, and it maps ``store`` through its
+    # own title table. Sending ``game_id`` or a signed appid here would be the
+    # app_id/game_id split from audit §1.1.1 all over again.
+    assert payload == {
+        "store": "battlenet",
+        "app_id": -12345 + 2**32,
+        "title": "Battle.net",
+        "is_auth": True,
+    }
+
+
+def test_the_appid_announced_is_unsigned() -> None:
+    """Steam's ``grid/`` filenames are unsigned; a signed id writes art nowhere."""
+    sm = _ShortcutService()
+    bus = _RecordingBus()
+
+    asyncio.run(ensure_auth_shortcut(sm, BATTLENET, "/plugin", bus=bus))
+
+    assert bus.emits[0][1]["app_id"] > 0
+
+
+def test_an_existing_shortcut_does_not_re_announce() -> None:
+    """Otherwise every sign-in re-runs the SGDB lookup for art already on disk."""
+    sm = _ShortcutService()
+    bus = _RecordingBus()
+    asyncio.run(ensure_auth_shortcut(sm, BATTLENET, "/plugin", bus=bus))
+    asyncio.run(ensure_auth_shortcut(sm, BATTLENET, "/plugin", bus=bus))
+
+    assert len(bus.emits) == 1
+
+
+def test_a_failed_write_announces_nothing() -> None:
+    """No shortcut exists, so there is no appid to fetch art for."""
+    class _Exploding(_ShortcutService):
+        async def read_shortcuts(self) -> dict[str, Any]:
+            raise OSError("vdf unreadable")
+
+    bus = _RecordingBus()
+    assert asyncio.run(
+        ensure_auth_shortcut(_Exploding(), BATTLENET, "/plugin", bus=bus),
+    ) is None
+    assert bus.emits == []
+
+
+def test_a_broken_bus_does_not_break_sign_in() -> None:
+    """Artwork is cosmetic; a failed emit must not cost the user a login."""
+    class _BrokenBus:
+        async def emit(self, event: Any, **kwargs: Any) -> None:
+            del event, kwargs
+            raise RuntimeError("bus down")
+
+    sm = _ShortcutService()
+    appid = asyncio.run(
+        ensure_auth_shortcut(sm, BATTLENET, "/plugin", bus=_BrokenBus()),
+    )
+    assert appid == -12345 + 2**32
+    assert sm.writes == 1
+
+
+def test_build_context_forwards_the_bus() -> None:
+    """The store calls ``build_context``, not ``ensure_auth_shortcut``."""
+    sm = _ShortcutService()
+    bus = _RecordingBus()
+
+    ctx = asyncio.run(build_context(sm, BATTLENET, "/plugin", bus=bus))
+
+    assert ctx["success"] is True
+    assert [e for e, _ in bus.emits] == ["shortcut_created"]
+
+
+def test_omitting_the_bus_is_still_supported() -> None:
+    """Test doubles and appid-only callers must not have to build one."""
+    sm = _ShortcutService()
+    assert asyncio.run(ensure_auth_shortcut(sm, BATTLENET, "/plugin")) is not None
+
+
+def test_the_payload_satisfies_the_real_artwork_handler() -> None:
+    """End-to-end against the CONSUMER, not against a hand-written expectation.
+
+    Audit §1.1.1 shipped twice on exactly this: an emitter and a subscriber
+    that each looked correct in isolation while disagreeing on a key. Both
+    guards there locked in opposite halves of the mismatch and caught nothing.
+    So drive the real ``ArtworkService._on_shortcut_created`` with whatever
+    ``ensure_auth_shortcut`` actually emitted, and assert on the SGDB call it
+    makes: any key rename on either side fails here.
+    """
+    from unifideck.services.artwork.event_handlers import _EventHandlersMixin
+
+    calls: list[tuple[Any, ...]] = []
+
+    class _Host(_EventHandlersMixin):
+        async def fetch_artwork(self, *args: Any, **kwargs: Any) -> str:
+            calls.append(args)
+            return "cover-saved"
+
+    sm = _ShortcutService()
+    bus = _RecordingBus()
+    asyncio.run(ensure_auth_shortcut(sm, BATTLENET, "/plugin", bus=bus))
+    _, payload = bus.emits[0]
+
+    async def _drive() -> None:
+        await _Host()._on_shortcut_created(**payload)
+        # The handler fires a tracked background task; let it run.
+        await asyncio.sleep(0)
+
+    asyncio.run(_drive())
+
+    assert calls, (
+        "the real handler dropped the payload — it returns early unless "
+        "is_auth is truthy and both app_id and store are present"
+    )
+    app_id, store, game_id, sgdb_title = calls[0]
+    assert app_id == -12345 + 2**32
+    assert store == "battlenet"
+    assert game_id == "auth"
+    # Not "Battle.net" by accident: the handler maps the store id through
+    # _AUTH_TITLE_FOR_LOOKUP, which is what SteamGridDB has art under.
+    assert sgdb_title == "Battle.net"

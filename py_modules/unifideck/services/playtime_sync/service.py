@@ -190,7 +190,14 @@ class PlaytimeSyncService:
                 self._db.upsert_store_playtime(game_db_id, total)
 
     def _emit_result(self, store_name: str, pushed: int) -> None:
-        """Best-effort outcome event (toast bridge consumes it)."""
+        """Best-effort outcome event.
+
+        Nothing consumes this yet. It said "toast bridge consumes it" until
+        2026-08, which was never true on any leg (audit §1.3) — the event is
+        absent from ``src/types/events.ts`` and ``WATCHED_EVENTS``, so the
+        frontend does not even poll for it. Kept deliberately; see the
+        ``unwired:`` note on ``Events.PLAYTIME_SYNC_COMPLETE``.
+        """
         if pushed <= 0:
             return
         _track(asyncio.create_task(

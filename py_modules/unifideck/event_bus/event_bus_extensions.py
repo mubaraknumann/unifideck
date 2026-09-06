@@ -1,7 +1,5 @@
 """Four small bus extensions grouped to minimise file proliferation.
 
-OP-09e | py_modules/unifideck/event_bus/event_bus_extensions.py
-
 Each extension is a standalone class — SRP is preserved at the
 class level even though they share a file:
 
@@ -46,7 +44,6 @@ if TYPE_CHECKING:
     from .supervision.watchdog_handler import HandlerWatchdog
 logger = logging.getLogger(__name__)
 
-
 # ── P7.4 — Typed event schemas ───────────────────────────────────
 class EventPayload(Protocol):
     """Marker Protocol for typed event payloads.
@@ -56,7 +53,6 @@ class EventPayload(Protocol):
                                     stores_synced: list
                                     duration_ms: int
     """
-
 
 @dataclass
 class EventSchema:
@@ -104,7 +100,6 @@ class EventSchema:
         if extra:
             return f"unexpected kwargs: {sorted(extra)}"
         return None
-
 
 class TypedEventRegistry:
     """Holds per-event schemas and validates at emit time.
@@ -163,11 +158,9 @@ class TypedEventRegistry:
             return None  # unregistered events pass through
         return schema.validate(kwargs)
 
-
 # ── P7.6 — Predicate filter on subscriptions ─────────────────────
 # A predicate is any callable taking kwargs and returning bool.
 Predicate = Callable[..., bool]
-
 
 class PredicateFilter:
     """Wraps a handler with an arbitrary pre-invocation filter.
@@ -240,7 +233,6 @@ class PredicateFilter:
         if not matches:
             return None
         return await self._handler(*args, **kwargs)
-
 
 # ── P7.7 — Debug snapshot ────────────────────────────────────────
 class DebugSnapshot:
@@ -345,7 +337,6 @@ class DebugSnapshot:
             return fn()
         except Exception as e:
             return {"error": str(e)}
-
 
 # ── P7.5 — Dead letter queue ─────────────────────────────────────
 class DeadLetterQueue:

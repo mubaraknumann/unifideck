@@ -1,7 +1,5 @@
 """Locate the launchable .exe for an installed GOG game.
 
-OP-50e | py_modules/unifideck/stores/gog/exe_resolver.py
-
 GOG installers often produce nested directory structures with several
 .exe files (the game, side tools, redistributables); ``GOGExeResolver``
 implements the heuristics to pick the right one to launch:
@@ -40,7 +38,6 @@ _SKIP_EXE_PATTERNS = (
 )
 _ROOT_DATA_EXTENSIONS = (".arch05", ".forge")
 _WRAPPER_EXE_NAMES = {"dosbox.exe", "scummvm.exe"}
-
 
 class GOGExeResolver:
     """Gogexe resolver."""
@@ -343,7 +340,6 @@ class GOGExeResolver:
             candidates.append((exe_path, size))
         return candidates
 
-
 def resolve_case_insensitive(root: Path, rel_path: str) -> str:
     """Join ``root``/``rel_path`` (backslash- or forward-slash-separated),
     correcting each segment's case against the real filesystem.
@@ -378,7 +374,6 @@ def resolve_case_insensitive(root: Path, rel_path: str) -> str:
         current = current / match if match else candidate
     return str(current)
 
-
 def parse_size_string(size_str: str) -> int:
     """Parse size string."""
     if not size_str:
@@ -398,7 +393,6 @@ def parse_size_string(size_str: str) -> int:
         return int(value)
     except (ValueError, TypeError):
         return 0
-
 
 def get_game_id_from_goggame_filename(filename: str) -> str | None:
     """Get game ID from goggame filename."""

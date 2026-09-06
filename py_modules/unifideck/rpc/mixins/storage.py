@@ -1,8 +1,6 @@
 """
 StorageRPCMixin — install-location enumeration + mutation RPCs.
 
-OP-26j | py_modules/unifideck/rpc/mixins/storage.py
-
 * ``get_storage_locations``     — list of `(id, label, path, free_space_gb)`
 * ``get_browseable_devices``    — device mount-points for the file picker
 * ``set_default_storage_location`` — persist user pick
@@ -39,7 +37,6 @@ from unifideck.rpc import RpcError
 from unifideck.utils import mount_naming, mounts
 
 logger = logging.getLogger(__name__)
-
 
 class StorageRPCMixin:
     """Install-location RPC : enumerate + mutate config."""
@@ -117,9 +114,7 @@ class StorageRPCMixin:
         config.set("download.custom_path", resolved)
         return {"success": True, "path": resolved}
 
-
 # ─── Storage builders (blocking — run via asyncio.to_thread) ──────
-
 
 def _build_storage_locations(custom_path: str | None) -> list[dict[str, Any]]:
     """Enumerate one location per writable device + optional custom path.
@@ -149,7 +144,6 @@ def _build_storage_locations(custom_path: str | None) -> list[dict[str, Any]]:
         )
     return locations
 
-
 def _build_browseable_devices() -> list[dict[str, Any]]:
     """List every writable device's mount point for the file picker."""
     home = str(Path.home())
@@ -173,13 +167,11 @@ def _build_browseable_devices() -> list[dict[str, Any]]:
         })
     return devices
 
-
 def _external_label(m: mounts.MountInfo) -> str:
     """SD-card-looking source device → "SD Card"; else the mount's name."""
     if mounts.is_sdcard_source(m.device):
         return "SD Card"
     return f"External Drive ({mount_naming.display_name(m.mount_point)})"
-
 
 def _remap_name_derived_id(
     default: str, locations: list[dict[str, Any]],
@@ -193,7 +185,6 @@ def _remap_name_derived_id(
             return str(loc["id"])
     return None
 
-
 def _first_external_id(locations: list[dict[str, Any]]) -> str | None:
     """First external location, standing in for the old shared ``sdcard`` id."""
     for loc in locations:
@@ -201,7 +192,6 @@ def _first_external_id(locations: list[dict[str, Any]]) -> str | None:
         if isinstance(loc_id, str) and loc_id.startswith("ext:"):
             return loc_id
     return None
-
 
 def _remap_legacy_default(default: str, locations: list[dict[str, Any]]) -> str:
     """Remap a persisted default saved under an older id scheme.
@@ -227,9 +217,7 @@ def _remap_legacy_default(default: str, locations: list[dict[str, Any]]) -> str:
         remapped = _first_external_id(locations)
     return remapped or "internal"
 
-
 # ─── Module-level helpers ─────────────────────────────────────
-
 
 def _location_entry(
     loc_id: str, label: str, path: str, free_basis: str,
@@ -250,7 +238,6 @@ def _location_entry(
         "free_space_gb": _free_gb(free_basis),
     }
 
-
 def _read_config_str(
     config: Any, key: str, default: str | None = None,
 ) -> str | None:
@@ -264,7 +251,6 @@ def _read_config_str(
         return default
     return value if isinstance(value, str) else default
 
-
 def _free_gb(path: str) -> float:
     """Free space in GB for the filesystem containing *path*."""
     try:
@@ -272,7 +258,6 @@ def _free_gb(path: str) -> float:
         return round((st.f_frsize * st.f_bavail) / (1024 ** 3), 1)
     except OSError:
         return 0.0
-
 
 def _ensure_dir(path: str) -> None:
     """Create a directory if it doesn't exist. Idempotent."""

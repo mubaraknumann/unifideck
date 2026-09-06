@@ -69,15 +69,6 @@
     "validationErrors.homeRoot": "Kan de root van de gebruikersmap niet gebruiken",
     "freeSpaceLabel": "{{label}} ({{freeSpace}} GB vrij)"
   },
-  "gameGrid": {
-    "loading": "Games laden...",
-    "noGamesFound": "Geen games gevonden",
-    "noGamesHint": "Probeer je bibliotheken te synchroniseren via de Unifideck-instellingen",
-    "showingGames": "Weergave van {{count}} games",
-    "installed": "Geïnstalleerd",
-    "notInstalled": "Niet geïnstalleerd",
-    "playtime": "{{hours}}u {{minutes}}m gespeeld"
-  },
   "downloadsTab": {
     "currentDownload": "HUIDIGE DOWNLOAD",
     "queuedDownloads": "IN WACHTRIJ ({{count}})",
@@ -154,9 +145,9 @@
     "connected": "Verbonden",
     "checking": "Controleren...",
     "authenticate": "Aanmelden",
-    "legendaryNotInstalled": "⚠️ Epic Games CLI installeren...",
-    "nileNotInstalled": "⚠️ Amazon Games CLI niet gevonden",
-    "error": "Fout - Controleer logs"
+    "error": "Fout - Controleer logs",
+    "storefrontOpening": "{{store}}-winkel wordt geopend...",
+    "storefrontFailed": "Kan de {{store}}-winkel niet openen"
   },
   "librarySync": {
     "title": "BIBLIOTHEEK SYNC",
@@ -258,6 +249,8 @@
     "ubisoftLauncherAlreadyOpenMessage": "Ubisoft Connect is al geopend voor deze installatie.",
     "ubisoftLauncherOpenFailed": "Kan Ubisoft Connect niet openen",
     "ubisoftLauncherOpenFailedMessage": "Kan Ubisoft Connect niet openen voor installatie.",
+    "ubisoftSignInExpired": "Ubisoft-aanmelding verlopen",
+    "ubisoftSignInExpiredMessage": "Je opgeslagen Ubisoft-aanmelding wordt niet meer geaccepteerd. Meld je af en weer aan via de Unifideck-instellingen om opnieuw verbinding te maken.",
     "multipartDetected": "Meerdelige download gedetecteerd",
     "multipartMessage": "Wees geduldig en wacht tot de download is voltooid",
     "downloadFailed": "Download mislukt",
@@ -349,10 +342,10 @@
       "installingUbisoft": "Installeren via Ubisoft Connect",
       "installingUbisoftMessage": "Ubisoft Connect openen. Start de installatie vanuit het launcher-venster.",
       "protonReadyBody": "{{version}} is klaar voor gebruik",
+      "externalProtonOutdatedTitle": "GE-Proton-update beschikbaar",
+      "externalProtonOutdatedBody": "Nieuwste versie {{version}} is beschikbaar. Werk bij via je externe beheerder.",
       "protonReadyTitle": "Proton gereed",
       "protonSwitchedTo": "Nu in gebruik: {{version}}",
-      "signingInUbisoft": "Aanmelden bij Ubisoft Connect",
-      "signingInUbisoftMessage": "Ubisoft Connect openen. Meld je daar aan en kom dan terug.",
       "ubisoftPrefixNotReady": "Ubisoft Connect is niet gereed",
       "ubisoftPrefixNotReadyMessage": "Kan de Ubisoft Connect-prefix voor dit spel niet voorbereiden. Probeer opnieuw te installeren; als het blijft mislukken, voer dan opnieuw een bibliotheeksynchronisatie uit.",
       "ubisoftAuthPrefixNotReady": "Ubisoft Connect is niet gereed",
@@ -390,10 +383,9 @@
       "battlenetInstallerDownloadFailedMessage": "Kan het Battle.net-installatieprogramma niet downloaden. Controleer je verbinding en probeer het opnieuw.",
       "battlenetClientInstallFailed": "Installatie van Battle.net mislukt",
       "battlenetClientInstallFailedMessage": "Het installatieprogramma van de Battle.net-client is niet voltooid. Probeer het opnieuw of bekijk in het startlogboek wat het meldde.",
-      "signingInBattlenet": "Battle.net-aanmelding",
-      "signingInBattlenetMessage": "De Battle.net-client wordt geopend zodat je je kunt aanmelden…",
       "installingBattlenet": "Installeren via Battle.net",
-      "installingBattlenetMessage": "Battle.net wordt geopend. Klik daar op Installeren om de download van {{gameTitle}} te starten."
+      "installingBattlenetMessage": "Battle.net wordt geopend. Klik daar op Installeren om de download van {{gameTitle}} te starten.",
+      "wrapperOpening": "{{client}} wordt geopend"
     },
     "updateComplete": "Update voltooid!",
     "updateCompleteMessage": "{{title}} is bijgewerkt.",
@@ -401,7 +393,6 @@
     "updateCancelledMessage": "Update voor {{title}} is geannuleerd.",
     "updateFailed": "Update mislukt",
     "updateFailedMessage": "Kan update niet starten.",
-    "storeError": "Kan niet communiceren met {{store}} ({{errType}})",
     "captureLogsStarted": "Logboeken verzamelen...",
     "captureLogsStartedMessage": "Diagnosepakket wordt gemaakt in je map Downloads. Dit duurt enkele seconden.",
     "captureLogsDone": "Logboeken vastgelegd",
@@ -417,9 +408,7 @@
       "openStorageManager": "Ruimte vrijmaken",
       "signInToStore": "Aanmelden",
       "retrySync": "Opnieuw proberen",
-      "retryLibrarySync": "Bibliotheek vernieuwen",
-      "openSaveFolder": "Spelmap weergeven",
-      "showLogs": "Logs weergeven"
+      "retryLibrarySync": "Bibliotheek vernieuwen"
     },
     "library": {
       "_comment": "Toasts emitted by SyncService when a per-store library sync fails. The retry button triggers a fire-and-forget refresh via the unifideck://refresh-library/<store> verb; the user doesn't wait for the result inline, the Library view picks it up through its SYNC_PROGRESS subscription.",
@@ -485,6 +474,7 @@
       "authExpired": "Aanmelding verlopen. Meld je opnieuw aan",
       "toolMissing": "Vereist downloadprogramma niet gevonden",
       "processFailed": "Download mislukt. Probeer het opnieuw",
+      "stalled": "Download loopt vast zonder voortgang. Probeer het opnieuw.",
       "directoryNotFound": "Kan geïnstalleerde bestanden niet vinden",
       "lockConflict": "Een andere actie is bezig. Probeer opnieuw",
       "ubisoftClient": "Fout in Ubisoft Connect. Probeer de prefix te repareren",
@@ -551,7 +541,8 @@
     "amazon": "Amazon",
     "ubisoft": "Ubisoft",
     "microsoft": "Microsoft",
-    "battlenet": "Battle.net"
+    "battlenet": "Battle.net",
+    "gamevault": "GameVault"
   },
   "unifiedLibrary": {
     "error": "Unifideck-fout",
@@ -598,11 +589,14 @@
       "never": "Nooit"
     },
     "compatibility": {
-      "modalTitle": "Steam Deck-compatibiliteit",
+      "modalTitleDeck": "Steam Deck-compatibiliteit",
+      "modalTitleMachine": "Steam Machine-compatibiliteit",
+      "modalTitleSteamOS": "SteamOS-compatibiliteit",
       "viewOnProtonDb": "Bekijken op ProtonDB",
       "close": "Sluiten",
       "verified": "GEVERIFIEERD",
       "playable": "SPEELBAAR",
+      "compatible": "COMPATIBEL",
       "unsupported": "NIET ONDERSTEUND",
       "unknown": "ONBEKEND"
     },
@@ -703,8 +697,7 @@
     "signInRequired": "Meld je aan om te spelen",
     "syncSkippedNoSubscription": "Geen actief Xbox Game Pass-abonnement gedetecteerd. Je xCloud-bibliotheek is niet gesynchroniseerd.",
     "syncSkippedTierUnknown": "Xbox Game Pass-abonnement gedetecteerd, maar het niveau kon niet worden bepaald. Synchronisatie overgeslagen om te voorkomen dat niet-beschikbare games worden getoond.",
-    "subscriptionCheckFailed": "Kan Xbox Game Pass-abonnement niet verifiëren. xCloud-synchronisatie overgeslagen. Probeer het opnieuw zodra je verbinding stabiel is.",
-    "subscriptionDetected": "Actief Xbox Game Pass {{tier}}-abonnement."
+    "subscriptionCheckFailed": "Kan Xbox Game Pass-abonnement niet verifiëren. xCloud-synchronisatie overgeslagen. Probeer het opnieuw zodra je verbinding stabiel is."
   },
   "playButton": {
     "play": "Spelen",
@@ -1009,9 +1002,14 @@
     "installingButton": "Installeren...",
     "installingTitle": "Plugin installeren",
     "latestLabel": "nieuwste",
+    "manageButton": "Bijwerken",
+    "manageButtonAvailable": "Bijwerken (v{{version}} beschikbaar)",
+    "manageTitle": "Plug-in bijwerken",
     "modalTitle": "UNIFIDECK v{{version}}. Release-opmerkingen",
     "noBackend": "Decky-backend is niet beschikbaar.",
     "noReleaseNotes": "Geen release-notes beschikbaar.",
+    "noticeBody": "v{{version}} kan worden geïnstalleerd via de Unifideck-instellingen.",
+    "noticeTitle": "Unifideck-update beschikbaar",
     "reinstallButton": "Opnieuw installeren v{{version}}",
     "refreshFailedMessage": "Kan de informatie over de nieuwste versie niet verifiëren. Controleer je verbinding en probeer het opnieuw.",
     "releaseGoneMessage": "Deze release is niet meer beschikbaar. Controleer op updates en selecteer opnieuw.",
@@ -1052,5 +1050,36 @@
     "title": "STEAM-COLLECTIES",
     "enabled": "Collecties ingeschakeld",
     "disabled": "Collecties uitgeschakeld"
+  },
+  "reconcile": {
+    "repairedTitle": "Bibliotheekgegevens hersteld",
+    "repairedBody": "{{artwork}} afbeeldingen, {{metadata}} metagegevens en {{compat}} compatibiliteitsvermeldingen aangevuld na een onderbroken synchronisatie."
+  },
+  "gamevault": {
+    "connectTitle": "Verbinden met GameVault",
+    "connect": "Verbinden",
+    "connecting": "Verbinden…",
+    "cancel": "Annuleren",
+    "modeRemote": "Verbinden met een externe server",
+    "modeRemoteDescription": "Meld je aan bij een GameVault-server die je ergens anders host.",
+    "modeLocal": "Een map op dit apparaat gebruiken",
+    "modeLocalDescription": "Importeer DRM-vrije spelarchieven die je hier al hebt. Geen server nodig.",
+    "localTitle": "Lokale spelmap",
+    "localIntro": "Zet spelarchieven in deze map; ze verschijnen na de volgende synchronisatie in je bibliotheek.",
+    "vaultDir": "Archiefmap",
+    "vaultDirDescription": "Waar je je spelarchieven bewaart.",
+    "browse": "Bladeren…",
+    "serverUrl": "Server-URL",
+    "username": "Gebruikersnaam",
+    "password": "Wachtwoord",
+    "verifySsl": "SSL-certificaat verifiëren",
+    "verifySslDescription": "Uitschakelen voor zelfondertekende certificaten",
+    "downloadDir": "Archiefdownloadmap",
+    "downloadDirDescription": "Tijdelijke map voor archiefdownloads. Leeg laten voor de standaard.",
+    "downloadDirPlaceholder": "~/.local/share/unifideck/gamevault_downloads",
+    "errorServerUrlRequired": "Voer de server-URL in",
+    "errorUsernameRequired": "Voer uw gebruikersnaam in",
+    "errorPasswordRequired": "Voer uw wachtwoord in",
+    "errorConnection": "Verbinding met GameVault-server mislukt"
   }
 }

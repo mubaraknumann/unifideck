@@ -24,6 +24,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from unifideck.core.compat_bridge import to_unsigned
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_REGISTRY_PATH = Path(
@@ -121,7 +123,7 @@ def register(
     file carried the same timestamp, erasing the one signal that could
     date a shortcut. ``last_seen`` carries that information now.
     """
-    appid_unsigned = appid if appid >= 0 else appid + 2 ** 32
+    appid_unsigned = to_unsigned(appid)
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     previous = registry.get(launch_options)
     created = now

@@ -18,9 +18,13 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from datetime import datetime
 from typing import TYPE_CHECKING, Any, NoReturn
 from urllib.error import HTTPError, URLError
+
+from unifideck.stores.shared.achievements_error import (
+    StoreAchievementsError,
+)
+from unifideck.stores.shared.timestamps import parse_timestamp
 
 from .galaxy_api import (
     exchange_game_token,
@@ -41,29 +45,12 @@ _CACHE_TTL_SECONDS = 60.0
 _MAX_PAGES = 50
 
 
-class GOGAchievementsError(Exception):
-    """A typed achievements failure the RPC layer maps to an ``RpcError``.
+class GOGAchievementsError(StoreAchievementsError):
+    """A typed GOG achievements failure the RPC layer maps to an ``RpcError``.
 
     ``code`` is one of ``offline`` / ``auth_expired`` / ``no_client_id`` /
     ``not_authed``; ``context`` carries extra fields for the error envelope.
     """
-
-    def __init__(self, code: str, **context: Any) -> None:
-        super().__init__(code)
-        self.code = code
-        self.context = context
-
-
-def _parse_ts(value: Any) -> float | None:
-    """GOG ``date_unlocked`` (ISO-8601 or epoch) → epoch float, or None."""
-    if not value:
-        return None
-    if isinstance(value, (int, float)):
-        return float(value)
-    try:
-        return datetime.fromisoformat(str(value)).timestamp()
-    except (ValueError, TypeError):
-        return None
 
 
 class GOGAchievements:
@@ -186,7 +173,7 @@ class GOGAchievements:
             "image_locked": str(item.get("image_url_locked") or image_unlocked),
             "hidden": not bool(item.get("visible", True)),
             "unlocked": date_unlocked is not None,
-            "unlocked_at": _parse_ts(date_unlocked),
+            "unlocked_at": parse_timestamp(date_unlocked),
             "rarity": item.get("rarity"),
         }
 

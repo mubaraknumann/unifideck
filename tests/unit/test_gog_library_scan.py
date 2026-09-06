@@ -19,10 +19,16 @@ from unittest.mock import Mock
 import unifideck.stores.gog.library as gog_library
 from unifideck.core.types import Game
 from unifideck.stores.gog.config import GOGConfig
-from unifideck.stores.gog.library import GOGLibrary, merge_install_status
+from unifideck.stores.gog.library import GOGLibrary
+from unifideck.stores.shared.install_status import merge_install_status
 
 if TYPE_CHECKING:
     import pytest
+
+#: The arguments ``GOGStore.get_library`` passes to the shared merge. Both
+#: are GOG-only and load-bearing (see ``shared/install_status``), so these
+#: tests must use them or they would be asserting Epic's semantics.
+_GOG_ARGS = {"exe_key": "executable", "verify_dir": False}
 
 
 def _make_install(root: Path, name: str, game_id: str) -> Path:
@@ -158,7 +164,7 @@ def test_merge_install_status_marks_owned_installed() -> None:
         "111": {"install_path": "/x/A", "executable": "/x/A/start.sh"},
     }
 
-    merged = merge_install_status(owned, installed)
+    merged = merge_install_status(owned, installed, **_GOG_ARGS)
 
     by_id = {g.store_game_id: g for g in merged}
     assert by_id["111"].installed is True
@@ -187,7 +193,7 @@ def test_merge_install_status_preserves_fields() -> None:
     ]
     installed = {"111": {"install_path": "/x/A", "executable": "/x/A/run"}}
 
-    merged = merge_install_status(owned, installed)[0]
+    merged = merge_install_status(owned, installed, **_GOG_ARGS)[0]
 
     assert merged.app_id == 42
     assert merged.tags == ["rpg"]
@@ -207,7 +213,7 @@ def test_merge_install_status_no_exe_keeps_installed() -> None:
     owned = [Game(app_id=0, store="gog", store_game_id="111", title="A")]
     installed = {"111": {"install_path": "/x/A", "executable": None}}
 
-    merged = merge_install_status(owned, installed)[0]
+    merged = merge_install_status(owned, installed, **_GOG_ARGS)[0]
 
     assert merged.installed is True
     assert merged.install_path == "/x/A"

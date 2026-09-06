@@ -1,0 +1,16 @@
+{
+  "_schema": {
+    "note": "Grandfathered groups of identically-shaped function bodies \u2014 check 13 of scripts/validate_architecture.py.",
+    "rule": "SHRINK-ONLY. A NEW cross-module body duplicate fails the gate. Do not add rows to normalise new copy-paste; promote the helper into a shared module and add a SHARED_HELPERS row instead.",
+    "baseline": "2026-08-26. Check 11 matches a promoted helper by NAME, so a copy that was merely renamed escaped it (register item 47). This check matches on body SHAPE \u2014 identifiers and literals erased, structure and attribute names kept \u2014 so a rename cannot hide a copy.",
+    "reading_a_row": "Each group lists <module>::<function>. Several are genuine convergence targets; a few are legitimately parallel (the rpc/mixins _require_* service accessors) and are expected to stay."
+  },
+  "groups": [
+    [
+      "rpc/mixins/cloud_save.py::_cloudsave",
+      "rpc/mixins/download.py::_require_download",
+      "rpc/mixins/launch.py::_require_launch_history",
+      "rpc/mixins/playtime.py::_require_playtime"
+    ]
+  ]
+}

@@ -13,6 +13,15 @@ and Rayman Origins was deleted. The borrow was for a step
 
 The tests below therefore assert two different things: that the predicates
 behave, and that the real call sites actually route through them.
+
+**Why an expectation table and not a loop over ``WRAPPER_STORES``.** These
+tests used to parametrize over the set and assert all four predicates True
+for every member, which welded the three frozensets together — the exact
+opposite of the divergence the module exists to allow (audit §3.1). The
+dangerous half is ``skips_generic_compat``: forced True, a wrapper store
+gets no winetricks, no vcredist and no VC++ registry import, so every one of
+its games launches to a missing DLL. A new store must state its own answers
+in ``_EXPECTED`` rather than inherit them from a membership test.
 """
 
 from __future__ import annotations
@@ -29,12 +38,60 @@ LAUNCHER = REPO / "py_modules/unifideck/launcher"
 PROTON = LAUNCHER / "proton"
 
 
-@pytest.mark.parametrize("store", sorted(ws.WRAPPER_STORES))
-def test_wrapper_stores_own_their_installs_and_skip_generic_compat(store: str) -> None:
+# One row per wrapper store, each answer decided deliberately rather than
+# derived from WRAPPER_STORES membership. See the module docstring.
+_EXPECTED: dict[str, dict[str, bool]] = {
+    "ubisoft": {
+        # Installs to drive_c/Program Files (x86)/Ubisoft/Ubisoft Game
+        # Launcher/games/ — inside the prefix.
+        "owns_install": True,
+        # UPC ships its own redistributables.
+        "skips_compat": True,
+        # No byte-level telemetry from UPC.
+        "manual_phase": True,
+    },
+    "battlenet": {
+        # Confirmed on-device: a real Hearthstone install landed at
+        # C:/Program Files (x86)/Hearthstone.
+        "owns_install": True,
+        # The Battle.net client ships its own redistributables.
+        "skips_compat": True,
+        # Measured: product.db carries no progress during a download.
+        "manual_phase": True,
+    },
+}
+
+
+def test_every_wrapper_store_states_its_own_answers() -> None:
+    """A new wrapper store must add a row before these tests can pass.
+
+    This is the whole point of the table. Adding EA App to WRAPPER_STORES
+    fails here, which forces a per-predicate decision, instead of the store
+    silently inheriting ``skips_generic_compat`` and shipping with no
+    redistributables installed in any of its prefixes.
+    """
+    assert set(_EXPECTED) == ws.WRAPPER_STORES
+
+
+@pytest.mark.parametrize("store", sorted(_EXPECTED))
+def test_each_wrapper_store_matches_its_declared_row(store: str) -> None:
+    row = _EXPECTED[store]
     assert ws.is_wrapper_store(store)
-    assert ws.prefix_owns_game_install(store)
-    assert ws.skips_generic_compat(store)
-    assert ws.uses_manual_download_phase(store)
+    assert ws.prefix_owns_game_install(store) is row["owns_install"]
+    assert ws.skips_generic_compat(store) is row["skips_compat"]
+    assert ws.uses_manual_download_phase(store) is row["manual_phase"]
+
+
+def test_the_narrow_predicates_never_exceed_the_wrapper_set() -> None:
+    """The safe direction, still welded on purpose.
+
+    A store may be a wrapper without owning its installs or bundling its own
+    redistributables. The reverse is incoherent: only a wrapper store runs a
+    vendor client in the prefix at all, so a non-wrapper store in either set
+    would skip a reset or a redistributable install it genuinely needs.
+    """
+    assert ws._PREFIX_OWNS_INSTALL <= ws.WRAPPER_STORES
+    assert ws._SKIPS_GENERIC_COMPAT <= ws.WRAPPER_STORES
 
 
 @pytest.mark.parametrize("store", ["epic", "gog", "amazon", "microsoft", "steam"])
@@ -100,8 +157,13 @@ def test_call_sites_use_the_shared_predicate(relative: str, predicate: str) -> N
     )
 
 
-def test_prefix_init_guard_returns_true_for_every_wrapper_store() -> None:
-    """The actual guard, exercised — not just its source text."""
+def test_prefix_init_guard_agrees_with_the_expectation_table() -> None:
+    """The actual guard, exercised — not just its source text.
+
+    Driven off ``_EXPECTED``, not off ``WRAPPER_STORES``: this guard answers
+    ``prefix_owns_game_install``, which a future wrapper store is allowed to
+    answer ``False``.
+    """
     from unifideck.launcher.proton.compat.prefix_init import _prefix_owns_game_install
 
     class _Ctx:
@@ -112,8 +174,8 @@ def test_prefix_init_guard_returns_true_for_every_wrapper_store() -> None:
         def __init__(self, store: str) -> None:
             self.context = _Ctx(store)
 
-    for store in ws.WRAPPER_STORES:
-        assert _prefix_owns_game_install(_Plan(store)) is True
+    for store, row in _EXPECTED.items():
+        assert _prefix_owns_game_install(_Plan(store)) is row["owns_install"]
     for store in ("epic", "gog", "amazon"):
         assert _prefix_owns_game_install(_Plan(store)) is False
 

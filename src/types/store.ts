@@ -68,4 +68,10 @@ export const STORE_VISUALS: Record<StoreId, StoreVisual> = {
     brand_color: "#00aeff",
     icon_path: "/assets/battlenet.svg",
   },
+  gamevault: {
+    id: "gamevault",
+    display_name: "GameVault",
+    brand_color: "#1a9c3e",
+    icon_path: "/assets/gamevault.svg",
+  },
 };

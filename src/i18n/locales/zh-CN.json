@@ -69,15 +69,6 @@
     "validationErrors.homeRoot": "无法使用用户根目录",
     "freeSpaceLabel": "{{label}} (剩余 {{freeSpace}} GB)"
   },
-  "gameGrid": {
-    "loading": "正在加载游戏...",
-    "noGamesFound": "未找到游戏",
-    "noGamesHint": "请尝试在 Unifideck 设置中同步您的游戏库",
-    "showingGames": "正在显示 {{count}} 款游戏",
-    "installed": "已安装",
-    "notInstalled": "未安装",
-    "playtime": "已玩 {{hours}} 小时 {{minutes}} 分钟"
-  },
   "downloadsTab": {
     "currentDownload": "当前下载",
     "queuedDownloads": "队列中 ({{count}})",
@@ -154,9 +145,9 @@
     "connected": "已连接",
     "checking": "正在检查...",
     "authenticate": "登录",
-    "legendaryNotInstalled": "⚠️ 正在安装 Epic Games 客户端...",
-    "nileNotInstalled": "⚠️ 未找到 Amazon Games 客户端",
-    "error": "错误。请检查日志"
+    "error": "错误。请检查日志",
+    "storefrontOpening": "正在打开 {{store}} 商店...",
+    "storefrontFailed": "无法打开 {{store}} 商店"
   },
   "librarySync": {
     "title": "游戏库同步",
@@ -258,6 +249,8 @@
     "ubisoftLauncherAlreadyOpenMessage": "此安装已打开 Ubisoft Connect。",
     "ubisoftLauncherOpenFailed": "无法打开 Ubisoft Connect",
     "ubisoftLauncherOpenFailedMessage": "无法打开 Ubisoft Connect 以进行安装。",
+    "ubisoftSignInExpired": "Ubisoft 登录已过期",
+    "ubisoftSignInExpiredMessage": "已保存的 Ubisoft 登录信息不再有效。请在 Unifideck 设置中退出并重新登录以恢复连接。",
     "multipartDetected": "检测到多部分下载",
     "multipartMessage": "请耐心等待完成",
     "downloadFailed": "下载失败",
@@ -349,10 +342,10 @@
       "installingUbisoft": "正在通过 Ubisoft Connect 安装",
       "installingUbisoftMessage": "正在打开 Ubisoft Connect。请在启动器窗口中开始安装。",
       "protonReadyBody": "{{version}} 已可使用",
+      "externalProtonOutdatedTitle": "外部管理的 GE-Proton 有可用更新",
+      "externalProtonOutdatedBody": "检测到最新版本 {{version}}，请前往外部管理器进行更新。",
       "protonReadyTitle": "Proton 已就绪",
       "protonSwitchedTo": "现在使用 {{version}}",
-      "signingInUbisoft": "正在登录 Ubisoft Connect",
-      "signingInUbisoftMessage": "正在打开 Ubisoft Connect。请在那里登录后返回。",
       "ubisoftPrefixNotReady": "Ubisoft Connect 尚未就绪",
       "ubisoftPrefixNotReadyMessage": "无法为此游戏准备 Ubisoft Connect 前缀。请重试安装；如果仍然失败，请重新运行库同步。",
       "ubisoftAuthPrefixNotReady": "Ubisoft Connect 尚未就绪",
@@ -390,10 +383,9 @@
       "battlenetInstallerDownloadFailedMessage": "无法下载 Battle.net 安装程序。请检查网络连接后重试。",
       "battlenetClientInstallFailed": "Battle.net 安装失败",
       "battlenetClientInstallFailedMessage": "Battle.net 客户端安装程序未完成。请重试，或查看启动日志了解其报告的内容。",
-      "signingInBattlenet": "Battle.net 登录",
-      "signingInBattlenetMessage": "正在打开 Battle.net 客户端以便登录…",
       "installingBattlenet": "正在通过 Battle.net 安装",
-      "installingBattlenetMessage": "正在打开 Battle.net。请在其中点击“安装”以开始下载 {{gameTitle}}。"
+      "installingBattlenetMessage": "正在打开 Battle.net。请在其中点击“安装”以开始下载 {{gameTitle}}。",
+      "wrapperOpening": "正在打开 {{client}}"
     },
     "updateComplete": "更新已完成！",
     "updateCompleteMessage": "{{title}} 已更新。",
@@ -401,7 +393,6 @@
     "updateCancelledMessage": "{{title}} 的更新已取消。",
     "updateFailed": "更新失败",
     "updateFailedMessage": "无法启动更新流程。",
-    "storeError": "无法与商店 {{store}} 通信 ({{errType}})",
     "captureLogsStarted": "正在收集日志…",
     "captureLogsStartedMessage": "正在下载文件夹中创建诊断压缩包，需要几秒钟。",
     "captureLogsDone": "日志已收集",
@@ -417,9 +408,7 @@
       "openStorageManager": "释放空间",
       "signInToStore": "登录商店",
       "retrySync": "重试",
-      "retryLibrarySync": "刷新游戏库",
-      "openSaveFolder": "查看存档文件夹",
-      "showLogs": "查看日志"
+      "retryLibrarySync": "刷新游戏库"
     },
     "library": {
       "_comment": "Toasts emitted by SyncService when a per-store library sync fails. The retry button triggers a fire-and-forget refresh via the unifideck://refresh-library/<store> verb; the user doesn't wait for the result inline, the Library view picks it up through its SYNC_PROGRESS subscription.",
@@ -485,6 +474,7 @@
       "authExpired": "登录已过期。请重新登录",
       "toolMissing": "未找到所需的下载工具",
       "processFailed": "下载失败。请重试",
+      "stalled": "下载停滞，没有任何进度。请重试。",
       "directoryNotFound": "无法找到已安装的文件",
       "lockConflict": "另一项操作正在进行中。请重试",
       "ubisoftClient": "Ubisoft Connect 客户端错误。请尝试修复环境",
@@ -551,7 +541,8 @@
     "amazon": "Amazon",
     "ubisoft": "Ubisoft",
     "microsoft": "Microsoft",
-    "battlenet": "Battle.net"
+    "battlenet": "Battle.net",
+    "gamevault": "GameVault"
   },
   "unifiedLibrary": {
     "error": "Unifideck 错误",
@@ -598,11 +589,14 @@
       "never": "无记录"
     },
     "compatibility": {
-      "modalTitle": "Steam Deck 兼容性",
+      "modalTitleDeck": "Steam Deck 兼容性",
+      "modalTitleMachine": "Steam Machine 兼容性",
+      "modalTitleSteamOS": "SteamOS 兼容性",
       "viewOnProtonDb": "在 ProtonDB 上查看",
       "close": "关闭",
       "verified": "已验证",
       "playable": "可玩",
+      "compatible": "兼容",
       "unsupported": "不支持",
       "unknown": "未知"
     },
@@ -703,8 +697,7 @@
     "signInRequired": "需要登录以进行游玩",
     "syncSkippedNoSubscription": "未检测到有效的 Xbox Game Pass 会员资格。xCloud 游戏库同步已被跳过。",
     "syncSkippedTierUnknown": "检测到 Xbox Game Pass 订阅，但未能确认会员级别。为了避免显示无法运行的游戏，已跳过同步。",
-    "subscriptionCheckFailed": "无法验证 Xbox Game Pass 订阅状态。已跳过 xCloud 同步。请在网络连接稳定时重试。",
-    "subscriptionDetected": "已检测到有效的 Xbox Game Pass {{tier}} 订阅。"
+    "subscriptionCheckFailed": "无法验证 Xbox Game Pass 订阅状态。已跳过 xCloud 同步。请在网络连接稳定时重试。"
   },
   "playButton": {
     "play": "运行",
@@ -1009,9 +1002,14 @@
     "installingButton": "正在安装...",
     "installingTitle": "安装插件中",
     "latestLabel": "最新版本",
+    "manageButton": "更新",
+    "manageButtonAvailable": "更新（v{{version}} 可用）",
+    "manageTitle": "插件更新",
     "modalTitle": "UNIFIDECK v{{version}}。发行说明",
     "noBackend": "Decky 后端服务不可用。",
     "noReleaseNotes": "无可用发行说明。",
+    "noticeBody": "可在 Unifideck 设置中安装 v{{version}}。",
+    "noticeTitle": "Unifideck 有可用更新",
     "reinstallButton": "重新安装 v{{version}}",
     "refreshFailedMessage": "无法验证最新版本信息。请检查网络连接后重试。",
     "releaseGoneMessage": "此版本已不再可用。请检查更新后重新选择。",
@@ -1052,5 +1050,36 @@
     "title": "STEAM 收藏夹",
     "enabled": "收藏夹已启用",
     "disabled": "收藏夹已禁用"
+  },
+  "reconcile": {
+    "repairedTitle": "库数据已修复",
+    "repairedBody": "已补齐上次同步中断遗留的 {{artwork}} 项封面、{{metadata}} 项元数据和 {{compat}} 项兼容性信息。"
+  },
+  "gamevault": {
+    "connectTitle": "连接到 GameVault",
+    "connect": "连接",
+    "connecting": "连接中…",
+    "cancel": "取消",
+    "modeRemote": "连接到远程服务器",
+    "modeRemoteDescription": "登录你在别处自建的 GameVault 服务器。",
+    "modeLocal": "使用本机上的文件夹",
+    "modeLocalDescription": "导入你已有的无 DRM 游戏压缩包，无需服务器。",
+    "localTitle": "本地游戏文件夹",
+    "localIntro": "把游戏压缩包放进这个文件夹，下次同步后就会出现在库中。",
+    "vaultDir": "压缩包文件夹",
+    "vaultDirDescription": "存放游戏压缩包的位置。",
+    "browse": "浏览…",
+    "serverUrl": "服务器地址",
+    "username": "用户名",
+    "password": "密码",
+    "verifySsl": "验证 SSL 证书",
+    "verifySslDescription": "自签名证书请禁用此选项",
+    "downloadDir": "归档下载目录",
+    "downloadDirDescription": "归档下载的临时目录。留空使用默认值。",
+    "downloadDirPlaceholder": "~/.local/share/unifideck/gamevault_downloads",
+    "errorServerUrlRequired": "请输入服务器地址",
+    "errorUsernameRequired": "请输入用户名",
+    "errorPasswordRequired": "请输入密码",
+    "errorConnection": "连接 GameVault 服务器失败"
   }
 }

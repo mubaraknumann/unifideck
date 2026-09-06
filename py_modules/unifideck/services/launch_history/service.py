@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
@@ -60,6 +61,15 @@ class LaunchHistoryService(_FailuresMixin, _BypassMixin):
             self._path = storage_path
 
         self._bus = bus
+
+        # Monotonic start time per ``game_key``, set by
+        # ``_on_game_launched``. Needed because no ``GAME_STOPPED``
+        # emitter carries an elapsed time, and the fast-boot rule
+        # (exited non-zero *quickly*) cannot be evaluated without one.
+        # ``time.monotonic`` rather than wall clock so a suspend
+        # mid-game does not read as a long, healthy session — the same
+        # reasoning as ``services/playtime/service.py``.
+        self._started_at: dict[str, float] = {}
 
         # ``auto_wire(self, bus)`` walks ``self``'s methods
         # and registers every ``@subscribe(Events.X)``-marked
@@ -122,18 +132,45 @@ class LaunchHistoryService(_FailuresMixin, _BypassMixin):
         _BACKGROUND_TASKS.add(_task)
         _task.add_done_callback(_BACKGROUND_TASKS.discard)
 
-    @subscribe(Events.GAME_STOPPED)
-    async def _on_game_stopped(self, **kwargs: Any) -> None:
-        """Classify a finished launch for the circuit breaker."""
+    @subscribe(Events.GAME_LAUNCHED)
+    async def _on_game_launched(self, **kwargs: Any) -> None:
+        """Stamp the launch so ``_on_game_stopped`` can measure it."""
         store = kwargs.get("store")
         game_id = kwargs.get("game_id")
-        rc = kwargs.get("rc")
-        elapsed = kwargs.get("elapsed", 0.0)
+        if not store or not game_id:
+            return
+        self._started_at[f"{store}:{game_id}"] = time.monotonic()
+
+    @subscribe(Events.GAME_STOPPED)
+    async def _on_game_stopped(self, **kwargs: Any) -> None:
+        """Classify a finished launch for the circuit breaker.
+
+        Reads ``exit_code``/``elapsed_seconds`` — the names the
+        emitters actually send and the ones ``CANONICAL_SCHEMA``
+        declares. It previously read ``rc``/``elapsed``, which no
+        emitter has ever sent, so ``rc`` was always ``None``, this
+        handler returned at the guard below on every single stop, and
+        :meth:`record_success` had no reachable call site anywhere in
+        the tree — the breaker could accumulate failures but never
+        clear on a good launch. Audit correction C-2.
+
+        Note only the plugin-side emitter (``notify_game_stopped``)
+        carries an exit code; the launcher subprocess emits
+        ``store``/``game_id`` alone, so on that bus this still returns
+        at the ``exit_code is None`` guard, as it always did.
+        """
+        store = kwargs.get("store")
+        game_id = kwargs.get("game_id")
+        rc = kwargs.get("exit_code")
 
         if not store or not game_id:
             return
 
         game_key = f"{store}:{game_id}"
+        started = self._started_at.pop(game_key, None)
+        elapsed = kwargs.get("elapsed_seconds")
+        if elapsed is None:
+            elapsed = time.monotonic() - started if started is not None else 0.0
 
         # Determine success or failure
         if rc == 0:

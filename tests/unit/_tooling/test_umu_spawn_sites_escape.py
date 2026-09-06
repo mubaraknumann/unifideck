@@ -68,12 +68,16 @@ def test_guard_actually_matches_the_known_spawn_sites():
         if _BUILDS_UMU_ARGV in (text := path.read_text(encoding="utf-8"))
         and _SPAWNS_DIRECTLY in text
     }
-    # The four sites fixed on 2026-08-13. ``umu_runtime`` is deliberately
-    # absent: it is handed an already-built argv rather than naming
-    # ``umu_wrapper`` itself, and it has escaped since the original fix.
+    # The four sites fixed on 2026-08-13, with ``gog_setup/common.py``
+    # replaced by ``setup_run.py``: the GOG helper's spawn was hoisted there
+    # as the single owner when the Ubisoft registry writers were moved off
+    # raw Wine and onto umu, so ``common.py`` now only delegates.
+    # ``umu_runtime`` is deliberately absent: it is handed an already-built
+    # argv rather than naming ``umu_wrapper`` itself, and it has escaped
+    # since the original fix.
     expected = {
         "prefix_init.py",
-        "common.py",            # compat/gog_setup/common.py
+        "setup_run.py",         # infrastructure/setup_run.py
         "epic_prerequisites.py",
         "battlenet.py",
     }

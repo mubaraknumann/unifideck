@@ -1,16 +1,18 @@
-"""StoreRPCMixin — auth + login-state RPC (subset of StoreHandlers).
+"""StoreRPCMixin — store auth + login-state RPC.
 
-OP-26e | py_modules/unifideck/rpc/mixins/store.py
+Covers the auth surface only. The neighbouring surfaces live in
+sibling mixins, all composed onto ``Plugin`` in ``main.py``:
 
-Mixin form of the auth-related slice of ``StoreHandlers``
-(OP-25g). Where the handler group covers auth + library +
-sync + install, this mixin only covers the auth surface —
-the rest lived in ``SyncRPCMixin`` historically.
+* library and sync — ``SyncRPCMixin``;
+* install and update — ``DownloadRPCMixin``;
+* auth-shortcut context (``get_<store>_auth_shortcut_context``,
+  ``get_compat_tool_for_game``) — ``AuthShortcutsRPCMixin``, split
+  out to keep this file under the 200 LOC ceiling.
 
-Auth-shortcut context RPCs (``get_<store>_auth_shortcut_context``
-+ ``get_compat_tool_for_game``) live in a sibling
-``AuthShortcutsRPCMixin`` (OP-26k) to keep this file under the
-200 LOC ceiling.
+Composition is flat: every mixin is a base of ``Plugin`` and reaches
+its dependencies through ``self``. There is no handler-group layer and
+no ``rpc/handlers/`` package; earlier versions of this docstring
+described a structure that was never built.
 """
 
 from __future__ import annotations
@@ -18,8 +20,9 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from ._compat_payload import active_track, slim_cache_entry
 
+logger = logging.getLogger(__name__)
 
 class StoreRPCMixin:
     """Store-auth RPC: start/check/clear flows + login status."""
@@ -60,6 +63,104 @@ class StoreRPCMixin:
         )
         return result
 
+    async def connect_gamevault(
+        self,
+        server_url: str,
+        username: str,
+        password: str,
+        verify_ssl: bool = True,
+        download_dir: str = "",
+    ) -> Any:
+        """Sign in to a self-hosted GameVault server.
+
+        A route of its own rather than a payload bolted onto
+        :meth:`store_auth`. That method takes ``(store, action)`` and nothing
+        else on purpose: its old ``"complete"`` + ``{code}`` kwargs channel
+        was removed with Ubisoft's API login, and re-opening a generic
+        passthrough so one store can smuggle credentials through it would
+        undo that for every store. GameVault is the only connector whose
+        sign-in is a form rather than a browser or a Steam shortcut — it does
+        not go through ``AuthDispatcher`` on the frontend either — so the one
+        flow that needs a payload gets one named, typed entry point.
+
+        Args:
+            server_url: base URL of the user's GameVault server.
+            username: GameVault account name.
+            password: GameVault password. Never logged; the store persists
+                it 0600 because the server issues no refresh grant, so the
+                credentials are what re-authenticate unattended.
+            verify_ssl: False to accept a self-signed certificate, which a
+                LAN server commonly has.
+            download_dir: staging directory for downloaded archives. Empty
+                means the configured default.
+
+        Returns:
+            ``AuthResult`` — ``success`` plus ``error`` when it failed.
+        """
+        logger.info(
+            "[StoreAuth:gamevault] connect server=%s user=%s verify_ssl=%s "
+            "download_dir=%s",
+            server_url, username, verify_ssl, download_dir or "(default)",
+        )
+        result = await self.registry.auth_action(
+            "gamevault",
+            "start",
+            server_url=server_url,
+            username=username,
+            password=password,
+            verify_ssl=verify_ssl,
+            download_dir=download_dir or None,
+        )
+        logger.info(
+            "[StoreAuth:gamevault] connect success=%s error=%s",
+            getattr(result, "success", None),
+            getattr(result, "error", None),
+        )
+        return result
+
+    async def connect_gamevault_local(self, vault_dir: str = "") -> Any:
+        """Use a folder of game archives on this device as the library.
+
+        The offline half of GameVault: no server, no account, no network.
+        The user picks a folder, drops archives in it, and they appear in
+        the library on the next sync.
+
+        A route of its own rather than a ``mode`` argument on
+        :meth:`connect_gamevault`, because the two parameter sets are
+        disjoint — one takes a URL and a password, the other a path — and a
+        single route would have to accept both and validate that exactly one
+        set arrived. The store still reaches the same
+        ``registry.auth_action("gamevault", "start", ...)`` entry point, so
+        there is one auth path underneath, not two.
+
+        There is deliberately **no install-location argument**. Every install
+        already goes through the shared storage picker, which knows about SD
+        cards and USB drives and applies to all seven stores; a per-store
+        copy of that setting would be a second answer to a question already
+        answered, and the two would disagree the first time one was changed.
+
+        Args:
+            vault_dir: folder the user will drop game archives into. Empty
+                means the configured default, so connecting with an untouched
+                form is a complete action — the folder is created for the
+                user rather than demanded from them. Created along with a
+                marker file that lets a later sync tell an empty vault from
+                an unmounted drive.
+
+        Returns:
+            ``AuthResult`` — ``success`` plus ``error`` when it failed.
+        """
+        logger.info("[StoreAuth:gamevault] connect local vault=%s", vault_dir)
+        result = await self.registry.auth_action(
+            "gamevault", "start", mode="local", vault_dir=vault_dir,
+        )
+        logger.info(
+            "[StoreAuth:gamevault] connect local success=%s error=%s",
+            getattr(result, "success", None),
+            getattr(result, "error", None),
+        )
+        return result
+
     async def check_store_status(self) -> Any:
         """Probe every registered store for its current login state.
 
@@ -82,6 +183,35 @@ class StoreRPCMixin:
             List of store-info dicts.
         """
         return self.registry.get_store_infos()
+
+    async def prepare_store_web_session(self, store_id: str) -> Any:
+        """Give the browser a signed-in session for ``store_id``, if it can.
+
+        Called just before the QAM cart opens a store's shop. Only
+        Amazon implements it: nile signs in through Amazon's device
+        registration flow, which authorises the device but leaves the
+        shared Edge profile without the auth cookies a signed-in
+        amazon.com needs, so the shop opened logged out. Every other
+        browser store signs in through an ordinary web login that
+        leaves its own session behind.
+
+        Must run BEFORE Edge launches — it writes the profile's cookie
+        DB, which Edge owns and rewrites while running.
+
+        Never raises. A store with nothing to do, an unknown store, and
+        a failed exchange all answer the same way: the shop still
+        opens, with whatever session the profile already had.
+        """
+        store = self.registry.get_store(store_id)
+        if store is None or not hasattr(store, "prepare_web_session"):
+            return {"success": False, "error": "not_applicable"}
+        try:
+            return await store.prepare_web_session()
+        except Exception:
+            logger.exception(
+                "[StoreRPC:web_session:%s] preparation failed", store_id,
+            )
+            return {"success": False, "error": "prepare_failed"}
 
     async def clear_store_auths(self) -> Any:
         """Sign out of every store and wipe cached credentials.
@@ -150,38 +280,25 @@ class StoreRPCMixin:
             "metadata": {str(k): v for k, v in data.items()},
         }
 
-    async def inject_game_to_appinfo(self, shortcut_app_id: int) -> dict[str, Any]:
-        """Persist a Unifideck shortcut's spoofed metadata to ``appinfo.vdf``.
-
-        Persistence layer for the frontend ``SteamStorePatcher``.
-        The in-memory patching is enough for the current Steam
-        session, but a Steam restart wipes the patched
-        ``GetAppOverviewByAppID`` returns. Writing the metadata
-        into Steam's ``appinfo.vdf`` makes the spoofing survive
-        restarts.
-
-        This is currently a no-op stub — the frontend's
-        in-memory patches handle every visible UI element, and
-        the on-disk persistence layer requires careful
-        ``appinfo.vdf`` parsing that we'd want to vet in a
-        separate change. Returns ``success=True`` so the
-        frontend's fire-and-forget call doesn't log a failure
-        on every navigation.
-
-        Args:
-            shortcut_app_id: Unifideck shortcut AppID (synthetic).
-
-        Returns:
-            ``{"success": True, "deferred": True, ...}``.
-        """
-        logger.debug(
-            "[StoreRPC] inject_game_to_appinfo(%d) — deferred (in-memory only)",
-            shortcut_app_id,
-        )
-        return {"success": True, "deferred": True, "shortcut_app_id": shortcut_app_id}
+    # ``inject_game_to_appinfo`` lived here. It was a stub: it logged and
+    # returned ``{"success": True, "deferred": True}``, and its own docstring
+    # admitted the success value existed only so the frontend's
+    # fire-and-forget call would not log a failure on every navigation.
+    #
+    # It had a live caller, which is why the §1.2 dead-RPC sweep did not see
+    # it — two, in fact: AppDetailsPatch on open, and the patched
+    # ``GetAppOverviewByAppID`` getter, which runs on every overview read
+    # across the whole library. So it cost a round-trip per read, forever, to
+    # do nothing.
+    #
+    # The persistence it promised was redundant rather than missing:
+    # ``applyAppStorePatch`` awaits ``loadFromBackend()`` and re-spoofs from
+    # the backend cache on every plugin load, so surviving a Steam restart is
+    # handled by re-patching, not by writing ``appinfo.vdf``. Audit §2.8
+    # bullet 4, register item 35.
 
     async def get_protondb_cache(self) -> dict[str, Any]:
-        """Return every cached ProtonDB / Deck-Verified entry.
+        """Return every cached rating, resolved for **this** device.
 
         Used by the frontend ``protondb-cache`` module to populate the
         in-memory rating lookup that drives compat badges and the
@@ -189,10 +306,19 @@ class StoreRPCMixin:
         namespace populated by :class:`CompatLibrary` — never triggers
         a fresh network fetch from here.
 
+        The active device's track is resolved **here** rather than in
+        the frontend: ``loadDeviceType()`` is async and can answer after
+        this payload has been consumed, which would mis-filter the first
+        render of the compatibility tab on a Steam Machine.
+
+        Each row is projected down to what the frontend reads, which
+        makes this smaller than the whole cached entry it used to
+        return while carrying strictly more information.
+
         Returns:
             Mapping of ``str(app_id)`` →
-            ``{"protondb_tier": str | None, "deck_status": str,
-              "title": str, "sources": list[str]}``.
+            ``{"title": str, "protondb_tier": str | None,
+              "compat_status": str, "sources": list[str]}``.
             Empty dict when the cache is cold or unregistered.
         """
         stores = getattr(self.cache, "_stores", None)
@@ -202,4 +328,9 @@ class StoreRPCMixin:
         data = getattr(compat_store, "_data", None)
         if not isinstance(data, dict):
             return {}
-        return dict(data)
+        track = active_track()
+        return {
+            key: slim_cache_entry(entry, track)
+            for key, entry in data.items()
+            if isinstance(entry, dict)
+        }

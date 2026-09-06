@@ -1,8 +1,6 @@
 """
 UPC launch environment builder — assembles the env dict for wine-running UPC.
 
-OP-56c | py_modules/unifideck/stores/ubisoft/installer/launch_env.py
-
 Two thin dataclasses (``UbisoftInstallerLaunchEnv``,
 ``UbisoftLauncherLaunchEnv``) describe the environment variables and
 Wine prefix configuration needed by the installer launcher and the
@@ -27,7 +25,6 @@ class _UpcLaunchEnv:
     umu_run: str
     python_bin: str
     env: dict[str, str]
-
 
 class UpcLaunchEnvBuildError(Exception):
     """Upc launch env build error."""

@@ -4,14 +4,16 @@ Two layers protect against unlinked-account games appearing as
 "installed" (the beta-tester bug where Assassin's Creed IV, Child of
 Light, etc. showed up with no Ubisoft account signed in):
 
-1. ``UbisoftStore.get_library`` returns ``[]`` when not authenticated.
+1. ``UbisoftStore.get_library`` refuses to enumerate when not signed in —
+   ``[]`` when the auth prefix is gone, ``None`` when its vault is merely
+   signed out (see the tests below for why those differ).
 2. ``_GameBuilder.cross_reference_ownership`` no longer falls back to
    *all* local configs when the ownership binary is missing — it keeps
    only configs that are actually installed on disk.
 """
 from __future__ import annotations
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -93,14 +95,25 @@ def test_no_ownership_matches_install_id_key():
 # ── get_library auth gate ─────────────────────────────────────────
 
 
-@pytest.mark.asyncio
-async def test_get_library_empty_when_unauthenticated():
-    """Unauthenticated store returns [] without touching the facade."""
+def _store_with_state(state: str):
+    """A bare store whose auth facade reports ``state``."""
     from unifideck.stores.ubisoft import store as store_mod
 
     store = store_mod.UbisoftStore.__new__(store_mod.UbisoftStore)
-    store.is_available = AsyncMock(return_value=False)
+    store._auth = MagicMock()
+    store._auth.credential_state = MagicMock(return_value=state)
     store._library = AsyncMock()
+    return store
+
+
+@pytest.mark.asyncio
+async def test_get_library_empty_when_never_signed_in():
+    """No auth vault at all → [] without touching the facade.
+
+    ``[]`` is authoritative: it lets the post-sync reconcile sweep the
+    phantom rows a signed-out account leaves behind.
+    """
+    store = _store_with_state("absent")
 
     result = await store.get_library()
 
@@ -109,14 +122,28 @@ async def test_get_library_empty_when_unauthenticated():
 
 
 @pytest.mark.asyncio
+async def test_get_library_unreadable_when_vault_signed_out():
+    """A vault UPC signed itself out of → None, never [].
+
+    Regression: the token died server-side, so we cannot enumerate the
+    library — but the user still owns those games. ``[]`` here would make
+    the store sweepable and delete every Ubisoft shortcut they have
+    (``shortcut/events._sweepable_stores``); ``None`` becomes
+    ``library_unreadable`` and their tiles survive.
+    """
+    store = _store_with_state("signed_out")
+
+    result = await store.get_library()
+
+    assert result is None
+    store._library.get_library.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_get_library_delegates_when_authenticated():
     """Authenticated store delegates to the library facade."""
-    from unifideck.stores.ubisoft import store as store_mod
-
     sentinel = ["game"]
-    store = store_mod.UbisoftStore.__new__(store_mod.UbisoftStore)
-    store.is_available = AsyncMock(return_value=True)
-    store._library = AsyncMock()
+    store = _store_with_state("signed_in")
     store._library.get_library = AsyncMock(return_value=sentinel)
 
     result = await store.get_library()

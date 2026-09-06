@@ -31,14 +31,14 @@ async def launch_windows(
 ) -> Result:
     """Windows game launch — 4-phase pipeline.
 
-    1. ``prepare_windows_plan`` — options + runtime + umu + proton_prepare
+    1. ``prepare_windows_plan`` — runtime + umu + proton_prepare
     2. ``cloud_sync_phase("down")``
     3. ``run_game_subprocess`` — the actual game
     4. ``cloud_sync_phase("up")``
     """
     try:
         # Phase 1: Prepare
-        plan, _parsed_options = await svc._prepare_windows_plan(ctx, state)
+        plan = await svc._prepare_windows_plan(ctx, state)
 
         from unifideck.core.types.events import Events
         store = ctx.store
@@ -111,8 +111,7 @@ async def _setup_prefix_and_realign(
     # Rebuild unconditionally: even when the tool is unchanged, ``state`` may
     # still carry the borrowed Proton's path/wrapper, and plan and state must
     # agree for cancellation and the dispatch log to mean anything.
-    rebuilt, _ = await svc._prepare_windows_plan(ctx, state, tool_id=tool)
-    return rebuilt
+    return await svc._prepare_windows_plan(ctx, state, tool_id=tool)
 
 
 async def _run_and_finalize(

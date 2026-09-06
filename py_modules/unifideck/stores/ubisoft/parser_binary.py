@@ -1,8 +1,6 @@
 """
 Ubisoft binary catalog parser — decode UPC's compiled game database.
 
-OP-55f | py_modules/unifideck/stores/ubisoft/parser_binary.py
-
 In addition to the plaintext catalog handled by ``parser.py``, UPC keeps
 a *compiled* representation of the catalog used internally for fast
 lookups. This module exposes module-level functions to decode that
@@ -27,7 +25,6 @@ def _convert_data(data: int) -> int:
     elif data > 256:
         data -= 128 * math.ceil(data / 256)
     return data
-
 
 def parse_record_size(
     header: bytes,
@@ -56,7 +53,6 @@ def parse_record_size(
     offset += 1
     return record_size, offset, tmp_size
 
-
 def parse_install_id(header: bytes, offset: int) -> tuple[int, int]:
     """Parse install ID."""
     multiplier = 1
@@ -68,7 +64,6 @@ def parse_install_id(header: bytes, offset: int) -> tuple[int, int]:
     install_id = _convert_data(install_id)
     offset += 1
     return install_id, offset
-
 
 def parse_launch_id(header: bytes, offset: int) -> tuple[int, int]:
     """Parse launch ID."""
@@ -82,7 +77,6 @@ def parse_launch_id(header: bytes, offset: int) -> tuple[int, int]:
         offset += 1
     launch_id = _convert_data(launch_id)
     return launch_id, offset
-
 
 def parse_ownership_record(chunk: bytes) -> tuple[Any, ...] | None:
     """Parse ownership record."""

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+import time
 from datetime import UTC, datetime, timedelta
 
 from unifideck.event_bus.event_bus import EventBus
@@ -143,13 +144,14 @@ def test_checkpoint_writes_progress_without_finalizing() -> None:
         duration_secs=None, updated=None,
     )
     # Register it as the active session the heartbeat will checkpoint.
+    # ``started_monotonic`` is the duration clock; ``started_at`` is only used
+    # for calendar-day attribution, so it is backdated independently here.
     svc._active["gog:7"] = {
         "game_db_id": game_id,
         "title": "Game",
         "started_at": start,
         "db_row_id": sess_id,
-        "total_sleep_secs": 0.0,
-        "suspended_at": None,
+        "started_monotonic": time.monotonic() - 120,
     }
 
     svc._checkpoint_active()

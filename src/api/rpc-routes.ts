@@ -1,24 +1,28 @@
 /**
  * RPC route registry — single source of truth.
  *
- * Every route in this table is documented in the backend
- * operational plan PDF and registered in one of the RPC
- * mixins (Store, Sync, Download, Launch, Playtime, UI,
- * Action, CloudFailure, Observability, Account, Security,
- * ConfigValidation).
+ * Every route in this table is registered on one of the RPC
+ * mixins in ``py_modules/unifideck/rpc/mixins/``.
  *
  * Components import these constants so a backend rename is a
  * one-file change on the TS side ; raw string method names
  * never appear elsewhere.
+ *
+ * A route with no component referencing its constant is dead
+ * on both sides — ``scripts/validate_architecture.py`` fails
+ * the build on one. Deleting a backend RPC means deleting its
+ * row here in the same change.
  */
 export const rpcRoutes = {
   // Store + auth (StoreRPCMixin)
   storeAuth: "store_auth",
+  connectGamevault: "connect_gamevault",
+  connectGamevaultLocal: "connect_gamevault_local",
   checkStoreStatus: "check_store_status",
   getStoreInfos: "get_store_infos",
   clearStoreAuths: "clear_store_auths",
+  prepareStoreWebSession: "prepare_store_web_session",
   // Edge prereq (EdgeRPCMixin)
-  isEdgeInstalled: "is_edge_installed",
   installEdge: "install_edge",
   // Auth-shortcut context (AuthShortcutsRPCMixin)
   getEpicAuthShortcutContext: "get_epic_auth_shortcut_context",
@@ -28,13 +32,11 @@ export const rpcRoutes = {
   getUbisoftAuthShortcutContext: "get_ubisoft_auth_shortcut_context",
   getBattlenetAuthShortcutContext: "get_battlenet_auth_shortcut_context",
   getCompatToolForGame: "get_compat_tool_for_game",
-  saveProtonSetting: "save_proton_setting",
   // Library sync (SyncRPCMixin)
   syncLibraries: "sync_libraries",
   forceSyncLibraries: "force_sync_libraries",
   cancelSync: "cancel_sync",
   requestAuthSync: "request_auth_sync",
-  getSyncStatus: "get_sync_status",
   getSyncProgress: "get_sync_progress",
   getAllUnifideckGames: "get_all_unifideck_games",
   getGameSizeBytes: "get_game_size_bytes",
@@ -49,12 +51,10 @@ export const rpcRoutes = {
   cancelDownload: "cancel_download",
   getDownloadQueue: "get_download_queue",
   clearDownloadHistory: "clear_download_history",
-  checkGameUpdate: "check_game_update",
   getAvailableUpdates: "get_available_updates",
   updateGame: "update_game",
   // Game info / metadata (StoreRPCMixin)
   getGameInfo: "get_game_info",
-  getGameMetadata: "get_game_metadata",
   getGameMetadataDisplay: "get_game_metadata_display",
   getStorageLocations: "get_storage_locations",
   getGogGameLanguages: "get_gog_game_languages",
@@ -66,11 +66,9 @@ export const rpcRoutes = {
   // Steam Store spoofing (StoreRPCMixin)
   getRealSteamAppidMappings: "get_real_steam_appid_mappings",
   getSteamMetadataCache: "get_steam_metadata_cache",
-  injectGameToAppinfo: "inject_game_to_appinfo",
   // Library cleanup (SyncRPCMixin)
   performFullCleanup: "perform_full_cleanup",
   // UI helpers (UIRPCMixin)
-  injectHideCss: "inject_hide_css",
   setLanguagePreference: "set_language_preference",
   getLanguagePreference: "get_language_preference",
   getDeviceType: "get_device_type",
@@ -82,14 +80,16 @@ export const rpcRoutes = {
   // Playtime (PlaytimeRPCMixin)
   notifyGameLaunched: "notify_game_launched",
   notifyGameStopped: "notify_game_stopped",
+  // Circuit-breaker surface (audit register item 4a). These three were
+  // implemented with no frontend caller: after three failed launches the
+  // user got a flicker, no message, and no way to reset short of waiting
+  // out the window.
+  getLaunchFailures: "get_launch_failures",
+  clearLaunchFailures: "clear_launch_failures",
+  armCircuitBypass: "arm_circuit_bypass",
   getPlaytime: "get_playtime",
-  getAllPlaytimes: "get_all_playtimes",
-  syncPlaytimeNow: "sync_playtime_now",
   // Action dispatcher (ActionRPCMixin) — bidirectional bridge
   dispatchUnifideckAction: "dispatch_unifideck_action",
-  // Cloud-save behaviour preferences (CloudFailureRPCMixin)
-  setCloudFailureBehavior: "set_cloud_failure_behavior",
-  getCloudFailureBehaviors: "get_cloud_failure_behaviors",
   // Manual cloud-save status / pull / push (CloudSaveRPCMixin)
   getCloudSaveStatus: "get_cloud_save_status",
   cloudSavePull: "cloud_save_pull",
@@ -102,12 +102,9 @@ export const rpcRoutes = {
   // Achievements (AchievementsRPCMixin) — GOG display + last-session summary
   getGameAchievements: "get_game_achievements",
   getLastSessionAchievements: "get_last_session_achievements",
-  // Observability (ObservabilityRPCMixin) — event bridge + diagnostics
+  // Observability (ObservabilityRPCMixin) — event bridge + support bundle
   subscribeReplay: "subscribe_replay",
   getLauncherToasts: "get_launcher_toasts",
-  getBusHealth: "get_bus_health",
-  getPluginMetrics: "get_plugin_metrics",
-  getFeatureFlags: "get_feature_flags",
   captureLogs: "capture_logs",
   // Account switch + migration (AccountRPCMixin)
   checkAccountSwitch: "check_account_switch",
@@ -117,7 +114,6 @@ export const rpcRoutes = {
   getAvailableVersions: "get_available_versions",
   forceCheckPluginUpdate: "force_check_plugin_update",
   forceGetAvailableVersions: "force_get_available_versions",
-  getReleaseNotes: "get_release_notes",
   logUpdateEvent: "log_update_event",
 } as const;
 

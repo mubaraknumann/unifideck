@@ -22,10 +22,17 @@ Two Steam behaviours drive the shape here:
   CRC of launcher plus identity, and the same inputs must always give the
   same appid or the shortcut is orphaned on the next run.
 
-Ubisoft keeps its own richer implementation for now (it also prunes legacy
-template shortcuts and integrates with its registry). Migrating it onto
-this is a follow-up that wants device testing, since it is a shipped and
-working auth path.
+**Ubisoft keeps its own implementation, and that is a decision rather than
+a backlog item.** ``ubisoft/auth/shortcut.py`` + ``shortcut_ops.py`` carry
+behaviour this module has no equivalent for: pruning legacy
+``ubisoft:.template`` rows and stray ``upc.exe`` rows (declaring those
+deletions to the shortcuts write guard by appid, because an empty ``Exe``
+reads as the user's row and not ours), ``validate_auth_shortcut`` field
+self-heal, compat-tool clearing, and shortcut-registry integration.
+Porting all of that here would move ~580 lines into ``shared/`` for a
+single consumer, on the store with the longest incident history in the
+sign-in path. Battle.net is the only consumer by design; a *new* wrapper
+store is still a spec rather than another module.
 """
 
 from __future__ import annotations
@@ -34,6 +41,8 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from unifideck.core.compat_bridge import to_unsigned
 
 logger = logging.getLogger(__name__)
 
@@ -207,15 +216,57 @@ async def _read_shortcuts_from_disk(shortcut_service: Any) -> dict[str, Any]:
     return dict(data) if isinstance(data, dict) else {"shortcuts": {}}
 
 
+async def _emit_shortcut_created(
+    bus: Any, spec: AuthShortcutSpec, unsigned: int,
+) -> None:
+    """Announce a freshly-written auth shortcut so ArtworkService can cover it.
+
+    ``ArtworkService._on_shortcut_created`` filters on ``is_auth`` and maps the
+    store id through its own ``_AUTH_TITLE_FOR_LOOKUP`` to a name SteamGridDB
+    actually has art for, so the payload only has to carry identity. It wants
+    the UNSIGNED appid: that is what Steam's ``grid/`` filenames use.
+
+    This emit is why the handler exists. It sat subscribed and unreachable for
+    the project's whole life (audit §1.3) — Ubisoft never needed it because it
+    fetches its own auth artwork in ``ubisoft/auth/context.py``, and the four
+    OAuth stores moved to ephemeral 15-second shortcuts that are gone before
+    any art could matter. Battle.net is the one store that reaches this module
+    and keeps a persistent tile, so its sign-in tile rendered bare.
+
+    Best-effort: artwork is cosmetic and must never break a sign-in.
+    """
+    if bus is None:
+        return
+    from unifideck.core.types.events import Events
+    try:
+        await bus.emit(
+            Events.SHORTCUT_CREATED,
+            store=spec.store,
+            app_id=unsigned,
+            title=spec.display_name,
+            is_auth=True,
+        )
+    except Exception:
+        logger.debug(
+            "[%s] SHORTCUT_CREATED emit failed — auth shortcut is still usable",
+            spec.store, exc_info=True,
+        )
+
+
 async def ensure_auth_shortcut(
     shortcut_service: Any,
     spec: AuthShortcutSpec,
     plugin_dir: str | None,
+    bus: Any = None,
 ) -> int | None:
     """Create or repair the persistent auth shortcut. Returns its unsigned appid.
 
     Never raises: a missing shortcut service or an unwritable VDF degrades
     to ``None``, and the frontend falls back to a temporary shortcut.
+
+    ``bus`` is optional so test doubles and any caller that only wants the
+    appid can omit it; when present, a NEWLY created shortcut emits
+    ``SHORTCUT_CREATED`` for the artwork pipeline.
     """
     if shortcut_service is None:
         logger.debug("[%s] no shortcut service — cannot create auth shortcut", spec.store)
@@ -224,7 +275,7 @@ async def ensure_auth_shortcut(
     launcher_path = launcher_path_for(plugin_dir)
     try:
         appid = shortcut_service.generate_app_id(launcher_path, spec.display_name)
-        unsigned = appid if appid >= 0 else appid + 2**32
+        unsigned = to_unsigned(appid)
 
         data = await _read_shortcuts_from_disk(shortcut_service)
         shortcuts = data.get("shortcuts", {})
@@ -235,7 +286,7 @@ async def ensure_auth_shortcut(
                 data["shortcuts"] = shortcuts
                 await shortcut_service.write_shortcuts(data)
             logger.info("[%s] auth shortcut already in VDF (appid=%s)", spec.store, existing)
-            return existing if existing >= 0 else existing + 2**32
+            return to_unsigned(existing)
 
         indices = [int(k) for k in shortcuts if str(k).isdigit()]
         shortcuts[str(max(indices, default=-1) + 1)] = _build_entry(
@@ -247,6 +298,10 @@ async def ensure_auth_shortcut(
     except Exception:
         logger.exception("[%s] auth shortcut creation failed", spec.store)
         return None
+    # Create branch only. The early return above covers "already in VDF", and
+    # re-announcing an existing shortcut on every sign-in would re-run the SGDB
+    # lookup for art that is already on disk.
+    await _emit_shortcut_created(bus, spec, int(unsigned))
     return int(unsigned)
 
 
@@ -254,15 +309,20 @@ async def build_context(
     shortcut_service: Any,
     spec: AuthShortcutSpec,
     plugin_dir: str | None,
+    bus: Any = None,
 ) -> dict[str, Any]:
     """The payload the frontend needs to RunGame this store's auth shortcut.
 
     ``launcher_path`` is always returned, even on failure, so the frontend
     can fall back to a temporary shortcut — which is the only thing that
     works during the first session after the VDF is written.
+
+    Pass ``bus`` to have a newly created shortcut announce itself for artwork.
     """
     launcher_path = launcher_path_for(plugin_dir)
-    unsigned = await ensure_auth_shortcut(shortcut_service, spec, plugin_dir)
+    unsigned = await ensure_auth_shortcut(
+        shortcut_service, spec, plugin_dir, bus=bus,
+    )
     if unsigned is None:
         return {
             "success": False,

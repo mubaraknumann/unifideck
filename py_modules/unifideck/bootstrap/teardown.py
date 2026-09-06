@@ -56,6 +56,15 @@ async def unload_plugin(plugin: Any) -> None:
             await sweep.stop()
         except Exception:
             logger.warning("[Unifideck] update sweep stop failed")
+    # The post-sync reconcile sleeps out a boot delay and may then have a
+    # repair pass in flight; both must be cancelled here, or a reload
+    # leaves a task fetching artwork against a torn-down bus.
+    reconcile = getattr(plugin, "_post_sync_reconcile_service", None)
+    if reconcile is not None:
+        try:
+            await reconcile.stop()
+        except Exception:
+            logger.warning("[Unifideck] post-sync reconcile stop failed")
     services = getattr(plugin, "services", None)
     if services is not None:
         await stop_all_services(services)

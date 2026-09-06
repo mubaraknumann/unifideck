@@ -1,7 +1,7 @@
 {
   "name": "unifideck-decky",
   "version": "0.7.4",
-  "description": "Unified game library for Steam Deck — browse, install and launch games from Epic Games, GOG, Amazon, Ubisoft, Battle.net and Microsoft xCloud directly inside Steam's interface. Built on a 5-layer architecture with EventBus, service DI, and 90%+ test coverage.",
+  "description": "Unified game library for Steam Deck and Steam Machine — browse, install and launch games from Epic Games, GOG, Amazon, Ubisoft, Battle.net and Microsoft xCloud directly inside Steam's interface. Built on a 5-layer architecture with EventBus, service DI, and 90%+ test coverage.",
   "type": "module",
   "scripts": {
     "build": "rollup -c rollup.config.mjs",
@@ -28,6 +28,7 @@
     "decky",
     "plugin",
     "steamdeck",
+    "steammachine",
     "epic",
     "gog",
     "amazon",

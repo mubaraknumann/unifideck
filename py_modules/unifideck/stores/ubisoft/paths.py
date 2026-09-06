@@ -1,8 +1,6 @@
 """
 Wine prefix path enumeration helpers.
 
-OP-55c | py_modules/unifideck/stores/ubisoft/paths.py
-
 ``UbisoftPrefixPaths`` knows how to walk a Wine prefix and list the user
 home directories inside it. Wine prefixes commonly contain multiple
 "users" under ``drive_c/users/`` (e.g. ``steamuser``, ``Public``, plus

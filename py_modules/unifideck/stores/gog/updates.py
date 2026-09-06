@@ -1,7 +1,5 @@
 """Background update checker for installed GOG games.
 
-OP-50g | py_modules/unifideck/stores/gog/updates.py
-
 ``GOGUpdatesChecker`` periodically polls GOG.com for new versions of
 installed games and emits events when an update is available. The
 check is rate-limited to avoid abusing the GOG API; the cached
@@ -9,7 +7,7 @@ check is rate-limited to avoid abusing the GOG API; the cached
 when a new install is detected.
 
 Update application itself is delegated to the installer pipeline
-(``install/installer.py``, OP-51a) which re-runs gogdl in update mode.
+(``install/installer.py``) which re-runs gogdl in update mode.
 """
 
 from __future__ import annotations
@@ -42,7 +40,6 @@ _UPDATE_CHECK_TIMEOUT_S = 10.0
 # per-request latency, few enough that we are not hammering
 # ``content-system.gog.com`` with a burst it could rate-limit.
 _UPDATE_CHECK_CONCURRENCY = 6
-
 
 class GOGUpdatesChecker:
     """Gogupdates checker."""

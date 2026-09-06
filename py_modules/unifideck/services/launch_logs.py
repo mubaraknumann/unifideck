@@ -15,7 +15,12 @@ having to know about it.
 
 The matching RPC surface lives in
 :mod:`unifideck.rpc.mixins.launch`: ``get_launch_logs`` calls
-:meth:`read`, ``export_launch_logs`` calls :meth:`export`.
+:meth:`read`. There is no ``export_launch_logs`` RPC — this
+docstring asserted one until 2026-08-26, and the §1.2 pass had
+already deleted it (audit register item 4j). ``get_launch_logs``
+itself is reached only through the ``show-logs`` toast action,
+which has no producer, so the whole service is currently
+unreachable; Capture Logs is the working path to the same files.
 
 This file was added to fix a gap detected during the RPC audit:
 the mixin referenced ``self.services.launch_logs`` as if it
@@ -78,18 +83,10 @@ class LaunchLogsService:
             max_lines=max_lines,
         )
 
-    async def export(self, launch_id: str, dest_path: str = "") -> dict[str, Any]:
-        """Copy the archived log for ``launch_id`` to ``dest_path``.
-
-        Delegates to :func:`log_archive.export_launch_logs`, which
-        falls back to a default destination (``~/unifideck-logs/``)
-        when ``dest_path`` is empty. The return dict carries
-        ``success`` plus the resolved destination so the UI can
-        show "Exported to: …" without recomputing the path.
-        """
-        return await asyncio.to_thread(
-            log_archive.export_launch_logs,
-            launch_id,
-            dest_path,
-            self._config,
-        )
+    # There is deliberately no ``export``. It copied an archived log to a
+    # destination directory and had **zero callers**: the
+    # ``export_launch_logs`` RPC its docstring named was deleted in the §1.2
+    # pass, because ``capture_logs`` already collects ``launches/*.log``,
+    # ``*.game.log`` and ``*.vendor.txt`` into the support bundle — the
+    # channel that demonstrably works and the one users are actually asked
+    # for. Audit register item 4j.

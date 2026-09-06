@@ -10,8 +10,9 @@ Rationale
 ---------
 After Step 4 of the config-rigor sprint, call sites drop their
 hardcoded default arg and rely entirely on ``defaults/config.json``
-+ schema validation + the boot-time ``assert_all_keys_resolve``
-check. That chain has one blind spot: if a developer adds a
++ schema validation + the boot-time ``collect_missing_keys``
+check (``config/startup.py``; it warns and flags degraded mode
+rather than aborting). That chain has one blind spot: if a developer adds a
 ``config.get("new.key")`` in code but forgets to add ``"new.key"``
 to ``RUNTIME_REQUIRED_KEYS``, the boot check can't complain because
 it doesn't know the key exists. The missing key silently returns
@@ -24,10 +25,10 @@ Any diff is a developer error caught before commit.
 What it does NOT check
 ----------------------
 * Non-literal keys (``config.get(computed_key)``) — we can't know
-  statically. The ``assert_all_keys_resolve`` boot check covers
+  statically. The ``collect_missing_keys`` boot check covers
   the static subset; dynamic keys are the caller's responsibility.
 * Presence in ``defaults/config.json`` — that's covered by
-  ``assert_all_keys_resolve`` at boot.
+  ``collect_missing_keys`` at boot.
 * Presence in the JSON Schema — that's covered by
   ``ConfigValidator.validate_config`` at boot.
 * **Guarded reads.** A key that cannot silently yield ``None`` is

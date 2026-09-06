@@ -262,7 +262,7 @@ def _build_legendary_argv(
     ``epic_launch_params.build_umu_argv``.
     """
     from unifideck.launcher.proton.compat.epic import detect_offline
-    argv: list[str] = [] if json_mode else list(plan.state.wrappers)
+    argv: list[str] = []
     argv.extend([
         legendary_bin,
         "launch",

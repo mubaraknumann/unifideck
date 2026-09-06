@@ -149,6 +149,9 @@
         },
         "battlenet": {
           "$ref": "#/$defs/battlenetStore"
+        },
+        "gamevault": {
+          "$ref": "#/$defs/gamevaultStore"
         }
       }
     },
@@ -473,11 +476,7 @@
     "binary_resolver": {
       "type": "object",
       "additionalProperties": false,
-      "properties": {
-        "version_check_timeout_seconds": {
-          "$ref": "#/$defs/positiveInt"
-        }
-      }
+      "properties": {}
     },
     "i18n": {
       "type": "object",
@@ -896,6 +895,24 @@
         },
         "enable_web_enrichment": {
           "type": "boolean"
+        }
+      }
+    },
+    "gamevaultStore": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "config_file": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "default_install_root": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "download_dir": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "default_vault_dir": {
+          "$ref": "#/$defs/nonEmptyString"
         }
       }
     }

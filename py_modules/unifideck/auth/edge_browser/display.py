@@ -32,7 +32,11 @@ logger = logging.getLogger(__name__)
 # The logical viewport width we target after scaling. 1280 / 1.25 =
 # 1024 — i.e. the comfortable view the xCloud kiosk already uses.
 _TARGET_LOGICAL_WIDTH = 1024
-# Steam Deck native panel — the default when detection fails.
+# Detection-failure fallback ONLY — never a target. It is the Deck's
+# native panel because that is the safest small size: a window sized
+# for a handheld is usable on a TV, where the reverse is not true.
+# Every real path resolves the live display first (xrandr, xdpyinfo,
+# then DRM sysfs, which already prefers an external DP/HDMI output).
 _DEFAULT_SIZE = (1280, 800)
 _MIN_SCALE = 1.0
 _MAX_SCALE = 3.0

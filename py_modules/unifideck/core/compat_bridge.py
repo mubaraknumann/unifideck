@@ -62,10 +62,41 @@ def to_unsigned(app_id: int | str) -> int:
     """Normalise a Steam shortcut appid to the unsigned 32-bit form.
 
     ``shortcuts.vdf`` and ``games.map`` store the *signed* value; Steam names
-    the ``compatdata`` directory with the unsigned one. Mirrors
-    ``services/shortcut/orphan_scan._to_unsigned``.
+    the ``compatdata`` directory with the unsigned one.
+
+    This is the only implementation. It used to say it mirrored
+    ``services/shortcut/orphan_scan._to_unsigned``, which stopped being true
+    when that module was changed to import this one.
     """
     return int(app_id) & 0xFFFFFFFF
+
+
+def appid_candidates(app_id: int | str) -> list[str]:
+    """Both the signed and unsigned 32-bit string forms of an appid.
+
+    Sync stores ``Game.app_id`` **signed** (matching Steam's on-disk
+    representation), while Steam's frontend hands plugins the **unsigned**
+    form via ``overview.appid``. A cache keyed on ``str(game.app_id)`` is
+    therefore reachable only through the signed string, and vice versa, so a
+    lookup has to try both. Callers should not have to know which side wrote
+    the entry.
+
+    Distinct from :func:`to_unsigned`, which *converts* between the two.
+    This *generates both* for a lookup — audit §1.4 deliberately left these
+    apart for that reason while folding twelve conversion sites onto
+    ``to_unsigned``.
+
+    Lives here rather than in ``rpc/`` because ``rpc`` is a leaf package
+    (``.importlinter``: nothing inside ``unifideck.*`` may import it), and
+    two of the three former copies were outside it. Audit register item 20.
+    """
+    value = int(app_id)
+    forms: list[str] = [str(value)]
+    if value > 0x7FFFFFFF:
+        forms.append(str(value - 0x100000000))
+    elif value < 0:
+        forms.append(str(value + 0x100000000))
+    return forms
 
 
 def compatdata_dir(steam_root: Path) -> Path:

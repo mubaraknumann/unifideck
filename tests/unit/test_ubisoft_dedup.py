@@ -44,6 +44,16 @@ class _IdMap:
     def update_bulk(self, mapping: dict[str, dict[str, Any]]) -> None:
         self.bulk.update(mapping)
 
+    def reconcile_connect_ids(
+        self, fresh: dict[str, str], space_ids: list[str],
+    ) -> None:
+        for space_id in space_ids:
+            connect_id = fresh.get(space_id)
+            if connect_id:
+                self.bulk.setdefault(space_id, {})["ubisoftconnect_game_id"] = (
+                    connect_id
+                )
+
 
 def _cfg(install_id: int, space_id: str, name: str) -> GameConfig:
     c = GameConfig()

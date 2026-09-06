@@ -25,7 +25,7 @@ from typing import Any
 import pytest
 
 from unifideck.core import marker_sweep, safe_delete
-from unifideck.rpc.mixins import cleanup_sweeps
+from unifideck.core import cleanup_sweeps
 from unifideck.rpc.mixins.sync import SyncRPCMixin
 
 

@@ -1,8 +1,6 @@
 """
 Direct sign-in fallback — re-use credentials from an already-authed UPC install.
 
-OP-58e | py_modules/unifideck/stores/ubisoft/auth/direct_signin.py
-
 If the user already has UPC installed (e.g. from a previous Unifideck
 install or a manually-installed Heroic) the credentials may already be
 present in some Wine prefix. ``_DirectSignIn`` scans known prefix
@@ -26,7 +24,6 @@ from unifideck.stores.ubisoft.paths import UbisoftPrefixPaths
 from unifideck.stores.ubisoft.session import UbisoftSession
 
 logger = logging.getLogger(__name__)
-
 
 class _DirectSignIn:
     """Direct sign in."""

@@ -69,15 +69,6 @@
     "validationErrors.homeRoot": "不能使用家目錄或根目錄",
     "freeSpaceLabel": "{{label}}（剩餘 {{freeSpace}} GB）"
   },
-  "gameGrid": {
-    "loading": "載入遊戲中…",
-    "noGamesFound": "找不到遊戲",
-    "noGamesHint": "請從 Unifideck 設定中同步您的遊戲庫",
-    "showingGames": "顯示 {{count}} 款遊戲",
-    "installed": "已安裝",
-    "notInstalled": "未安裝",
-    "playtime": "已玩 {{hours}} 小時 {{minutes}} 分鐘"
-  },
   "downloadsTab": {
     "currentDownload": "目前下載中",
     "queuedDownloads": "佇列中（{{count}}）",
@@ -154,9 +145,9 @@
     "connected": "已連結",
     "checking": "正在檢查中…",
     "authenticate": "登入",
-    "legendaryNotInstalled": "⚠️ 正在安裝 Epic Games 用戶端…",
-    "nileNotInstalled": "⚠️ 找不到 Amazon Games 用戶端",
-    "error": "錯誤。請檢查紀錄檔"
+    "error": "錯誤。請檢查紀錄檔",
+    "storefrontOpening": "正在開啟 {{store}} 商店...",
+    "storefrontFailed": "無法開啟 {{store}} 商店"
   },
   "librarySync": {
     "title": "遊戲庫同步",
@@ -267,6 +258,8 @@
     "ubisoftLauncherAlreadyOpenMessage": "已為這次安裝開啟 Ubisoft Connect。",
     "ubisoftLauncherOpenFailed": "無法開啟 Ubisoft Connect",
     "ubisoftLauncherOpenFailedMessage": "無法開啟 Ubisoft Connect 進行安裝。",
+    "ubisoftSignInExpired": "Ubisoft 登入已過期",
+    "ubisoftSignInExpiredMessage": "已儲存的 Ubisoft 登入資訊不再有效。請在 Unifideck 設定中登出並重新登入以恢復連線。",
     "multipartDetected": "已偵測到分段下載",
     "multipartMessage": "請耐心等待完成",
     "downloadFailed": "下載失敗",
@@ -328,8 +321,6 @@
       "startingAmazonGame": "正在啟動 Amazon 遊戲…",
       "startingGogGame": "正在啟動 GOG 遊戲…",
       "startingUbisoftGame": "正在啟動 Ubisoft 遊戲…",
-      "signingInUbisoft": "正在登入 Ubisoft Connect",
-      "signingInUbisoftMessage": "正在開啟 Ubisoft Connect。請在其中登入，完成後回到這裡。",
       "installingUbisoft": "正在透過 Ubisoft Connect 安裝",
       "installingUbisoftMessage": "正在開啟 Ubisoft Connect。請在啟動器視窗中開始安裝。",
       "ubisoftPrefixNotReady": "Ubisoft Connect 尚未就緒",
@@ -350,6 +341,8 @@
       "protonSwitchedTo": "現在使用 {{version}}",
       "protonReadyTitle": "Proton 已就緒",
       "protonReadyBody": "{{version}} 已可使用",
+      "externalProtonOutdatedTitle": "外部管理的 GE-Proton 有可用更新",
+      "externalProtonOutdatedBody": "偵測到最新版本 {{version}}，請前往外部管理器進行更新。",
       "epicAuthRequired": "需要 Epic 登入",
       "epicAuthRequiredMessage": "請在 Unifideck 設定中登入 Epic Games",
       "installingRedist": "正在安裝可轉散發套件",
@@ -399,10 +392,9 @@
       "battlenetInstallerDownloadFailedMessage": "無法下載 Battle.net 安裝程式。請檢查網路連線後再試一次。",
       "battlenetClientInstallFailed": "Battle.net 安裝失敗",
       "battlenetClientInstallFailedMessage": "Battle.net 用戶端安裝程式未完成。請重試，或查看啟動記錄了解其回報的內容。",
-      "signingInBattlenet": "Battle.net 登入",
-      "signingInBattlenetMessage": "正在開啟 Battle.net 用戶端以便登入…",
       "installingBattlenet": "正在透過 Battle.net 安裝",
-      "installingBattlenetMessage": "正在開啟 Battle.net。請在其中點選「安裝」以開始下載 {{gameTitle}}。"
+      "installingBattlenetMessage": "正在開啟 Battle.net。請在其中點選「安裝」以開始下載 {{gameTitle}}。",
+      "wrapperOpening": "正在開啟 {{client}}"
     },
     "updateComplete": "更新完畢！",
     "updateCompleteMessage": "{{title}} 已被更新。",
@@ -410,7 +402,6 @@
     "updateCancelledMessage": "{{title}} 的更新已取消。",
     "updateFailed": "更新失敗",
     "updateFailedMessage": "啟動更新失敗。",
-    "storeError": "無法與商店 {{store}} 通訊（{{errType}}）",
     "captureLogsStarted": "正在收集記錄…",
     "captureLogsStartedMessage": "正在下載資料夾建立診斷壓縮檔，約需幾秒。",
     "captureLogsDone": "已收集記錄",
@@ -426,9 +417,7 @@
       "openStorageManager": "釋放空間",
       "signInToStore": "登入商店",
       "retrySync": "重試",
-      "retryLibrarySync": "重新整理遊戲庫",
-      "openSaveFolder": "查看存檔資料夾",
-      "showLogs": "查看紀錄檔"
+      "retryLibrarySync": "重新整理遊戲庫"
     },
     "library": {
       "_comment": "Toasts emitted by SyncService when a per-store library sync fails. The retry button triggers a fire-and-forget refresh via the unifideck://refresh-library/<store> verb; the user doesn't wait for the result inline, the Library view picks it up through its SYNC_PROGRESS subscription.",
@@ -485,6 +474,7 @@
       "authExpired": "登入已過期。請重新登入",
       "toolMissing": "找不到所需的下載工具",
       "processFailed": "下載失敗。請重試",
+      "stalled": "下載停滯，沒有任何進度。請重試。",
       "directoryNotFound": "無法找到已安裝的檔案",
       "lockConflict": "另一項操作正在進行中。請重試",
       "ubisoftClient": "Ubisoft Connect 用戶端發生錯誤。請嘗試修復 Wine Prefix",
@@ -551,7 +541,8 @@
     "amazon": "Amazon",
     "ubisoft": "Ubisoft",
     "microsoft": "Microsoft",
-    "battlenet": "Battle.net"
+    "battlenet": "Battle.net",
+    "gamevault": "GameVault"
   },
   "unifiedLibrary": {
     "error": "Unifideck 錯誤",
@@ -598,11 +589,14 @@
       "never": "無記錄"
     },
     "compatibility": {
-      "modalTitle": "Steam Deck 相容性",
+      "modalTitleDeck": "Steam Deck 相容性",
+      "modalTitleMachine": "Steam Machine 相容性",
+      "modalTitleSteamOS": "SteamOS 相容性",
       "viewOnProtonDb": "在 ProtonDB 檢視",
       "close": "關閉",
       "verified": "已驗證",
       "playable": "可遊玩",
+      "compatible": "相容",
       "unsupported": "不支援",
       "unknown": "不明"
     },
@@ -615,7 +609,7 @@
   },
   "achievementsModal": {
     "title": "成就",
-    "progress": "{{unlocked}} / {{total}}（{{percent}}%）",
+    "progress": "{{unlocked}} / {{total}} ({{percent}}%)",
     "refresh": "重新整理",
     "close": "關閉",
     "loading": "正在載入成就…",
@@ -623,7 +617,7 @@
     "hidden": "隱藏成就",
     "unlockedOn": "{{date}} 解鎖",
     "error": "無法載入成就。",
-    "errorOffline": "請連上網際網路以查看成就。",
+    "errorOffline": "連接到網際網路以檢視成就。",
     "errorAuth": "登入此遊戲的商店以檢視成就。",
     "errorUnavailable": "此遊戲不支援成就。"
   },
@@ -635,7 +629,7 @@
   "collectionSettings": {
     "title": "STEAM 收藏",
     "enabled": "已啟用收藏",
-    "disabled": "已停用收藏"
+    "disabled": "已禁用收藏"
   },
   "installLanguageModal": {
     "title": "選擇語言",
@@ -726,8 +720,7 @@
     "signInRequired": "需要登入以進行遊玩",
     "syncSkippedNoSubscription": "未偵測到有效的 Xbox Game Pass 會員資格。xCloud 遊戲庫同步已被跳過。",
     "syncSkippedTierUnknown": "偵測到 Xbox Game Pass 訂閱，但無法確認會員等級。為避免顯示無法遊玩的遊戲，已略過同步。",
-    "subscriptionCheckFailed": "無法驗證 Xbox Game Pass 訂閱狀態。已跳過 xCloud 同步。請在網路連線穩定時重試。",
-    "subscriptionDetected": "已偵測到有效的 Xbox Game Pass {{tier}} 訂閱。"
+    "subscriptionCheckFailed": "無法驗證 Xbox Game Pass 訂閱狀態。已跳過 xCloud 同步。請在網路連線穩定時重試。"
   },
   "playButton": {
     "play": "執行",
@@ -1032,9 +1025,14 @@
     "installingButton": "正在安裝…",
     "installingTitle": "安裝外掛程式中",
     "latestLabel": "最新版本",
+    "manageButton": "更新",
+    "manageButtonAvailable": "更新（v{{version}} 可用）",
+    "manageTitle": "外掛更新",
     "modalTitle": "UNIFIDECK v{{version}}。發行說明",
     "noBackend": "Decky 後端服務不可用。",
     "noReleaseNotes": "無可用發行說明。",
+    "noticeBody": "可在 Unifideck 設定中安裝 v{{version}}。",
+    "noticeTitle": "Unifideck 有可用更新",
     "reinstallButton": "重新安裝 v{{version}}",
     "refreshFailedMessage": "無法確認最新發行資訊。請檢查連線後重試。",
     "releaseGoneMessage": "此發行版本已無法使用。請檢查更新後重選。",
@@ -1052,5 +1050,36 @@
     "typeReinstall": "重新安裝",
     "typeUpdate": "升級至",
     "updateButton": "升級至 v{{version}}"
+  },
+  "reconcile": {
+    "repairedTitle": "程式庫資料已修復",
+    "repairedBody": "已補齊上次同步中斷遺留的 {{artwork}} 項封面、{{metadata}} 項中繼資料和 {{compat}} 項相容性資訊。"
+  },
+  "gamevault": {
+    "connectTitle": "連線至 GameVault",
+    "connect": "連線",
+    "connecting": "連線中…",
+    "cancel": "取消",
+    "modeRemote": "連線到遠端伺服器",
+    "modeRemoteDescription": "登入你在他處自架的 GameVault 伺服器。",
+    "modeLocal": "使用本機上的資料夾",
+    "modeLocalDescription": "匯入你已有的無 DRM 遊戲壓縮檔，不需要伺服器。",
+    "localTitle": "本機遊戲資料夾",
+    "localIntro": "把遊戲壓縮檔放進這個資料夾，下次同步後就會出現在收藏庫中。",
+    "vaultDir": "壓縮檔資料夾",
+    "vaultDirDescription": "存放遊戲壓縮檔的位置。",
+    "browse": "瀏覽…",
+    "serverUrl": "伺服器位址",
+    "username": "使用者名稱",
+    "password": "密碼",
+    "verifySsl": "驗證 SSL 憑證",
+    "verifySslDescription": "自簽憑證請停用此選項",
+    "downloadDir": "封存下載目錄",
+    "downloadDirDescription": "封存下載的暫存目錄。留空使用預設值。",
+    "downloadDirPlaceholder": "~/.local/share/unifideck/gamevault_downloads",
+    "errorServerUrlRequired": "請輸入伺服器位址",
+    "errorUsernameRequired": "請輸入使用者名稱",
+    "errorPasswordRequired": "請輸入密碼",
+    "errorConnection": "連線至 GameVault 伺服器失敗"
   }
 }

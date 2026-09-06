@@ -154,13 +154,19 @@ def test_rockstar_app_name_on_non_epic_store_is_not_special(tmp_path, monkeypatc
 # icuuc.dll stub, new in GE-Proton11-3, shadowing the ICU 65 the game ships.
 # The window opens and stays blank. Proton's own bundled ICU is 68, so only
 # loading the game's own copy fixes it.
+#
+# GE-Proton11-3 shipped builtin stubs for ``icuuc.dll`` AND ``icuin.dll`` in
+# the same build, and Cyberpunk bundles ICU 65 as both. Overriding icuuc
+# alone only moved the abort one library along — a later bundle (2026-08-23)
+# shows the game dying on ``icuin.dll.?compile@RegexPattern@icu_65@@...``
+# instead. Both must be overridden together.
 
 def test_cyberpunk_gog_gets_native_icu_override(tmp_path, monkeypatch):
     plan = _prepare(
         tmp_path, monkeypatch, "gog",
         game_id="1423049311", exe_name="REDprelauncher.exe",
     )
-    assert plan.env["WINEDLLOVERRIDES"] == "icuuc=n,b"
+    assert plan.env["WINEDLLOVERRIDES"] == "icuuc=n,b;icuin=n,b"
     assert plan.env["STORE"] == "gog"
 
 
@@ -171,7 +177,7 @@ def test_cyberpunk_matches_on_exe_name_alone(tmp_path, monkeypatch):
         tmp_path, monkeypatch, "gog",
         game_id="some-unknown-id", exe_name="Cyberpunk2077.exe",
     )
-    assert plan.env["WINEDLLOVERRIDES"] == "icuuc=n,b"
+    assert plan.env["WINEDLLOVERRIDES"] == "icuuc=n,b;icuin=n,b"
 
 
 def test_cyberpunk_epic_codename_matches(tmp_path, monkeypatch):
@@ -180,7 +186,7 @@ def test_cyberpunk_epic_codename_matches(tmp_path, monkeypatch):
     plan = _prepare(
         tmp_path, monkeypatch, "epic", game_id="Ginger", exe_name="null",
     )
-    assert plan.env["WINEDLLOVERRIDES"] == "icuuc=n,b"
+    assert plan.env["WINEDLLOVERRIDES"] == "icuuc=n,b;icuin=n,b"
 
 
 def test_ordinary_gog_game_gets_no_icu_override(tmp_path, monkeypatch):
@@ -200,7 +206,31 @@ def test_icu_override_merges_with_existing(tmp_path, monkeypatch):
         tmp_path, monkeypatch, "gog",
         game_id="1423049311", exe_name="REDprelauncher.exe",
     )
-    assert plan.env["WINEDLLOVERRIDES"] == "locationapi=d;icuuc=n,b"
+    assert plan.env["WINEDLLOVERRIDES"] == "locationapi=d;icuuc=n,b;icuin=n,b"
+
+
+def test_icu_override_fills_in_only_the_missing_dll(tmp_path, monkeypatch):
+    """The skip guard is per DLL, not "did we already mention any ICU".
+
+    A single ``"icuuc" in existing`` test used to short-circuit the whole
+    block, so an environment that already named icuuc got NO icuin — the
+    half-applied state Cyberpunk aborts in.
+    """
+    monkeypatch.setenv("WINEDLLOVERRIDES", "icuuc=n,b")
+    plan = _prepare(
+        tmp_path, monkeypatch, "gog",
+        game_id="1423049311", exe_name="REDprelauncher.exe",
+    )
+    assert plan.env["WINEDLLOVERRIDES"] == "icuuc=n,b;icuin=n,b"
+
+
+def test_icu_override_is_a_noop_when_both_already_present(tmp_path, monkeypatch):
+    monkeypatch.setenv("WINEDLLOVERRIDES", "icuin=b;icuuc=b")
+    plan = _prepare(
+        tmp_path, monkeypatch, "gog",
+        game_id="1423049311", exe_name="REDprelauncher.exe",
+    )
+    assert plan.env["WINEDLLOVERRIDES"] == "icuin=b;icuuc=b"
 
 
 def test_user_env_override_still_wins(tmp_path, monkeypatch):

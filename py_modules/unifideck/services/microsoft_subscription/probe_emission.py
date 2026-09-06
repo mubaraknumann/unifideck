@@ -7,7 +7,6 @@ from .constants import _DEFAULT_PROBE_URL
 
 if TYPE_CHECKING:
     from unifideck.config import ConfigManager
-    from unifideck.core.types import SubscriptionTier
     from unifideck.event_bus.event_bus import EventBus
     from unifideck.stores.microsoft.microsoft_subscription import (
         SubscriptionProbeResult,
@@ -18,7 +17,6 @@ class _ProbeEmissionMixin:
     """Probe emission mixin."""
     _bus: EventBus
     _config: ConfigManager | None
-    _last_emitted: dict[str, SubscriptionTier]
     _last_standard_chain: XBLTokenChain | None
     async def _run_probe(
         self,
@@ -59,26 +57,11 @@ class _ProbeEmissionMixin:
         except Exception:
             return _DEFAULT_PROBE_URL
 
-    async def _emit_state_change(
-        self,
-        cache_key: str,
-        tier: SubscriptionTier,
-    ) -> None:
-
-        """Emit state change."""
-        from unifideck.core.types import Events, SubscriptionTier
-        last = self._last_emitted.get(cache_key)
-        if last == tier:
-            return
-        self._last_emitted[cache_key] = tier
-        if tier == SubscriptionTier.NONE:
-            await self._bus.emit(
-                Events.SUBSCRIPTION_EXPIRED,
-                store="microsoft",
-            )
-        else:
-            await self._bus.emit(
-                Events.SUBSCRIPTION_DETECTED,
-                store="microsoft",
-                tier=tier.value,
-            )
+    # ``_emit_state_change`` lived here and was retired 2026-08 (audit §1.3).
+    # It emitted SUBSCRIPTION_DETECTED / SUBSCRIPTION_EXPIRED on every tier
+    # transition, deduped through a ``_last_emitted`` map. Neither event had a
+    # consumer on any leg — both were absent from ``src/types/events.ts`` AND
+    # from ``WATCHED_EVENTS``, so the frontend never even polled for them, and
+    # no Python handler subscribed. The tier that matters to the user already
+    # reaches them through SYNC_SKIPPED, which the boot event listener renders.
+    # Do not re-add a second channel for the same news.

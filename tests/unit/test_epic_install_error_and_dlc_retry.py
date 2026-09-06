@@ -108,14 +108,23 @@ def _record_installed(tmp_path: Any, game_id: str) -> None:
     )
 
 
-def _emitted(bus: AsyncMock, event_value: str) -> list[dict[str, Any]]:
-    """Return the kwargs of every ``bus.emit`` call for one event."""
+def _download_events(bus: AsyncMock) -> list[str]:
+    """Names of every ``DOWNLOAD_*`` event the installer emitted.
+
+    Must always be empty. ``DownloadWorker`` is the sole emitter of the
+    download lifecycle for all six stores; the installer only returns an
+    ``InstallResult`` and the worker turns that into the one terminal
+    event, carrying the queue item the UI needs. This installer used to
+    emit its own store-shaped copy too, which surfaced as a second,
+    title-less failure toast (audit item #4).
+    """
     out = []
     for call in bus.emit.await_args_list:
         args, kwargs = call
         name = args[0] if args else kwargs.get("event")
-        if getattr(name, "value", name) == event_value:
-            out.append(kwargs)
+        value = getattr(name, "value", name)
+        if isinstance(value, str) and value.startswith("download_"):
+            out.append(value)
     return out
 
 
@@ -215,7 +224,7 @@ async def test_success_runs_single_attempt_no_failure_event(
     assert result.success
     assert len(seen) == 1  # no spurious retry on success
     assert "--with-dlcs" in seen[0]
-    assert not _emitted(inst._bus, "download_failed")
+    assert _download_events(inst._bus) == []
 
 
 @pytest.mark.asyncio
@@ -242,13 +251,14 @@ async def test_dlc_failure_retries_without_dlc_and_succeeds(
     assert len(seen) == 2
     assert "--with-dlcs" in seen[0]
     assert "--skip-dlcs" in seen[1]  # retry drops DLC
-    # A recovered install must NOT report a terminal failure.
-    assert not _emitted(inst._bus, "download_failed")
-    assert _emitted(inst._bus, "download_started")
+    # A recovered install must NOT report a terminal failure — and the
+    # installer reports nothing at all, so the successful InstallResult is
+    # the only thing the worker sees.
+    assert _download_events(inst._bus) == []
 
 
 @pytest.mark.asyncio
-async def test_both_attempts_fail_emit_one_failure_with_real_reason(
+async def test_both_attempts_fail_report_one_failure_with_real_reason(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Any,
 ) -> None:
     inst = _installer()
@@ -265,9 +275,8 @@ async def test_both_attempts_fail_emit_one_failure_with_real_reason(
 
     assert not result.success
     assert len(seen) == 2  # DLC attempt + one no-DLC retry
-    # Exactly one terminal DOWNLOAD_FAILED, carrying legendary's real text.
-    failures = _emitted(inst._bus, "download_failed")
-    assert len(failures) == 1
-    assert "No app asset found" in failures[0]["error"]
+    # The InstallResult is the only report, and it carries legendary's real
+    # text — the worker folds that into the single DOWNLOAD_FAILED.
+    assert _download_events(inst._bus) == []
     assert result.error.startswith("legendary_exit_1:")
     assert "No app asset found" in result.error

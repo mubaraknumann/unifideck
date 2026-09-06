@@ -24,6 +24,8 @@ import contextlib
 import logging
 from typing import TYPE_CHECKING, Any
 
+from unifideck.core.steam_appid_map import read_positive_steam_appid
+
 if TYPE_CHECKING:
     from unifideck.core.types import Game
     from unifideck.services.metadata_service import MetadataService
@@ -35,7 +37,6 @@ _BACKGROUND_TASKS: set[asyncio.Task[None]] = set()
 
 _METADATA_NS = "metadata"
 _PCGW_NS = "pcgw_saves"
-_STEAM_REAL_APPID_NS = "steam_real_appid"
 _SUPPORTED_STORES = ("gog", "epic")
 BACKFILL_CONCURRENCY = 3
 
@@ -77,7 +78,7 @@ async def _fill_one(
     async with sem:
         with contextlib.suppress(Exception):
             from unifideck.metadata import pcgamingwiki
-            steam_appid = _read_real_steam_id(cache, getattr(game, "app_id", None)) or None
+            steam_appid = read_positive_steam_appid(cache, getattr(game, "app_id", None)) or None
             result = await pcgamingwiki.lookup(
                 game.store, game.store_game_id, game.title,
                 steam_appid=steam_appid,
@@ -105,12 +106,3 @@ def _safe_get(cache: Any, namespace: str, key: str) -> Any:
         return None
 
 
-def _read_real_steam_id(cache: Any, shortcut_app_id: int | None) -> int:
-    """Resolve a shortcut AppID to its real Steam AppID, or ``0``."""
-    if shortcut_app_id is None:
-        return 0
-    try:
-        value = cache.get(_STEAM_REAL_APPID_NS, str(shortcut_app_id))
-    except Exception:
-        return 0
-    return value if isinstance(value, int) and value > 0 else 0

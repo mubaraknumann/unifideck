@@ -1,17 +1,15 @@
 """
 Ubisoft library facade — orchestrates fetch, detect, build, filter.
 
-OP-57a | py_modules/unifideck/stores/ubisoft/library/facade.py
-
 ``UbisoftLibrary`` is the public entry-point of the library sub-package.
 It composes the work of:
 
-* ``fetch.py`` (OP-57b) — pull the UPC owned-games catalog;
-* ``data_loader.py`` (OP-57c) — load installed-state from disk markers;
-* ``detection.py`` (OP-57f) — detect installs the catalog doesn't know about;
-* ``manifest.py`` (OP-57e) — produce display-ready ``GameRecord`` entries.
+* ``fetch.py`` — pull the UPC owned-games catalog;
+* ``data_loader.py`` — load installed-state from disk markers;
+* ``detection.py`` — detect installs the catalog doesn't know about;
+* ``manifest.py`` — produce display-ready ``GameRecord`` entries.
 
-(``steam_filter.py`` (OP-55i) — Steam dedup — was removed in
+(``steam_filter.py`` — Steam dedup — was removed in
 commits 6c84e7e / 908d350; the filter is currently a no-op
 pending a fixed implementation.)
 
@@ -39,7 +37,6 @@ from .free_to_play import _FreeToPlayFeed
 from .manifest import _VisibleManifestProcessor
 
 logger = logging.getLogger(__name__)
-
 
 class UbisoftLibrary:
     """Ubisoft library."""

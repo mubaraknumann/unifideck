@@ -15,8 +15,25 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from unifideck.compatibility.deck_verified import (
+    TRACK_NAMES,
+    TrackResult,
+    spec_for,
+)
 from unifideck.compatibility.library import CompatLibrary
 from unifideck.services.metadata_service import MetadataService
+
+
+def _tracks(**kw: int) -> dict[str, TrackResult]:
+    """Build a fetch result. ``_tracks(deck=2)`` -> Deck Playable."""
+    out = {n: TrackResult() for n in TRACK_NAMES}
+    for name, category in kw.items():
+        statuses = spec_for(name).statuses  # type: ignore[union-attr]
+        out[name] = TrackResult(
+            category=category, status=statuses.get(category, "unknown"),
+        )
+    return out
+
 
 
 class _Store:
@@ -212,8 +229,8 @@ async def test_get_for_appid_refresh_bypasses_and_overwrites() -> None:
     with (
         patch.object(lib, "_fetch_protondb", new=AsyncMock(return_value="gold")),
         patch.object(
-            lib, "_fetch_deck_verified",
-            new=AsyncMock(return_value=("verified", [])),
+            lib, "_fetch_compat",
+            new=AsyncMock(return_value=_tracks(deck=3)),
         ),
     ):
         rating = await lib.get_for_appid(945360, refresh=True)

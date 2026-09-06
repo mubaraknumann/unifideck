@@ -1,8 +1,6 @@
 """
 Detect installed Ubisoft games — find on-disk games not in the registry.
 
-OP-57f | py_modules/unifideck/stores/ubisoft/library/detection.py
-
 When Unifideck is freshly installed or the user has manually copied
 game files between prefixes, the install registry may be incomplete:
 games may exist on disk that Unifideck doesn't know about.
@@ -41,7 +39,6 @@ from .detection_helpers import (
 )
 
 logger = logging.getLogger(__name__)
-
 
 class _InstallDetector:
     """Install detector."""
@@ -156,29 +153,35 @@ class _InstallDetector:
         prefix_path: str,
         game_info: dict[str, Any],
     ) -> None:
-        """Auto resolve ID from registry."""
+        """Adopt the installed game's own registry id, and cross-check it.
+
+        The game's prefix carries its ``Launcher\\Installs\\<id>`` key, so
+        for an installed game this is unambiguous evidence — unlike UPC's
+        shared leveldb cache, which #436 showed can hand a game its
+        neighbour's id. Runs even when an id is already recorded: a
+        weaker-sourced value that disagrees is corrected here — but not
+        once the recorded id already came from the registry (or a hand
+        edit), which also spares a re-read of ``system.reg`` per game
+        on every later sync.
+        """
         existing = self._id_map.get_entry(space_id)
-        if existing.get("launch_id") or existing.get("ubisoftconnect_game_id"):
+        if existing.get("ubisoftconnect_game_id_source") in ("registry", "manual"):
             return
         reg_id = UbisoftIdMap.extract_game_id_from_registry(
             prefix_path,
         )
         if not reg_id:
             return
-        self._id_map.merge_entry(
-            space_id,
-            {
-                "install_id": reg_id,
-                "launch_id": reg_id,
-                "ubisoftconnect_game_id": reg_id,
-                "name": game_info.get("title", ""),
-            },
-        )
-        logger.info(
-            "[UbisoftLibrary] auto-resolved game ID for %s: %s",
-            space_id,
-            reg_id,
-        )
+        fields: dict[str, Any] = {"name": game_info.get("title", "")}
+        if not existing.get("launch_id"):
+            fields["install_id"] = reg_id
+            fields["launch_id"] = reg_id
+        if self._id_map.set_connect_id(space_id, reg_id, "registry", fields):
+            logger.info(
+                "[UbisoftLibrary] resolved game ID for %s from its registry: %s",
+                space_id,
+                reg_id,
+            )
 
     async def _auto_resolve_missing_id(
         self,
@@ -190,23 +193,26 @@ class _InstallDetector:
         existing = self._id_map.get_entry(space_id)
         if existing.get("launch_id") or existing.get("ubisoftconnect_game_id"):
             return
+        source = "registry"
         reg_id = UbisoftIdMap.extract_game_id_from_registry(
             prefix_path,
         )
         if not reg_id:
             game_title = game_info.get("title", "")
+            source = "name_db"
             if game_title:
                 reg_id = await self._id_map.lookup_game_id_by_name(
                     game_title,
                 )
         if not reg_id:
             return
-        self._id_map.merge_entry(
+        self._id_map.set_connect_id(
             space_id,
+            reg_id,
+            source,
             {
                 "install_id": reg_id,
                 "launch_id": reg_id,
-                "ubisoftconnect_game_id": reg_id,
                 "name": game_info.get("title", ""),
             },
         )

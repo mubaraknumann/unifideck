@@ -59,6 +59,13 @@ async def build_eventbus_pipeline(plugin: Any) -> BusPipeline:
     from unifideck.event_bus.supervision.watchdog_handler import HandlerWatchdog
 
     plugin.watchdog = HandlerWatchdog()
+    # Attach it to the bus so ``auto_wire`` can find it. Every service calls
+    # ``auto_wire(self, bus)`` with two positional args and has no access to
+    # this pipeline, so without this the watchdog's ``watchdog=`` parameter
+    # was always ``None`` and it tracked zero handlers — for the life of the
+    # project (audit register item 4g). Set BEFORE any service is built, or
+    # the ones constructed first would silently miss registration.
+    plugin.bus.watchdog = plugin.watchdog
     plugin.latency = HandlerLatencyCollector()
     plugin.replay = EventReplayBuffer()
     plugin.batcher = BatchDispatcher()

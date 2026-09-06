@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
@@ -88,19 +89,26 @@ class PlaytimeService(PlaytimeStatsMixin):
             self._db = None
 
     @staticmethod
-    def _provisional_duration(session: dict[str, Any], now: datetime) -> int:
-        """Played seconds so far for ``session`` (wall minus sleep), no mutation.
+    def _provisional_duration(session: dict[str, Any]) -> int:
+        """Awake seconds so far for ``session``, no mutation.
 
         Single source of truth for both the heartbeat checkpoint and the final
-        ``_end_session`` calc. Folds any in-flight suspend into a LOCAL sleep
-        total so it never mutates the live session (the game is still running
-        during a heartbeat).
+        ``_end_session`` calc.
+
+        Measured off ``time.monotonic()``, which maps to ``CLOCK_MONOTONIC`` and
+        does NOT advance while the machine is suspended — so sleep is excluded
+        for free, on every suspend path, including a hard one that fires no
+        signal at all. This used to be ``wall_clock - total_sleep_secs``, where
+        the sleep total was accumulated by ``SUSPEND``/``RESUME`` bus handlers
+        that nothing ever emitted: sleep was permanently 0, so putting the Deck
+        down mid-game billed the whole night as playtime and
+        ``PlaytimeSyncService`` pushed that number to GOG/Epic.
+
+        ``started_at`` stays wall-clock and is NOT interchangeable with this:
+        ``_update_daily_stats`` needs a real date to attribute the session to a
+        calendar day.
         """
-        sleep = session["total_sleep_secs"]
-        if session["suspended_at"]:
-            sleep += (now - session["suspended_at"]).total_seconds()
-        wall_secs = (now - session["started_at"]).total_seconds()
-        return max(0, int(wall_secs - sleep))
+        return max(0, int(time.monotonic() - session["started_monotonic"]))
 
     async def _heartbeat_loop(self) -> None:
         """Persist a provisional duration for active sessions every tick."""
@@ -128,12 +136,11 @@ class PlaytimeService(PlaytimeStatsMixin):
         """
         if self._db is None or not self._active:
             return
-        now = datetime.now(UTC)
         for session in self._active.values():
             row_id = session.get("db_row_id")
             if not row_id:
                 continue
-            duration = self._provisional_duration(session, now)
+            duration = self._provisional_duration(session)
             self._db.execute(
                 """UPDATE play_sessions
                    SET duration_secs = ?,
@@ -254,10 +261,11 @@ class PlaytimeService(PlaytimeStatsMixin):
         self._active[key] = {
             "game_db_id": game_db_id,
             "title": title,
+            # Wall clock, for calendar-day attribution in _update_daily_stats.
             "started_at": now,
             "db_row_id": row_id,
-            "total_sleep_secs": 0.0,
-            "suspended_at": None,
+            # Suspend-excluding clock, for duration. See _provisional_duration.
+            "started_monotonic": time.monotonic(),
         }
 
         logger.info("[PlaytimeService] Session started: %s (%s)", title, key)
@@ -271,31 +279,12 @@ class PlaytimeService(PlaytimeStatsMixin):
         if store and game_id:
             await self._end_session(store, game_id, end_reason="normal")
 
-    @subscribe(Events.SUSPEND)
-    async def _on_suspend(self, **kwargs: Any) -> None:
-        """Pause the clock for all active sessions."""
-        now = datetime.now(UTC)
-        count = 0
-        for session in self._active.values():
-            if session["suspended_at"] is None:
-                session["suspended_at"] = now
-                count += 1
-        if count > 0:
-            logger.info("[PlaytimeService] Suspended %d active session(s)", count)
-
-    @subscribe(Events.RESUME)
-    async def _on_resume(self, **kwargs: Any) -> None:
-        """Resume the clock for all suspended sessions."""
-        now = datetime.now(UTC)
-        count = 0
-        for session in self._active.values():
-            if session["suspended_at"] is not None:
-                sleep_duration = (now - session["suspended_at"]).total_seconds()
-                session["total_sleep_secs"] += sleep_duration
-                session["suspended_at"] = None
-                count += 1
-        if count > 0:
-            logger.info("[PlaytimeService] Resumed %d active session(s)", count)
+    # There are deliberately no SUSPEND/RESUME handlers. They existed here to
+    # accumulate a per-session sleep total, subscribed to two events that no
+    # code in the tree has ever emitted — there is no logind listener and no
+    # SteamClient suspend hook. ``_provisional_duration`` now measures awake
+    # time directly off CLOCK_MONOTONIC, which needs no signal and also covers
+    # a hard suspend that would fire none. Both enum members were retired.
 
     async def get_playtime(self, store: str, game_id: str) -> dict[str, Any]:
         """Return cumulative playtime for a single game."""
@@ -400,7 +389,7 @@ class PlaytimeService(PlaytimeStatsMixin):
         now = datetime.now(UTC)
         now_iso = now.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
-        duration_secs = self._provisional_duration(session, now)
+        duration_secs = self._provisional_duration(session)
 
         if duration_secs < _MIN_SESSION_SECONDS:
             logger.debug("[PlaytimeService] Discarding short session (%ds) for %s", duration_secs, session["title"])

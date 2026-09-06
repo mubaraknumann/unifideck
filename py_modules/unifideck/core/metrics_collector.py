@@ -1,7 +1,5 @@
 """Plugin-wide metrics collector — bus-driven counters + timers + gauges.
 
-OP-08i | py_modules/unifideck/core/metrics_collector.py
-
 ``MetricsCollector`` subscribes to a fixed set of bus events
 and maintains three families of metrics:
 
@@ -33,9 +31,9 @@ from typing import Any
 
 from unifideck.core.types import Events
 from unifideck.event_bus.event_bus import EventBus
+from unifideck.event_bus.event_bus_devex import auto_wire, subscribe
 
 logger = logging.getLogger(__name__)
-
 
 class MetricsCollector:
     """Bus-driven counters / timers / gauges aggregator."""
@@ -76,12 +74,17 @@ class MetricsCollector:
            closure captures the counter name and forwards
            any kwargs (ignored).
         2. **Decorated handlers** — the ``_on_*`` methods
-           use ``auto_wire`` so they're picked up by the
-           bus's introspection. Note: ``auto_wire`` is
-           called inside the loop — should only run once,
-           but extra calls are no-ops (idempotent).
+           carry ``@subscribe`` metadata, so a single
+           ``auto_wire`` call registers all of them.
 
-        Logs at INFO with the wiring count once
+        ``auto_wire`` must run exactly **once**.
+        ``EventBus.on`` allows duplicate registrations by
+        design (it says so in its own docstring), so
+        calling it once per counter row — as this method
+        used to — subscribes every decorated handler seven
+        times over and multiplies everything they record.
+
+        Logs at INFO with both wiring counts once
         registration completes.
         """
         counter_events = [
@@ -92,16 +95,21 @@ class MetricsCollector:
             (Events.DOWNLOAD_QUEUED, "download_queued"),
             (Events.DOWNLOAD_COMPLETE, "download_completed"),
             (Events.DOWNLOAD_FAILED, "download_failed"),
+            # NOTE: no ``DOWNLOAD_CANCELLED`` row. That event already has a
+            # ``@subscribe`` handler (``_on_download_cancelled``), and adding
+            # a row here would register a *second* subscription for it —
+            # ``test_every_handler_is_wired_exactly_once`` catches that. The
+            # ``download_cancelled`` counter is incremented inside that
+            # handler instead. Audit register item 4f.
         ]
         for event, name in counter_events:
             self._bus.on(event, lambda n=name, **kw: self._inc_counter(n))
-            from unifideck.event_bus.event_bus_devex import auto_wire
-
-            auto_wire(self, self._bus)
-            logger.info(
-                "[MetricsCollector] wired (%d counter + decorated handlers)",
-                len(counter_events),
-            )
+        wired = auto_wire(self, self._bus)
+        logger.info(
+            "[MetricsCollector] wired (%d counter + %d decorated handlers)",
+            len(counter_events),
+            wired,
+        )
 
     async def stop(self) -> None:
         """No-op shutdown hook.
@@ -151,7 +159,8 @@ class MetricsCollector:
         """
         self._counters[name] = self._counters.get(name, 0) + 1
 
-    def _on_auth_start(self, store: str = "", **kwargs: Any) -> None:
+    @subscribe(Events.STORE_AUTH_STARTED)
+    async def _on_auth_start(self, store: str = "", **kwargs: Any) -> None:
         """Stash the monotonic start time for an auth attempt.
 
         Keyed by ``"auth:<store>"`` so concurrent auth
@@ -164,7 +173,8 @@ class MetricsCollector:
         """
         self._pending_timers[f"auth:{store}"] = time.monotonic()
 
-    def _on_auth_complete(self, store: str = "", **kwargs: Any) -> None:
+    @subscribe(Events.STORE_AUTH_COMPLETE)
+    async def _on_auth_complete(self, store: str = "", **kwargs: Any) -> None:
         """Finalise the auth timer for ``store`` into ``auth_duration_ms``.
 
         Look up the pending start, compute elapsed, store
@@ -178,7 +188,8 @@ class MetricsCollector:
         """
         self._complete_timer(f"auth:{store}", "auth_duration_ms")
 
-    def _on_sync_start(self, **kwargs: Any) -> None:
+    @subscribe(Events.SYNC_STARTED)
+    async def _on_sync_start(self, **kwargs: Any) -> None:
         """Stash the monotonic start time for a sync.
 
         Single shared timer key (``"sync"``) — only one
@@ -189,7 +200,8 @@ class MetricsCollector:
         """
         self._pending_timers["sync"] = time.monotonic()
 
-    def _on_sync_complete(self, **kwargs: Any) -> None:
+    @subscribe(Events.SYNC_COMPLETE)
+    async def _on_sync_complete(self, **kwargs: Any) -> None:
         """Finalise the sync timer into ``sync_duration_ms``.
 
         Args:
@@ -197,37 +209,55 @@ class MetricsCollector:
         """
         self._complete_timer("sync", "sync_duration_ms")
 
-    def _on_download_start(self, store: str = "", game_id: str = "", **kwargs: Any) -> None:
+    @subscribe(Events.DOWNLOAD_STARTED)
+    async def _on_download_start(self, **kwargs: Any) -> None:
         """Stash the monotonic start time for a download.
 
-        Keyed by ``"dl:<store>:<game_id>"`` so concurrent
+        Keyed via :meth:`_download_key` so concurrent
         downloads don't conflict.
 
-        Args:
-            store: store identifier.
-            game_id: store-specific game id.
-            **kwargs: ignored.
-        """
-        self._pending_timers[f"dl:{store}:{game_id}"] = time.monotonic()
+        ``setdefault``, not assignment: ``DOWNLOAD_STARTED``
+        is emitted more than once per install by design.
+        ``DownloadWorker`` re-emits it when the download
+        finishes and prefix warmup begins, so the frontend
+        refetches the queue and the row picks up its
+        "preparing" phase. Assigning restarted the clock
+        there, which made ``download_duration_ms`` measure
+        only the warmup window instead of the install the
+        user actually waited through.
 
-    def _on_download_complete(
-        self, store: str = "", game_id: str = "", **kwargs: Any,
-    ) -> None:
+        Safe only because every terminal event —
+        ``COMPLETE``, ``FAILED`` **and** ``CANCELLED`` —
+        pops the entry. Drop the cancel handler and a
+        cancelled attempt's stale clock gets inherited by
+        the retry of the same game.
+
+        Args:
+            **kwargs: the raw event payload.
+        """
+        self._pending_timers.setdefault(
+            self._download_key(kwargs), time.monotonic(),
+        )
+
+    @subscribe(Events.DOWNLOAD_COMPLETE)
+    async def _on_download_complete(self, **kwargs: Any) -> None:
         """Finalise the (store, game_id) download timer.
 
-        Records into ``download_duration_ms``.
+        Records into ``download_duration_ms``, spanning the
+        first ``DOWNLOAD_STARTED`` through here — download
+        plus prefix warmup, which is the whole time the
+        queue row is occupied.
 
         Args:
-            store: store identifier.
-            game_id: store-specific game id.
-            **kwargs: ignored.
+            **kwargs: the raw event payload.
         """
         self._complete_timer(
-            f"dl:{store}:{game_id}",
+            self._download_key(kwargs),
             "download_duration_ms",
         )
 
-    def _on_sync_gauge(
+    @subscribe(Events.SYNC_COMPLETE)
+    async def _on_sync_gauge(
         self,
         games: list[Any] | None = None,
         stores_synced: list[str] | None = None,
@@ -258,6 +288,102 @@ class MetricsCollector:
             self._gauges["sync_games_total"] = float(len(games))
             if stores_synced is not None:
                 self._gauges["sync_stores_count"] = float(len(stores_synced))
+
+    @subscribe(Events.STORE_AUTH_FAILED)
+    async def _on_auth_failed(self, store: str = "", **kwargs: Any) -> None:
+        """Discard the pending auth timer for ``store``.
+
+        A failed attempt has no duration worth recording.
+        Dropping the entry also stops a later
+        ``STORE_AUTH_COMPLETE`` that arrives without its own
+        start — the wrapper-store monitor emits one on token
+        capture — from being measured against this failed
+        attempt's clock.
+
+        Args:
+            store: store identifier.
+            **kwargs: ignored.
+        """
+        self._pending_timers.pop(f"auth:{store}", None)
+
+    @subscribe(Events.SYNC_FAILED)
+    async def _on_sync_failed(self, **kwargs: Any) -> None:
+        """Discard the pending sync timer.
+
+        Args:
+            **kwargs: ignored.
+        """
+        self._pending_timers.pop("sync", None)
+
+    @subscribe(Events.DOWNLOAD_FAILED)
+    async def _on_download_failed(self, **kwargs: Any) -> None:
+        """Discard the pending download timer.
+
+        The one cleanup that matters for more than accuracy:
+        download keys carry a game id, so without this every
+        failed or cancelled install would leave an entry in
+        ``_pending_timers`` for the lifetime of the plugin
+        process.
+
+        Args:
+            **kwargs: the raw event payload.
+        """
+        self._pending_timers.pop(self._download_key(kwargs), None)
+
+    @subscribe(Events.DOWNLOAD_CANCELLED)
+    async def _on_download_cancelled(self, **kwargs: Any) -> None:
+        """Discard the pending download timer on cancellation.
+
+        The third terminal event, and for a long time the
+        missing one: only ``COMPLETE`` and ``FAILED`` popped
+        the entry, so every cancelled install left a
+        ``_pending_timers`` row keyed by store and game for
+        the lifetime of the plugin process. It is also what
+        makes ``_on_download_start``'s ``setdefault`` safe —
+        see its docstring.
+
+        Also increments ``download_cancelled``. The counter lives here
+        rather than in ``counter_events`` because this event already has a
+        subscription — a table row would make it two, which
+        ``test_every_handler_is_wired_exactly_once`` rejects. Cancel-vs-fail
+        is the distinction triage wants from a support bundle, and a user who
+        cancels installs was previously invisible in ``plugin_metrics``.
+        Audit register item 4f.
+
+        Args:
+            **kwargs: the raw event payload.
+        """
+        self._inc_counter("download_cancelled")
+        self._pending_timers.pop(self._download_key(kwargs), None)
+
+    @staticmethod
+    def _download_key(payload: dict[str, Any]) -> str:
+        """Build the ``_pending_timers`` key for a download event.
+
+        Every live emitter is ``services/download/`` and passes
+        the whole queue item as ``item`` — reading the ids out
+        of it is the production path. Without it every download
+        would share the key ``"dl::"`` and two concurrent ones
+        would overwrite each other's start time.
+
+        The top-level ``store``/``game_id`` read is kept as
+        tolerance, not as a live contract: the Epic and Amazon
+        installers used to emit their own store-shaped copy of
+        each event (audit item #4) and a stray re-add should
+        still land on the right key rather than on ``"dl::"``.
+
+        Args:
+            payload: the raw event kwargs.
+
+        Returns:
+            ``"dl:<store>:<game_id>"``.
+        """
+        item = payload.get("item")
+        if not isinstance(item, dict):
+            item = {}
+        store = payload.get("store") or item.get("store") or ""
+        game_id = payload.get("game_id") or item.get("game_id") or ""
+        return f"dl:{store}:{game_id}"
 
     def _complete_timer(self, key: str, metric_name: str) -> None:
         """Compute elapsed time and record into ``_timers[metric_name]``.

@@ -1,32 +1,34 @@
 """Reconcile phases mixin — bulk shortcut sync from a library snapshot.
 
-OP-14c-bis | py_modules/unifideck/services/shortcut/reconcile_phases.py
-
 Extracted from ``games_map_mixin.py`` (2026-05-17) to keep the
 host file under the 550 LOC volumetry cap. Contains the bulk
 reconcile method + its five phase helpers — the set-diff
 algorithm that adds missing shortcuts, removes stale ones, and
 reclaims orphaned entries by AppID from the persistent registry.
+
+The "is this row stale" decision itself lives in ``stale_predicate.py``
+(split out 2026-08-26, same cap): it is pure, it is the most destructive
+call in the package, and it was already being tested directly.
 """
 
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from .games_map import UNIFIDECK_TAG, GameMapEntry, generate_app_id
-from .orphan_scan import _is_launcher_exe
 from .reconcile_helpers import (
     build_launch_index,
     dedup_shortcuts,
     log_restart_banner,
 )
+from .stale_predicate import SweepableStores, is_stale_managed_shortcut
 
 if TYPE_CHECKING:
     from unifideck.core.types import Game
 
 logger = logging.getLogger(__name__)
-
 
 class _ReconcilePhasesMixin:
     """Bulk shortcut reconciliation for :class:`ShortcutService`.
@@ -37,96 +39,9 @@ class _ReconcilePhasesMixin:
     ``_launcher_path``, ``_shortcuts``, ``_games_map``.
     """
 
-    @staticmethod
-    def _is_stale_managed_shortcut(
-        entry: Any,
-        valid_app_ids: set[int],
-        valid_stores: set[str] | None = None,
-        launcher_path: str = "",
-    ) -> bool:
-        """True if ``entry`` is a Unifideck-managed shortcut no longer needed.
-
-        Ownership is decided on the shortcut's ``Exe`` field: only
-        entries whose ``Exe`` points at our ``bin/unifideck-launcher``
-        are ever swept (via :func:`orphan_scan._is_launcher_exe`, a
-        basename match — the plugin dir differs across installs). A
-        foreign shortcut (NonSteamLaunchers', or a manually-added one)
-        can carry a ``"<store>:<id>"``-shaped ``LaunchOptions`` token or
-        even our stale ``UNIFIDECK_TAG``, so LaunchOptions/tags alone
-        cannot distinguish it from ours — matching on them deleted the
-        user's own non-Steam shortcuts (UD-006). The launcher ``Exe`` is
-        the one marker a foreign scanner cannot forge.
-
-        Beyond the Exe gate, identification of *which* Unifideck games a
-        shortcut maps to stays **LaunchOptions-based** (regex on
-        ``"<store>:<game_id>"``) rather than tag-based — Steam can strip
-        our ``UNIFIDECK_TAG`` on update / by user edit, but it preserves
-        ``LaunchOptions`` reliably.
-
-        Auth shortcuts (``ubisoft:upc-auth`` and any
-        ``auth-*``-tagged entry) are explicitly preserved —
-        their lifecycle is owned by ``services/shortcut/shortcut.py``.
-
-        When ``valid_stores`` is supplied, only sweep shortcuts
-        whose store prefix is in that set — this is how staging
-        avoided nuking the user's Epic shortcuts after they
-        logged out of Epic.
-        """
-        from .launch_options import get_full_id, get_store_prefix
-
-        if not isinstance(entry, dict):
-            return False
-        launch = entry.get("LaunchOptions", "") or ""
-        full_id = get_full_id(launch) if isinstance(launch, str) else None
-        if not _ReconcilePhasesMixin._is_managed_sweepable(entry, full_id):
-            return False
-        # Ownership gate: never sweep a shortcut we didn't create. A
-        # foreign shortcut whose Exe was left intact (or a Unifideck one
-        # whose Exe a foreign scanner rewrote) is handed to
-        # ``orphan_scan``'s recover path instead of being deleted here.
-        exe_raw = entry.get("Exe") or entry.get("exe") or ""
-        exe = exe_raw.strip().strip('"') if isinstance(exe_raw, str) else ""
-        if not _is_launcher_exe(exe, launcher_path):
-            return False
-        if valid_stores is not None and full_id is not None:
-            store = get_store_prefix(launch)
-            if store and store not in valid_stores:
-                return False
-        return entry.get("appid") not in valid_app_ids
-
-    @staticmethod
-    def _is_managed_sweepable(entry: dict[str, Any], full_id: Any) -> bool:
-        """True if *entry* is a Unifideck-managed, non-protected shortcut.
-
-        The protected/auth early-exit + managed-by-options-or-tag check,
-        extracted from :meth:`_is_stale_managed_shortcut` to keep that
-        method under the cognitive-complexity cap. Returns ``False`` for
-        protected/auth shortcuts and for entries we never managed;
-        behaviour is identical to the inline chain it replaced.
-        """
-        from .protected import is_protected
-
-        # Centralised protected-set check — replaces the previous
-        # hardcoded ``ubisoft:upc-auth`` literal so new stores can
-        # register their auth shortcuts in one place.
-        if is_protected(full_id):
-            return False
-        tags = entry.get("tags", {})
-        tags_dict = tags if isinstance(tags, dict) else {}
-        is_auth_tag = any(
-            str(t).startswith("auth-") for t in tags_dict.values()
-        )
-        if is_auth_tag:
-            return False
-        is_managed_by_options = full_id is not None
-        is_managed_by_tag = any(
-            t == UNIFIDECK_TAG for t in tags_dict.values()
-        )
-        return is_managed_by_options or is_managed_by_tag
-
     async def reconcile(
         self: Any, games: list[Game], *, force: bool = False,
-        valid_stores: set[str] | None = None,
+        valid_stores: SweepableStores | None = None,
     ) -> dict[str, int]:
         """Bulk-sync all shortcuts from a list of Games.
 
@@ -141,14 +56,13 @@ class _ReconcilePhasesMixin:
         preserving their ``appid`` so artwork and playtime survive
         the rewrite. Mirrors staging's ``force_update_games_batch``.
 
-        ``valid_stores`` overrides the set of store prefixes whose
-        stale shortcuts may be swept. By default only stores that
-        returned games are touched (so logging out of one store left
-        its now-orphaned shortcuts behind forever). Passing the full
-        set of *registered* stores lets reconcile drop shortcuts for a
-        store that returned nothing this sync — e.g. phantom Ubisoft
-        entries and the legacy ``microsoft:ms-auth`` row — so affected
-        libraries self-heal on the next sync.
+        ``valid_stores`` overrides the store prefixes whose stale
+        shortcuts may be swept; default (``None``) is the stores that
+        returned games. The post-sync caller passes those that
+        **answered** — including any answering empty, which is what lets
+        phantom rows self-heal — and deliberately not every *registered*
+        store, which swept stores that raised, timed out or were never
+        fetched, deleting every shortcut they owned (§3.5 B).
         """
         await self._load_shortcuts()
         await self._load_games_map()
@@ -173,18 +87,22 @@ class _ReconcilePhasesMixin:
 
     def _apply_reconcile_phases(
         self: Any, games: list[Game], registry: dict[str, Any], *, force: bool,
-        valid_stores: set[str] | None = None,
+        valid_stores: SweepableStores | None = None,
     ) -> dict[str, int]:
         """Prune, sync, drop-stale, then dedup; return the counts dict."""
         launcher = getattr(self, "_launcher_path", "") or ""
         valid_keys = {f"{g.store}:{g.store_game_id}" for g in games}
         valid_app_ids = self._compute_valid_app_ids(games, launcher)
-        # Default to stores-with-games; a caller (the post-sync
-        # reconcile) can widen this to every registered store so stale
-        # shortcuts for a logged-out / empty store also get swept.
+        # Default to stores-with-games. This comment used to end "a caller
+        # (the post-sync reconcile) can widen this to every registered store
+        # so stale shortcuts for a logged-out / empty store also get swept" —
+        # which is precisely the widening that made a sync delete every
+        # shortcut of any store that failed to answer (§3.5 finding B). The
+        # narrow default is the safe one and the parameter is now a
+        # ``SweepableStores``, which only ``_sweepable_stores`` can build.
         if valid_stores is None:
-            valid_stores = {g.store for g in games}
-        removed = self._reconcile_phase_prune_map(valid_keys)
+            valid_stores = SweepableStores(frozenset(g.store for g in games))
+        removed = self._reconcile_phase_prune_map(valid_keys, valid_stores)
         self._shortcuts = self._ensure_shortcuts_root(self._shortcuts)
         shortcuts_dict = self._shortcuts["shortcuts"]
         added, kept, reclaimed = self._reconcile_phase_sync_games(
@@ -240,10 +158,31 @@ class _ReconcilePhasesMixin:
     # ── Phase helpers ──────────────────────────────────────
 
     def _reconcile_phase_prune_map(
-        self: Any, valid_keys: set[str],
+        self: Any, valid_keys: set[str], valid_stores: SweepableStores,
     ) -> int:
-        """Phase 1: drop ``_games_map`` keys absent from ``valid_keys``."""
-        stale_keys = [k for k in self._games_map if k not in valid_keys]
+        """Phase 1: drop ``_games_map`` keys absent from ``valid_keys``.
+
+        **Scoped by ``valid_stores``, for the same reason the shortcut sweep
+        below is.** A store that could not answer this sync contributes no
+        games, so every one of its keys looks stale — and pruning them is
+        §3.5 finding B one layer down: the shortcut survives (that sweep is
+        already scoped) but loses the games.map row the launcher resolves its
+        executable from. The shortcut then sits in the library looking
+        installed and does nothing when launched, which reads to the user as
+        "it turned into a plain non-Steam shortcut".
+
+        Measured on GameVault, whose server is a machine the user runs and
+        so is routinely offline: the fetch failed, the sync correctly logged
+        "keeping its existing shortcuts rather than treating this as an empty
+        library", and the row was pruned two lines later anyway.
+
+        A store that answered and no longer lists a game still drops it —
+        that is a real removal, and it is what this phase is for.
+        """
+        stale_keys = [
+            k for k in self._games_map
+            if k not in valid_keys and k.split(":", 1)[0] in valid_stores
+        ]
         for key in stale_keys:
             del self._games_map[key]
         return len(stale_keys)
@@ -367,10 +306,47 @@ class _ReconcilePhasesMixin:
         exe = game.exe_path or ""
         if game.installed and exe:
             self._games_map[key] = GameMapEntry(
-                exe=exe, work_dir=game.install_path or "", app_id=app_id,
+                exe=self._durable_exe(key, exe),
+                work_dir=game.install_path or "",
+                app_id=app_id,
             )
         elif not (game.installed and key in self._games_map):
             self._games_map.pop(key, None)
+
+    def _durable_exe(self: Any, key: str, store_exe: str) -> str:
+        """The exe to record: an established one wins while it still exists.
+
+        The row is also where "Change executable" stores the user's choice
+        for the direct-launch stores, so overwriting it from the library
+        silently reverts that choice on the next sync. GOG hit this: its
+        ``get_library`` carries ``exe_path`` from a fresh disk scan
+        (``exe_key="executable"``) because it must discover installs Unifideck
+        did not perform, and the scan knows nothing about what the user
+        picked. Amazon and Epic were unaffected only because neither carries
+        an exe at all — which is what made the bug invisible: the guard below
+        was written on the docstring's claim that *no* library-sourced game
+        carries one.
+
+        The disk check is what keeps this from going stale. A recorded exe
+        that no longer exists means the install moved or was replaced, and
+        then the store's fresh value is the better answer. "Reset to default"
+        (``reset_game_executable``) remains the explicit way back.
+        """
+        existing = self._games_map.get(key)
+        recorded = getattr(existing, "exe", "") or ""
+        if not recorded or recorded == store_exe:
+            return store_exe
+        if not Path(recorded).is_file():
+            logger.info(
+                "[ShortcutService] %s recorded exe is gone, taking the "
+                "store's: %s", key, store_exe,
+            )
+            return store_exe
+        logger.debug(
+            "[ShortcutService] %s keeping established exe %s (store offered "
+            "%s)", key, recorded, store_exe,
+        )
+        return recorded
 
     def _try_reclaim_orphan(
         self: Any,
@@ -409,11 +385,47 @@ class _ReconcilePhasesMixin:
         playtime tracking survive the rewrite. The ``icon`` field is
         set from ``game.icon_url`` when available (the artwork phase
         populates it from on-disk grid files).
+
+        ``LaunchOptions`` keeps the user's own params. This used to be a
+        plain overwrite to ``"<store>:<id>"``, which silently deleted
+        anything they had configured -- and since 0.7.5 that includes the
+        supported way to enable LSFG and to set per-game environment
+        variables (``docs/launch-options.md``). A setting that a Force Sync
+        erases is not a setting, and Force Sync is exactly what a user is
+        told to run when something looks wrong. ``_reclaim_orphan`` eleven
+        lines below already did this correctly; this now matches it.
+
+        Our own ``UNIFIDECK_*`` flags are stripped rather than preserved --
+        see :func:`~.launch_options.strip_unifideck_env_tokens` for why
+        that half is not optional.
         """
+        from .launch_options import get_full_id, rewrite_for_sync
+        from .protected import is_protected
+
+        current_options = entry.get("LaunchOptions", "")
+
+        # Defence in depth. This is only ever called for a library game, but
+        # the appid fallback that can select the entry matches on appid +
+        # ``is_ours`` and never consults the protected set -- and an auth
+        # forwarder is ours. Rewriting one turns a sign-in tile into a game
+        # tile, which is unrecoverable without a re-auth. The previous plain
+        # overwrite was just as destructive here, so this is not a new
+        # hazard, but it is a cheap one to close while in the area.
+        existing_id = get_full_id(current_options)
+        if existing_id is not None and is_protected(existing_id):
+            logger.warning(
+                "[Reconcile] refusing to rewrite protected shortcut %s "
+                "as game %s:%s",
+                existing_id, game.store, game.store_game_id,
+            )
+            return
+
         exe_quoted = f'"{launcher}"' if launcher else '""'
         entry["AppName"] = game.title
         entry["Exe"] = exe_quoted
-        entry["LaunchOptions"] = f"{game.store}:{game.store_game_id}"
+        entry["LaunchOptions"] = rewrite_for_sync(
+            current_options, f"{game.store}:{game.store_game_id}",
+        )
         if game.icon_url:
             entry["icon"] = game.icon_url
         tags_dict = entry.get("tags", {})
@@ -425,16 +437,18 @@ class _ReconcilePhasesMixin:
     def _reclaim_orphan(
         self: Any, entry: dict[str, Any], game: Game, app_id: int,
     ) -> None:
-        """Rewrite ``entry`` in place — restores ownership while keeping AppID."""
-        from .launch_options import preserve_user_params
+        """Rewrite ``entry`` in place — restores ownership while keeping AppID.
+
+        Keeps the user's launch params and drops our own ``UNIFIDECK_*``
+        flags, matching ``_update_existing_shortcut``. An orphan is a
+        shortcut we lost track of, so it is *more* likely than most to be
+        carrying a stranded action flag, not less.
+        """
+        from .launch_options import rewrite_for_sync
 
         launcher = getattr(self, "_launcher_path", "") or ""
-        current_options = entry.get("LaunchOptions", "")
         target = f"{game.store}:{game.store_game_id}"
-        preserved = preserve_user_params(
-            current_options if isinstance(current_options, str) else "",
-            target,
-        )
+        preserved = rewrite_for_sync(entry.get("LaunchOptions", ""), target)
         entry["appid"] = app_id
         entry["AppName"] = game.title
         if launcher:
@@ -451,13 +465,13 @@ class _ReconcilePhasesMixin:
         self: Any,
         shortcuts_dict: dict[str, Any],
         valid_app_ids: set[int],
-        valid_stores: set[str] | None = None,
+        valid_stores: SweepableStores | None = None,
         launcher_path: str = "",
     ) -> int:
         """Phase 3: delete Unifideck-managed shortcuts no longer needed."""
         keys_to_delete = [
             vdf_key for vdf_key, entry in shortcuts_dict.items()
-            if self._is_stale_managed_shortcut(
+            if is_stale_managed_shortcut(
                 entry, valid_app_ids, valid_stores, launcher_path,
             )
         ]

@@ -72,7 +72,6 @@ RUNTIME_REQUIRED_KEYS: tuple[str, ...] = (
     "auth.browser_oauth_timeout_seconds",
     "auth.browser_poll_interval_seconds",
     # binary_resolver
-    "binary_resolver.version_check_timeout_seconds",
     # cache_ttl
     "cache_ttl.compat",
     "cache_ttl.metacritic_metadata",
@@ -132,56 +131,25 @@ RUNTIME_REQUIRED_KEYS: tuple[str, ...] = (
 )
 
 
-class KeyPresenceError(RuntimeError):
-    """Raised when one or more runtime-required keys resolve to None."""
-
-
-def assert_all_keys_resolve(config: ConfigManager) -> None:
-    """Verify every key in ``RUNTIME_REQUIRED_KEYS`` returns non-None.
-
-    Raises:
-        KeyPresenceError: If any required key is missing. The error
-            message lists every missing path at once so operators can
-            fix their ``defaults/config.json`` in a single edit rather
-            than iterating through N reboots.
-
-    This runs once at plugin boot, right after
-    ``ConfigValidator.validate_config`` succeeds but before any service
-    instantiates. A failure here is fatal — it means the plugin code
-    depends on a value that isn't declared anywhere, which is a
-    developer error (either RUNTIME_REQUIRED_KEYS or defaults/config.json
-    is out of sync with the call sites).
-
-    """
-    missing: list[str] = []
-    for key in RUNTIME_REQUIRED_KEYS:
-        # Pass a sentinel rather than None so keys legitimately set to
-        # None in config are distinguished from absent keys. Anything
-        # other than the sentinel is considered "present".
-        sentinel = object()
-        value = config.get(key, sentinel)
-        if value is sentinel:
-            missing.append(key)
-    if missing:
-        msg = (
-            f"[config] {len(missing)} required key(s) missing from "
-            f"the merged config. Expected in defaults/config.json:\n  "
-            + "\n  ".join(missing)
-        )
-        logger.error(msg)
-        raise KeyPresenceError(msg)
-    logger.info(
-        "[config] key presence check passed: %d keys resolve",
-        len(RUNTIME_REQUIRED_KEYS),
-    )
+# There is deliberately no ``assert_all_keys_resolve`` / ``KeyPresenceError``
+# here any more. The strict variant raised on a missing key and had **zero
+# callers**, while its docstring claimed "This runs once at plugin boot ... A
+# failure here is fatal" — neither half true. ``collect_missing_keys`` below
+# is the boot check (``config/startup.py:93``), and it deliberately warns and
+# continues into degraded mode rather than aborting: a missing key is a
+# developer error, but refusing to boot over one strands the user with no UI
+# at all. Three comments in ``scripts/check_config_keys.py`` and one in
+# ``.github/workflows/quality.yml`` described the dead function as the live
+# check; all four are corrected. Audit register item 40.
 
 
 def collect_missing_keys(config: ConfigManager) -> list[str]:
     """Return the list of missing keys without raising.
 
-    Useful for diagnostics paths where the caller wants to report what
-    went wrong rather than abort. The main boot path uses the stricter
-    ``assert_all_keys_resolve`` variant.
+    This IS the boot path (``config/startup.py``): a missing key logs a
+    warning and flags degraded mode rather than aborting the plugin. The
+    docstring here used to claim boot used a stricter raising variant; that
+    function existed but was never called, and is now deleted.
     """
     missing: list[str] = []
     sentinel = object()

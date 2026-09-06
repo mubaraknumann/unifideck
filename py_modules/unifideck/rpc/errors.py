@@ -1,7 +1,5 @@
 """Structured RPC error type — code + free-form context dict.
 
-OP-24a | py_modules/unifideck/rpc/errors.py
-
 ``RpcError`` is the canonical exception type for everything that
 can go wrong inside an RPC handler. Unlike a bare ``Exception``
 with a string message, it carries:
@@ -13,7 +11,7 @@ with a string message, it carries:
   feed into the error message and frontend toast (store id,
   game id, verb name, etc.).
 
-Caught by the ``rpc_wrapper`` decorator (OP-26a) which
+Caught by the ``rpc_wrapper`` decorator which
 serialises the error into the RPC response payload.
 """
 

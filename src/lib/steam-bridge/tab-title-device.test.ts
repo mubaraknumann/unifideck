@@ -2,11 +2,14 @@
 /**
  * The compatibility tab is titled after the hardware it filters for.
  *
- * Two things must hold: a Steam Machine owner is never told their games
- * are "Great on Deck", and a backend that cannot answer leaves the
- * pre-existing Deck label rather than blanking the tab. The second is
- * the one that would ship silently broken, because on the dev Deck the
- * default and the correct answer are the same string.
+ * Three things must hold: a Steam Machine owner is never told their
+ * games are "Great on Deck" once the answer lands; a backend that
+ * cannot answer leaves the cached value rather than blanking the tab;
+ * and the *unanswered* default is "deck", because the device-dependent
+ * consumers run before the RPC resolves and a Deck is the common case.
+ *
+ * Also covers the hide-list: Steam names its own compat tab after the
+ * device too, so we must hide every id it might emit.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -23,7 +26,7 @@ vi.mock("../../api/useRPC", () => ({
 }));
 
 import { call } from "@decky/api";
-import { getUnifideckTabs } from "./tab-container";
+import { getUnifideckTabs, HIDDEN_DEFAULT_TABS } from "./tab-container";
 import {
   loadDeviceType,
   getDeviceType,
@@ -87,5 +90,42 @@ describe("loadDeviceType", () => {
     vi.mocked(call).mockResolvedValue({ success: true });
     await expect(loadDeviceType()).resolves.toBe(false);
     expect(getDeviceType()).toBe("deck");
+  });
+
+  it("defaults to deck, because the boot window belongs to the Deck", async () => {
+    // An earlier attempt defaulted to "other" on the reasoning that it
+    // never claims unverified hardware. Adversarial review showed that
+    // makes the common device the losing case: the library patch and
+    // the collection manager both run before this RPC answers, so every
+    // Deck boot would render "SteamOS Compatible" and filter on a track
+    // whose enum never reaches the top rating.
+    vi.resetModules();
+    const fresh = await import("../device-type");
+    expect(fresh.getDeviceType()).toBe("deck");
+    expect(fresh.compatTabTitleKey()).toBe("deckTabs.greatOnDeck");
+  });
+});
+
+describe("hidden native tabs", () => {
+  /**
+   * Steam picks its own compat tab id from the running device:
+   * GreatOnDeck / GreatOnMachine / SteamOSCompatible. Hiding only the
+   * Deck id leaves a second, identically-titled tab beside ours on a
+   * Steam Machine.
+   */
+  it.each(["GreatOnDeck", "GreatOnMachine", "SteamOSCompatible"])(
+    "hides Steam's own %s tab",
+    (id) => {
+      expect(HIDDEN_DEFAULT_TABS).toContain(id);
+    },
+  );
+
+  it("does not vary by device, so a mis-detected device still hides all", () => {
+    const perDevice = (["deck", "machine", "other"] as DeviceType[]).map((device) => {
+      __setDeviceTypeForTests(device);
+      return [...HIDDEN_DEFAULT_TABS].sort();
+    });
+    expect(perDevice[1]).toEqual(perDevice[0]);
+    expect(perDevice[2]).toEqual(perDevice[0]);
   });
 });

@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 from unifideck.core.types import Result
 from unifideck.launcher.rpc import emit_stage
 from unifideck.launcher.types.context import LaunchContext, RuntimeState
+from unifideck.launcher.types.options import parse_launch_options
 from unifideck.launcher.wrapper_stores import is_wrapper_store
 
 if TYPE_CHECKING:
@@ -159,7 +160,13 @@ class LauncherService:
         One-liner extracted from ``launch`` so the ``Result``
         constructor call doesn't inflate that method's fan-out.
         """
-        return Result(success=False, error="circuit_open")
+        # ``error_code`` as well as ``error``: ``_map_result_to_exitcode``
+        # dispatches on ``error_code`` **exclusively**, so leaving it None
+        # collapsed every classified failure to GAME_FAILED (8) and made the
+        # CIRCUIT_BREAKER_OPEN branch dead. Audit register item 4c.
+        return Result(
+            success=False, error="circuit_open", error_code="circuit_open",
+        )
 
     async def _try_launch(
         self, ctx: LaunchContext, state: RuntimeState,
@@ -168,25 +175,29 @@ class LauncherService:
 
         Three steps:
 
-        1. Emit the ``launchingGame`` toast.
-        2. Route to the auth-shortcut handler (non-launch actions)
-           or to the launch dispatch matrix (real launches).
+        1. Route to the non-launch handler (auth / storefront /
+           install) or to the launch dispatch matrix (real launches).
+        2. For a real launch, emit the ``launchingGame`` toast.
         3. Enrich the launch result with the elapsed time, stashed
            in ``Result.metadata["elapsed"]`` because ``Result``
            has no dedicated elapsed field and the frontend reads
            this via the documented metadata channel.
 
+        The non-launch branch returns BEFORE the toast: a sign-in or a
+        shop window is not a game, and announcing "Launching Game:
+        epic:epic-store" for one is simply wrong.
+
         Extracted from ``launch`` (lot 13a) so the outer method
         only calls 5 distinct symbols, well under the fan-out gate.
         """
+        if not ctx.is_launch_action:
+            return await self._handle_auth_path(ctx)
         await emit_stage(
             self._bus,
             i18n_key="toasts.launcher.launchingGame",
             game_title=ctx.game_key,
             priority="low",
         )
-        if not ctx.is_launch_action:
-            return await self._handle_auth_path(ctx)
         res = await self._dispatch_launch_kind(ctx, state)
         if res.metadata is None:
             res.metadata = {}  # type: ignore[unreachable]  # guard 'if res.metadata is None'
@@ -195,37 +206,80 @@ class LauncherService:
 
     @staticmethod
     def _build_runtime_state(ctx: LaunchContext) -> RuntimeState:
-        """Construct the mutable runtime state from ``ctx`` overrides.
+        """Construct the mutable runtime state from the user's launch options.
 
-        ``started_at`` is read from the env-override dict because
-        the launcher subprocess may already know its own start
-        time (passed in by the dispatcher). Missing → 0, which
-        lets ``_elapsed_since_launch`` compute from ``time.monotonic``
-        without a special case.
+        Only ``lsfg_requested`` is taken from the parse. The env half is
+        applied at context-construction time instead
+        (``dispatcher._env_overrides_from``), because ``LaunchContext`` is
+        frozen.
+
+        ``game_args`` is populated since 2026-08-26 (audit register item
+        23a); ``wrappers`` no longer exists (item 23b).
+
+        Both halves were blocked on the same measurement. ``parse_launch_
+        options`` was written for a full Steam ``LaunchOptions`` string,
+        where ``%command%`` marks the boundary between wrapper words and
+        game arguments — but what reaches the dispatcher is the
+        *post-expansion argv tail*, which usually has no marker left. Wiring
+        ``game_args`` from it used to append the user's own
+        ``mangohud gamemoderun`` to the **game's** command line, because the
+        frontend's ``extractUserParams`` preserved those words into the
+        temp-shortcut options.
+
+        Two changes made it safe, in this order:
+
+        * ``extractUserParams`` now keeps only ``KEY=value`` assignments. A
+          bare word after the game key was never a wrapper — Steam applies
+          wrappers pre-exec, before ``%command%`` — so preserving it achieved
+          nothing and was the sole source of the hazard.
+        * ``wrappers`` is gone, and the parser now **drops** tokens before a
+          ``%command%`` rather than re-homing them into ``game_args``.
+
+        What remains is the honest reading: a bare token in the tail is a
+        game argument, which is what Steam delivers it as.
 
         Extracted from ``launch`` (lot 13a) to keep that
         method's fan-out under the gate.
         """
+        # Not ``started_at``: nothing has ever populated it (the dispatcher
+        # never passed one, despite an older docstring here claiming it did)
+        # and nothing reads it. Elapsed time comes from
+        # ``self._launch_started_at``, set in ``launch`` off
+        # ``time.monotonic``. Reading a user-controlled dict for an internal
+        # timestamp would be a trap now that the dict is populated.
+        parsed = parse_launch_options(ctx.raw_options)
         return RuntimeState(
-            started_at=float(ctx.env_overrides.get("started_at", "0")),
+            lsfg_requested=parsed.lsfg_requested,
+            game_args=parsed.game_args,
         )
 
     async def _handle_auth_path(self, ctx: LaunchContext) -> Result:
-        """Route a non-launch context to the right auth handler.
+        """Route a non-launch context to the right handler.
 
-        The four OAuth stores open Edge on a captured auth URL
-        (``launcher/flows/auth.py``). Ubisoft is different: it has no
-        browser OAuth — the user signs in inside the Ubisoft Connect
+        The four OAuth stores open Edge — on a captured auth URL
+        (``launcher/flows/auth.py``) or on a shop URL
+        (``launcher/flows/storefront.py``). Ubisoft is different: it has
+        no browser OAuth — the user signs in inside the Ubisoft Connect
         (UPC) desktop client, which must be launched via Proton in the
         ``.upc-auth`` prefix. ``handle_store_auth`` only no-ops for
         Ubisoft (it returns immediately, which is why the shortcut
         closed at once), so Ubisoft gets its own Proton path here.
+
+        **The wrapper check must stay first.** A wrapper store has no
+        browser session at all, so its shop is the vendor client's own
+        Store tab, in the auth prefix. Testing ``action`` first would
+        send a Ubisoft cart press to Edge and a signed-out web page.
 
         Extracted from ``launch`` (lot 13a) to keep that method's
         fan-out under the gate.
         """
         if is_wrapper_store(ctx.auth_store):
             return await self._launch_wrapper_client(ctx)
+        if ctx.action == "storefront":
+            from unifideck.launcher.flows.storefront import (
+                handle_store_storefront,
+            )
+            return await handle_store_storefront(ctx, self._edge_browser)
         from unifideck.launcher.flows.auth import handle_store_auth
         return await handle_store_auth(ctx, self._edge_browser)
 
@@ -253,7 +307,7 @@ class LauncherService:
             )
         state = self._build_runtime_state(ctx)
         try:
-            plan, _ = await prepare_windows_plan(self, ctx, state)
+            plan = await prepare_windows_plan(self, ctx, state)
             rc = await handler(plan)
         finally:
             self._active_subprocess = None
@@ -268,7 +322,14 @@ class LauncherService:
 
     @staticmethod
     def _wrapper_handler(store: str | None, action: str | None) -> Any:
-        """The launcher handler for one wrapper store's auth/install run."""
+        """The launcher handler for one wrapper store's non-launch run.
+
+        Only ``install`` gets its own handler. Everything else — ``auth``
+        and ``storefront`` — opens the client bare in the auth prefix,
+        which is both where the user signs in and where the client's own
+        Store/Shop tab is already signed in. So ``storefront`` falls into
+        the ``else`` on purpose; it is not an oversight.
+        """
         if store == "ubisoft":
             from unifideck.launcher.proton.handlers.ubisoft import (
                 ubisoft_auth_launch,
@@ -451,7 +512,7 @@ class LauncherService:
         state: RuntimeState,
         *,
         tool_id: str | None = None,
-    ) -> tuple[ProtonLaunchPlan, object]:
+    ) -> ProtonLaunchPlan:
         """Delegate to ``helpers.prepare_windows_plan``."""
         from .helpers import prepare_windows_plan
         return await prepare_windows_plan(self, ctx, state, tool_id=tool_id)

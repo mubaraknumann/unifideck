@@ -406,6 +406,18 @@ module = ["legendary.*"]
 follow_imports = "skip"
 ignore_missing_imports = true
 
+# ``Xlib`` is in the same category as ``legendary`` above, one step further
+# removed: it is not a dependency of this plugin at all. It rides inside the
+# bundled umu zipapp, which the gamescope window tagger puts on ``sys.path``
+# for the length of one import. It is therefore absent from CI, absent from
+# the dev venv, and present only at runtime on a device — so the same
+# environment-divergence argument applies, and ``types-python-xlib`` would
+# be a dependency added for a module we do not ship.
+[[tool.mypy.overrides]]
+module = ["Xlib.*"]
+follow_imports = "skip"
+ignore_missing_imports = true
+
 # ──────────────────────────────────────────────────────────────────
 # pytest — test suite at the repo root
 # ──────────────────────────────────────────────────────────────────

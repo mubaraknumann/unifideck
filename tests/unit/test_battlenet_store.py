@@ -21,6 +21,7 @@ import pytest
 from _wine_session import token_of, write_registry
 
 from unifideck.launcher import wrapper_session as ws
+from unifideck.launcher.wrapper_stores import is_wrapper_store
 from unifideck.stores.battlenet import BattlenetStore
 from unifideck.stores.battlenet import paths as bpaths
 from unifideck.stores.battlenet.library import build_library
@@ -32,6 +33,7 @@ from unifideck.stores.battlenet.ownership import (
 from unifideck.stores.battlenet.prefix import MARKER_FILENAME
 from unifideck.stores.shared import prefix_clone as pc
 from unifideck.stores.shared.store_base import StoreBase
+from unifideck.core.store_capabilities import capability_flags
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "battlenet"
 LAUNCHER = "/plugin/bin/unifideck-launcher"
@@ -120,10 +122,19 @@ def test_satisfies_the_storebase_contract() -> None:
 def test_store_info_declares_a_wine_wrapper_store() -> None:
     info = BattlenetStore.store_info
     assert info.name == "battlenet"
-    assert info.uses_wine is True
     assert info.supports_install is True
     # No cloud-save strategy exists: Blizzard progress is server-side.
-    assert info.supports_cloud_saves is False
+    # Asserted against the derived capability rather than a StoreInfo field.
+    # It WAS a field, and Battle.net was the only store that ever set it —
+    # so GOG and Epic, the two stores that do have cloud saves, both took the
+    # `False` default and advertised that they had none. The field is gone;
+    # a re-added literal now raises TypeError (audit register item 26).
+    assert capability_flags("battlenet")["supports_cloud_saves"] is False
+    # Wrapper-ness is NOT declared here. It is owned by WRAPPER_STORES and
+    # derived into the payload by get_store_infos (audit §3.1), so asserting
+    # it off the descriptor would restore the second copy this removed.
+    assert not hasattr(info, "uses_wine")
+    assert is_wrapper_store(info.name)
 
 
 def test_module_layout_is_auto_discoverable() -> None:
@@ -149,8 +160,32 @@ def test_available_once_the_client_holds_a_licence_ledger(store: BattlenetStore)
     assert asyncio.run(store.is_available()) is True
 
 
-def test_empty_library_without_a_prefix_rather_than_an_error(store: BattlenetStore) -> None:
-    assert asyncio.run(store.get_library()) == []
+def test_unknown_library_without_a_prefix_not_an_empty_one(
+    store: BattlenetStore,
+) -> None:
+    """``None``, not ``[]`` — the distinction is a whole library.
+
+    Every fact this store's library is built from lives in the client's
+    Wine prefix, so "no prefix" means *we don't know what you own*. The
+    sync layer treats ``[]`` as authoritative and lets the shortcut
+    reconcile delete every Battle.net shortcut the user has; ``None``
+    arrives as ``library_unreadable`` and keeps them. This assertion used
+    to read ``== []`` and pinned the defect (audit §3.5, finding B).
+    """
+    assert asyncio.run(store.get_library()) is None
+
+
+def test_unknown_library_when_the_catalog_cache_is_empty(
+    store: BattlenetStore,
+) -> None:
+    """Signed in, but the client has never populated its PUB catalog.
+
+    Every ownership rule is keyed on that catalog, so without it the
+    build can only produce an empty list — which downstream reads as
+    "you own nothing" and sweeps the shortcuts.
+    """
+    _sign_in(store, [1, 2, 3])
+    assert asyncio.run(store.get_library()) is None
 
 
 def test_start_auth_does_not_install_the_client_itself(
@@ -427,7 +462,7 @@ def test_a_library_read_records_every_family_code(
     """
     _sign_in(store, [1105059])
     monkeypatch.setattr(
-        "unifideck.stores.battlenet.store.read_catalog", lambda _dc: _catalog(),
+        "unifideck.stores.battlenet.library.read_catalog", lambda _dc: _catalog(),
     )
 
     games = asyncio.run(store.get_library())
@@ -448,7 +483,7 @@ def test_recorded_families_are_readable_by_the_launcher(
 
     _sign_in(store, [1105059])
     monkeypatch.setattr(
-        "unifideck.stores.battlenet.store.read_catalog", lambda _dc: _catalog(),
+        "unifideck.stores.battlenet.library.read_catalog", lambda _dc: _catalog(),
     )
     monkeypatch.setattr(client, "id_map_path", lambda p=store.id_map.path: p)
 

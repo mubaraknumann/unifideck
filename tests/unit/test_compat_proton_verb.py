@@ -5,10 +5,14 @@ Root cause of the install-warmup hang (from Proton's own ``proton`` script,
 until any existing wineserver for the prefix exits. Proton's persistent
 ``steam.exe`` stub keeps that wineserver resident, so the next compat step's
 ``wineserver -w`` deadlocks (observed: createprefix + regedit each hang 120s,
-stacking wineservers on one lock). ``run`` skips ``wineserver -w`` entirely —
-which is why ``gog_setup.run_wine`` already sets it. These tests pin that the
-generic compat steps (winetricks, vcruntime regedit) override the inherited
-verb to ``run``.
+stacking wineservers on one lock). ``run`` skips ``wineserver -w`` entirely.
+These tests pin that the generic compat steps (winetricks, vcruntime regedit)
+override the inherited verb to ``run``.
+
+The verb is now applied by ``infrastructure.setup_env.build_setup_env``, which
+every setup step shares; ``test_setup_env.py`` pins that shared contract and
+the fact that all four sites route through it. These two stay as the
+end-to-end check that the override survives each step's own env layering.
 """
 from __future__ import annotations
 

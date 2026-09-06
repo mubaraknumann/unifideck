@@ -325,8 +325,3 @@ def get_saved_proton_tool(store_game_id: str) -> str:
         .get("games", {})
         .get(store_game_id, ""),
     )
-
-
-def resolve_proton_path(tool_name: str) -> str:
-    """Resolve a Proton tool path (legacy passthrough — returns name)."""
-    return tool_name

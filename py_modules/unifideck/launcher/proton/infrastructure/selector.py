@@ -4,13 +4,14 @@ import logging
 import subprocess
 from pathlib import Path
 
+from unifideck.core.compat_bridge import to_unsigned
 from unifideck.launcher.types.errors import (
     DependencyMissingError,
     ProtonUnavailableError,
 )
 from unifideck.utils import vdf_compat
 
-from . import ge_installer
+from . import external_ge, ge_installer
 
 logger = logging.getLogger(__name__)
 # Interpreters tried (in order) to run the umu zipapp. umu needs Python
@@ -251,11 +252,9 @@ def get_steam_compat_tool_override(app_id: str) -> str | None:
     if not app_id:
         return None
     try:
-        appid_int = int(app_id)
+        appid_int = to_unsigned(app_id)
     except (TypeError, ValueError):
         return None
-    if appid_int < 0:
-        appid_int += 2**32
     content = _read_steam_config_vdf()
     tool = vdf_compat.parse_compat_tool(content, appid_int) or None
     logger.info(
@@ -419,25 +418,46 @@ def _announce_ge_ready(tag: str) -> None:
 
 
 def _default_latest_ge(tried: list[str]) -> tuple[Path, str]:
-    """Default tier: latest GE-Proton online, else Proton Experimental.
+    """Default tier: external GE-Proton, latest GE-Proton online, else Experimental.
 
-    1. Fast path — if the background installer recorded a latest tag
+    1. External manager — if an externally managed tool (e.g. ProtonPlus
+       'Proton-GE Latest') exists, is complete, and is not older than our
+       cached GE build, use it as default.
+    2. Fast path — if the background installer recorded a latest tag
        (``proton_ge_latest.json``) and it is validly installed, use it
        without touching the network.
-    2. Safety net — fetch the newest GE-Proton tag and download/install
+    3. Safety net — fetch the newest GE-Proton tag and download/install
        it on demand (bounded; offline returns ``None`` quickly).
-    3. Fallback — Proton Experimental (the only fallback by design;
+    4. Fallback — Proton Experimental (the only fallback by design;
        older local GE versions stay user-selectable via Force Compat).
     """
+    external = external_ge.find_external_ge_proton()
     cached = ge_installer.read_cached_latest_tag()
-    if cached:
-        path = ge_installer.installed_ge_proton_path(cached)
-        if path:
-            tried.append(f"latest-ge-cached:{cached}")
+    cached_path = ge_installer.installed_ge_proton_path(cached) if cached else None
+
+    if external:
+        ext_path, ext_id, ext_ver = external
+        if cached and cached_path and ext_ver and external_ge.is_ge_outdated(ext_ver, cached):
             logger.info(
-                "[launcher.proton] selected cached latest GE-Proton: %s", cached,
+                "[launcher.proton] external GE (%s) is older than cached Unifideck GE (%s); "
+                "preferring Unifideck GE",
+                ext_ver, cached,
             )
-            return path, cached
+            tried.append(f"latest-ge-cached:{cached}")
+            return cached_path, cached
+        tried.append(f"external-ge:{ext_id}")
+        logger.info(
+            "[launcher.proton] selected externally managed GE-Proton: %s (%s)",
+            ext_id, ext_ver or "unknown",
+        )
+        return ext_path, ext_id
+
+    if cached and cached_path:
+        tried.append(f"latest-ge-cached:{cached}")
+        logger.info(
+            "[launcher.proton] selected cached latest GE-Proton: %s", cached,
+        )
+        return cached_path, cached
 
     # On-demand download at launch time — the background installer
     # hasn't finished (or never ran). This is otherwise silent, leaving

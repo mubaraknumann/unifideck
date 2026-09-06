@@ -1,7 +1,5 @@
 """Priority dispatcher — async priority queue + coalescing on top of EventBus.
 
-OP-09c | py_modules/unifideck/event_bus/priority_dispatcher.py
-
 ``PriorityDispatcher`` wraps a plain ``EventBus`` with three
 extra capabilities:
 
@@ -65,7 +63,6 @@ logger = logging.getLogger(__name__)
 DEFAULT_BACKGROUND_CAP = 500
 DROP_WARNING_INTERVAL_SEC = 60.0
 
-
 @dataclass(order=True)
 class _QueueItem:
     """One queued event waiting for dispatch.
@@ -95,7 +92,6 @@ class _QueueItem:
     kwargs: dict[str, Any] = field(compare=False)
     dropped: bool = field(default=False, compare=False)
 
-
 @dataclass
 class DispatcherMetrics:
     """Observability counters maintained by the dispatcher.
@@ -122,7 +118,6 @@ class DispatcherMetrics:
         default_factory=lambda: {"CRITICAL": 0, "NORMAL": 0, "BACKGROUND": 0},
     )
 
-
 class PriorityDispatcher:
     """Priority queue + coalescing + backpressure in front of an EventBus."""
 
@@ -145,9 +140,15 @@ class PriorityDispatcher:
             bus: the underlying ``EventBus`` to forward to.
             background_cap: maximum pending BACKGROUND items
                 before new ones are refused (default 500).
-            watchdog: optional ``HandlerWatchdog`` — currently
-                stored but invocation goes through the bus
-                directly (the bus uses the watchdog internally).
+            watchdog: optional ``HandlerWatchdog``. Stored here for
+                the health snapshot; the supervision itself happens
+                in ``EventBus._invoke_supervised``, which reads the
+                watchdog off the bus. This parameter's docstring
+                claimed "the bus uses the watchdog internally" from
+                the start — untrue until 2026-08-26, when the bus
+                was actually wired to it (audit register item 4g).
+                Until then nothing called ``watchdog.invoke`` and it
+                tracked zero handlers.
             latency_collector: optional sink for per-event
                 dispatch latencies.
             replay_buffer: optional ring buffer to record

@@ -51,12 +51,17 @@ export interface DailyTotal {
 }
 
 /**
- * Wire shape of `get_playtime` / `get_all_playtimes`.
+ * Wire shape of `get_playtime`.
  *
  * `total_seconds` is the local-only total; `store_total_secs` is the store's
  * authoritative cross-device total (GOG/Epic), `null` until first synced —
  * prefer it for display when present (it's the superset of local + other
- * devices). `game_id` / `title` are only present on `get_all_playtimes` rows.
+ * devices).
+ *
+ * `game_id` / `title` are optional because they were only populated by the
+ * bulk `get_all_playtimes` route, deleted in the audit §1.2 pass (the library
+ * view sources bulk playtime from Steam's own `GetPlaytime` instead). The
+ * per-game route does not set them.
  */
 export interface PlaytimeEntry {
   store: string;

@@ -51,6 +51,7 @@ from unifideck.launcher.proton.infrastructure.prefix_layout import (
     normalize_prefix_root,
     resolve_registry_prefix,
 )
+from unifideck.launcher.proton.infrastructure.setup_env import build_setup_env
 from unifideck.launcher.proton.infrastructure.umu_runtime import (
     ensure_umu_runtime_ready,
     repair_incomplete_umu_runtime,
@@ -313,17 +314,12 @@ async def _ensure_created(plan: ProtonLaunchPlan, prefix_root: Path) -> None:
     # ``_handle_proton_change`` (called just before) already created the
     # prefix root; umu createprefix populates the Wine tree inside it.
     ensure_umu_runtime_ready()
-    env = dict(plan.env)
-    env["GAMEID"] = "umu-0"  # generic — no per-game protonfix during setup
-    # Use the ``run`` verb, NOT the inherited ``waitforexitandrun``. Proton's
-    # waitforexitandrun runs ``wineserver -w`` FIRST (proton script ~L2111),
-    # which blocks until any existing wineserver for this prefix shuts down.
-    # Proton's persistent ``steam.exe`` stub keeps that wineserver resident,
-    # so a second waitforexitandrun step (or a retry) deadlocks on the wait —
-    # the observed install-warmup hang. ``run`` skips ``wineserver -w`` (this
-    # is exactly why gog_setup.run_wine sets it). Setup steps don't need to
-    # wait for a prior session; they operate on the prefix directly.
-    env["PROTON_VERB"] = "run"
+    # Shared setup-helper env: GAMEID=umu-0 (generic — no per-game protonfix
+    # during setup), PROTON_VERB=run rather than the inherited
+    # ``waitforexitandrun`` whose ``wineserver -w`` caused the install-warmup
+    # hang, and no game-only sidecars. ``infrastructure.setup_env`` carries the
+    # canonical write-up of all three; this used to be it.
+    env = build_setup_env(plan)
 
     if await _run_createprefix_with_retry(plan, env, prefix_root):
         await restore_or_migrate_saves(plan, prefix_root)

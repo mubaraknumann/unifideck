@@ -15,6 +15,10 @@ import logging
 from pathlib import Path
 
 from unifideck.launcher.proton.infrastructure.core import ProtonLaunchPlan
+from unifideck.launcher.proton.infrastructure.prefix_layout import (
+    normalize_prefix_root,
+)
+from unifideck.launcher.proton.infrastructure.setup_env import build_setup_env
 from unifideck.launcher.proton.infrastructure.umu_runtime import (
     UMU_TIMEOUT_RC,
     run_umu_with_retry,
@@ -48,11 +52,17 @@ _MARKER_NAME = ".unifideck_vcreg_v3.done"
 
 
 def _prefix_root(plan: ProtonLaunchPlan) -> Path:
-    """Resolve the prefix root (strip a trailing ``pfx`` segment)."""
-    p = plan.prefix_path.resolve()
-    while p.name == "pfx":
-        p = p.parent
-    return p
+    """The prefix root for *plan*, with any trailing ``pfx`` stripped.
+
+    A four-line wrapper over the canonical
+    ``prefix_layout.normalize_prefix_root``. This module, ``vcruntime``
+    and ``winetricks`` each held a byte-identical copy of that logic
+    beside it, and three more lived in ``proton/fixes/`` under the
+    canonical name — six copies of a helper that was already promoted.
+    Check 11 could not see them: it matches by name, and these were
+    renamed (audit register items 20 and 47).
+    """
+    return normalize_prefix_root(plan.prefix_path)
 
 
 def _prefix_proton_stamp(plan: ProtonLaunchPlan, prefix_root: Path) -> str:
@@ -122,12 +132,11 @@ async def apply_vcruntime_fix(plan: ProtonLaunchPlan) -> bool:
         return False
     marker = prefix_root / _MARKER_NAME
 
-    env = dict(plan.env)
-    env["GAMEID"] = "umu-0"
-    # ``run``, not the inherited ``waitforexitandrun``: the latter's
-    # ``wineserver -w`` deadlocks against a resident wineserver left by the
-    # earlier createprefix/winetricks step. See prefix_init._ensure_created.
-    env["PROTON_VERB"] = "run"
+    # Shared setup-helper env: GAMEID=umu-0 and PROTON_VERB=run (the inherited
+    # ``waitforexitandrun`` would deadlock against the wineserver left by the
+    # earlier createprefix/winetricks step), minus any game-only sidecar.
+    # See infrastructure.setup_env for the full explanation.
+    env = build_setup_env(plan)
     # ``/S`` imports silently — no GUI dialog on success OR error. The
     # error dialog (when C: path was wrong) blocked the launch for as
     # long as it stayed open; the Z: path + /S removes that entirely.

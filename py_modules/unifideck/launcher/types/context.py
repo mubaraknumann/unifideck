@@ -96,7 +96,13 @@ class RuntimeState:
     umu_id: str | None = None
     umu_wrapper: Path | None = None
     python_bin: Path | None = None
-    wrappers: list[str] = field(default_factory=list)
+    # No ``wrappers`` field. Steam applies wrapper words itself, BEFORE our
+    # launcher is exec'd — measured on this Deck (audit §2.9): with
+    # ``env %command% epic:Salt`` Steam ran the launcher *under* ``env`` and
+    # still delivered ``argv[1] = epic:Salt``. So ``mangohud %command% <id>``
+    # already works today with no plugin code, and by the time we hold an
+    # argv there is nothing left to wrap. Six argv builders used to prepend
+    # this list; it could only ever be empty. Audit register item 23b.
     game_args: list[str] = field(default_factory=list)
     lsfg_requested: bool = False
     game_exit_code: int | None = None
@@ -112,7 +118,6 @@ class RuntimeState:
             "lsfg_requested": self.lsfg_requested,
             "game_exit_code": self.game_exit_code,
             "terminated_by_signal": self.terminated_by_signal,
-            "wrappers_count": len(self.wrappers),
             "game_args_count": len(self.game_args),
         }
 

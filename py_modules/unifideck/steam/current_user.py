@@ -255,12 +255,17 @@ def rebind_user_paths(services: Any, steam_root: Path, account_id: str) -> None:
     Called by BOTH the frontend push (``set_active_steam_user`` RPC) and the
     ``ACCOUNT_SWITCHED`` handler, so both funnel through identical logic. Each
     setter is best-effort — a missing service slot must not abort the rest.
-    ``services`` is the ServiceContainer (attrs: ``shortcut``, ``artwork``,
-    ``proton``); accessed via ``getattr`` so this stays import-cycle-free.
+    ``services`` is the ServiceContainer (attrs: ``shortcut``, ``artwork``);
+    accessed via ``getattr`` so this stays import-cycle-free.
+
+    ``proton`` used to be re-bound here too, pointing ProtonService at the
+    user's ``localconfig.vdf``. That was doubly wrong — ``CompatToolMapping``
+    lives in ``config/config.vdf``, not ``localconfig.vdf``, and the compat
+    writer it fed could never run — so ProtonService no longer holds a path
+    at all and there is nothing per-user to re-bind.
     """
     sc_path = shortcuts_path(steam_root, account_id)
     g_dir = grid_dir(steam_root, account_id)
-    lc_path = localconfig_path(steam_root, account_id)
 
     shortcut = getattr(services, "shortcut", None)
     if shortcut is not None and hasattr(shortcut, "set_shortcuts_path"):
@@ -268,9 +273,6 @@ def rebind_user_paths(services: Any, steam_root: Path, account_id: str) -> None:
     artwork = getattr(services, "artwork", None)
     if artwork is not None and hasattr(artwork, "set_grid_dir"):
         artwork.set_grid_dir(g_dir)
-    proton = getattr(services, "proton", None)
-    if proton is not None and hasattr(proton, "set_config_vdf_path"):
-        proton.set_config_vdf_path(lc_path)
     logger.info(
         "[CurrentUser] re-bound per-user paths to account %s (shortcuts=%s)",
         account_id, sc_path,

@@ -11,8 +11,8 @@
  * Tab state is held in a module-level `persistentActiveTab`
  * so the last-viewed tab survives Quick-Access dismount /
  * remount (legacy behaviour from staging index.tsx). Steam's
- * automatic focus pass on mount used to defeat that — see
- * `autoFocusConsumed` in the component.
+ * automatic focus pass on mount used to defeat that — see the
+ * settle window in the component and `./tab-focus`.
  *
  * Tab buttons are `Focusable`s carrying Steam's own `Tab` /
  * `Selected` classes, inside a `flow-children="row"` row.
@@ -29,6 +29,7 @@
 import { CSSProperties, FC, useEffect, useRef, useState } from "react";
 import { Focusable, findClassModule } from "@decky/ui";
 import { useTranslation } from "react-i18next";
+import { shouldSwitchTab, TAB_SETTLE_MS, type ActiveTab } from "./tab-focus";
 import {
   StoreConnections,
   LibrarySync,
@@ -41,10 +42,20 @@ import {
 } from "../components/settings";
 import { DownloadsTab } from "../components/downloads";
 
-type ActiveTab = "settings" | "downloads";
-
 /** Last-viewed tab persisted across QAM mount/unmount. */
 let persistentActiveTab: ActiveTab = "settings";
+
+/**
+ * Focus-grab retry schedule. The first attempt runs in a `requestAnimation
+ * Frame`; if the pill has not taken focus, we retry on this cadence.
+ *
+ * The old single 140 ms retry was not enough: `HTMLElement.focus()` is a
+ * no-op while the element is still hidden behind the Quick-Access open
+ * animation, so both attempts could miss and the highlight would end up
+ * on a pill that does not match the content being shown.
+ */
+const GRAB_RETRY_MS = 120;
+const GRAB_MAX_ATTEMPTS = 5;
 
 /**
  * Steam's own tab-row CSS module (`TabRow` / `Tab` / `Selected`), looked up at
@@ -149,26 +160,57 @@ export const QuickAccessPanel: FC = () => {
   // down and closing it mounts this panel afresh — landing the user on
   // Settings mid-task, right after acting on a row in Downloads.
   //
-  // Two halves, both needed: swallow that first focus event (it is Steam's,
-  // not the user's), and put focus on the pill for the tab we are actually
-  // showing so the highlight matches the content.
-  const autoFocusConsumed = useRef(false);
+  // Two halves, both needed: ignore Steam's mount pass (it is not the
+  // user), and put focus on the pill for the tab we are actually showing so
+  // the highlight matches the content.
+  //
+  // The guard is a time-bounded settle window, NOT a one-shot latch. A latch
+  // is spent by whichever focus event arrives first, and which one that is
+  // depends on a race between Steam's pass and our own grab below — when
+  // both of those missed, the latch was still armed for the user's first
+  // stick move and swallowed exactly that move. See ./tab-focus.
+  const settleUntil = useRef(performance.now() + TAB_SETTLE_MS);
+  const programmatic = useRef(false);
   const settingsPill = useRef<HTMLDivElement>(null);
   const downloadsPill = useRef<HTMLDivElement>(null);
 
-  /** Tab switch driven by focus movement — see `autoFocusConsumed` above. */
+  /**
+   * Tab switch driven by focus movement.
+   *
+   * Bound to BOTH `onFocus` and `onGamepadFocus` on each pill. Steam moves
+   * its gamepad ring by toggling the `.gpfocus` class on the nav node, and
+   * that does not always drag DOM focus with it — this codebase already
+   * treats `.gpfocus`, `:focus` and `:focus-within` as three separate
+   * states (see components/play/play.css.ts). Listening to the React DOM
+   * event alone therefore missed the ring landing on the other pill, which
+   * is why the tab sometimes refused to switch until A was pressed:
+   * `onActivate` is dispatched by Steam's nav controller against the
+   * `.gpfocus` node, so it worked when `onFocus` had not fired at all.
+   * Both signals firing for the same move is harmless: the second one
+   * reads the tab the first already set and is rejected as a no-op.
+   *
+   * `current` reads `persistentActiveTab` rather than the `tab` state,
+   * because `setTab` writes it synchronously — the state value would still
+   * be the pre-switch one when the second of the two signals arrives in
+   * the same tick.
+   */
   const focusTab = (next: ActiveTab): void => {
-    if (!autoFocusConsumed.current) {
-      autoFocusConsumed.current = true;
-      // Steam's own pass, aimed at a tab we are not on: ignore it rather
-      // than let it redefine where the user was.
-      if (next !== persistentActiveTab) return;
+    if (
+      !shouldSwitchTab({
+        next,
+        current: persistentActiveTab,
+        programmatic: programmatic.current,
+        now: performance.now(),
+        settleUntil: settleUntil.current,
+      })
+    ) {
+      return;
     }
     setTab(next);
   };
 
   // Claim focus for the active pill on mount. Mirrors `PlayShell`'s recipe
-  // (rAF plus one delayed retry) because a single synchronous focus call
+  // (rAF plus delayed retries) because a single synchronous focus call
   // loses the race against Steam's own focus pass. Bails once focus has
   // landed, so it can never yank focus the user has since moved.
   useEffect(() => {
@@ -179,13 +221,25 @@ export const QuickAccessPanel: FC = () => {
     if (!target) return;
     let raf = 0;
     let timer = 0;
-    let retried = false;
+    let attempts = 0;
     const grab = (): void => {
+      // Only ever retried when the previous attempt FAILED to take focus,
+      // so this can never claw focus back off something the user moved to.
       if (target.ownerDocument.activeElement === target) return;
-      target.focus?.();
-      if (target.ownerDocument.activeElement !== target && !retried) {
-        retried = true;
-        timer = window.setTimeout(grab, 140);
+      // Flagged so the resulting `focusin` is not mistaken for the user
+      // moving onto this pill. `focus()` dispatches it synchronously, so
+      // the flag brackets the call exactly.
+      programmatic.current = true;
+      try {
+        target.focus?.();
+      } finally {
+        programmatic.current = false;
+      }
+      if (
+        target.ownerDocument.activeElement !== target &&
+        ++attempts < GRAB_MAX_ATTEMPTS
+      ) {
+        timer = window.setTimeout(grab, GRAB_RETRY_MS);
       }
     };
     raf = requestAnimationFrame(grab);
@@ -215,10 +269,17 @@ export const QuickAccessPanel: FC = () => {
             tab shows that tab immediately, the way Steam's own tab rows
             behave. Requiring an extra A press made navigation feel like it
             had stalled. `onActivate` stays so a click/A press still works
-            (and so each Focusable remains a focus target at all). */}
+            (and so each Focusable remains a focus target at all).
+
+            BOTH focus signals are bound. `onGamepadFocus` is Steam's own
+            nav event, fired when the `.gpfocus` ring lands on the node;
+            `onFocus` is the React DOM event, which only fires when DOM
+            focus actually moves. The two diverge, which is what made the
+            switch intermittent — see `focusTab`. */}
         <Focusable
           ref={settingsPill}
           onFocus={() => focusTab("settings")}
+          onGamepadFocus={() => focusTab("settings")}
           onActivate={() => setTab("settings")}
           className={tabClassName(tab === "settings")}
           style={tabButtonStyle(tab === "settings")}
@@ -228,6 +289,7 @@ export const QuickAccessPanel: FC = () => {
         <Focusable
           ref={downloadsPill}
           onFocus={() => focusTab("downloads")}
+          onGamepadFocus={() => focusTab("downloads")}
           onActivate={() => setTab("downloads")}
           className={tabClassName(tab === "downloads")}
           style={tabButtonStyle(tab === "downloads")}

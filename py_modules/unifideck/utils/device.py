@@ -31,18 +31,32 @@ device name on hardware that did not exist when this was written. That
 is the same trade the 32-bit Vulkan probe got wrong by inferring driver
 support from filenames, and it is worth paying once here.
 
+This module is the **single** answer to "what device is this". Anything
+that needs to branch on hardware reads it rather than re-reading DMI --
+the support bundle grew its own copy once and that is how two readers
+start disagreeing.
+
 Stdlib only, never raises.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 from enum import Enum
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-_DMI = Path("/sys/devices/virtual/dmi/id")
+#: Canonical DMI directory. Public so the support bundle dumps its raw
+#: fields from the same place this classifies from, rather than keeping
+#: a second path constant that can drift.
+DMI_PATH = Path("/sys/devices/virtual/dmi/id")
+
+#: Forces the detected device, for exercising Machine-only code paths on
+#: a Deck. Development seam, not a user setting: there is no config key
+#: and no UI for it. Same shape as ``UNIFIDECK_GAMESCOPE_DISPLAY``.
+_OVERRIDE_ENV = "UNIFIDECK_DEVICE_TYPE"
 
 #: DMI ``sys_vendor`` on Valve hardware. Compared case-insensitively
 #: because it is a firmware-authored string, not an API contract.
@@ -75,19 +89,74 @@ def _read_dmi(field: str) -> str:
     into a UI init path.
     """
     try:
-        return (_DMI / field).read_text(encoding="utf-8", errors="replace").strip().lower()
+        return (DMI_PATH / field).read_text(encoding="utf-8", errors="replace").strip().lower()
     except OSError:
         return ""
 
 
+def device_override() -> DeviceType | None:
+    """The forced device from ``UNIFIDECK_DEVICE_TYPE``, or ``None``.
+
+    Warns rather than raising on an unrecognised value: a typo in a
+    development env var must not take the plugin down, and falling
+    through to DMI is the honest answer when the override is unusable.
+    """
+    raw = os.environ.get(_OVERRIDE_ENV, "").strip().lower()
+    if not raw:
+        return None
+    try:
+        forced = DeviceType(raw)
+    except ValueError:
+        logger.warning(
+            "[device] ignoring %s=%r — expected one of %s",
+            _OVERRIDE_ENV, raw, [d.value for d in DeviceType],
+        )
+        return None
+    # Deliberately warning, not info: every downstream label, filter and
+    # compat record now describes hardware this is not, and a support
+    # bundle taken in this state must say so loudly.
+    logger.warning(
+        "[device] %s=%s — DMI detection overridden", _OVERRIDE_ENV, forced.value,
+    )
+    return forced
+
+
+#: Memoised answer. The device cannot change without a reboot, and this
+#: is called per-shortcut from the facets builder — 1000 titles meant
+#: ~2000 sysfs reads per boot-path RPC, plus one WARNING line per title
+#: when the override is set, which drowned the log a developer
+#: exercising the Machine path needs to read.
+_cached: DeviceType | None = None
+
+
+def reset_cache() -> None:
+    """Drop the memoised answer. For tests only."""
+    global _cached
+    _cached = None
+
+
 def detect_device_type() -> DeviceType:
     """Classify the host as Deck, Steam Machine, or neither.
+
+    Memoised — see :data:`_cached`. Cheap enough to call anywhere.
+    """
+    global _cached
+    if _cached is None:
+        _cached = _classify()
+    return _cached
+
+
+def _classify() -> DeviceType:
+    """The uncached classification.
 
     Non-Valve hardware short-circuits before ``product_name`` is read:
     a third-party board is free to call itself anything, and matching
     its product name against Valve's would be a collision waiting to
     happen.
     """
+    forced = device_override()
+    if forced is not None:
+        return forced
     vendor = _read_dmi("sys_vendor")
     if vendor != _VALVE_VENDOR:
         return DeviceType.OTHER

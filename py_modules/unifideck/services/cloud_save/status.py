@@ -13,11 +13,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from unifideck.launcher.proton.infrastructure.prefix_layout import resolve_drive_c
+from unifideck.services.cloud_save.path_resolver import find_save_dir_by_title
 
 if TYPE_CHECKING:
     from unifideck.config import ConfigManager
@@ -57,40 +57,9 @@ class _StatusMixin:
             if self._config:
                 game_title = self._config.get(f"games.{game_id}.title") or ""
             # No title ⇒ nothing to match a prefix subfolder against.
-            safe_title = (
-                re.sub(r"[^a-zA-Z0-9]", "", game_title).lower() if game_title else ""
-            )
-            if not safe_title:
-                return None
-
-            candidates = [
-                drive_c / "users" / "steamuser" / "Saved Games",
-                drive_c / "users" / "steamuser" / "Documents",
-                drive_c / "users" / "steamuser" / "AppData" / "Local",
-                drive_c / "users" / "steamuser" / "AppData" / "Roaming",
-            ]
-            for candidate in candidates:
-                match = self._match_title_dir(candidate, safe_title)
-                if match:
-                    return match
+            return find_save_dir_by_title(drive_c, game_title)
         except Exception as e:
             logger.debug("[CloudSave] Failed to auto-detect save dir: %s", e)
-        return None
-
-    @staticmethod
-    def _match_title_dir(candidate: Path, safe_title: str) -> str | None:
-        """Return a child dir of ``candidate`` whose name matches ``safe_title``."""
-        if not candidate.is_dir():
-            return None
-        for child in candidate.iterdir():
-            if not child.is_dir():
-                continue
-            child_name = re.sub(r"[^a-zA-Z0-9]", "", child.name).lower()
-            if safe_title in child_name or child_name in safe_title:
-                logger.info(
-                    "[CloudSave] Auto-detected Wine prefix save dir: %s", child
-                )
-                return str(child)
         return None
 
     def get_local_save_dir(self, store: str, game_id: str) -> str | None:

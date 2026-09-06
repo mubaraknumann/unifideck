@@ -25,7 +25,9 @@ playtime, categories and artwork.
 
 from __future__ import annotations
 
+import asyncio
 import logging
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +38,7 @@ from .ownership import (
     InstalledGame,
     MergedCatalog,
     evaluate_catalog,
+    read_catalog,
     read_installed,
     read_licences,
 )
@@ -139,10 +142,49 @@ def family_from_catalog(catalog: MergedCatalog, uid: str) -> str | None:
     Only used on the install path, where a title may not have been through a
     sync yet; :func:`record_families` covers the whole library at once.
     """
+    wanted = normalize_uid(uid)
     for entry in catalog.entries.values():
-        if entry.uid_for() == uid:
+        candidate = entry.uid_for()
+        if candidate and normalize_uid(candidate) == wanted:
             return entry.program_id
     return None
+
+
+def normalize_uid(uid: str) -> str:
+    """The join key for a Battle.net uid, case-folded.
+
+    Blizzard's own catalog is internally inconsistent about uid case. The PUB
+    fragments spell Diablo's retail uid ``D1``, Warcraft I's ``W1`` and
+    Warcraft II's ``W2``, while everything the *client* writes — ``product.db``,
+    ``aggregate.json``, the Agent logs — is lowercase throughout. Joining the
+    two case-sensitively reports exactly those titles as never installed: a
+    real Diablo install finished on disk at 13:04, ``detect()`` never fired
+    because ``product.db`` says ``d1`` and we asked for ``D1``, and five
+    minutes later the watchdog failed it with "The install was never finished
+    in Battle.net".
+
+    **Only the join is normalized.** The uid we emit as ``store_game_id`` keeps
+    its original case, because that string is what every released user's Steam
+    shortcut is keyed on (see :mod:`unifideck.services.shortcut.games_map`) —
+    re-keying it would strand their playtime, categories and artwork. The id
+    map keeps its case for the same reason and needs no change: it is looked up
+    with the same catalog uid it was written with, so it is already
+    self-consistent, and the out-of-process launcher reads it the same way.
+    """
+    return uid.lower()
+
+
+def install_row_for(
+    state: dict[str, InstalledGame], uid: str,
+) -> InstalledGame | None:
+    """Look one uid up in an :func:`install_state_by_uid` mapping.
+
+    Exists so the lookup side of the join can only be spelled once. Both
+    callers — the library's ``install_row`` and the install watcher's ``row``
+    — must normalize identically, and a second hand-written ``state.get(...)``
+    is how that silently stops being true.
+    """
+    return state.get(normalize_uid(uid))
 
 
 def _index_by_uid(installed: dict[str, InstalledGame]) -> dict[str, InstalledGame]:
@@ -152,12 +194,40 @@ def _index_by_uid(installed: dict[str, InstalledGame]) -> dict[str, InstalledGam
     (``hsb``) while the catalog addresses titles by uid (``hs_beta``). The
     uid is the only field common to both, so the join has to go through it —
     matching on code silently reports every installed game as not installed.
+
+    Keys are normalized through :func:`normalize_uid`; look them up with
+    :func:`install_row_for`, never with a bare ``.get``.
     """
     by_uid: dict[str, InstalledGame] = {}
     for game in installed.values():
         if game.uid:
-            by_uid[game.uid] = game
+            by_uid[normalize_uid(game.uid)] = game
     return by_uid
+
+
+async def install_row(
+    game_id: str, prefix: Path | None,
+) -> InstalledGame | None:
+    """This game's row in the client's install records, or ``None``.
+
+    Keyed on the uid asked for. The earlier form returned the *first* game
+    in the prefix, which is only ever right by accident — a prefix that
+    picked up a second Blizzard title reported that one's path and size
+    under this game's id.
+
+    Moved off the store (2026-08-26) for its LOC cap; it reads the same
+    client state as everything else here. The caller resolves the prefix,
+    since only it holds the id map.
+    """
+    from . import paths
+
+    if prefix is None:
+        return None
+    drive_c = paths.drive_c(prefix)
+    if drive_c is None:
+        return None
+    state = await asyncio.to_thread(install_state_by_uid, drive_c, prefix)
+    return install_row_for(state, game_id)
 
 
 def install_state_by_uid(drive_c: Path, prefix: Path) -> dict[str, InstalledGame]:
@@ -171,6 +241,68 @@ def install_state_by_uid(drive_c: Path, prefix: Path) -> dict[str, InstalledGame
     return _index_by_uid(read_install_state(drive_c, prefix))
 
 
+def count_game_account_gated(
+    catalog: MergedCatalog, facts: AccountFacts,
+) -> int:
+    """How many extra programs would be granted if game-account facts existed.
+
+    A lower bound on the titles this account is losing to
+    :attr:`AccountFacts.game_account_programs` being empty. Measured by
+    re-evaluating the same catalog with every program in it assumed to have
+    a game account, and diffing the granted set — a lower bound rather than
+    an exact figure because a ``game_account`` rule may name a program id
+    that is not itself a catalog key.
+
+    This exists because the gap is otherwise **completely silent**: nothing
+    in the tree ever writes the ``game_accounts`` cache the store reads, so
+    ``game_account_programs`` is always empty, every free-to-play and
+    subscription title is dropped, and the library simply looks smaller
+    than the account. See audit §3.5 finding A.
+    """
+    if facts.game_account_programs:
+        return 0
+    probe = AccountFacts(
+        licence_ids=facts.licence_ids,
+        game_account_programs=frozenset(catalog.program_configurations),
+        flags=facts.flags,
+    )
+    with_accounts = evaluate_catalog(catalog.program_configurations, probe)
+    without = evaluate_catalog(catalog.program_configurations, facts)
+    return max(0, len(with_accounts) - len(without))
+
+
+def _log_ownership_inputs(
+    catalog: MergedCatalog,
+    facts: AccountFacts,
+    granted: dict[str, frozenset[Any]],
+) -> None:
+    """Log every input the library size is a function of, once per sync.
+
+    A user whose Battle.net library came back with one game (GitHub #447) had
+    no way to say *which* of the three inputs was short, and neither did we:
+    the catalog read, the account facts and the granted set were all silent.
+    Each of these is a plain count, so this is cheap enough to run every sync
+    and is the only thing that distinguishes the known always-empty facts
+    (register item 29, and ``flags``, which has no producer either) from a PUB
+    cache the client had not finished writing when the first sync ran.
+
+    A real prefix measures ~254 fragments, 38 of them carrying program rules;
+    a first sync racing the client sees far fewer. Print both so the two are
+    told apart from the log alone, without a second round trip to the reporter.
+    """
+    logger.info(
+        "[Battlenet] ownership facts: licences=%d game_accounts=%d flags=%d",
+        len(facts.licence_ids), len(facts.game_account_programs),
+        len(facts.flags),
+    )
+    logger.info(
+        "[Battlenet] PUB catalog: fragments=%d programs=%d titles=%d "
+        "-> granted=%d",
+        catalog.fragment_count, len(catalog.program_configurations),
+        len(catalog.entries), len(granted),
+    )
+
+
 def build_library(
     catalog: MergedCatalog,
     facts: AccountFacts,
@@ -180,9 +312,18 @@ def build_library(
 ) -> list[Game]:
     """Join ownership, catalog metadata and install state into Games."""
     granted = evaluate_catalog(catalog.program_configurations, facts)
+    _log_ownership_inputs(catalog, facts, granted)
+    gated = count_game_account_gated(catalog, facts)
+    if gated:
+        logger.warning(
+            "[Battlenet] %d program(s) need game-account facts we do not "
+            "have — free-to-play and subscription titles are missing from "
+            "this library (no writer for the game_accounts cache)",
+            gated,
+        )
     by_uid = _index_by_uid(installed)
     games = _granted_games(granted, catalog, by_uid, launcher_path)
-    seen = {g.store_game_id for g in games}
+    seen = {normalize_uid(g.store_game_id) for g in games}
     games.extend(_orphan_installed(installed, catalog, seen, launcher_path))
     return games
 
@@ -201,7 +342,7 @@ def _granted_games(
             program,
             entry,
             catalog,
-            by_uid.get(uid) if uid else None,
+            install_row_for(by_uid, uid) if uid else None,
             free_to_play=any(p.is_free_to_play for p in products),
             launcher_path=launcher_path,
         )
@@ -227,7 +368,11 @@ def _orphan_installed(
             continue
         entry = catalog.entry_for(code)
         uid = state.uid or (entry.uid_for() if entry else None) or code
-        if uid in seen_uids:
+        # Normalized both sides: the granted tile carries the catalog's ``D1``
+        # while ``state.uid`` is the client's ``d1``, and a case-sensitive
+        # miss here re-adds the same game as a second tile — with a family
+        # taken from the product code, which launches nothing.
+        if normalize_uid(uid) in seen_uids:
             continue
         logger.info(
             "[Battlenet] %s is installed but not granted by the rules — "
@@ -249,6 +394,44 @@ def read_account_facts(drive_c: Path, game_account_programs: frozenset[str]) -> 
     return AccountFacts(
         licence_ids=licences.licence_ids,
         game_account_programs=game_account_programs,
+    )
+
+
+async def read_library(
+    drive_c: Path,
+    *,
+    game_account_programs: frozenset[str],
+    collect_installed: Callable[[], dict[str, Any]],
+    launcher_path: str,
+) -> list[Game] | None:
+    """Read the whole library off client-local state, or ``None``.
+
+    Split out of ``store.get_library`` (2026-08-26) for the store file's
+    LOC cap; it belongs next to :func:`build_library` anyway, since every
+    step is a read of the same client state.
+
+    ``None`` means *we could not read*, which is a different claim from
+    *you own nothing*: an empty list is authoritative downstream and lets
+    the shortcut reconcile delete every Battle.net shortcut the user has
+    (audit §3.5, finding B). Both unreadable cases return it — a missing
+    prefix, and a catalog cache the client has not populated, without
+    which every ownership rule has nothing to match against.
+
+    Every read is filesystem/SQLite work, so each runs off the loop.
+    """
+    catalog = await asyncio.to_thread(read_catalog, drive_c)
+    if not catalog.program_configurations:
+        logger.warning(
+            "[Battlenet] PUB catalog cache is empty — launch the client "
+            "once so it populates; library reported unknown, not empty",
+        )
+        return None
+    facts = await asyncio.to_thread(
+        read_account_facts, drive_c, game_account_programs,
+    )
+    installed = await asyncio.to_thread(collect_installed)
+    return build_library(
+        catalog, facts, installed, launcher_path=launcher_path,
     )
 
 

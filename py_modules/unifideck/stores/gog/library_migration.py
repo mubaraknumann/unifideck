@@ -1,7 +1,5 @@
 """Upgrade legacy ``.unifideck-id`` markers to the canonical JSON format.
 
-OP-50d | py_modules/unifideck/stores/gog/library_migration.py
-
 Pre-v6 versions of Unifideck wrote install markers in two non-canonical
 forms (raw integer id, ``{"id": ...}`` dict). This module sweeps the
 download directory at library boot time and rewrites every legacy
@@ -27,7 +25,6 @@ if TYPE_CHECKING:
     from .library import GOGLibrary
 logger = logging.getLogger(__name__)
 _INSTALL_MARKER = ".unifideck-id"
-
 
 class _MarkerMigration:
     """Marker migration."""

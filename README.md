@@ -91,7 +91,7 @@ Installed games are playable immediately after install. The Steam restart is sti
 
 **Developer / reference**
 
-- **[Architecture & Build](docs/architecture.md)** - The 5-layer backend, EventBus, RPC mixins, and build flow.
+- **[Architecture & Build](docs/architecture.md)** - The layered backend, EventBus, RPC mixins, and build flow.
 - **[Ubisoft Store Spec](docs/ubisoft-store-spec.md)** - How the Ubisoft Connect integration works end to end.
 - **[UI Injection](docs/ui-injection.md)** & **[Steam UI Patching Reference](docs/STEAM_UI_PATCHING_REFERENCE.md)** - How Unifideck patches Steam's React UI.
 - **[CONTRIBUTING](CONTRIBUTING.md)** - PR process and contribution guidelines.
@@ -172,7 +172,7 @@ Common flows (`build-plugin.sh`):
 ## Tech Stack
 
 - **Frontend** - React, TypeScript, Rollup, `@decky/api`, `@decky/ui`, `i18next`
-- **Backend** - Python, Decky Loader RPC, a 5-layer architecture with an EventBus and dependency-injection core, CDP-based auth and browser helpers
+- **Backend** - Python, Decky Loader RPC, a layered architecture with an EventBus and dependency-injection core, CDP-based auth and browser helpers
 - **Store tooling** - legendary, gogdl, nile, comet, winetricks, umu-launcher
 - **Services and data** - SteamGridDB, Epic/GOG/Amazon/Microsoft APIs, Microsoft Edge, Metacritic, compatibility metadata
 

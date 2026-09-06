@@ -1,8 +1,6 @@
 """
 Steam shortcut creation for the auth flow — ensures a UPC launcher exists.
 
-OP-58c | py_modules/unifideck/stores/ubisoft/auth/shortcut.py
-
 ``_AuthShortcut`` is responsible for creating (or re-using) a Steam
 shortcut that launches UPC inside the auth-dedicated Wine prefix. The
 shortcut is named "Ubisoft Connect", uses the UPC icon from SteamGridDB,
@@ -21,6 +19,8 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+from unifideck.core.compat_bridge import to_unsigned
+
 if TYPE_CHECKING:
     from unifideck.services.shortcut import ShortcutService
 
@@ -37,7 +37,6 @@ _ORPHAN_SHORTCUT_NAMES = frozenset(
     {"upc.exe", "ubisoft connect"},
 )
 
-
 def _dropped_appids(shortcuts: dict[str, Any], keys: list[str]) -> list[int]:
     """Appids of *keys*, for the write guard's ``allow_foreign_drops``.
 
@@ -53,7 +52,6 @@ def _dropped_appids(shortcuts: dict[str, Any], keys: list[str]) -> list[int]:
         if isinstance(appid, int):
             ids.append(appid)
     return ids
-
 
 def _prune_orphan_shortcuts(shortcuts: dict[str, Any]) -> list[int]:
     """Prune orphan shortcuts; return the appids removed."""
@@ -75,7 +73,6 @@ def _prune_orphan_shortcuts(shortcuts: dict[str, Any]) -> list[int]:
         del shortcuts[idx]
     return dropped
 
-
 def _prune_legacy_template_shortcuts(
     shortcuts: dict[str, Any],
 ) -> list[int]:
@@ -93,7 +90,6 @@ def _prune_legacy_template_shortcuts(
         )
         del shortcuts[idx]
     return dropped
-
 
 class _AuthShortcut:
     """Auth shortcut."""
@@ -202,8 +198,29 @@ class _AuthShortcut:
             launcher_path,
             _AUTH_SHORTCUT_NAME,
         )
-        unsigned_id = appid if appid >= 0 else appid + 2**32
+        unsigned_id = to_unsigned(appid)
         shortcuts_data = await sm.read_shortcuts()
+        await self._reconcile_vdf(
+            sm, shortcuts_data, launcher_path, appid, unsigned_id,
+        )
+        await self._finalize_new_shortcut(sm, appid, unsigned_id)
+        return cast("int | None", unsigned_id)
+
+    async def _reconcile_vdf(
+        self,
+        sm: ShortcutService,
+        shortcuts_data: dict[str, Any],
+        launcher_path: str,
+        appid: int,
+        unsigned_id: int,
+    ) -> None:
+        """Prune stale rows, add the canonical entry, write only if changed.
+
+        Split out of :meth:`create_new_auth_shortcut` to keep that method
+        under the fan-out cap, and because it is the one self-contained unit
+        in it: everything here is about getting ``shortcuts.vdf`` into the
+        right shape, and nothing else in the caller depends on its locals.
+        """
         shortcuts = shortcuts_data.get("shortcuts", {})
         orphans_removed = _prune_orphan_shortcuts(shortcuts)
         legacy_removed = _prune_legacy_template_shortcuts(shortcuts)
@@ -213,24 +230,20 @@ class _AuthShortcut:
             appid,
             unsigned_id,
         )
-        vdf_dirty = bool(
-            orphans_removed or legacy_removed or canonical_added,
+        if not (orphans_removed or legacy_removed or canonical_added):
+            return
+        # Declare the pruned rows so the write guard lets them go —
+        # see ``_dropped_appids``.
+        await sm.write_shortcuts(
+            shortcuts_data,
+            allow_foreign_drops=frozenset(orphans_removed + legacy_removed),
         )
-        if vdf_dirty:
-            # Declare the pruned rows so the write guard lets them go —
-            # see ``_dropped_appids``.
-            await sm.write_shortcuts(
-                shortcuts_data,
-                allow_foreign_drops=frozenset(orphans_removed + legacy_removed),
-            )
-            logger.info(
-                "[UbisoftAuth] VDF updated: orphans=%d legacy=%d added=%s",
-                len(orphans_removed),
-                len(legacy_removed),
-                canonical_added,
-            )
-        await self._finalize_new_shortcut(sm, appid, unsigned_id)
-        return cast("int | None", unsigned_id)
+        logger.info(
+            "[UbisoftAuth] VDF updated: orphans=%d legacy=%d added=%s",
+            len(orphans_removed),
+            len(legacy_removed),
+            canonical_added,
+        )
 
     async def _finalize_new_shortcut(
         self,

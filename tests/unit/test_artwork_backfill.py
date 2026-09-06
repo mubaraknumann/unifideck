@@ -119,9 +119,14 @@ async def test_fetch_artwork_backfills_only_missing(tmp_path):
     # present kinds report True without being re-fetched
     assert result["grid"] is True and result["hero"] is True
     assert result["icon"] is True
-    # still-missing recorded for next sync's incremental skip
+    # still-missing recorded for next sync's incremental skip, together with
+    # the title it was recorded for — SGDB matches on the title, so the same
+    # gaps under a later title are a different question (a stale record made
+    # a renamed game unfixable; see
+    # tests/unit/test_enrichment_survives_a_title_change.py).
     attempted = svc._cache.get("artwork_attempts", "microsoft:gid")
-    assert set(attempted) == {"grid_l", "logo"}
+    assert set(attempted["missing"]) == {"grid_l", "logo"}
+    assert attempted["title"] == "Control"
 
 
 @pytest.mark.asyncio

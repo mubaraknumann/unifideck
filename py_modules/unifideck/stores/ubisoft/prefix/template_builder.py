@@ -1,8 +1,6 @@
 """
 Template prefix builder — install UPC into a clean prefix.
 
-OP-59c | py_modules/unifideck/stores/ubisoft/prefix/template_builder.py
-
 ``_TemplateBuilder`` constructs the ``.template`` prefix: a freshly
 created Wine prefix with UPC pre-installed. It's used as the base for
 all per-game prefixes — copying the template is much faster than
@@ -39,7 +37,6 @@ if TYPE_CHECKING:
 
     from .helpers import _PrefixHelpers
 logger = logging.getLogger(__name__)
-
 
 class _TemplatePrefixBuilder:
     """Template prefix builder."""

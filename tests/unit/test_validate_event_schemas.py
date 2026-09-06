@@ -16,7 +16,10 @@ module pins its behaviour:
    undeclared), so the gate cannot pass while broken;
 4. extraction noise is filtered — the priority dispatcher's
    ``bus.emit(item.event, ...)`` must NOT surface as a
-   phantom event named ``"event"``.
+   phantom event named ``"event"``;
+5. single-emitter events are only emitted from their owning
+   subsystem, and that check reports a violation rather than
+   passing regardless (audit item #4).
 
 Resolution of the repo root is robust (env var → walk up from
 the unifideck package → known locations) because the suite
@@ -186,7 +189,215 @@ def test_extraction_noise_is_filtered(
     target = (
         script_module.ROOT / "py_modules" / "unifideck"
     )
-    actual = script_module.walk_sources(target)
+    actual, emitters = script_module.walk_sources(target)
     assert "event" not in actual
     # everything surviving the filter is a real enum member
     assert set(actual) <= script_module.VALID_EVENTS
+    # The emitter map is filtered by the same rule, and covers every
+    # event the kwargs map does — check_emitter_owners reads it.
+    assert set(emitters) == set(actual)
+
+
+# ========================================================= #
+# 5. Single-emitter ownership
+# ========================================================= #
+def test_download_events_are_owned_by_the_download_service(
+    script_module,
+) -> None:
+    """The live tree must have exactly one DOWNLOAD_* emitter.
+
+    Audit item #4: Epic and Amazon emitted the whole download
+    lifecycle a second time from their installers. The kwargs
+    check catches a duplicate that invents its own payload; this
+    one catches a duplicate that copies the right payload from the
+    wrong place.
+    """
+    target = script_module.ROOT / "py_modules" / "unifideck"
+    _actual, emitters = script_module.walk_sources(target)
+
+    assert script_module.check_emitter_owners(emitters) == 0
+    for event, owner in script_module.EMITTER_OWNERS.items():
+        for path in emitters.get(event, set()):
+            assert path.startswith(owner), f"{event} emitted from {path}"
+
+
+def test_an_emitter_outside_its_owning_subsystem_is_reported(
+    script_module,
+) -> None:
+    """The check must actually bite, not just return 0 forever."""
+    owned = next(iter(script_module.EMITTER_OWNERS))
+    violations = script_module.check_emitter_owners(
+        {owned: {"stores/epic/install.py", "services/download/worker.py"}},
+    )
+    assert violations == 1  # the store file only
+
+
+# ========================================================= #
+# Subscribe-side arm (audit correction C-2)                 #
+# ========================================================= #
+def test_the_live_tree_has_no_subscriber_reading_an_undeclared_key(
+    script_module,
+) -> None:
+    """The regression this arm exists for.
+
+    ``validate_event_schemas`` was emit-side only, so a handler reading a
+    key no emitter sends was invisible. Three events shipped that defect:
+    ``GAME_INSTALLED`` (``app_id`` vs ``game_id``), ``TOAST_NOTIFICATION``
+    (``params`` vs ``i18n_params``), and ``GAME_STOPPED`` (``rc`` vs
+    ``exit_code``) — the last was still live when this check was written,
+    and it meant the circuit breaker could never reset on a good launch.
+    """
+    target = script_module.ROOT / "py_modules" / "unifideck"
+    subscribers = script_module.walk_subscribers(target)
+
+    assert subscribers, "no @subscribe handlers found — the walker is broken"
+    assert script_module.check_subscriber_reads(subscribers) == 0
+
+
+def test_a_subscriber_reading_a_phantom_key_is_reported(script_module) -> None:
+    """The check must bite. Drives the real GAME_STOPPED contract."""
+    declared = script_module.CANONICAL_SCHEMA["GAME_STOPPED"]
+    assert "exit_code" in declared and "rc" not in declared
+
+    errors = script_module.check_subscriber_reads(
+        [("GAME_STOPPED", "services/x.py", "_on_game_stopped", {"store", "rc"})],
+    )
+    assert errors == 1
+
+
+def test_a_subscriber_reading_only_declared_keys_passes(script_module) -> None:
+    errors = script_module.check_subscriber_reads(
+        [(
+            "GAME_STOPPED",
+            "services/x.py",
+            "_on_game_stopped",
+            {"store", "game_id", "exit_code", "elapsed_seconds"},
+        )],
+    )
+    assert errors == 0
+
+
+def test_an_event_with_no_declared_schema_is_skipped(script_module) -> None:
+    """Nothing to compare against; :func:`compare` already reports it."""
+    assert "NOT_A_REAL_EVENT" not in script_module.CANONICAL_SCHEMA
+    errors = script_module.check_subscriber_reads(
+        [("NOT_A_REAL_EVENT", "services/x.py", "_h", {"anything"})],
+    )
+    assert errors == 0
+
+
+def test_every_tolerated_read_still_corresponds_to_a_real_handler(
+    script_module,
+) -> None:
+    """A stale exemption silently widens the gate.
+
+    Same failure mode as a ``# unwired:`` marker left on a deleted event:
+    the row exempts nothing and hides the next real mismatch. Keyed
+    ``<module>::<handler>`` precisely so a rename shows up here.
+    """
+    target = script_module.ROOT / "py_modules" / "unifideck"
+    if not script_module.TOLERATED_SUBSCRIBER_READS:
+        return  # empty is the goal; nothing to go stale
+    live = {
+        f"{rel}::{handler}"
+        for _event, rel, handler, _keys in script_module.walk_subscribers(target)
+    }
+    for key in script_module.TOLERATED_SUBSCRIBER_READS:
+        assert key in live, (
+            f"TOLERATED_SUBSCRIBER_READS names {key!r}, which is not a live "
+            f"@subscribe handler — delete the row or fix the path"
+        )
+
+
+def test_a_tolerated_read_does_not_mask_a_second_undeclared_key(
+    script_module,
+) -> None:
+    """Tolerating one fallback must not wave through a real defect beside it."""
+    # Drives the mechanism with a synthetic entry so the test keeps working
+    # once the real table is empty — which it now is, because both founding
+    # entries were deleted rather than carried (audit register item 41).
+    monkeypatched = {"services/x.py::_h": {"tolerated_key"}}
+    script_module.TOLERATED_SUBSCRIBER_READS.update(monkeypatched)
+    key = "services/x.py::_h"
+    rel, handler = key.split("::", 1)
+    tolerated = script_module.TOLERATED_SUBSCRIBER_READS[key]
+
+    errors = script_module.check_subscriber_reads(
+        [(
+            "POST_SYNC_PHASE_CHANGED",
+            rel,
+            handler,
+            {*tolerated, "a_genuinely_wrong_key"},
+        )],
+    )
+    assert errors == 1
+
+
+# ========================================================= #
+# The two LAUNCHER_STAGE payload builders must agree        #
+# ========================================================= #
+def test_the_two_toast_builders_produce_the_same_payload_shape() -> None:
+    """``emit_stage`` and ``launcher_toast`` are one contract in two places.
+
+    Both build a ``LAUNCHER_STAGE`` payload and both end up in the same
+    bridge file, but they exist separately for a real reason: the deep launch
+    helpers (umu retry, winetricks, prefix init) are plain functions several
+    frames below anything holding an ``EventBus``, so ``launcher_toast``
+    writes to the bridge directly. 38 of the 46 backend toast call sites use
+    it.
+
+    ``launcher_toast``'s own docstring states the invariant and admits it is
+    hand-maintained: *"The two builders must stay in step: a field one
+    produces and the other doesn't is a payload that renders differently
+    depending on which process emitted it."* Nothing checked it — the same
+    hand-maintained-pair shape as ``uses_wine`` ↔ ``WRAPPER_STORES`` in audit
+    §3.1, where the pair was fine right up until it wasn't.
+
+    They agree today (7 keys each). This pins that.
+    """
+    import ast
+    from pathlib import Path
+
+    from tests.unit._repo_root import find_repo_file
+
+    def payload_keys(rel: str, fn_name: str) -> set[str]:
+        path = find_repo_file(rel)
+        assert path is not None, rel
+        tree = ast.parse(Path(path).read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and node.name == fn_name
+            ):
+                keys: set[str] = set()
+                for sub in ast.walk(node):
+                    if (
+                        isinstance(sub, ast.Subscript)
+                        and isinstance(sub.slice, ast.Constant)
+                        and getattr(sub.value, "id", "") == "payload"
+                    ):
+                        keys.add(sub.slice.value)
+                    if isinstance(sub, ast.Dict):
+                        for k in sub.keys:
+                            if isinstance(k, ast.Constant) and isinstance(
+                                k.value, str,
+                            ):
+                                keys.add(k.value)
+                return keys
+        raise AssertionError(f"{fn_name} not found in {rel}")
+
+    bus_side = payload_keys(
+        "py_modules/unifideck/launcher/rpc.py", "emit_stage",
+    )
+    bridge_side = payload_keys(
+        "py_modules/unifideck/launcher/frontend_bridge.py", "launcher_toast",
+    )
+
+    assert bus_side, "emit_stage built no payload keys — parser broken?"
+    assert bus_side == bridge_side, (
+        f"the two LAUNCHER_STAGE builders have drifted.\n"
+        f"  only emit_stage:     {sorted(bus_side - bridge_side)}\n"
+        f"  only launcher_toast: {sorted(bridge_side - bus_side)}\n"
+        f"A field one sends and the other does not renders differently "
+        f"depending on which process emitted the toast."
+    )

@@ -1,7 +1,5 @@
 """Amazon Games "fuel.json" parser — extract launch metadata.
 
-OP-49f | py_modules/unifideck/stores/amazon/amazon_fuel.py
-
 After a successful install, every Amazon Games title contains a
 ``fuel.json`` file at its install root, listing the launch
 executable, its arguments, and supported runtime requirements.
@@ -34,7 +32,6 @@ from typing import Any
 logger = logging.getLogger(__name__)
 _COMMENT_RE = re.compile(r"//.*$", re.MULTILINE)
 
-
 def candidate_fuel_dirs(install_path: str) -> list[str]:
     """Check whether fuel dirs."""
     if not install_path:
@@ -58,7 +55,6 @@ def candidate_fuel_dirs(install_path: str) -> list[str]:
         )
     return dirs
 
-
 def parse_fuel_json_content(content: str) -> dict[str, Any] | None:
     """Parse fuel JSON content."""
     cleaned = _COMMENT_RE.sub("", content)
@@ -75,7 +71,6 @@ def parse_fuel_json_content(content: str) -> dict[str, Any] | None:
         return None
     return data
 
-
 def extract_main_command(fuel_data: dict[str, Any]) -> str | None:
     """Extract main command."""
     main = fuel_data.get("Main")
@@ -85,7 +80,6 @@ def extract_main_command(fuel_data: dict[str, Any]) -> str | None:
     if not isinstance(command, str) or not command.strip():
         return None
     return command.strip()
-
 
 def find_exe_from_fuel(install_path: str) -> str | None:
     """Find exe from fuel."""

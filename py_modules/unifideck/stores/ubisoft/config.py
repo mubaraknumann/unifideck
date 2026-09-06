@@ -1,8 +1,6 @@
 """
 Ubisoft store configuration — frozen dataclass with deferred path resolution.
 
-OP-55b | py_modules/unifideck/stores/ubisoft/config.py
-
 ``UbisoftConfig`` is a frozen dataclass holding every tunable parameter
 of the Ubisoft sub-package: data directories, prefix locations, installer
 URL, UPC binary names, credential file list, Wine system users, Steam
@@ -49,7 +47,6 @@ _DEFAULT_UPC_SESSION_FILE = "~/.local/share/unifideck/ubisoft_upc_session.txt"
 _DEFAULT_GAME_ID_DB_FILE = "~/.local/share/unifideck/ubisoft_game_db.txt"
 _DEFAULT_DEFAULT_INSTALL_BASE = "~/Games/Ubisoft"
 
-
 def _detect_sdcard_install_base(media_base: Path | None = None) -> str:
     """Best-effort default SD / removable-media install base for Ubisoft.
 
@@ -62,7 +59,6 @@ def _detect_sdcard_install_base(media_base: Path | None = None) -> str:
     scan time via ``_DetectionHelpers._append_mounted_media_roots``.
     """
     return detect_sdcard_install_base("Ubisoft", media_base)
-
 
 _DEFAULT_SDCARD_INSTALL_BASE = _detect_sdcard_install_base()
 _DEFAULT_INSTALLER_URL = (
@@ -95,7 +91,6 @@ _DEFAULT_LOCALSTORAGE_RELATIVE_PATH = (
     "Ubisoft Game Launcher/cache/http2/Default/Local Storage"
 )
 _UBI_CONFIG_PREFIX = "stores.ubisoft"
-
 
 @dataclass(frozen=True)
 class UbisoftConfig:
@@ -159,7 +154,7 @@ class UbisoftConfig:
     # the Ubisoft copy.
     filter_steam_linked: bool = True
     steam_library_cross_ref: bool = False
-    # Free-to-play CDN feed supplement (OP-57g). When enabled, the
+    # Free-to-play CDN feed supplement. When enabled, the
     # public Ubisoft free-games catalogue labels owned F2P titles
     # (ownership_type="free" + cover) and surfaces F2P games the
     # ownership binary doesn't list. Network is optional — failure
@@ -321,7 +316,6 @@ class UbisoftConfig:
             f"install_base={self.default_install_base}, "
             f"installer_url={self.installer_url[:40]}…)"
         )
-
 
 UbisoftConfig._FIELD_SPECS = (
     ("data_dir", "data_dir", UbisoftConfig._parse_str, _DEFAULT_DATA_DIR),

@@ -100,7 +100,7 @@ _SERVICE_DEFS: tuple[tuple[Any, ...], ...] = (
     (
         "proton", "unifideck.services.proton_service",
         "ProtonService",
-        lambda b, r, c, cfg, p, pl: (b, p.config_vdf_path),
+        lambda b, r, c, cfg, p, pl: (b,),
         lambda b, r, c, cfg, p, pl: {},
     ),
     (
@@ -170,11 +170,18 @@ _SERVICE_DEFS: tuple[tuple[Any, ...], ...] = (
     # LaunchHistoryService — circuit breaker storage for the
     # per-game launch failure tracker (rework piste #8). Used by
     # the plugin RPC handlers (get_launch_failures,
-    # clear_launch_failures) for read access and UI badge
-    # rendering. Write access is exclusive to the launcher
-    # process (which constructs its own instance via
-    # launcher/bootstrap.py); the plugin instance here is
-    # read-only by convention.
+    # clear_launch_failures, arm_circuit_bypass) and the
+    # ``useCircuitState`` badge (register item 4a).
+    #
+    # NOT read-only, despite what this comment said until
+    # 2026-08-26: the plugin instance subscribes GAME_LAUNCHED /
+    # GAME_STOPPED and writes through ``record_success``. That is
+    # the ONLY path that clears a tripped breaker — the launcher
+    # process records failures, and its own instance is built
+    # without a bus (``dispatcher.py`` passes config alone), so it
+    # subscribes nothing. Item 46: the handler read an ``rc`` key
+    # no emitter sends, so ``record_success`` was unreachable and
+    # the breaker could accumulate but never clear.
     (
         "launch_history", "unifideck.services.launch_history",
         "LaunchHistoryService",
@@ -185,12 +192,18 @@ _SERVICE_DEFS: tuple[tuple[Any, ...], ...] = (
     # ``launcher.diagnostics.log_archive``. Read-only on the
     # plugin side (launches write the archive themselves from
     # the out-of-process launcher binary). Consumed by the RPC
-    # methods ``get_launch_logs`` and ``export_launch_logs``;
-    # before this entry was added, the mixin referenced
+    # method ``get_launch_logs``. It named ``export_launch_logs``
+    # too until 2026-08-26; that RPC was deleted in the §1.2 pass
+    # and the service method with it (audit register item 4j).
+    # Before this entry was added, the mixin referenced
     # ``self.services.launch_logs`` but the attribute was
-    # always ``None``, so both endpoints raised
+    # always ``None``, so the endpoint raised
     # ``service_unavailable`` to the frontend regardless of
     # whether the archive existed on disk.
+    #
+    # Currently unreachable end to end: ``get_launch_logs`` is
+    # only reached by the ``show-logs`` toast action, which has
+    # no producer. Capture Logs collects the same files.
     (
         "launch_logs", "unifideck.services.launch_logs",
         "LaunchLogsService",

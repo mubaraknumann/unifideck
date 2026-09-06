@@ -68,6 +68,12 @@ _ALWAYS_FORWARD = frozenset({
     "STEAM_COMPAT_INSTALL_PATH",
     "STORE",
     "WINEPREFIX",
+    # The app identity umu re-derives SteamAppId/SteamGameId from. It needs
+    # to be here rather than left to the diff below: Steam sets this variable
+    # inside the container too, and when the two values happen to match,
+    # ``_forwarded_env`` drops it as "unchanged" and the escaped process is
+    # left with the container's copy. Written by ``steam.window_env``.
+    "STEAM_COMPAT_APP_ID",
 })
 
 

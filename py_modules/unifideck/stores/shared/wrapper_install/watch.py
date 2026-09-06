@@ -11,11 +11,17 @@ there and when the attempt has been abandoned.
 
 This was Ubisoft's, privately, and every constant in it is a scar:
 
-* **Completion is not "the client says so".** Ubisoft has to infer it from the
-  install directory's size holding steady, and that fires early on a
-  mid-download pause. So a store that *can* answer authoritatively is asked
-  first (``InstallProbe.is_complete``) and the heuristic is the fallback, not
-  the rule.
+* **Completion is not "the client says so".** Neither vendor prints a
+  "finished" message, so each store recognises it from its own prefix state:
+  Battle.net reads ``product.db``, Ubisoft reads whether UPC has drained its
+  staging directory. ``InstallProbe.is_complete`` is asked first and the size
+  heuristic is only the fallback for a probe that answers ``None``.
+* **The size heuristic is a last resort, and it is dangerous.** It ended a
+  Ubisoft install 18 minutes early, because ``measure`` was returning apparent
+  size and UPC pre-allocates the whole game as sparse files the moment it
+  accepts the job — so "three unchanged reads" was satisfied while 2% of the
+  bytes had landed. A probe must measure allocated blocks, and should answer
+  ``False`` rather than ``None`` whenever it knows a download is still running.
 * **Never kill the client on completion.** Only on cancel. Because completion
   can be inferred early, killing on it interrupted still-running installs —
   users watched Ubisoft Connect close mid-install and resume on reopen.

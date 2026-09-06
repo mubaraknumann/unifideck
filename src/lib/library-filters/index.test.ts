@@ -6,7 +6,7 @@ vi.mock("../../api/useRPC", () => ({
   unwrapRpcEnvelope: (raw: unknown) => raw,
 }));
 vi.mock("../protondb-cache", () => ({
-  meetsGreatOnDeckCriteria: vi.fn(),
+  meetsGreatOnCurrentDevice: vi.fn(),
   getCachedCompatByTitle: vi.fn(),
   getCachedRating: vi.fn(),
   loadCompatCacheFromBackend: vi.fn(),
@@ -14,6 +14,9 @@ vi.mock("../protondb-cache", () => ({
 vi.mock("../library-facets", () => ({
   getCompatByShortcutAppId: vi.fn(),
   loadFacets: vi.fn(),
+}));
+vi.mock("../device-type", () => ({
+  activeCompatTrack: () => "deck",
 }));
 vi.mock("../../api/event-bus-client", () => ({
   EventBusClient: {

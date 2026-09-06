@@ -1,7 +1,5 @@
 """Domain dataclasses — Game, StoreInfo, CLITool.
 
-OP-08a | py_modules/unifideck/core/types/domain.py
-
 The three core domain records used everywhere across the
 plugin:
 
@@ -62,7 +60,6 @@ class Game:
     logo_url: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
-
 @dataclass
 class StoreInfo:
     """Static descriptor for one store.
@@ -71,6 +68,19 @@ class StoreInfo:
     frontend can render the per-store badges + capability
     chips without RPC round-trips per store.
 
+    **Two payload keys are deliberately NOT fields here.**
+    ``get_store_infos`` injects ``available`` (live probe
+    state) and ``client_runs_in_prefix`` (derived from
+    ``launcher.wrapper_stores.WRAPPER_STORES``) into the dict
+    it builds. ``client_runs_in_prefix`` used to be a
+    hand-written ``uses_wine`` field on every store, a second
+    copy of a fact ``WRAPPER_STORES`` already owned — see
+    audit §3.1. Deriving it is only possible outside this
+    module: ``core.types`` may not import ``launcher`` (the
+    ``types-is-leaf`` import-linter contract). Leaving it off
+    the dataclass is what makes re-adding the copy fail loudly
+    at construction instead of being silently overwritten.
+
     Attributes:
         name: internal id (``"epic"``).
         display_name: localised name shown to the user
@@ -78,49 +88,57 @@ class StoreInfo:
         auth_method: identifier used by the auth UI (e.g.
             ``"oauth"``, ``"cdp"``).
         icon_asset: asset path or URL of the store logo.
-        uses_wine: True for Windows-only stores running
-            under Proton/Wine.
         supports_install: True if the store can install games
             locally (False for streaming-only services).
-        supports_cloud_saves: True if the store has its own
-            cloud-save system that ``CloudSaveService``
-            integrates with.
+
+    Capability flags (achievements, cloud saves, language picker, browser
+    storefront) are **not** fields here. They are injected into the
+    ``get_store_infos`` payload from ``core.store_capabilities``, so a store
+    cannot declare an answer that disagrees with the code implementing it.
+    See the note below ``supports_install``.
     """
 
     name: str
     display_name: str
     auth_method: str
     icon_asset: str
-    uses_wine: bool = False
     supports_install: bool = True
-    supports_cloud_saves: bool = False
 
+    # There is deliberately no ``supports_cloud_saves`` field. It was one,
+    # and only Battle.net ever declared it — as ``False`` — so GOG and Epic,
+    # the only two stores that HAVE cloud saves, both took the default and
+    # advertised that they did not. Nothing read it, which is the only reason
+    # it never broke anything; wiring a UI to it would have hidden the
+    # feature on exactly the stores that support it.
+    #
+    # It is now derived in ``get_store_infos`` from
+    # ``core.store_capabilities.CLOUD_SAVE_STORES``, which is also what
+    # ``CloudSaveService`` registers its strategies from. Leaving the field
+    # off means a re-added literal raises ``TypeError`` at construction —
+    # the §3.1 ``uses_wine`` precedent: make the duplicate impossible rather
+    # than check it.
 
 @dataclass
 class CLITool:
     """Descriptor for an external CLI dependency.
 
-    Used by ``bin/binary_resolver`` to locate and verify
-    bundled CLI tools (legendary, nile, umu-run, etc.).
-    The resolver iterates ``search_paths`` until it finds a
-    matching executable, optionally checks the version
-    against ``min_version``.
+    Used by ``core.binaries.binary_resolver`` to locate bundled CLI tools
+    (legendary, gogdl, nile). The resolver iterates ``search_paths`` until it
+    finds an executable file, and verifies it against the SHA-256 pinned in
+    ``package.json``'s ``remote_binary`` manifest.
 
     Attributes:
         name: tool name (``"legendary"``).
         search_paths: ordered list of candidate paths
             (relative to the plugin root or absolute).
-        version_flag: CLI flag that prints the version,
-            default ``"--version"``.
-        min_version: optional semver-style minimum version
-            string; ``None`` skips the version check.
     """
 
     name: str
     search_paths: list[str] = field(default_factory=list)
-    version_flag: str = "--version"
-    min_version: str | None = None
-
+    # No ``version_flag`` / ``min_version``. Both fed ``check_version``,
+    # which had zero callers and is gone; ``min_version`` was never compared
+    # for any store. SHA-256 pinning in package.json is the real guarantee.
+    # Audit register item 44.
 
 @dataclass
 class SyncRequest:

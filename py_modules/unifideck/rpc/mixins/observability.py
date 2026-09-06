@@ -1,25 +1,33 @@
 """Observability RPC mixin for Plugin class.
-
-OP-26a | rpc/mixins/observability.py
 """
 from __future__ import annotations
 
 import logging
 from typing import Any
 
-from unifideck.core.types.events import Events
 from unifideck.rpc.errors import RpcError
 
 logger = logging.getLogger(__name__)
 
-_SEVERITY_LOG = {
-    "error": logging.ERROR,
-    "warning": logging.WARNING,
-}
-
+# Bundle tails. The audit log holds up to ``security.audit_log_capacity``
+# (500) entries and the validator can emit one error per schema violation;
+# a support bundle wants the recent tail, not the whole buffer, so both are
+# capped here rather than at the source.
+_AUDIT_TAIL = 100
+_CONFIG_ERROR_TAIL = 25
 
 class ObservabilityRPCMixin:
-    """Metrics, bus health, replay, quarantine, feature flags, and probes."""
+    """Event replay, launcher-toast drain, and the support bundle.
+
+    The diagnostic *reads* this mixin used to expose as RPCs
+    (``get_plugin_metrics``, ``get_bus_health``, ``get_feature_flags``,
+    ``get_probe_history``, plus ``release_quarantine`` and
+    ``report_runtime_probes``) were the backend half of a
+    "DiagnosticsPanel" that was never built in ``src/``. All six were
+    deleted in the audit §1.2 pass; the snapshots worth keeping now
+    ride in :meth:`_support_bundle_extra`, which reaches users through
+    Capture Logs — the channel that demonstrably works.
+    """
 
     bus: Any
     services: Any
@@ -27,40 +35,38 @@ class ObservabilityRPCMixin:
     watchdog: Any
     latency: Any
     replay: Any
-    runtime_probes: list[dict[str, Any]] | None = None
+    # Set by ``validate_config_at_startup`` via ``boot_plugin``; read only
+    # by ``_config_validation_block``. Annotated with the leading
+    # underscore the plugin actually uses — the retired
+    # ``ConfigValidationRPCMixin`` once annotated it without one and
+    # silently always hit the empty fallback.
+    _config_validation_result: Any = None
+    _config_degraded: bool = False
 
-    def set_bus_collaborators(
-        self,
-        *,
-        dispatcher: Any,
-        watchdog: Any,
-        latency: Any,
-        replay: Any,
-    ) -> None:
-        """Inject optional EventBus pipeline collaborators."""
-        self.dispatcher = dispatcher
-        self.watchdog = watchdog
-        self.latency = latency
-        self.replay = replay
+    # There is deliberately no ``set_bus_collaborators`` setter. One existed
+    # with zero callers: ``bootstrap/pipeline_factory.py`` assigns
+    # ``plugin.dispatcher`` / ``.watchdog`` / ``.latency`` / ``.replay``
+    # directly, so the setter was a second way to do the same thing that
+    # nothing used. It was invisible to both dead-code gates — ``vulture``
+    # at ``min_confidence = 80`` does not report unused methods, and check 4
+    # collects only public ``async def`` (a sync method is not RPC surface,
+    # correctly). Audit register item 38. The annotations above are what
+    # mypy needs; assignment stays with the factory that owns the objects.
 
-    async def get_plugin_metrics(self) -> Any:
-        """Return MetricsCollector snapshot.
+    def _bus_health(self) -> dict[str, Any]:
+        """Aggregate EventBus + collaborator health for the support bundle.
 
-        Real method is ``get_plugin_metrics`` (see RPC handler
-        twin for the full rationale).
-        """
-        metrics = getattr(self.services, "metrics", None)
-        if metrics is None:
-            raise RpcError("service_unavailable", service="metrics")
-        return metrics.get_plugin_metrics()
+        :class:`EventBus` has no ``health()`` method, so the snapshot is
+        built from ``_handlers`` and the pipeline collaborators' real
+        APIs (``get_metrics``, ``get_snapshot``, …).
 
-    async def get_bus_health(self) -> Any:
-        """Aggregate full EventBus + collaborator health.
+        Counts and timings only — no game titles, ids or paths — which
+        is what keeps it safe for a bundle a reporter pastes in public.
 
-        Mirror of the handler-class twin — :class:`EventBus` has
-        no ``health()`` method, so we build the snapshot from
-        ``_handlers`` and the pipeline collaborators' real APIs
-        (``get_metrics``, ``get_snapshot``, …).
+        Underscore-prefixed so the RPC auto-wrapper skips it: this was
+        a ``get_bus_health`` route until the audit §1.2 pass found it
+        had no frontend caller and was not in the bundle either, so its
+        output reached nobody.
         """
         bus_handlers: dict[str, int] = {}
         for event_key, handlers in getattr(self.bus, "_handlers", {}).items():
@@ -88,10 +94,6 @@ class ObservabilityRPCMixin:
         latency = getattr(self, "latency", None)
         if latency is not None:
             health["latency"] = latency.get_snapshot()
-
-        probe_reaction = getattr(self.services, "probe_reaction", None)
-        if probe_reaction is not None and hasattr(probe_reaction, "get_history"):
-            health["probe_reaction"] = probe_reaction.get_history()
         return health
 
     async def subscribe_replay(self, events: list[str]) -> Any:
@@ -128,31 +130,6 @@ class ObservabilityRPCMixin:
             logger.debug("[Observability] launcher toast poll failed", exc_info=True)
             return []
 
-    async def release_quarantine(self, handler_name: str) -> Any:
-        """Release a watchdog-quarantined handler after a fix.
-
-        Real method is ``HandlerWatchdog.release_quarantine`` —
-        see handler twin for the rationale.
-        """
-        if getattr(self, "watchdog", None) is None:
-            raise RpcError("service_unavailable", service="watchdog")
-        return self.watchdog.release_quarantine(handler_name)
-
-    async def get_feature_flags(self) -> Any:
-        """Return current feature flag state.
-
-        :class:`FeatureFlagService` exposes :meth:`get_flags` —
-        an earlier version called ``get_all`` which doesn't exist.
-        """
-        flags = getattr(self.services, "feature_flags", None)
-        if flags is None:
-            return {}
-        return flags.get_flags()
-
-    async def get_probe_history(self) -> Any:
-        """Return recent probe-reaction history."""
-        return getattr(self, "runtime_probes", None) or []
-
     async def capture_logs(self, dest_path: str = "") -> Any:
         """Collect every log + diagnostic into one zip in Downloads.
 
@@ -188,12 +165,29 @@ class ObservabilityRPCMixin:
     def _support_bundle_extra(self) -> dict[str, Any]:
         """Gather the facts only this layer can see.
 
-        Feature flags and the frontend's boot-time CEF probe results
-        live on the plugin instance, not on the filesystem, so the
-        collector cannot reach them. Kept sync and underscore-prefixed
-        so the RPC auto-wrapper skips it. Each lookup is guarded
-        individually — a missing flag service must not cost us the
-        whole bundle.
+        Feature flags, the bus/metrics snapshots and the boot-time
+        config-validation result live on the plugin instance or in
+        service memory, not on the filesystem, so the collector cannot
+        reach them.
+
+        Everything here is counts, timings and schema-side identifiers
+        only — no titles, ids, paths or config *values* — which is what
+        makes it safe in a bundle a reporter pastes in public. See
+        :meth:`_config_validation_block` for the one place that needed
+        real work to hold that line.
+
+        Kept sync and underscore-prefixed so the RPC auto-wrapper skips
+        it. Each lookup is guarded individually — one missing service
+        must not cost us the whole bundle.
+
+        Four of these blocks were reachable only through RPCs with no
+        frontend caller (audit §1.2). Rather than delete the signal with
+        the route, it moved here. A fifth, ``runtime_probes``, was
+        dropped outright: its only writer was the ``report_runtime_probes``
+        RPC, which no frontend ever called, so the key never appeared in
+        a bundle regardless. The whole probe pipeline (frontend CEF
+        suite → ``ProbeReactionService`` → ``FeatureFlagService``) is
+        unbuilt and should be built or removed as one unit.
         """
         extra: dict[str, Any] = {}
         flags = getattr(self.services, "feature_flags", None)
@@ -202,20 +196,62 @@ class ObservabilityRPCMixin:
                 extra["feature_flags"] = flags.get_flags()
             except Exception:
                 logger.debug("[Observability] flag snapshot failed", exc_info=True)
-        probes = getattr(self, "runtime_probes", None)
-        if probes:
-            extra["runtime_probes"] = probes
+        metrics = getattr(self.services, "metrics", None)
+        if metrics is not None:
+            try:
+                extra["plugin_metrics"] = metrics.get_plugin_metrics()
+            except Exception:
+                logger.debug("[Observability] metrics snapshot failed", exc_info=True)
+        try:
+            extra["bus_health"] = self._bus_health()
+        except Exception:
+            logger.debug("[Observability] bus health snapshot failed", exc_info=True)
+        security = getattr(self.services, "security", None)
+        if security is not None:
+            try:
+                extra["security"] = {
+                    "counters": security.get_counters(),
+                    "bruteforce": security.get_bruteforce_status(),
+                    "audit_log": security.get_audit_log(limit=_AUDIT_TAIL),
+                }
+            except Exception:
+                logger.debug("[Observability] security snapshot failed", exc_info=True)
+        try:
+            extra["config_validation"] = self._config_validation_block()
+        except Exception:
+            logger.debug("[Observability] config validation block failed", exc_info=True)
         return extra
 
-    async def report_runtime_probes(self, probes: list[dict[str, Any]]) -> Any:
-        """Store frontend boot-time CEF probe results."""
-        if not isinstance(probes, list):
-            raise RpcError("invalid_input", detail="probes must be a list")
-        for probe in probes:
-            severity = probe.get("severity", "info")
-            level = _SEVERITY_LOG.get(severity, logging.INFO)
-            logger.log(level, "Runtime probe: %s", probe.get("name", "unknown"))
-        self.runtime_probes = probes
-        await self.bus.emit(Events.RUNTIME_PROBES_REPORTED, probes=probes)
-        has_errors = any(p.get("severity") == "error" for p in probes)
-        return {"ok": True, "count": len(probes), "has_errors": has_errors}
+    def _config_validation_block(self) -> dict[str, Any]:
+        """Boot-time config validation, with the offending values stripped.
+
+        ``_config_validation_result`` is set by ``validate_config_at_startup``
+        and, before the audit §1.2 pass, was readable only through a
+        ``get_config_validation_status`` RPC that no frontend called — so a
+        malformed ``~/.config/unifideck/config.json`` produced one log line
+        and nothing else. This block is what makes it visible.
+
+        Each error contributes ``source``, ``path`` and ``safe_message``
+        only. ``ValidationError.message`` is deliberately excluded: it is
+        jsonschema's own text, which interpolates the offending config
+        *value*, so a bad credential key would render its secret verbatim
+        into a bundle people paste in public. ``safe_message`` carries the
+        same violation built from the schema side alone.
+        """
+        result = getattr(self, "_config_validation_result", None)
+        block: dict[str, Any] = {
+            "degraded": bool(getattr(self, "_config_degraded", False)),
+        }
+        errors = getattr(result, "errors", None) or []
+        warnings = getattr(result, "warnings", None) or []
+        block["error_count"] = len(errors)
+        block["warning_count"] = len(warnings)
+        block["errors"] = [
+            {
+                "source": getattr(e, "source", ""),
+                "path": getattr(e, "path", ""),
+                "safe_message": getattr(e, "safe_message", ""),
+            }
+            for e in errors[:_CONFIG_ERROR_TAIL]
+        ]
+        return block

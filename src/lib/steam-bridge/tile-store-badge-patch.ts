@@ -43,6 +43,8 @@ import { findInReactTree } from "./react-tree";
 import { StoreIcon } from "../../components/shared/StoreIcon";
 import { getStoreForApp } from "../library-filters";
 import { getFacet } from "../library-facets";
+import { activeCompatTrack } from "../device-type";
+import { overviewCompatCategory } from "./compat-packed";
 import type { StoreId } from "../../types/api";
 
 const REACT_MEMO = Symbol.for("react.memo");
@@ -51,7 +53,8 @@ const REACT_MEMO = Symbol.for("react.memo");
 interface TileOverview {
   appid: number;
   app_type: number;
-  steam_deck_compat_category?: number;
+  /** Per-device compat, 2 bits per track — see `compat-packed.ts`. */
+  steam_hw_compat_category_packed?: number;
   BIsModOrShortcut?: () => boolean;
 }
 type TileProps = { app?: TileOverview };
@@ -329,9 +332,11 @@ function wrappedTileType(this: unknown, ...args: unknown[]): ReactElement {
       return typeof cls === "string" && cls.includes(rowClass);
     }) as { props?: { children?: unknown } } | null;
     if (row?.props) {
+      // Steam's own value for THIS device's bits, else the backend's
+      // already-resolved category for our shortcut.
       const category =
-        app.steam_deck_compat_category ??
-        getFacet(app.appid)?.deck_category ??
+        overviewCompatCategory(app, activeCompatTrack()) ||
+        getFacet(app.appid)?.compat_category ||
         0;
       const badge = createElement(StoreBadge, {
         key: BADGE_KEY,

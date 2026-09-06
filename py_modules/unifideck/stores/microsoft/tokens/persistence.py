@@ -1,48 +1,77 @@
+"""Microsoft token persistence — load, save, clear.
+
+py_modules/unifideck/stores/microsoft/tokens/persistence.py
+
+``PersistenceMixin`` owns the *meaning* of the token payload — which keys it
+carries, how they land in the manager's in-memory state, and where the
+pre-migration plaintext file used to live. The on-disk mechanics beneath that
+(read, decrypt, legacy-plaintext detection, atomic 0600 write, permission
+audit) belong to :class:`unifideck.security.EncryptedTokenFile`, shared with
+GOG's token storage. The two used to carry separate copies of all of it
+(audit §1.4 c).
+"""
+
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
-from unifideck.security import (
-    SecureTokenStore,
-    SecureTokenStoreError,
-    emit_legacy_plaintext_detected,
-    emit_permissions_check,
-)
+from unifideck.security import EncryptedTokenFile, SecureTokenStore
 
 if TYPE_CHECKING:
     from unifideck.event_bus.event_bus import EventBus
     from unifideck.stores.microsoft.microsoft_config import MicrosoftConfig
+
 logger = logging.getLogger(__name__)
+
+_LOG_PREFIX = "[MicrosoftTokens]"
+
+#: Where tokens lived before they were encrypted. Read once on first load,
+#: re-saved to the current path, then deleted.
+_LEGACY_PLAINTEXT_PATH = "~/.local/share/unifideck/microsoft_tokens.json"
+
+
 class PersistenceMixin:
     """Persistence mixin."""
+
     _ms_access_token: str | None
     _ms_refresh_token: str | None
     _token_saved_at: float
     _config: MicrosoftConfig
     _secure_store: SecureTokenStore
     _bus: EventBus | None
+
+    @property
+    def _file(self) -> EncryptedTokenFile:
+        """The shared encrypted-token-file primitive for this store.
+
+        Built on demand rather than in ``__init__`` because this is a mixin —
+        the concrete token manager owns construction, and threading one more
+        attribute through it would couple the two for no gain.
+        """
+        return EncryptedTokenFile(
+            store="microsoft",
+            secure_store=self._secure_store,
+            bus=self._bus,
+            log_prefix=_LOG_PREFIX,
+        )
+
     async def load(self) -> bool:
         """Load."""
         resolved = await self._resolve_token_file()
         if resolved is None:
             return False
         target_file, is_legacy = resolved
-        blob = await asyncio.to_thread(_read_bytes_safe, target_file)
-        if blob is None:
-            return False
-        data = self._parse_blob(blob, target_file)
+        data = await self._file.read(target_file)
         if not isinstance(data, dict):
             return False
         if not self._apply_loaded_tokens(data):
             return False
         logger.info(
-            "[MicrosoftTokens] loaded tokens from disk (%s)",
-            "legacy" if is_legacy else "current",
+            "%s loaded tokens from disk (%s)",
+            _LOG_PREFIX, "legacy" if is_legacy else "current",
         )
         if is_legacy:
             await self._migrate_legacy_file()
@@ -51,12 +80,10 @@ class PersistenceMixin:
     async def _resolve_token_file(self) -> tuple[str, bool] | None:
         """The token file to read as ``(path, is_legacy)``, or None if neither
         the current nor the legacy file exists."""
-        path = str(await asyncio.to_thread(
-            lambda: Path(self._config.token_file).expanduser(),
-        ))
+        path = await self._token_path()
         if await asyncio.to_thread(lambda: Path(path).is_file()):
             return path, False
-        legacy_path = str(await asyncio.to_thread(_legacy_token_path))
+        legacy_path = await self._legacy_path()
         if await asyncio.to_thread(lambda: Path(legacy_path).is_file()):
             return legacy_path, True
         return None
@@ -84,51 +111,14 @@ class PersistenceMixin:
     async def _migrate_legacy_file(self) -> None:
         """Re-save freshly-loaded legacy tokens to the current (encrypted)
         location, then remove the legacy plaintext file."""
-        path = str(await asyncio.to_thread(
-            lambda: Path(self._config.token_file).expanduser(),
-        ))
         logger.info(
-            "[MicrosoftTokens] migrating legacy token file to %s", path,
+            "%s migrating legacy token file to %s",
+            _LOG_PREFIX, await self._token_path(),
         )
         if not await self.save():
             return
-        legacy_path = str(await asyncio.to_thread(_legacy_token_path))
-        await asyncio.to_thread(_unlink_if_present, legacy_path)
+        await self._file.remove(await self._legacy_path())
 
-    def _parse_blob(
-        self, blob: bytes, path: str,
-    ) -> dict[str, Any] | None:
-
-        """Parse blob."""
-        if self._secure_store.is_encrypted(blob):
-            try:
-                return self._secure_store.decrypt_payload(blob)
-            except SecureTokenStoreError as e:
-                logger.warning(
-                    "[MicrosoftTokens] decrypt failed for "
-                    "%s: %s", path, e,
-                )
-                return None
-        logger.info(
-            "[MicrosoftTokens] reading legacy plaintext token "
-            "file at %s — will encrypt on next save",
-            path,
-        )
-        if self._bus is not None:
-            emit_legacy_plaintext_detected(
-                self._bus, "microsoft", path,
-            )
-        try:
-            return cast(
-                "dict[str, Any] | None",
-                json.loads(blob.decode("utf-8")),
-            )
-        except (ValueError, UnicodeDecodeError) as e:
-            logger.warning(
-                "[MicrosoftTokens] legacy JSON parse "
-                "failed: %s", e,
-            )
-            return None
     async def save(self) -> bool:
         """Save."""
         if (
@@ -136,116 +126,32 @@ class PersistenceMixin:
             and self._ms_refresh_token is None
         ):
             return True
-        path = str(await asyncio.to_thread(lambda: Path(self._config.token_file).expanduser()))
-        payload = {
+        return await self._file.write(await self._token_path(), {
             "access_token": self._ms_access_token,
             "refresh_token": self._ms_refresh_token,
             "saved_at": self._token_saved_at,
             "scope": self._config.scope,
-        }
-        try:
-            blob = self._secure_store.encrypt_payload(payload)
-        except SecureTokenStoreError:
-            logger.exception(
-                "[MicrosoftTokens] cannot encrypt tokens "
-                "— refusing to write plaintext fallback",
-            )
-            return False
-        ok = await asyncio.to_thread(
-            _write_atomic_0600, path, blob,
-        )
-        await self._emit_permissions_after_save(ok, path)
-        return ok
-    async def _emit_permissions_after_save(
-        self, ok: bool, path: str,
-    ) -> None:
-        """Emit permissions after save."""
-        if not ok:
-            return
-        def _stat() -> int | None:
-            """Stat."""
-            try:
-                return Path(path).stat().st_mode & 0o7777
-            except OSError:
-                return None
-        mode = await asyncio.to_thread(_stat)
-        if mode is not None and self._bus is not None:
-            emit_permissions_check(
-                self._bus, "microsoft", path, mode,
-            )
+        })
 
     async def clear(self) -> None:
-
         """Clear."""
         self._ms_access_token = None
         self._ms_refresh_token = None
         self._token_saved_at = 0.0
-        path = str(await asyncio.to_thread(lambda: Path(self._config.token_file).expanduser()))
-        legacy_path = str(await asyncio.to_thread(lambda: Path("~/.local/share/unifideck/microsoft_tokens.json").expanduser()))
-        def _remove_sync() -> None:
-            """Remove sync."""
-            for p in (path, legacy_path):
-                try:
-                    if Path(p).is_file():
-                        Path(p).unlink()
-                except OSError as e:
-                    logger.warning(
-                        "[MicrosoftTokens] clear: could not remove %s: %s", p, e,
-                    )
-        await asyncio.to_thread(_remove_sync)
-def _legacy_token_path() -> Path:
-    """The fixed pre-migration plaintext token location."""
-    return Path(
-        "~/.local/share/unifideck/microsoft_tokens.json",
-    ).expanduser()
-
-
-def _read_bytes_safe(file_path: str) -> bytes | None:
-    """Read a file's bytes, logging and returning None on OSError."""
-    try:
-        return Path(file_path).read_bytes()
-    except OSError as e:
-        logger.warning(
-            "[MicrosoftTokens] load failed for %s: %s", file_path, e,
-        )
-        return None
-
-
-def _unlink_if_present(path: str) -> None:
-    """Remove ``path`` if it exists, logging (not raising) on failure."""
-    try:
-        p = Path(path)
-        if p.is_file():
-            p.unlink()
-    except OSError as e:
-        logger.warning(
-            "[MicrosoftTokens] could not remove legacy token file: %s", e,
+        await self._file.remove(
+            await self._token_path(),
+            await self._legacy_path(),
         )
 
+    async def _token_path(self) -> str:
+        """The current (encrypted) token file's expanded path."""
+        return await asyncio.to_thread(
+            lambda: str(Path(self._config.token_file).expanduser()),
+        )
 
-def _write_atomic_0600(path: str, blob: bytes) -> bool:
-    """Write atomic 0600."""
-    try:
-        parent = str(Path(path).parent)
-        if parent:
-            Path(parent).mkdir(parents=True, exist_ok=True)
-        tmp = path + ".tmp"
-        fd = os.open(
-            tmp,
-            os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
-            0o600,
+    @staticmethod
+    async def _legacy_path() -> str:
+        """The fixed pre-migration plaintext token location."""
+        return await asyncio.to_thread(
+            lambda: str(Path(_LEGACY_PLAINTEXT_PATH).expanduser()),
         )
-        try:
-            with os.fdopen(fd, "wb") as f:
-                f.write(blob)
-        except Exception:
-            if fd >= 0:
-                os.close(fd)
-            raise
-        Path(tmp).replace(path)
-        return True
-    except OSError as e:
-        logger.warning(
-            "[MicrosoftTokens] save failed: %s", e,
-        )
-        return False

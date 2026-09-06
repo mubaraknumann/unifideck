@@ -34,6 +34,7 @@ export interface TeardownHandles {
   appContextMenuPatch?: { unpatch: () => void } | null;
   lifetimeListener?: Unregisterable | null;
   launcherToastPoll?: (() => void) | null;
+  pluginUpdateNotice?: (() => void) | null;
   bootEventListener?: (() => void) | null;
 }
 /**
@@ -80,6 +81,13 @@ export function runTeardown(handles: TeardownHandles): void {
       handles.launcherToastPoll();
     } catch (e) {
       console.warn("[Teardown] launcher toast poll stop failed:", e);
+    }
+  }
+  if (handles.pluginUpdateNotice) {
+    try {
+      handles.pluginUpdateNotice();
+    } catch (e) {
+      console.warn("[Teardown] plugin update notice stop failed:", e);
     }
   }
   if (handles.tileStoreBadgePatch) {

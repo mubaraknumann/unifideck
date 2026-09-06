@@ -1,7 +1,5 @@
 """Multi-store library sync orchestrator.
 
-OP-08l | py_modules/unifideck/core/sync_service.py
-
 ``SyncService`` walks every registered store, calls its
 ``get_library`` method, deduplicates the combined output, and
 emits bus events at every stage so the frontend can render a
@@ -54,7 +52,6 @@ logger = logging.getLogger(__name__)
 # via ``sync.cooldown_seconds`` in config.
 DEFAULT_COOLDOWN_SECONDS = 5
 DEFAULT_COOLDOWN_MS = DEFAULT_COOLDOWN_SECONDS * 1000
-
 
 class SyncService(
     _SyncCacheMixin, _SyncRunMixin, _SyncFinalizeMixin,
@@ -132,6 +129,11 @@ class SyncService(
         from unifideck.core.sync_progress import SyncProgress
         self._progress = SyncProgress()
         self._post_sync_pending: set[str] = set()
+        # Run ids + last-completed-chain bookkeeping. Kept in its own
+        # module because both facts need real explanation; see
+        # ``core/sync_generation.py`` for the measured race they fix.
+        from unifideck.core.sync_generation import SyncGeneration
+        self._generation = SyncGeneration()
         # Phases that post-sync services register; seeded into
         # ``_post_sync_pending`` at every finalize so mark_complete only
         # fires once every registered service reports done. Always-on
@@ -376,6 +378,15 @@ class SyncService(
         active = bool(kwargs.get("active", True))
         if active:
             return
+        # Drop a superseded run's phase-done before it can touch this run's
+        # pending set: an orphaned artwork batch finishing minutes late used
+        # to mark the *current* sync complete mid-download.
+        if self._generation.is_stale(kwargs):
+            logger.debug(
+                "[SyncService] ignoring stale %s phase-done (run %s != %s)",
+                phase, kwargs.get("run_id"), self._generation.run_id,
+            )
+            return
         total = kwargs.get("total", 0)
         if phase == "artwork":
             self._progress.artwork_synced = total
@@ -391,6 +402,7 @@ class SyncService(
             if self._progress.status != "cancelled":
                 self._progress.mark_complete()
                 self._spawn_size_backfill()
+                self._record_chain_complete()
             self._bus.set_sync_progress(None)
 
     def resume_size_backfill(self) -> None:

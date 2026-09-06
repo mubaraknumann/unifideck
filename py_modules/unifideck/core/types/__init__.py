@@ -1,7 +1,5 @@
 """Typed records — enums, dataclasses, ``Result`` family.
 
-OP-08 | py_modules/unifideck/core/types/__init__.py
-
 Re-exports the public typed surface from the three sibling
 modules:
 

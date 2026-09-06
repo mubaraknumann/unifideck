@@ -8,9 +8,11 @@ the queue, the running map or the event bus, so it is the one part of the
 worker that is pure composition and testable without a service around it.
 
 The record it returns is consumed by
-``ShortcutService._on_download_complete`` (which writes the entry into
-``shortcuts.vdf`` and ``games.map``) and by
-``ArtworkService._on_game_installed`` (which fetches cover art).
+``ShortcutService._on_download_complete``, which flips the existing
+shortcut's install tag and writes the ``games.map`` row. Artwork is NOT
+fetched from here — the shortcut was created (with its cover) during the
+library sync, and ``mark_installed`` preserves its appid, so the art is
+already in place by the time an install finishes.
 """
 
 from __future__ import annotations

@@ -16,19 +16,20 @@ class ExitCode(IntEnum):
     GAME_FAILED = 8
     CIRCUIT_BREAKER_OPEN = 9
     SIGTERM_EQUIVALENT = 143
-    def user_message_key(self) -> str:
-        """User message key."""
-        mapping = {
-        ExitCode.SUCCESS: "",
-        ExitCode.GENERIC_ERROR: "toasts.launcher.errorGeneric",
-        ExitCode.CONFIG_INVALID: "toasts.launcher.errorConfig",
-        ExitCode.DEPENDENCY_MISSING: "toasts.launcher.errorMissingDep",
-        ExitCode.NETWORK_ERROR: "toasts.launcher.errorNetwork",
-        ExitCode.CANCELLED_BY_USER: "toasts.launcher.cancelled",
-        ExitCode.TIMED_OUT: "toasts.launcher.errorTimeout",
-        ExitCode.PREFIX_CORRUPTED: "toasts.launcher.errorPrefix",
-        ExitCode.GAME_FAILED: "toasts.launcher.errorGameFailed",
-        ExitCode.CIRCUIT_BREAKER_OPEN: "toasts.launcher.errorCircuitBreakerOpen",
-        ExitCode.SIGTERM_EQUIVALENT: "toasts.launcher.cancelled",
-        }
-        return mapping.get(self, "toasts.launcher.errorGeneric")
+    # There is deliberately no ``user_message_key``. It mapped each exit
+    # code to a ``toasts.launcher.*`` i18n key and had zero callers — and
+    # **eight of the nine keys it returned were never written into any
+    # locale**, so wiring it would have shown the user the raw key name.
+    #
+    # That is the inverse of the audit's usual finding: §1.1.2 had strings
+    # translated into all 16 locales with the delivery channel dead; here the
+    # delivery half existed and the strings never did. Nothing caught it
+    # because ``check_orphan_keys`` check 1 only scans ``t("key")`` in
+    # ``src/`` — a key named from Python was checked in neither direction.
+    # Check 4 now closes that (all 48 real ``i18n_key=`` literals resolve).
+    #
+    # The capability is worth having: a launch that times out or hits a
+    # missing dependency should say so instead of the one generic
+    # ``toasts.launcher.launcherError``. It costs 8 strings x 16 manual
+    # locales, so it is a deliberate feature, not a silent wiring — filed
+    # with the other i18n-cost items. Audit register item 4c.

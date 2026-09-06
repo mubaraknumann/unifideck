@@ -1,7 +1,5 @@
 """Epic Games library reader — owned games + install status merger.
 
-OP-48c | py_modules/unifideck/stores/epic/library.py
-
 ``EpicLibraryReader`` queries ``legendary`` for the user's owned
 games list and merges it with locally-detected install state to
 produce the ``GameRecord`` shape consumed by the UI.
@@ -15,10 +13,10 @@ Public methods :
 * ``has_legendary()`` — sanity check that the binary is available;
 * ``refresh_now()`` — manual refresh.
 
-Module-level helper ``merge_install_status`` overlays installed-state
-from the install registry onto the owned-games list. Filtering of
-"non-game" assets (UE marketplace stuff, mods, plugins) is delegated
-to ``filter.py`` (OP-48f).
+Overlaying installed-state onto the owned-games list is
+``stores/shared/install_status.merge_install_status``, shared with GOG and
+Amazon (audit §3.4). Filtering of "non-game" assets (UE marketplace stuff,
+mods, plugins) is delegated to ``filter.py``.
 """
 
 from __future__ import annotations
@@ -27,7 +25,6 @@ import asyncio
 import json
 import logging
 import time
-from pathlib import Path
 from typing import Any
 
 from unifideck.core.binaries import clean_cli_env
@@ -38,7 +35,6 @@ from .filter import should_filter_epic_item
 logger = logging.getLogger(__name__)
 
 DEFAULT_INSTALLED_TTL = 30
-
 
 class EpicLibraryReader:
     """Epic library reader."""
@@ -154,48 +150,3 @@ class EpicLibraryReader:
         except json.JSONDecodeError:
             logger.exception("[epic_library] JSON parse error")
             return None
-
-
-def merge_install_status(
-    owned: list[Game],
-    installed: dict[str, dict[str, Any]],
-) -> list[Game]:
-    """Merge install status."""
-    merged: list[Game] = []
-    for game in owned:
-        entry = installed.get(game.store_game_id)
-        if entry is None:
-            merged.append(game)
-            continue
-        # legendary's ``list-installed`` puts ``install_path`` at the top
-        # level; accept a nested ``install`` dict too for older call sites.
-        install_data = entry.get("install", {}) or {}
-        install_path = entry.get("install_path") or install_data.get(
-            "install_path",
-        )
-        # Verify the files are actually on disk. legendary's installed.json
-        # can outlive the directory — e.g. "Delete all data" (or a manual
-        # rm) removes the files but not legendary's record — and without
-        # this the next sync re-marks the game installed, so Steam shows
-        # PLAY for a game with no files. Treat a missing dir as not-installed.
-        if install_path and not Path(install_path).is_dir():
-            merged.append(game)
-            continue
-        merged.append(
-            Game(
-                app_id=game.app_id,
-                store=game.store,
-                store_game_id=game.store_game_id,
-                title=game.title,
-                installed=True,
-                install_path=(install_path or None),
-                exe_path=game.exe_path,
-                icon_url=game.icon_url,
-                hero_url=game.hero_url,
-                logo_url=game.logo_url,
-                size_bytes=game.size_bytes,
-                tags=list(game.tags),
-                metadata=dict(game.metadata),
-            )
-        )
-    return merged

@@ -19,11 +19,9 @@ import { useTranslation } from "react-i18next";
 import { useRPCQuery } from "../api/useRPC";
 import { rpcRoutes } from "../api/rpc-routes";
 import { GameGrid } from "../components/shared/GameGrid";
-import {
-  getCachedCompatByTitle,
-  meetsGreatOnDeckCriteria,
-} from "../lib/protondb-cache";
-import { getCompatByShortcutAppId } from "../lib/library-facets";
+import { meetsGreatOnCurrentDevice } from "../lib/protondb-cache";
+import { resolveCompatForShortcut } from "../lib/library-facets";
+import { compatTabTitleKey } from "../lib/device-type";
 import type { Game, StoreId } from "../types/api";
 
 export type LibraryFilter = "all" | "installed" | "great-on-deck";
@@ -65,21 +63,10 @@ class ErrorBoundary extends Component<
   }
 }
 
-function isGreatOnDeck(game: Game): boolean {
-  // Shortcut-keyed facet compat — the authoritative path (the old
-  // ``getCachedRating(game.app_id)`` passed a *shortcut* AppID into a
-  // cache keyed by *real Steam* AppID, so it never hit for non-Steam
-  // games).
-  if (game.app_id != null) {
-    const facetCompat = getCompatByShortcutAppId(game.app_id);
-    if (facetCompat) return meetsGreatOnDeckCriteria(facetCompat);
-  }
-  // Fallback: title-keyed compat for shortcuts not yet mapped to a
-  // Steam AppID.
-  if (game.title) {
-    return meetsGreatOnDeckCriteria(getCachedCompatByTitle(game.title));
-  }
-  return false;
+function isGreatOnCurrentDevice(game: Game): boolean {
+  return meetsGreatOnCurrentDevice(
+    resolveCompatForShortcut(game.app_id, game.title),
+  );
 }
 
 const UnifiedLibraryViewInner: FC<UnifiedLibraryViewProps> = ({
@@ -113,7 +100,7 @@ const UnifiedLibraryViewInner: FC<UnifiedLibraryViewProps> = ({
       // exists after ``adaptGame`` runs, which it doesn't on this path.
       games = games.filter((g) => g.installed ?? g.is_installed);
     } else if (filter === "great-on-deck") {
-      games = games.filter(isGreatOnDeck);
+      games = games.filter(isGreatOnCurrentDevice);
     }
     if (storeFilter !== "all") {
       games = games.filter((g) => g.store === storeFilter);
@@ -138,7 +125,8 @@ const UnifiedLibraryViewInner: FC<UnifiedLibraryViewProps> = ({
     filter === "installed"
       ? t("deckTabs.installed")
       : filter === "great-on-deck"
-      ? t("deckTabs.greatOnDeck")
+      ? // Named after the actual device, same as the injected tab.
+        t(compatTabTitleKey())
       : t("deckTabs.allGames");
 
   return (

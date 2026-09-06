@@ -1,10 +1,8 @@
 """Class-level RPC method auto-wrapper.
 
-OP-24c | py_modules/unifideck/rpc/auto_wire.py
-
 ``auto_wrap_rpc_methods`` is the class decorator applied to
 every handler class so its public coroutine methods are
-automatically wrapped with ``rpc_wrapper`` (OP-24b). Saves the
+automatically wrapped with ``rpc_wrapper``. Saves the
 boilerplate of applying ``@rpc_wrapper`` per method on classes
 that may have dozens of handlers.
 

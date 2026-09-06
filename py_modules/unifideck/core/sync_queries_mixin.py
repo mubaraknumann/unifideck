@@ -1,7 +1,5 @@
 """Read-only query mixin for :class:`SyncService`.
 
-OP-08l-bis | py_modules/unifideck/core/sync_queries_mixin.py
-
 Extracted from ``core/sync_service.py`` (2026-05-14) to keep
 the host file under the 550-LOC volumetry cap. The split is
 clean along the read/write axis :
@@ -28,11 +26,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from .compat_bridge import appid_candidates
 from .types import Game
 
 if TYPE_CHECKING:
     import asyncio
-
 
 class _SyncQueriesMixin:
     """Read-only snapshot accessors for :class:`SyncService`.
@@ -146,12 +144,10 @@ class _SyncQueriesMixin:
             Dict form of the game, or ``None`` if not
             found.
         """
-        # Both representations of the same 32-bit integer.
-        candidates = {app_id}
-        if app_id > 0x7FFFFFFF:
-            candidates.add(app_id - 0x100000000)
-        elif app_id < 0:
-            candidates.add(app_id + 0x100000000)
+        # Both representations of the same 32-bit integer. Shared with the
+        # two other former copies of this arithmetic via compat_bridge; ints
+        # here because the comparison below is against ``Game.app_id``.
+        candidates = {int(form) for form in appid_candidates(app_id)}
         for games in self._all_games.values():
             for game in games:
                 if game.app_id in candidates:

@@ -1,7 +1,5 @@
 """Temporary gogdl credentials directory — used by subprocess calls.
 
-OP-52d | py_modules/unifideck/stores/gog/tokens/gogdl_credentials.py
-
 ``gogdl`` (the CLI used by the installer pipeline) reads tokens from
 its own config directory, in clear text. We don't want to point gogdl
 at our encrypted store, and we don't want to leave plaintext credentials
@@ -23,8 +21,8 @@ tokens, and returns:
   actually written.
 * a cleanup coroutine that wipes the tmpdir.
 
-Used by ``install/progress.py`` (OP-51f) and ``install/marker.py``
-(OP-51g) when they spawn gogdl subprocesses.
+Used by ``install/progress.py`` and ``install/marker.py``
+ when they spawn gogdl subprocesses.
 """
 
 from __future__ import annotations
@@ -47,7 +45,6 @@ if TYPE_CHECKING:
 
     CleanupFn = Callable[[], Awaitable[None]]
 logger = logging.getLogger(__name__)
-
 
 class _GogdlCreds:
     """Gogdl creds."""

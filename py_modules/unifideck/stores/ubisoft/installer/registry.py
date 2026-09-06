@@ -1,8 +1,6 @@
 """
 Registry of installed Ubisoft games — tracks active installs across reboots.
 
-OP-56f | py_modules/unifideck/stores/ubisoft/installer/registry.py
-
 ``UbisoftInstallerRegistry`` maintains a persistent JSON registry of
 every Ubisoft game installed via Unifideck. Each entry records:
 
@@ -40,7 +38,6 @@ _STEAM_COMPAT_ENV_VARS = (
     "STEAM_COMPAT_APP_ID",
 )
 
-
 def resolve_active_prefix_dir(
     prefix_path: str,
 ) -> str | None:
@@ -52,7 +49,6 @@ def resolve_active_prefix_dir(
     if (prefix / "system.reg").is_file():
         return str(prefix)
     return None
-
 
 def read_system_reg(
     active_prefix: str,
@@ -68,7 +64,6 @@ def read_system_reg(
         return None
     return system_reg, content
 
-
 def find_install_registry_section_bounds(
     content: str,
     section: str,
@@ -81,7 +76,6 @@ def find_install_registry_section_bounds(
     next_sec = re.search(r"\n\[", tail)
     sec_end = sec_start + len(section) + next_sec.start() if next_sec else len(content)
     return sec_start, sec_end
-
 
 def _update_or_append_install_section(
     content: str,
@@ -108,7 +102,6 @@ def _update_or_append_install_section(
         )
         sec_body = new_body if count else sec_body.rstrip("\n") + "\n" + val + "\n"
     return content[: sec_start + len(section)] + sec_body + content[sec_end:]
-
 
 def inject_install_registry(
     prefix_path: str,
@@ -150,7 +143,6 @@ def inject_install_registry(
             e,
         )
 
-
 def clean_install_registry(
     prefix_path: str,
     install_id: str,
@@ -191,7 +183,6 @@ def clean_install_registry(
             e,
         )
 
-
 def get_directory_size(path: str) -> int:
     """Get directory size."""
     total = 0
@@ -203,7 +194,6 @@ def get_directory_size(path: str) -> int:
                 except OSError:
                     continue
     return total
-
 
 def prefix_has_game_files(prefix_path: str) -> bool:
     """Return True if the prefix's UPC ``games/`` dir holds a game folder.
@@ -222,7 +212,6 @@ def prefix_has_game_files(prefix_path: str) -> bool:
                 return True
     return False
 
-
 def parse_positive_int(value: Any) -> int | None:
     """Parse positive int."""
     try:
@@ -230,7 +219,6 @@ def parse_positive_int(value: Any) -> int | None:
     except (TypeError, ValueError):
         return None
     return parsed if parsed > 0 else None
-
 
 class _ShortcutRegistry:
     """Shortcut registry."""

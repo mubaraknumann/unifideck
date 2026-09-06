@@ -30,6 +30,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# How long ``cancel`` waits for a cancelled install to unwind before
+# answering. Long enough for the common case (a subprocess being reaped),
+# short enough that the RPC always returns while the user is still looking
+# at the button.
+_CANCEL_SETTLE_S = 3.0
+
 
 def _newest_per_id(items: list[DownloadItem]) -> list[DownloadItem]:
     """Collapse to one entry per ``store:game_id``, keeping the last seen.
@@ -139,6 +145,7 @@ class DownloadService(_WorkerMixin):
         is_update: bool = False,
         language: str | None = None,
         required_bytes: int | None = None,
+        download_dir: str = "",
     ) -> Result:
         """Queue a new download request.
 
@@ -161,6 +168,10 @@ class DownloadService(_WorkerMixin):
         val_result = validate_path(install_path, required_bytes)
         if not val_result.success:
             return val_result
+        if download_dir and download_dir != install_path:
+            dl_result = validate_path(download_dir, required_bytes)
+            if not dl_result.success:
+                return dl_result
 
         key = f"{store}:{game_id}"
 
@@ -181,6 +192,7 @@ class DownloadService(_WorkerMixin):
                 title=title,
                 is_update=is_update,
                 language=language or "",
+                download_dir=download_dir,
                 # Ubisoft is a launcher-driven (UPC) install with no real
                 # download — mark it "manual" from enqueue so the UI shows the
                 # indeterminate "Installing in <vendor client>" state instead
@@ -212,6 +224,17 @@ class DownloadService(_WorkerMixin):
           worker's ``_run_install`` catches ``CancelledError``,
           marks the item, emits CANCELLED, and runs
           ``_cleanup_running`` in its finally block.
+
+        The wait on the cancelled task is bounded. Cancellation is
+        requested synchronously, but an installer sitting in a
+        thread — ``zipfile`` extraction, a large ``rmtree`` — only
+        takes it at its next checkpoint, and this method used to
+        block for as long as that took. It is an RPC handler: the
+        frontend's cancel call would hang and be reported to the
+        user as "cancel failed", for an install that was in fact
+        being cancelled. Nothing here needs the unwind to finish:
+        the worker emits ``DOWNLOAD_CANCELLED`` from its own
+        handler, and its ``finally`` clears ``_running_tasks``.
         """
         key = f"{store}:{game_id}"
 
@@ -220,8 +243,12 @@ class DownloadService(_WorkerMixin):
         running_task = self._running_tasks.get(key)
         if running_task is not None and not running_task.done():
             running_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError, Exception):
-                await running_task
+            with contextlib.suppress(
+                asyncio.CancelledError, asyncio.TimeoutError, Exception,
+            ):
+                await asyncio.wait_for(
+                    asyncio.shield(running_task), _CANCEL_SETTLE_S,
+                )
             return Result(success=True)
 
         async with self._lock:

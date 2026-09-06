@@ -1,14 +1,14 @@
 # Unifideck — Architecture & Build Process
 
-> **Version:** 0.7.0 · **Plan ref:** operational plan v1.3
+> **Version:** 0.7.4 · **Last re-synced:** 2026-08-24 (see `docs/architecture-audit.md`)
 
 ---
 
 ## 1. Overview
 
-Unifideck is a [Decky Loader](https://github.com/SteamDeckHomebrew/decky-loader) plugin that provides a unified game library for Steam Deck, integrating Epic Games, GOG, Amazon Games, Ubisoft Connect, and Microsoft PC Game Pass directly into Steam's interface.
+Unifideck is a [Decky Loader](https://github.com/SteamDeckHomebrew/decky-loader) plugin that provides a unified game library for Steam Deck, integrating Epic Games, GOG, Amazon Games, Ubisoft Connect, Battle.net, and Microsoft PC Game Pass directly into Steam's interface.
 
-The 0.7 restructure replaced the legacy monolithic layout with a strict **5-layer Python package architecture** driven by an EventBus, a dependency-injection service container, and a typed RPC surface.
+The 0.7 restructure replaced the legacy monolithic layout with a strict **layered Python package architecture** driven by an EventBus, a dependency-injection service container, and a typed RPC surface.
 
 ---
 
@@ -25,7 +25,7 @@ unifideck-decky/
 │   └── backend/             # Backend-specific default data files
 ├── bin/                     # Native binaries & shell wrappers (no .py scripts)
 ├── py_modules/              # All Python runtime code (vendored + unifideck/)
-│   └── unifideck/           # The plugin's own 5-layer package
+│   └── unifideck/           # The plugin's own layered package
 ├── src/                     # TypeScript/React frontend
 ├── assets/                  # Plugin artwork and icons
 ├── tests/                   # pytest test suite (mirrors py_modules/unifideck/)
@@ -36,10 +36,12 @@ unifideck-decky/
 
 ---
 
-## 3. The 5-Layer Backend Architecture
+## 3. The Layered Backend Architecture
 
-Declared in `py_modules/unifideck/__init__.py` and enforced by `.importlinter`.
+The diagram below is the authoritative layer model. Do not restate a layer
+count in prose — it has drifted between "five" and "six" across this repo.
 Imports flow **downward only** — no layer may import from a layer above it.
+The machine-enforced invariants are in §9 (`.importlinter`).
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -47,7 +49,7 @@ Imports flow **downward only** — no layer may import from a layer above it.
 ├─────────────────────────────────────────────────┤
 │  Layer 5 — Services (services/)                 │  ← Infrastructure services
 ├─────────────────────────────────────────────────┤
-│  Layer 4 — Stores (stores/)                     │  ← 5 store connectors
+│  Layer 4 — Stores (stores/)                     │  ← 7 store connectors
 ├─────────────────────────────────────────────────┤
 │  Layer 3 — StoreBase (stores/shared/)           │  ← Abstract store contract
 ├─────────────────────────────────────────────────┤
@@ -74,33 +76,64 @@ Infrastructure primitives. No store or service knowledge.
 | Module/Package                  | Purpose                                   |
 | ------------------------------- | ----------------------------------------- |
 | `cache_manager.py`              | Namespace-keyed in-memory + disk cache    |
-| `sync_service.py`               | Cross-store library sync orchestration    |
 | `manifest.py`                   | Plugin installation manifest reader       |
 | `metrics_collector.py`          | Latency/counter telemetry                 |
 | `exe_finder.py`                 | Heuristic executable discovery            |
 | `paths.py`                      | Canonical path resolution                 |
+| `store_urls.py`                 | Per-store storefront/search URL builders  |
+| `cross_source_dedupe.py`        | Drops a title owned on two stores at once |
+| `safe_delete.py`                | Guarded delete used by every sweep        |
+| `cleanup_sweeps.py`             | The blocking sweeps behind "delete all data" |
+| `marker_sweep.py`               | Install-dir ownership via `.unifideck*` markers |
+| `stale_installs.py`             | Detects install records with no files left |
+| `compat_bridge.py`              | Bridges our prefixes into `compatdata/` so Protontricks can see them; owns the signed/unsigned AppID pair |
+| `compat_tool_bridge.py`         | Resolves a compat-tool id to a Proton path |
+| `steam_appid_map.py`            | The one read of the shortcut → real-Steam-AppID cache that returns "an AppID or 0" |
+| `store_capabilities.py`         | Per-store capability sets — the single source of truth behind the `get_store_infos` flags |
 | `io/async_file_ops.py`          | Async file read/write/remove              |
 | `io/safe_file_op.py`            | Atomic write with rollback                |
 | `binaries/binary_resolver.py`   | Resolves `bin/` tool paths                |
 | `binaries/binary_signatures.py` | SHA-256 verification for bundled binaries |
 | `binaries/cli_timeouts.py`      | Per-tool subprocess timeout config        |
 
+The library sync is split across an orchestrator and the mixins it composes,
+enumerated below, all in `core/` rather than in `rpc/`. That placement is
+deliberate but it does blur the "rpc is thin" boundary, since these hold logic
+an RPC mixin calls into:
+
+| Module                   | Purpose                                        |
+| ------------------------ | ---------------------------------------------- |
+| `sync_service.py`        | Cross-store library sync orchestration         |
+| `sync_run_mixin.py`      | Drives one sync run across the stores          |
+| `sync_cache_mixin.py`    | Reads and writes the library cache             |
+| `sync_queries_mixin.py`  | Per-game lookups against a synced library      |
+| `sync_results_mixin.py`  | Assembles the per-store result envelope        |
+| `sync_finalize_mixin.py` | Post-sync reconcile and cleanup                |
+| `sync_progress.py`       | Phase/percentage model behind the sync bar     |
+| `sync_availability.py`   | Whether a store can be synced right now        |
+| `sync_generation.py`     | Run ids; skips a repeat post-sync chain        |
+
 ### Layer 3 — `stores/shared/`
 
-`StoreBase` ABC — defines the five abstract methods every store must implement:
-`get_library()`, `install()`, `uninstall()`, `launch()`, `get_updates()`.
+`StoreBase` ABC — defines the ten abstract methods every store must implement:
+`is_available`, `start_auth`, `complete_auth`, `logout`, `get_library`,
+`install_game`, `uninstall_game`, `update_game`, `check_for_updates`,
+`get_game_size`. There is no `launch()` on the store contract — launching is
+owned by `launcher/dispatcher.py`.
 
 ### Layer 4 — `stores/`
 
-Five store connector sub-packages. Each is self-contained with its own auth, library, install, and update logic.
+Seven store connector sub-packages. Each is self-contained with its own auth, library, install, and update logic.
 
-| Package             | Store                 | CLI backend                     |
-| ------------------- | --------------------- | ------------------------------- |
-| `stores/epic/`      | Epic Games Store      | `bin/legendary`                 |
-| `stores/gog/`       | GOG                   | `bin/gogdl` + `bin/comet`       |
-| `stores/amazon/`    | Amazon Games          | `bin/nile`                      |
-| `stores/ubisoft/`   | Ubisoft Connect       | Custom HTTP + session injection |
-| `stores/microsoft/` | PC Game Pass / xCloud | Edge browser + CDP              |
+| Package             | Store                   | Backend                              |
+| ------------------- | ----------------------- | ------------------------------------ |
+| `stores/epic/`      | Epic Games Store        | `bin/legendary`                      |
+| `stores/gog/`       | GOG                     | `bin/gogdl` + `bin/comet`            |
+| `stores/amazon/`    | Amazon Games            | `bin/nile`                           |
+| `stores/ubisoft/`   | Ubisoft Connect         | UPC client in a per-game Wine prefix |
+| `stores/battlenet/` | Battle.net              | Battle.net client in a Wine prefix   |
+| `stores/microsoft/` | PC Game Pass / xCloud   | Edge browser + CDP                   |
+| `stores/gamevault/` | GameVault (self-hosted) | The user's own server over HTTP, or a local folder of archives |
 
 ### Layer 5 — `services/`
 
@@ -117,48 +150,54 @@ Infrastructure services that subscribe to the EventBus and own cross-cutting con
 | `services/security/`               | Token store, bruteforce protection, audit log |
 | `services/microsoft_subscription/` | Game Pass entitlement probing                 |
 | `services/launch_history/`         | Per-game launch timestamps                    |
+| `services/achievements/`           | Achievement fetch + last-session summary      |
+| `services/compatibility/`          | ProtonDB + Valve per-device ratings (Deck / Machine / SteamOS) |
+| `services/playtime_sync/`          | Pushes playtime back to GOG/Epic              |
+| `services/support_bundle/`         | Capture Logs: collects the diagnostic zip     |
+| `services/updater/`                | Plugin self-update check and download         |
 | `services/bootstrap/`              | DI container, service constructor, teardown   |
 | `metadata_service.py`              | Metacritic + UnifiDB metadata aggregation     |
 | `account_service.py`               | Multi-account lifecycle                       |
 | `proton_service.py`                | Proton version resolution                     |
+| `post_sync_reconcile.py`           | Boot-time repair of interrupted post-sync data |
 
 ### Layer 6 — `rpc/mixins/` + `main.py`
 
-The `Plugin` class in `main.py` is composed from 18 RPC mixin classes (see `main.py` `class Plugin(...)`). The `@auto_wrap_rpc_methods` decorator rewrites every public coroutine to return a typed `Result[T]` envelope, keeping the frontend contract stable across backend refactors.
+The `Plugin` class in `main.py` is composed from the RPC mixin classes enumerated in the table below, which is the same set listed in `main.py` `class Plugin(...)`; two more (`CleanupRPCMixin`, `_CleanupFinalizeMixin`) arrive transitively through `SyncRPCMixin`. No count is given here on purpose: a hardcoded figure has gone stale three times through the 0.7.x series. `main.py` and `rpc/mixins/__init__.py.__all__` are the source of truth, and their agreement is machine-checked by `scripts/validate_architecture.py` (check 1), which also fails if a numeric mixin count reappears in prose. The `@auto_wrap_rpc_methods` decorator rewrites every public coroutine to return a typed `Result[T]` envelope, keeping the frontend contract stable across backend refactors.
 
 | Mixin                      | Surface (representative)                                                        |
 | -------------------------- | ------------------------------------------------------------------------------- |
-| `StoreRPCMixin`            | `get_library`, `get_store_status`                                               |
-| `SyncRPCMixin`             | `sync_library`, `get_sync_progress`                                             |
-| `DownloadRPCMixin`         | `install_game`, `uninstall_game`, `get_downloads`                               |
+| `StoreRPCMixin`            | `check_store_status`, `get_store_infos`, `store_auth`, `connect_gamevault`, `connect_gamevault_local`, `clear_store_auths` |
+| `SyncRPCMixin`             | `sync_libraries`, `force_sync_libraries`, `get_game_info`, `get_sync_progress`   |
+| `DownloadRPCMixin`         | `install_game`, `uninstall_game`, `update_game`, `cancel_download`, `get_download_queue`, `get_available_updates` |
 | `StorageRPCMixin`          | `get_storage_locations`, `get_browseable_devices`, `set_custom_install_path`    |
-| `LaunchRPCMixin`           | `launch_game`, `kill_game`                                                       |
-| `AuthShortcutsRPCMixin`    | `get_<store>_auth_shortcut_context`, `get_compat_tool_for_game`, `save_proton_setting` |
-| `EdgeRPCMixin`             | `is_edge_installed`, `install_edge`                                             |
+| `LaunchRPCMixin`           | `notify_game_launched`, `notify_game_stopped`, `get_launch_failures`             |
+| `AuthShortcutsRPCMixin`    | `get_<store>_auth_shortcut_context`, `get_compat_tool_for_game`                  |
+| `EdgeRPCMixin`             | `install_edge`                                                                  |
+| `ExecutableRPCMixin`       | `list_game_executables`, `set_game_executable`, `reset_game_executable`          |
 | `LibraryFacetsRPCMixin`    | `get_overview_enrichment`                                                       |
-| `PlaytimeRPCMixin`         | `get_playtime`, `get_play_sessions`                                             |
-| `SecurityRPCMixin`         | `rotate_device_key`, `get_audit_log`                                            |
-| `ObservabilityRPCMixin`    | `get_metrics`, `get_event_log`                                                  |
+| `PlaytimeRPCMixin`         | `get_playtime`                                                                  |
+| `ObservabilityRPCMixin`    | `subscribe_replay`, `get_launcher_toasts`, `capture_logs`                        |
 | `ActionRPCMixin`           | `dispatch_unifideck_action` (URI dispatch)                                      |
 | `AccountRPCMixin`          | `check_account_switch`, `migrate_account_data`                                  |
-| `CloudFailureRPCMixin`     | `get_cloud_failures`, `retry_cloud_sync`                                        |
+| `AchievementsRPCMixin`     | `get_game_achievements`, `get_last_session_achievements`                         |
 | `CloudSaveRPCMixin`        | `get_cloud_save_status`, `cloud_save_pull`, `cloud_save_push`, `set_game_save_path` |
-| `ConfigValidationRPCMixin` | `get_config_validation_result`                                                  |
-| `UIRPCMixin`               | `get_ui_state`, `set_locale`                                                    |
-| `UpdaterRPCMixin`          | `check_plugin_update`, `get_available_versions`, `get_release_notes`            |
+| `UIRPCMixin`               | `get_game_metadata_display`, `get_language_preference`, `set_language_preference`, `get_device_type` |
+| `UpdaterRPCMixin`          | `check_plugin_update`, `get_available_versions`, `log_update_event`              |
 
 ---
 
 ## 4. Support Packages
 
-These sit alongside the 5-layer stack and can be imported by any layer.
+These sit alongside the layered stack and can be imported by any layer.
 
 | Package          | Description                                                                                                |
 | ---------------- | ---------------------------------------------------------------------------------------------------------- |
+| `accounts/`      | Account-switch detection + data migration (backs `AccountRPCMixin`)                                         |
 | `auth/`          | OAuth browser monitor + multi-store auth orchestrator + Edge browser shims                                 |
 | `cdp/`           | Chrome DevTools Protocol injection utilities                                                               |
 | `compatibility/` | Proton/Wine prefix management and helper wrappers                                                          |
-| `event_bus/`     | `EventBus`, `PriorityDispatcher`, replay buffer, supervision (watchdog + metrics handler)                  |
+| `event_bus/`     | The message backbone. Broken out below, because half of it is not on the emit path                          |
 | `config/`        | Config manager, JSON schema validator, i18n schema, startup validation                                     |
 | `bootstrap/`     | DI wiring: `boot_plugin`, `unload_plugin`, `build_eventbus_pipeline`, cache registry                       |
 | `security/`      | Ephemeral credential store, secure I/O, device fingerprint, audit emission, redaction                      |
@@ -167,7 +206,34 @@ These sit alongside the 5-layer stack and can be imported by any layer.
 | `utils/`         | Shared path helpers, locale utilities, config helpers                                                      |
 | `launcher/`      | Game launcher dispatcher, Proton infrastructure, language setup, cloud save trigger, CDP flows, game fixes |
 | `actions/`       | `dispatch.py` — `unifideck://` URI handler; `unifideck_uri.py` — URI parser                                |
-| `rpc/`           | `auto_wrap_rpc_methods` decorator, handler base classes, mixin registry                                    |
+| `rpc/`           | `auto_wrap_rpc_methods` decorator + `rpc/mixins/` composition                                               |
+
+### `event_bus/` in detail
+
+Split out because the package contains two layers and only one of them runs.
+`EventBus.emit` writes straight to the replay buffer; it never feeds
+`PriorityDispatcher`. So the whole priority/coalescing/back-pressure layer and
+the handler watchdog are unreachable in production, which a Capture Logs
+bundle confirms empirically (`bus_health.dispatcher` reports
+`emitted_total: 0` on a session where events demonstrably flowed, and
+`bus_health.watchdog` is `{}`). Their fate is register items 4e and 4g in
+`architecture-audit.md`: either make the dispatcher the real emit path, or
+delete the layer. Do not build on it before that is decided.
+
+| Module                      | On the emit path? | Purpose                                        |
+| --------------------------- | ----------------- | ---------------------------------------------- |
+| `event_bus.py`              | yes               | `EventBus`: subscribe, emit, 60s handler timeout |
+| `bus_pipeline.py`           | yes               | Assembles the bus and its collaborators at boot |
+| `event_replay.py`           | yes               | Per-event replay ring, so a late subscriber catches up |
+| `event_bus_devex.py`        | yes               | `subscribe`/`auto_wire` decorators, schema extraction |
+| `event_bus_extensions.py`   | yes               | Typed payloads, schema registry, dead-letter queue |
+| `event_bus_reliability.py`  | yes               | Retry and dead-letter handling                 |
+| `priority_dispatcher.py`    | **no**            | Priority queue + coalescing; never fed         |
+| `event_priority.py`         | **no**            | `EventPriority` enum + the coalescing key map  |
+| `event_bus_scaling.py`      | **no**            | Back-pressure helpers for the dispatcher       |
+
+`supervision/` holds the two handler wrappers: `metrics_handler.py` (live) and
+`watchdog_handler.py` (nothing registers with it, see 4g).
 
 ---
 
@@ -221,7 +287,7 @@ Installed via `pip install --target py_modules/ -r requirements.txt`.
 
 TypeScript/React frontend compiled to `dist/index.js` by Rollup.
 
-The frontend communicates with the backend exclusively via Decky's RPC bridge — it calls the public methods of the `Plugin` class (which are the 18 mixin surfaces) and receives typed `Result[T]` envelopes.
+The frontend communicates with the backend exclusively via Decky's RPC bridge — it calls the public methods of the `Plugin` class (which are the RPC mixin surfaces) and receives typed `Result[T]` envelopes.
 
 Key architectural landmarks post-restructure:
 

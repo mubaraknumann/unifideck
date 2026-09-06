@@ -1,20 +1,18 @@
 """GOG token manager — orchestration facade.
 
-OP-52a | py_modules/unifideck/stores/gog/tokens/manager.py
-
 ``GOGTokenManager`` is the public token API for the GOG store.
 Responsibilities:
 
 * lazy-load tokens from encrypted on-disk storage at construction or
   on first access (``has_tokens``);
 * refresh tokens when stale (``refresh_if_stale``) — delegates to the
-  OAuth sub-module (``oauth.py``, OP-52c);
+  OAuth sub-module (``oauth.py``);
 * persist updated tokens after every successful refresh
-  (``storage.py``, OP-52b);
+  (``storage.py``);
 * provide a temporary gogdl-credentials directory for subprocess calls
-  (``gogdl_credentials.py``, OP-52d) which gogdl reads instead of
+  (``gogdl_credentials.py``) which gogdl reads instead of
   Unifideck's encrypted store;
-* expose the authenticated user info (``GOGUserInfo``, OP-52e) for the
+* expose the authenticated user info (``GOGUserInfo``) for the
   UI.
 
 Decoupling the three sub-modules from this facade keeps the storage
@@ -42,7 +40,6 @@ if TYPE_CHECKING:
 
     from unifideck.stores.gog.config import GOGConfig
 logger = logging.getLogger(__name__)
-
 
 class GOGTokenManager:
     """Gogtoken manager."""

@@ -27,10 +27,47 @@ logger = logging.getLogger(__name__)
 # AppID to the real Steam Store AppID found by ``search_store``.
 # ``STEAM_METADATA_NS`` holds the rich ``appdetails`` payload per
 # real Steam AppID. The frontend reads both via dedicated RPCs.
+#: The merged per-game metadata payload written by ``MetadataService``
+#: and topped up by ``metadata_backfill``. Declared here with the other
+#: namespace constants so the three readers share one spelling.
+CACHE_NAMESPACE = "metadata"
 STEAM_REAL_APPID_NS = "steam_real_appid"
+#: Title each MISS above was searched under — see ``steam_appid_miss_stale``.
+STEAM_APPID_MISS_NS = "steam_appid_miss"
 STEAM_METADATA_NS = "steam_metadata"
 STEAM_REVIEWS_NS = "steam_reviews"
 SHORTCUT_ADDED_NS = "shortcut_added"
+
+
+def steam_appid_miss_stale(
+    cache: CacheManager, app_id: int, title: str,
+) -> bool:
+    """Whether a cached "no Steam counterpart" verdict predates the title.
+
+    ``_resolve_steam_id`` finds the real Steam AppID with
+    ``library.search_store(game.title)`` — the title is the whole query. A
+    negative result was therefore only ever a statement about *that* title,
+    but it was cached under the shortcut AppID with nothing recording which
+    title it referred to, so it outlived the answer.
+
+    That is not hypothetical. A GameVault game arrived from the user's own
+    server as ``Test Game 2026``, which of course matched nothing on Steam;
+    once they curated it into ``Ghost of Tsushima`` the ``-1`` still stood,
+    and everything hanging off a real Steam AppID stayed empty — the
+    ProtonDB / Deck-Verified tier read "UNKNOWN" for a game with thousands
+    of ProtonDB reports. Positive mappings are deliberately NOT invalidated
+    here: ``_resolve_steam_id``'s docstring explains why a good match must
+    survive a flaky search, and a rename rarely invalidates one.
+
+    A miss recorded before this cache existed has no title. Treat it as
+    stale: one re-search per affected game, once, then it is recorded
+    properly.
+    """
+    try:
+        searched = cache.get(STEAM_APPID_MISS_NS, str(app_id))
+    except Exception:
+        return True
+    return searched != title
 
 
 class _SteamMetadataMixin:
@@ -60,6 +97,11 @@ class _SteamMetadataMixin:
         if steam_id is None:
             self._cache_set_safely(
                 STEAM_REAL_APPID_NS, str(game.app_id), -1,
+            )
+            # Record WHAT missed. ``search_store`` matches on the title, so a
+            # later title makes this miss inapplicable rather than settled.
+            self._cache_set_safely(
+                STEAM_APPID_MISS_NS, str(game.app_id), game.title,
             )
             return None
         self._cache_set_safely(
@@ -118,6 +160,38 @@ class _SteamMetadataMixin:
                 "[MetadataService] date-added stamp failed", exc_info=True,
             )
 
+    def _usable_cached_steam_id(
+        self, game: Game,
+    ) -> tuple[bool, int | None]:
+        """``(answered, steam_id)`` from the cache alone.
+
+        A tuple rather than an optional int because there are three
+        outcomes, and ``None`` is itself one of the answers: "searched
+        already, and this title has no Steam counterpart". Collapsing that
+        into "nothing cached" is what would send every known-absent game
+        back to ``storesearch`` on every sync.
+
+        A negative mapping only answers for the title it was searched under
+        — see :func:`steam_appid_miss_stale`. Split out of
+        ``_resolve_steam_id`` because that extra branch put it over the
+        cognitive-complexity gate.
+        """
+        try:
+            cached_id = self._cache.get(STEAM_REAL_APPID_NS, str(game.app_id))
+        except Exception:
+            logger.debug(
+                "[Metadata] cached appid read failed for %s", game.app_id,
+                exc_info=True,
+            )
+            return False, None
+        if not isinstance(cached_id, int):
+            return False, None
+        if cached_id > 0:
+            return True, cached_id
+        if steam_appid_miss_stale(self._cache, game.app_id, game.title):
+            return False, None
+        return True, None
+
     async def _resolve_steam_id(
         self,
         game: Game,
@@ -141,15 +215,9 @@ class _SteamMetadataMixin:
         if hint_steam_id is not None and hint_steam_id > 0:
             return hint_steam_id
         if not force:
-            try:
-                cached_id = self._cache.get(STEAM_REAL_APPID_NS, str(game.app_id))
-                if isinstance(cached_id, int):
-                    return cached_id if cached_id > 0 else None
-            except Exception:
-                logger.debug(
-                    "[Metadata] cached appid read failed for %s", game.app_id,
-                    exc_info=True,
-                )
+            answered, cached_id = self._usable_cached_steam_id(game)
+            if answered:
+                return cached_id
         from unifideck.steam import library
         best: dict[str, Any] | None = None
         try:

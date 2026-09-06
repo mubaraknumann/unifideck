@@ -1,7 +1,5 @@
 """Bus scaling — per-key event batching primitives.
 
-OP-09g | py_modules/unifideck/event_bus/event_bus_scaling.py
-
 Some emitters generate events at a frequency that would overwhelm
 subscribers (download progress, frame-rate metrics, telemetry).
 ``BatchDispatcher`` accumulates events per key and signals when a
@@ -9,7 +7,7 @@ batch is ready to drain — either because the time window has
 elapsed or because the batch reached its maximum size.
 
 The class is intentionally **passive**: it doesn't run its own
-timer. The caller (typically ``PriorityDispatcher`` from OP-09c)
+timer. The caller (typically ``PriorityDispatcher``)
 calls ``add`` for each event and gets back a "ready to drain"
 boolean; when ready, ``drain`` returns the batched items and
 resets the per-key window.
@@ -40,7 +38,6 @@ from typing import Any
 
 DEFAULT_BATCH_WINDOW_MS = 50
 DEFAULT_BATCH_MAX_SIZE = 100
-
 
 class BatchDispatcher:
     """Per-key event accumulator with size + time window triggers."""

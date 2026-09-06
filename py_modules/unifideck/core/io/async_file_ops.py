@@ -1,7 +1,5 @@
 """Async wrappers around standard file operations.
 
-OP-08c2 | py_modules/unifideck/core/io/async_file_ops.py
-
 Every public function offloads to ``asyncio.to_thread`` so
 calls don't block the event loop. Two flavours:
 
@@ -35,7 +33,6 @@ from typing import Any, cast
 logger = logging.getLogger(__name__)
 PathLike = str | os.PathLike[str]
 
-
 async def exists(path: PathLike) -> bool:
     """Return whether ``path`` exists (file, dir, or symlink).
 
@@ -52,7 +49,6 @@ async def exists(path: PathLike) -> bool:
     return await asyncio.to_thread(
         lambda: Path(path).exists(),
     )
-
 
 async def is_file(path: PathLike) -> bool:
     """Return whether ``path`` is a regular file.
@@ -71,7 +67,6 @@ async def is_file(path: PathLike) -> bool:
         lambda: Path(path).is_file(),
     )
 
-
 async def is_dir(path: PathLike) -> bool:
     """Return whether ``path`` is a directory (or symlink to one).
 
@@ -84,7 +79,6 @@ async def is_dir(path: PathLike) -> bool:
     return await asyncio.to_thread(
         lambda: Path(path).is_dir(),
     )
-
 
 async def listdir(path: PathLike) -> list[str]:
     """Return the names (not paths) of entries in ``path``.
@@ -113,7 +107,6 @@ async def listdir(path: PathLike) -> list[str]:
         )
         return []
 
-
 async def stat(path: PathLike) -> os.stat_result | None:
     """Return ``os.stat_result`` or ``None`` on OSError.
 
@@ -133,7 +126,6 @@ async def stat(path: PathLike) -> os.stat_result | None:
         )
     except OSError:
         return None
-
 
 async def makedirs(path: PathLike, mode: int = 0o755, exist_ok: bool = True) -> bool:
     """Create ``path`` (and parents) with the given mode.
@@ -161,7 +153,6 @@ async def makedirs(path: PathLike, mode: int = 0o755, exist_ok: bool = True) -> 
         logger.exception("[AsyncFileOps] makedirs(%s) failed", path)
         return False
 
-
 async def ensure_dir(path: PathLike) -> bool:
     """Idempotent ``makedirs`` shortcut — never errors on existing dirs.
 
@@ -172,7 +163,6 @@ async def ensure_dir(path: PathLike) -> bool:
         True on success.
     """
     return await makedirs(path, exist_ok=True)
-
 
 async def copy(src: PathLike, dst: PathLike) -> bool:
     """Copy ``src`` to ``dst`` preserving metadata (mtime, mode).
@@ -196,7 +186,6 @@ async def copy(src: PathLike, dst: PathLike) -> bool:
         logger.exception("[AsyncFileOps] copy(%s -> %s) failed", src, dst)
         return False
 
-
 async def move(src: PathLike, dst: PathLike) -> bool:
     """Move ``src`` to ``dst``, across filesystems if needed.
 
@@ -218,7 +207,6 @@ async def move(src: PathLike, dst: PathLike) -> bool:
     except (OSError, shutil.Error):
         logger.exception("[AsyncFileOps] move(%s -> %s) failed", src, dst)
         return False
-
 
 async def remove(path: PathLike) -> bool:
     """Delete a file at ``path``, tolerating missing files.
@@ -243,7 +231,6 @@ async def remove(path: PathLike) -> bool:
         logger.exception("[AsyncFileOps] remove(%s) failed", path)
         return False
 
-
 async def read_text(path: PathLike, encoding: str = "utf-8") -> str | None:
     """Read ``path`` as text, returning ``None`` on any failure.
 
@@ -264,7 +251,6 @@ async def read_text(path: PathLike, encoding: str = "utf-8") -> str | None:
     except (OSError, UnicodeDecodeError) as e:
         logger.warning("[AsyncFileOps] read_text(%s) failed: %s", path, e)
         return None
-
 
 async def write_text(
     path: PathLike, content: str, encoding: str = "utf-8", mode: int = 0o644
@@ -287,7 +273,6 @@ async def write_text(
         True on success.
     """
     return await asyncio.to_thread(_write_text_sync, path, content, encoding, mode)
-
 
 def _write_text_sync(path: PathLike, content: str, encoding: str, mode: int) -> bool:
     """Sync helper for ``write_text`` — atomic write + cleanup on failure.
@@ -326,7 +311,6 @@ def _write_text_sync(path: PathLike, content: str, encoding: str, mode: int) -> 
                 tmp.unlink()
         return False
 
-
 async def write_bytes(path: PathLike, data: bytes) -> bool:
     """Atomically write binary ``data`` to ``path``.
 
@@ -338,7 +322,6 @@ async def write_bytes(path: PathLike, data: bytes) -> bool:
         True on success.
     """
     return await asyncio.to_thread(_write_bytes_sync, path, data)
-
 
 def _write_bytes_sync(path: PathLike, data: bytes) -> bool:
     """Sync helper for ``write_bytes`` — atomic write + cleanup.
@@ -372,7 +355,6 @@ def _write_bytes_sync(path: PathLike, data: bytes) -> bool:
                 tmp.unlink()
         return False
 
-
 async def read_json(path: PathLike) -> dict[str, Any]:
     """Read + parse a JSON file, returning ``{}`` on any failure.
 
@@ -389,7 +371,6 @@ async def read_json(path: PathLike) -> dict[str, Any]:
         error / OSError.
     """
     return await asyncio.to_thread(_read_json_sync, path)
-
 
 def _read_json_sync(path: PathLike) -> dict[str, Any]:
     """Sync helper for ``read_json``.
@@ -426,7 +407,6 @@ def _read_json_sync(path: PathLike) -> dict[str, Any]:
         )
         return {}
 
-
 async def write_json(
     path: PathLike, data: Any, indent: int = 2, mode: int = 0o644
 ) -> bool:
@@ -445,7 +425,6 @@ async def write_json(
         True on success.
     """
     return await asyncio.to_thread(_write_json_sync, path, data, indent, mode)
-
 
 def _write_json_sync(path: PathLike, data: Any, indent: int, mode: int = 0o644) -> bool:
     """Sync helper for ``write_json`` — atomic serialise + write + cleanup.

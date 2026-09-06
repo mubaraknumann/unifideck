@@ -57,26 +57,26 @@ async def fallback_to_ge_proton(
     """
     from unifideck.launcher.proton.compat.prefix_init import (
         _MARKER_NAME,
-        _proton_family,
         _run_createprefix_with_retry,
     )
     from unifideck.launcher.proton.compat.save_migration import (
         restore_or_migrate_saves,
     )
 
-    current_tool = plan.state.proton_tool_id or ""
-    if _proton_family(current_tool) == "ge-proton":
-        logger.warning(
-            "[prefix_init] already on GE-Proton (%s); no further fallback",
-            current_tool,
-        )
-        return
-
     resolved = _resolve_ge_proton()
     if resolved is None:
         logger.warning("[prefix_init] GE-Proton fallback unavailable (offline?)")
         return
     ge_path, tag = resolved
+
+    current_tool = plan.state.proton_tool_id or ""
+    current_proton = getattr(plan.state, "proton_path", None)
+    if current_tool == tag or (current_proton and current_proton == ge_path):
+        logger.warning(
+            "[prefix_init] already on fallback GE-Proton (%s); no further fallback",
+            current_tool,
+        )
+        return
 
     logger.warning(
         "[prefix_init] %s failed to create a usable prefix; "

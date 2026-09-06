@@ -1,3 +1,36 @@
+"""Cloud-sync failure classification and user-facing toasts.
+
+Called from ``services/launcher/helpers.cloud_sync_phase`` when a sync
+raises. Classifies the exception into a stable code, honours
+``cloud.failure_behavior.<store>``, and emits a ``LAUNCHER_STAGE`` toast —
+the one channel that reaches the UI from the out-of-process launcher.
+
+**This module was unimported until 2026-08-26**, and the history matters
+because two decisions were taken on the assumption it ran:
+
+* ``cloud_sync_phase`` caught every sync exception with a bare
+  ``logger.warning(... ignoring ...)``. A failed **upload** was completely
+  silent: the user quit the game believing their progress had reached the
+  cloud, and found out otherwise on another device.
+* Audit §1.2 read ``get_failure_behavior`` as "read live at launch" and, on
+  that basis, deleted the two RPCs that would have let a user silence the
+  toast — reasoning that the current behaviour was acceptable. There was no
+  behaviour to accept. The config key survives and is still honoured here;
+  it is hand-editable in ``~/.config/unifideck/config.json``.
+
+Surfacing upload failures is a product decision taken 2026-08-26 (audit
+register item 37).
+
+Two contracts to keep in mind when changing the payload:
+
+* the message strings interpolate ``{{error}}``, while this module sends a
+  machine ``error_code`` plus ``error_i18n_key`` so the reason stays
+  translatable. ``src/services/toast-params.ts`` resolves one into the
+  other; sending English from here would be untranslatable.
+* ``_TOAST_ACTIONS`` still uses an ``{i18n_label_key, target_url}`` shape,
+  while both frontend renderers parse ``{verb, args}``. Those actions are
+  therefore **not** rendered yet — audit register item 4b.
+"""
 from __future__ import annotations
 
 import logging
@@ -205,59 +238,74 @@ async def _emit_toast(
 
 def _resolve_toast_action(
     code: str, *, store: str, game_id: str, phase: str,
-) -> dict[str, str] | None:
+) -> dict[str, Any] | None:
+    """The one-click remediation for *code*, in the frontend's shape.
 
-    """Resolve toast action."""
+    Emits ``{verb, args, i18n_label_key}`` — the same shape
+    ``CloudSaveService._emit_save_conflict`` already sends and both
+    renderers already parse. It used to emit
+    ``{i18n_label_key, target_url}`` instead, a **second** action shape for
+    the same field, so a renderer written for one would read ``undefined``
+    from the other. That is the ``app_id``/``game_id`` split of audit §1.1.1,
+    between two producers rather than a producer and a consumer, and it was
+    invisible because this module had no caller (item 37).
+
+    A Steam deep link is expressed as the ``open-url`` verb with the target
+    and an optional fallback as args, so one shape covers both a backend verb
+    and an external URL without a second field to branch on.
+    """
     action = _TOAST_ACTIONS.get(code)
     if action is None:
         return None
     ctx_vars = {"store": store, "game_id": game_id, "phase": phase}
-    working: dict[str, str] = dict(action)
-    for url_key in ("target_url", "fallback_url"):
-        if url_key not in working:
-            continue
-        try:
-            working[url_key] = working[url_key].format(**ctx_vars)
-        except (KeyError, IndexError) as err:
-            logger.warning(
-                "[cloud_failure] action template error for "
-                "code=%s key=%s: %s — dropping action",
-                code, url_key, err,
-            )
-            return None
-    return working
-_TOAST_ACTIONS = {
+    try:
+        args = [arg.format(**ctx_vars) for arg in action["args"]]
+    except (KeyError, IndexError) as err:
+        logger.warning(
+            "[cloud_failure] action template error for code=%s: %s — "
+            "dropping action", code, err,
+        )
+        return None
+    return {
+        "verb": action["verb"],
+        "args": args,
+        "i18n_label_key": action["i18n_label_key"],
+    }
+
+
+#: code → the remediation offered with its toast.
+#:
+#: ``verb`` is a ``unifideck://`` action verb, except ``open-url`` which the
+#: frontend opens directly (args: target, then optional fallback).
+_TOAST_ACTIONS: dict[str, dict[str, Any]] = {
     "disk_space_low": {
         "i18n_label_key": "toasts.actions.openStorageManager",
-        "target_url": "steam://settings/storage",
-        "fallback_url": "steam://settings",
+        "verb": "open-url",
+        "args": ["steam://settings/storage", "steam://settings"],
+    },
+    "disk_full": {
+        "i18n_label_key": "toasts.actions.openStorageManager",
+        "verb": "open-url",
+        "args": ["steam://settings/storage", "steam://settings"],
     },
     "auth_expired": {
         "i18n_label_key": "toasts.actions.signInToStore",
-        "target_url": "unifideck://auth/{store}",
+        "verb": "auth",
+        "args": ["{store}"],
     },
     "network_unreachable": {
         "i18n_label_key": "toasts.actions.retrySync",
-        "target_url": "unifideck://retry-sync/{store}/{game_id}/{phase}",
+        "verb": "retry-sync",
+        "args": ["{store}", "{game_id}", "{phase}"],
     },
     "timed_out": {
         "i18n_label_key": "toasts.actions.retrySync",
-        "target_url": "unifideck://retry-sync/{store}/{game_id}/{phase}",
+        "verb": "retry-sync",
+        "args": ["{store}", "{game_id}", "{phase}"],
     },
     "server_error": {
         "i18n_label_key": "toasts.actions.retrySync",
-        "target_url": "unifideck://retry-sync/{store}/{game_id}/{phase}",
-    },
-    "unknown": {
-        "i18n_label_key": "toasts.actions.openSaveFolder",
-        "target_url": "unifideck://open-save-folder/{store}/{game_id}",
-    },
-    "permission_denied": {
-        "i18n_label_key": "toasts.actions.openSaveFolder",
-        "target_url": "unifideck://open-save-folder/{store}/{game_id}",
-    },
-    "cancelled": {
-        "i18n_label_key": "toasts.actions.openSaveFolder",
-        "target_url": "unifideck://open-save-folder/{store}/{game_id}",
+        "verb": "retry-sync",
+        "args": ["{store}", "{game_id}", "{phase}"],
     },
 }

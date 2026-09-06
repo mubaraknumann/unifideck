@@ -1,16 +1,14 @@
 """LibraryFacetsRPCMixin — per-shortcut facets for native Sort/Filters.
 
-OP-26m | py_modules/unifideck/rpc/mixins/library_facets.py
-
 Exposes one bulk RPC the frontend reads at boot (and on
 ``unifideck-sync-completed``) to:
 
 * enrich each Unifideck shortcut's live ``AppOverview`` so Steam's
   **native** library Sort menu + Library Filters work for non-Steam
-  games (metacritic, deck category, store categories/tags, release
-  date, reviews, date-added), and
-* resolve **Great on Deck** by shortcut AppID with zero title
-  matching (``protondb_tier`` / ``deck_status`` ride along).
+  games (metacritic, per-device compat categories, store
+  categories/tags, release date, reviews, date-added), and
+* resolve the compatibility tab by shortcut AppID with zero title
+  matching (``compat_status`` / ``protondb_tier`` ride along).
 
 The heavy lifting (cache joins, signed/unsigned keying) lives in
 :mod:`._library_facets` so this stays a thin endpoint wrapper.
@@ -26,7 +24,6 @@ from unifideck.rpc.mixins._library_facets import build_enrichment_map
 
 logger = logging.getLogger(__name__)
 
-
 class LibraryFacetsRPCMixin:
     """Bulk library-facet enrichment RPC (read-only cache reshape)."""
 
@@ -40,9 +37,10 @@ class LibraryFacetsRPCMixin:
         shortcut AppID. Each ``FacetRecord`` carries the sort fields
         (``metacritic``, ``release_date``, ``review_score``,
         ``review_percentage``, ``recommendations_total``,
-        ``date_added_unix``), the filter fields (``deck_category`` 0..3,
-        ``store_category`` ids, ``store_tag`` ids) and the
-        Great-on-Deck fields (``protondb_tier``, ``deck_status``,
+        ``date_added_unix``), the filter fields (``compat_category``
+        0..3 for this device, ``compat_categories`` per track for the
+        packed bitfield, ``store_category`` ids, ``store_tag`` ids) and
+        the compat-tab fields (``protondb_tier``, ``compat_status``,
         ``steam_app_id``). Empty when the metadata/compat caches are
         cold or unregistered — the frontend degrades to no enrichment.
         """

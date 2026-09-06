@@ -75,6 +75,9 @@ export interface DownloadItem {
   end_time?: number;
   error_message?: string;
   download_phase?: DownloadPhase;
+  /** A wrapper store's explanation of why nothing is moving (e.g. Battle.net
+   *  "queued behind the updater"). Sent by the backend, **not yet rendered** —
+   *  it is English, so displaying it needs an i18n decision. Audit item 49. */
   phase_message?: string;
   /** True when this entry is an update of an already-installed
    *  game (enqueued via `update_game`), false for a fresh install.

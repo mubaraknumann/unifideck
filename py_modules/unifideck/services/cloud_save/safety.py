@@ -33,11 +33,14 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
+from .constants import MANIFEST_FILE
+
 logger = logging.getLogger(__name__)
 
-# Manifest written at the root of each synced save dir — same name the
-# manifest/_SyncMixin machinery uses, so the two share one source of truth.
-_MANIFEST_NAME = ".unifideck_sync.json"
+# Manifest written at the root of each synced save dir. The comment here
+# used to claim this and ``manifest.py`` "share one source of truth" while
+# both held their own literal; they now actually do.
+_MANIFEST_NAME = MANIFEST_FILE
 
 
 def _backups_root() -> Path:

@@ -1,16 +1,26 @@
 """
 UPC payload sync between Wine prefixes.
 
-OP-60b | py_modules/unifideck/stores/ubisoft/session/payload.py
-
 ``_PayloadSync`` copies credentials and auth-cache artifacts from one
 Wine prefix to another. Two kinds of payload exist:
 
-* **credentials** (``ConnectSecureStorage.dat``, ``user.dat``) —
-  DPAPI-encrypted, bound to the machine GUID; sync requires the
-  GUID match.
+* **credentials** (``ConnectSecureStorage.dat``, ``user.dat``) — the
+  session vault, copied only between prefixes with a matching machine
+  GUID.
 * **auth-cache artifacts** (settings, cookies, http2 cache, ownership
-  cache) — not DPAPI-protected, sync without the guard.
+  cache) — copied without that guard.
+
+A note on the GUID guard, because its original rationale was wrong and
+the wrong version cost a bug reporter a lot of time (GH #435). UPC's
+vault is DPAPI-wrapped, but Wine's ``CryptProtectData``
+(``dlls/crypt32/protectdata.c``) derives its key from the Windows user
+name, a hardcoded constant, and a random salt stored *inside the blob* —
+there are no master keys on disk, and the machine GUID is not an input.
+A vault therefore decrypts fine in any prefix whose Windows user is the
+same ``steamuser``. The guard is kept because refusing to mix credentials
+between prefixes of visibly different identity is still the conservative
+thing to do, but a GUID match is **not** what makes decryption work, and a
+GUID mismatch is not an explanation for a rejected sign-in.
 
 The sync is idempotent: artifacts are hashed before copying so identical
 files aren't re-copied. The hash function preserves a strict ordering
@@ -35,7 +45,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 _CSS_MIN_SOURCE_SIZE = 10
 _HASH_CHUNK_SIZE = 1024 * 1024
-
+#: The session vault, and the account file whose presence means "signed in".
+_CSS_NAME = "ConnectSecureStorage.dat"
+_ACCOUNT_NAME = "user.dat"
 
 class _PayloadSync:
     """Payload sync."""
@@ -53,7 +65,7 @@ class _PayloadSync:
         apply_dpapi_guard: bool,
         handle_directories: bool,
         log_label: str,
-        skip_if_smaller: bool = False,
+        keep_newer_target: bool = False,
     ) -> int:
         """Sync payload to prefix."""
         if self.should_skip_payload_sync(
@@ -66,12 +78,17 @@ class _PayloadSync:
         synced = 0
         for _root, user_home in self._parent._paths.iter_user_homes(target_prefix):
             target_root = str(Path(user_home) / self._parent._config.upc_local_subdir)
+            # Decided once per target, from the vault, and applied to the whole
+            # payload. ``ConnectSecureStorage.dat`` and ``user.dat`` are one
+            # session between them: copying the vault while declining the
+            # account file would leave the prefix holding a token from one
+            # sign-in and an account from another.
+            if keep_newer_target and self._would_clobber_newer(
+                payload_sources, target_root, log_label,
+            ):
+                continue
             for rel_path, src_path in payload_sources.items():
                 dst_path = str(Path(target_root) / rel_path)
-                if skip_if_smaller and self._is_credential_regression(
-                    src_path, dst_path, log_label, rel_path,
-                ):
-                    continue
                 if self.copy_payload_entry(
                     src_path,
                     dst_path,
@@ -113,40 +130,57 @@ class _PayloadSync:
         return False
 
     @staticmethod
-    def _is_credential_regression(
-        src_path: str,
-        dst_path: str,
+    def _would_clobber_newer(
+        payload_sources: dict[str, str],
+        target_root: str,
         log_label: str,
-        rel_path: str,
     ) -> bool:
-        """True if overwriting *dst* with *src* would shrink a credential.
+        """True if writing this payload into *target_root* would replace a
+        NEWER session.
 
-        UPC's ``ConnectSecureStorage.dat`` shrinks when a session logs out
-        (the token is stripped). Capture/propagation is otherwise
-        login/logout blind and picks the freshest file, so a single logout
-        in ONE prefix would overwrite the logged-in credential everywhere
-        (observed: an SD-card install logging out poisoned auth + every game
-        prefix). A real re-login is same-size-or-larger and still flows;
-        explicit sign-out deletes (not copies) so it is unaffected.
+        The guard this replaced compared file *sizes* and refused any copy
+        that shrank the vault, on the theory that "smaller means logged out".
+        It did stop the incident it was written for (an SD-card prefix logging
+        out and poisoning auth plus every game prefix), but it was also a
+        one-way ratchet: Ubisoft rotates the refresh token on every sign-in
+        and a rotated vault is routinely a little smaller than the one before
+        it, so the largest vault ever written won permanently. The auth prefix
+        froze on a server-dead token, and signing into one game then signed
+        the user out of every other one (GH #435, reproduced).
+
+        Time is the correct ordering. A stale copy — logged-out or simply
+        older — still cannot overwrite a live session, because its mtime is
+        older. A newer token flows regardless of size. The destination must
+        also actually be signed in: an older-but-signed-in vault must never
+        block a fresh session from reaching a signed-out prefix.
+
+        Judged on the vault alone, and the answer covers the whole payload —
+        the vault and ``user.dat`` are one session between them.
         """
-        if not (Path(dst_path).is_file() and Path(src_path).is_file()):
+        src_vault = payload_sources.get(_CSS_NAME)
+        if not src_vault:
+            return False
+        dst_vault = Path(target_root) / _CSS_NAME
+        if not (dst_vault.is_file() and Path(src_vault).is_file()):
             return False
         try:
-            src_sz = Path(src_path).stat().st_size
-            dst_sz = Path(dst_path).stat().st_size
+            src_mtime = Path(src_vault).stat().st_mtime
+            dst_mtime = dst_vault.stat().st_mtime
         except OSError:
             return False
-        if src_sz and dst_sz and src_sz < dst_sz:
-            logger.info(
-                "[UbisoftSession] %s: keeping logged-in %s — refusing to "
-                "overwrite with a smaller (logged-out?) copy (%d < %d bytes)",
-                log_label,
-                rel_path,
-                src_sz,
-                dst_sz,
-            )
-            return True
-        return False
+        if dst_mtime <= src_mtime:
+            return False
+        if not (Path(target_root) / _ACCOUNT_NAME).is_file():
+            return False
+        logger.info(
+            "[UbisoftSession] %s: keeping %s — it holds a NEWER signed-in "
+            "session (%.0f > %.0f)",
+            log_label,
+            target_root,
+            dst_mtime,
+            src_mtime,
+        )
+        return True
 
     def copy_payload_entry(
         self,
@@ -252,7 +286,7 @@ class _PayloadSync:
             apply_dpapi_guard=True,
             handle_directories=False,
             log_label="credential",
-            skip_if_smaller=True,
+            keep_newer_target=True,
         )
 
     def collect_credential_sources(
