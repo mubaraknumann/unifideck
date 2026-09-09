@@ -29,6 +29,7 @@ import {
   overviewCompatCategory,
 } from "../steam-bridge/compat-packed";
 import { invalidateGameSize } from "../game-size-cache";
+import { enrichInstalledState } from "../steam-bridge/overview-enrichment";
 import type { SteamAppOverview } from "../../types/steam";
 
 export type StoreSlug =
@@ -155,6 +156,8 @@ export function updateSingleGameStatus(g: UnifideckGameInput): void {
     existing.store === g.store
   )
     return;
+  // Immediate overview correction, ahead of the next full enrichment sweep.
+  for (const id of variantIds(g.appId)) enrichInstalledState(id, g.isInstalled);
   const next = (gameStateVersion.get(g.appId) ?? 0) + 1;
   for (const id of variantIds(g.appId)) gameStateVersion.set(id, next);
   if (forceRefreshCallback) {
