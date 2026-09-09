@@ -52,6 +52,12 @@ if TYPE_CHECKING:
 # own minimal service graph, not here.
 _SERVICE_DEFS: tuple[tuple[Any, ...], ...] = (
     (
+        "memory_sampler", "unifideck.services.memory_sampler",
+        "MemorySamplerService",
+        lambda b, r, c, cfg, p, pl: (),
+        lambda b, r, c, cfg, p, pl: {"config": cfg},
+    ),
+    (
         "shortcut", "unifideck.services.shortcut",
         "ShortcutService",
         lambda b, r, c, cfg, p, pl: (

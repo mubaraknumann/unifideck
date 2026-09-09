@@ -158,6 +158,12 @@
   "accounts": {
     "poll_interval_seconds": 5
   },
+  "diagnostics": {
+    "memory_sample_interval_seconds": 60,
+    "memory_sample_max": 720,
+    "tracemalloc": false,
+    "tracemalloc_frames": 5
+  },
   "cloud": {
     "enabled": true,
     "root": "",

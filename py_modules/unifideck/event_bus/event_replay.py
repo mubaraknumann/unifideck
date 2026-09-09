@@ -149,6 +149,7 @@ class EventReplayBuffer:
         self,
         events: Iterable[Events | str] | None = None,
         limit: int = MAX_SNAPSHOT_ENTRIES,
+        since: float | None = None,
     ) -> list[dict[str, Any]]:
         """Return a flattened, timestamp-sorted view of recent events.
 
@@ -161,11 +162,29 @@ class EventReplayBuffer:
         Each entry goes through ``_RecordedEvent.to_dict`` so
         the result is directly JSON-serialisable.
 
+        ``since`` exists because the frontend polls this twice a
+        second forever and used to discard almost all of it
+        client-side. Without it, every poll re-serialised the whole
+        buffer — and ``rpc.wrapper._serialize`` deep-copies each
+        dataclass on the way out — for the life of the process. The
+        watermark the caller already tracks makes the steady-state
+        answer an empty list.
+
+        The comparison is against the *rounded* timestamp, because
+        that is the only value a caller ever saw: ``to_dict`` emits
+        millisecond precision, so filtering on the raw float would
+        keep re-sending every record whose true timestamp rounds
+        down — exactly the boundary records a poll sees most often.
+
         Args:
             events: optional iterable of event types to include.
                 ``None`` (default) returns every type.
             limit: maximum entries returned (hard-capped at
                 ``MAX_SNAPSHOT_ENTRIES`` = 500).
+            since: optional exclusive lower bound, compared against
+                the same rounded timestamp the caller was given.
+                ``None`` (default) returns the whole buffer, which
+                is what a caller with no watermark yet wants.
 
         Returns:
             List of entry dicts, newest first.
@@ -176,7 +195,12 @@ class EventReplayBuffer:
         for event_str, buf in self._buffers.items():
             if wanted is not None and event_str not in wanted:
                 continue
-            gathered.extend(buf)
+            if since is None:
+                gathered.extend(buf)
+            else:
+                gathered.extend(
+                    r for r in buf if round(r.timestamp, 3) > since
+                )
         gathered.sort(key=lambda r: r.timestamp, reverse=True)
         return [r.to_dict() for r in gathered[:limit]]
 

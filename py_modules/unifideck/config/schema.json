@@ -245,7 +245,34 @@
       "additionalProperties": false,
       "properties": {
         "poll_interval_seconds": {
-          "$ref": "#/$defs/positiveInt"
+          "description": "How often to re-read loginusers.vdf. Minimum 1, not positiveInt: that $def is minimum 0 despite its name, and a 0 here turns the poll into a spin that re-reads the file and posts two to_thread jobs as fast as the loop can go, while logging nothing.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "diagnostics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "memory_sample_interval_seconds": {
+          "description": "How often MemorySamplerService records this process's own memory. Cheap (one /proc read); the floor is enforced in code.",
+          "type": "integer",
+          "minimum": 10
+        },
+        "memory_sample_max": {
+          "description": "How many samples to retain for the support bundle. Default 720 = 12 hours at the default interval.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "tracemalloc": {
+          "description": "Trace allocation sites so Capture Logs can name them. Off by default: tracing roughly doubles allocation cost. Turn on only to diagnose a memory problem.",
+          "type": "boolean"
+        },
+        "tracemalloc_frames": {
+          "description": "Stack depth kept per allocation when tracemalloc is on. Deeper is more useful and more expensive.",
+          "type": "integer",
+          "minimum": 1
         }
       }
     },

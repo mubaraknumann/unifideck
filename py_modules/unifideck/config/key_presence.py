@@ -95,6 +95,12 @@ RUNTIME_REQUIRED_KEYS: tuple[str, ...] = (
     # "one shortcut per game" collapse (default false).
     "dedup.tracked_stores",
     "dedup.cross_store_enabled",
+    # diagnostics — self-memory sampling for support bundles.
+    # ``tracemalloc`` is opt-in and costly; see services/memory_sampler.py.
+    "diagnostics.memory_sample_interval_seconds",
+    "diagnostics.memory_sample_max",
+    "diagnostics.tracemalloc",
+    "diagnostics.tracemalloc_frames",
     # discovery
     "discovery.manifest_filename",
     # download

@@ -65,6 +65,20 @@ async def unload_plugin(plugin: Any) -> None:
             await reconcile.stop()
         except Exception:
             logger.warning("[Unifideck] post-sync reconcile stop failed")
+    # ``_start_store_background_tasks`` starts the Microsoft token-refresh
+    # loop unconditionally at boot, but nothing ever called its stop until
+    # now, so every reload left the previous 30-minute poll running against
+    # a torn-down bus.
+    registry = getattr(plugin, "registry", None)
+    if registry is not None:
+        stopper: Any = getattr(
+            registry.get("microsoft"), "stop_token_refresh_polling", None,
+        )
+        if callable(stopper):
+            try:
+                await stopper()
+            except Exception:
+                logger.warning("[Unifideck] Microsoft token poll stop failed")
     services = getattr(plugin, "services", None)
     if services is not None:
         await stop_all_services(services)

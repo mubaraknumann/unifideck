@@ -112,3 +112,58 @@ describe("EventBusClient first-poll priming", () => {
     expect(started).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("EventBusClient server-side watermark", () => {
+  it("sends its watermark so the backend can filter, and advances it", async () => {
+    const { EventBusClient } = await import("./event-bus-client");
+    EventBusClient.subscribe("store_auth_complete", vi.fn());
+
+    // First poll has no watermark yet, so it must ask for everything —
+    // the priming pass depends on receiving the whole backlog.
+    mockCall.mockResolvedValueOnce([
+      { event: "store_auth_complete", kwargs: { store: "gog" }, timestamp: 100 },
+    ]);
+    await vi.advanceTimersByTimeAsync(POLL_SLOW_MS);
+    expect(mockCall.mock.calls[0][2]).toBe(0);
+
+    // Second poll carries the highest timestamp seen. Without this the
+    // backend re-serialises its entire replay buffer on every poll, twice
+    // a second, for the life of the process.
+    mockCall.mockResolvedValueOnce([]);
+    await vi.advanceTimersByTimeAsync(POLL_FAST_MS);
+    expect(mockCall.mock.calls[1][2]).toBe(100);
+  });
+});
+
+describe("EventBusClient poll-timer duplication", () => {
+  it("arms exactly one timer when a subscriber leaves and rejoins mid-poll", async () => {
+    const { EventBusClient } = await import("./event-bus-client");
+
+    // Hold the in-flight poll open so the unsubscribe/resubscribe below
+    // lands while `pollOnce` is still awaiting.
+    let release: (v: unknown) => void = () => {};
+    mockCall.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    );
+
+    const unsubscribe = EventBusClient.subscribe("sync_started", vi.fn());
+    await vi.advanceTimersByTimeAsync(POLL_SLOW_MS);
+
+    // Last subscriber leaves (stopPolling) then a new one joins
+    // (ensurePolling arms a timer) — all while the poll is in flight.
+    unsubscribe();
+    EventBusClient.subscribe("sync_started", vi.fn());
+
+    // Now let the in-flight poll finish; its `finally` also wants to arm.
+    mockCall.mockResolvedValue([]);
+    release([]);
+    await vi.advanceTimersByTimeAsync(0);
+
+    // If both survived there would be two independent loops, and the poll
+    // rate would double again on every repeat of this sequence.
+    expect(vi.getTimerCount()).toBe(1);
+  });
+});

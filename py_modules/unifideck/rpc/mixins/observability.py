@@ -96,15 +96,23 @@ class ObservabilityRPCMixin:
             health["latency"] = latency.get_snapshot()
         return health
 
-    async def subscribe_replay(self, events: list[str]) -> Any:
+    async def subscribe_replay(
+        self, events: list[str], since: float | None = None,
+    ) -> Any:
         """Return recent events for a frontend reconnect.
 
         Real method is ``EventReplayBuffer.snapshot(events=...)``
         — see handler twin for the rationale.
+
+        ``since`` is the caller's own watermark, and is optional so an
+        older frontend bundle (or a first poll, which has no watermark
+        yet) still gets the full buffer. Passing it moves the dedup the
+        frontend was already doing to the server side, where it saves
+        re-serialising the whole buffer twice a second forever.
         """
         if getattr(self, "replay", None) is None:
             raise RpcError("service_unavailable", service="replay")
-        return self.replay.snapshot(events=events)
+        return self.replay.snapshot(events=events, since=since)
 
     async def get_launcher_toasts(self) -> Any:
         """Return launcher-subprocess toasts written since the last poll.
@@ -220,7 +228,55 @@ class ObservabilityRPCMixin:
             extra["config_validation"] = self._config_validation_block()
         except Exception:
             logger.debug("[Observability] config validation block failed", exc_info=True)
+        try:
+            extra["memory"] = self._memory_block()
+        except Exception:
+            logger.debug("[Observability] memory block failed", exc_info=True)
         return extra
+
+    def _memory_block(self) -> dict[str, Any]:
+        """Growth series plus capture-time heap analysis.
+
+        This is the block that exists because two users reported the
+        backend reaching ~22 GB of ``VmData`` while idle and no bundle
+        could show it. The three parts answer three different questions
+        and are only useful together:
+
+        * ``samples`` — is it growing, and in which of RSS / data / swap?
+          Comes from the always-on ``MemorySamplerService`` ring.
+        * ``gc_types`` — is the growth live Python objects, and of what
+          type? A flat histogram under a fat process means allocator
+          fragmentation, not a retention leak.
+        * ``tracemalloc`` — which allocation sites, when the user opted
+          into tracing at boot.
+
+        Each part is guarded on its own: the histogram walks the whole
+        heap, so on the machines this targets it is the most likely thing
+        here to be slow or to fail, and it must not cost the bundle its
+        other two answers.
+        """
+        from unifideck.services.support_bundle import probe_memory
+
+        block: dict[str, Any] = {}
+        sampler = getattr(self.services, "memory_sampler", None)
+        if sampler is not None:
+            try:
+                block["samples"] = sampler.snapshot()
+            except Exception:
+                logger.debug("[Observability] memory samples failed", exc_info=True)
+        try:
+            block["interpreter"] = probe_memory.interpreter_block()
+        except Exception:
+            logger.debug("[Observability] interpreter block failed", exc_info=True)
+        try:
+            block["gc_types"] = probe_memory.gc_type_histogram()
+        except Exception:
+            logger.debug("[Observability] gc histogram failed", exc_info=True)
+        try:
+            block["tracemalloc"] = probe_memory.tracemalloc_top()
+        except Exception:
+            logger.debug("[Observability] tracemalloc block failed", exc_info=True)
+        return block
 
     def _config_validation_block(self) -> dict[str, Any]:
         """Boot-time config validation, with the offending values stripped.

@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any
 
 from unifideck.utils.device import DMI_PATH, detect_device_type, device_override
+from unifideck.utils.proc_status import read_status_raw
 from unifideck.utils.vulkan import as_dict, detect_32bit_vulkan
 
 from . import procscan
@@ -232,6 +233,26 @@ def memory_block() -> dict[str, Any]:
         if key in _MEMINFO_KEYS:
             values[key] = rest.strip()
     return values
+
+
+def plugin_memory_block() -> dict[str, Any]:
+    """This backend process's own memory, from ``/proc/self/status``.
+
+    ``memory_block`` above reports the *machine*, which says a Deck is
+    out of RAM but never which process took it. Two users have reported
+    this backend reaching ~22 GB of VmData while idle, and neither
+    bundle could show it, because nothing here ever looked at our own
+    process.
+
+    Values are kept as the raw strings the kernel prints (``"1234 kB"``)
+    so a bundle reader sees exactly what ``/proc`` said. Counts and
+    sizes only, so this stays safe for a bundle pasted in public.
+
+    This is the capture-time reading; ``services.memory_sampler`` ships
+    the time series that says whether it was growing. Both go through
+    ``utils.proc_status`` so they cannot disagree about the fields.
+    """
+    return dict(read_status_raw())
 
 
 def session_block() -> dict[str, Any]:

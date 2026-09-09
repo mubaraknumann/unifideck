@@ -26,6 +26,7 @@ import { storeInfoStore } from "./stores/store-info-store";
  */
 export interface TeardownHandles {
   routerPatch?: RouterPatchHandle | null;
+  cacheAutoload?: (() => void) | null;
   libraryPatch?: RouterPatchHandle | null;
   collectionManager?: CollectionManagerHandle | null;
   appStorePatch?: { remove: () => void } | null;
@@ -46,6 +47,41 @@ export interface TeardownHandles {
  * here can survive across reloads of the dev cycle
  * and produce subtle phantom listeners.
  */
+/**
+ * Every handle's disposer, in teardown order.
+ *
+ * Typed as a **total** `Record` over `TeardownHandles`, which is the whole
+ * point: adding a field to that interface without adding an entry here is
+ * a compile error. It used to be a hand-written sequence of `if` blocks,
+ * and `overviewEnrichment` was simply missing from it — declared, assigned
+ * at boot, never disposed. Nothing caught that, because nothing could.
+ *
+ * Object literal key order is insertion order, so this table carries the
+ * order as well as the coverage: reverse of the registration order in
+ * `index.tsx`, so a handle is released before whatever it was built on.
+ */
+const DISPOSERS: Record<keyof TeardownHandles, (h: TeardownHandles) => void> = {
+  bootEventListener: (h) => h.bootEventListener?.(),
+  launcherToastPoll: (h) => h.launcherToastPoll?.(),
+  pluginUpdateNotice: (h) => h.pluginUpdateNotice?.(),
+  tileStoreBadgePatch: (h) => h.tileStoreBadgePatch?.(),
+  appContextMenuPatch: (h) => h.appContextMenuPatch?.unpatch(),
+  lifetimeListener: (h) => h.lifetimeListener?.unregister(),
+  appStorePatch: (h) => h.appStorePatch?.remove(),
+  // Releases two window listeners, two EventBusClient subscriptions, the
+  // game-size invalidation subscription and the AppMap patch. Skipping this
+  // kept an EventBusClient subscriber alive past unload, and the client only
+  // stops polling once its subscriber set empties — so every plugin reload
+  // left an immortal 2s subscribe_replay loop running against the backend.
+  overviewEnrichment: (h) => h.overviewEnrichment?.(),
+  collectionManager: (h) => h.collectionManager?.remove(),
+  libraryPatch: (h) => h.libraryPatch?.remove(),
+  // Same failure mode: its window listener and SHORTCUT_INSTALL_STATE_CHANGED
+  // subscription had no disposer at all until this table existed.
+  cacheAutoload: (h) => h.cacheAutoload?.(),
+  routerPatch: (h) => h.routerPatch?.remove(),
+};
+
 export function runTeardown(handles: TeardownHandles): void {
   // Stop boot-time singletons first (they hold EventBus
   // subscriptions and polling timers).
@@ -69,74 +105,11 @@ export function runTeardown(handles: TeardownHandles): void {
   } catch (e) {
     console.warn("[Teardown] storeInfoStore stop failed:", e);
   }
-  if (handles.bootEventListener) {
+  for (const [name, dispose] of Object.entries(DISPOSERS)) {
     try {
-      handles.bootEventListener();
+      dispose(handles);
     } catch (e) {
-      console.warn("[Teardown] boot event listener stop failed:", e);
-    }
-  }
-  if (handles.launcherToastPoll) {
-    try {
-      handles.launcherToastPoll();
-    } catch (e) {
-      console.warn("[Teardown] launcher toast poll stop failed:", e);
-    }
-  }
-  if (handles.pluginUpdateNotice) {
-    try {
-      handles.pluginUpdateNotice();
-    } catch (e) {
-      console.warn("[Teardown] plugin update notice stop failed:", e);
-    }
-  }
-  if (handles.tileStoreBadgePatch) {
-    try {
-      handles.tileStoreBadgePatch();
-    } catch (e) {
-      console.warn("[Teardown] tile store-badge patch stop failed:", e);
-    }
-  }
-  if (handles.appContextMenuPatch) {
-    try {
-      handles.appContextMenuPatch.unpatch();
-    } catch (e) {
-      console.warn("[Teardown] app context-menu patch unpatch failed:", e);
-    }
-  }
-  if (handles.lifetimeListener) {
-    try {
-      handles.lifetimeListener.unregister();
-    } catch (e) {
-      console.warn("[Teardown] lifetime listener unregister failed:", e);
-    }
-  }
-  if (handles.appStorePatch) {
-    try {
-      handles.appStorePatch.remove();
-    } catch (e) {
-      console.warn("[Teardown] app-store patch remove failed:", e);
-    }
-  }
-  if (handles.collectionManager) {
-    try {
-      handles.collectionManager.remove();
-    } catch (e) {
-      console.warn("[Teardown] collection manager remove failed:", e);
-    }
-  }
-  if (handles.libraryPatch) {
-    try {
-      handles.libraryPatch.remove();
-    } catch (e) {
-      console.warn("[Teardown] library patch remove failed:", e);
-    }
-  }
-  if (handles.routerPatch) {
-    try {
-      handles.routerPatch.remove();
-    } catch (e) {
-      console.warn("[Teardown] router patch remove failed:", e);
+      console.warn(`[Teardown] ${name} disposal failed:`, e);
     }
   }
 }

@@ -211,7 +211,18 @@ class EventBusClientImpl {
    * keeping the poll cheap when idle.
    */
   private scheduleNext(): void {
+    // Never leave a previously armed handle running. `pollOnce`'s `finally`
+    // and `ensurePolling` can both reach here for the same tick, and the
+    // loser used to be overwritten while still armed.
+    if (this.timer != null) clearTimeout(this.timer);
     this.timer = setTimeout(() => {
+      // The handle is dead the moment the callback runs, so clear it here
+      // rather than leaving a stale non-null value across the await in
+      // `pollOnce`. Without this, a subscriber that leaves and rejoins
+      // mid-poll makes `ensurePolling` arm one timer and `pollOnce`'s
+      // `finally` arm a second, and the poll rate doubles every time it
+      // happens.
+      this.timer = null;
       void this.pollOnce();
     }, this.currentInterval);
   }
@@ -224,9 +235,15 @@ class EventBusClientImpl {
    */
   private async pollOnce(): Promise<void> {
     try {
-      const raw = await call<[string[]], unknown>(
+      // Send our watermark so the backend filters server-side. It used to
+      // return the entire replay buffer on every poll, twice a second, for
+      // the life of the process, and we threw nearly all of it away below.
+      // The filter below stays: it costs nothing, and it keeps this client
+      // correct against a backend that predates the `since` argument.
+      const raw = await call<[string[], number], unknown>(
         rpcRoutes.subscribeReplay,
         WATCHED_EVENTS,
+        this.lastSeenTimestamp,
       );
       // Backend wraps every RPC response in `{success, error, data}`
       // via `@auto_wrap_rpc_methods`. `useRPC` unwraps it for

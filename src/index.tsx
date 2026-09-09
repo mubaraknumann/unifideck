@@ -71,7 +71,7 @@ export default definePlugin(() => {
   // filters have data on first render — independent of whether
   // the user ever opens the Decky QAM panel.
   try {
-    startUnifideckCacheAutoload();
+    handles.cacheAutoload = startUnifideckCacheAutoload();
   } catch (e) {
     console.error("[Unifideck] cache autoload start failed:", e);
   }

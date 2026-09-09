@@ -56,7 +56,13 @@ class _Host(ObservabilityRPCMixin):
 #: the plugin instance rather than an optional service, so they are present
 #: even on a bare host. Tests asserting "no optional context" check against
 #: this set rather than against ``{}``.
-ALWAYS_PRESENT = {"bus_health", "config_validation"}
+#:
+#: ``memory`` is here because it must be: it is the block that says whether
+#: this process is growing, and a bundle from a host whose services failed
+#: to come up is exactly when that matters most. Its own sub-blocks degrade
+#: individually (the sampler series is dropped when the service is absent),
+#: but the block itself is never optional.
+ALWAYS_PRESENT = {"bus_health", "config_validation", "memory"}
 
 
 def _host(service: Any, **extra: Any) -> _Host:
