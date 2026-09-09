@@ -28,9 +28,11 @@ the argument list must come from i18next. These forms are accepted:
 * a template that already interpolates ``t(...)``.
 
 **Backend** (``py_modules/unifideck/**/*.py``) — every ``launcher_toast(...)``,
-``emit_stage(...)`` and ``bus.emit(Events.TOAST_NOTIFICATION | LAUNCHER_STAGE,
-...)`` call must carry an ``i18n_key`` or ``i18n_title_key``, and no
-``label`` / ``title`` / ``body`` inside a toast payload may be literal prose.
+``emit_stage(...)`` and ``bus.emit(Events.LAUNCHER_STAGE, ...)`` call must carry
+an ``i18n_key`` or ``i18n_title_key``, and no ``label`` / ``title`` / ``body``
+inside a toast payload may be literal prose. (``TOAST_NOTIFICATION`` was also
+matched here until it was retired in 2026-08; ``LAUNCHER_STAGE`` is now the only
+toast channel.)
 
 Deliberately NOT checked: ``phase_message``. The wrapper-install watcher and
 the GOG installer build English progress text, but ``DownloadProgressRow.tsx``
@@ -85,7 +87,7 @@ PY_TOAST_CALL = re.compile(
 # payload's own construction site is itself a checked call.
 PY_DICT_SPLAT = re.compile(r"\*\*\w+")
 PY_BUS_EMIT = re.compile(
-    r"\bemit\(\s*Events\.(?:TOAST_NOTIFICATION|LAUNCHER_STAGE)\b",
+    r"\bemit\(\s*Events\.LAUNCHER_STAGE\b",
 )
 PY_LABEL_TEXT = re.compile(
     r"[\"']?\b(?:label|title|body)[\"']?\s*[:=]\s*[\"']([^\"']{4,})[\"']",

@@ -101,10 +101,14 @@ export async function applyLanguagePreference(): Promise<void> {
  */
 /**
  * Bootstrap task : resolve the device class and re-title the
- * compatibility tab if it is not a Steam Deck.
+ * compatibility tab to name the actual hardware.
  *
- * Only rebuilds when the value actually changed, so the common case
- * (an actual Deck, which is already the default) costs nothing.
+ * Rebuilds only when the value actually changed. Note the cached
+ * default is `"other"`, not `"deck"` — so on a real Deck this DOES
+ * change once at boot and costs one rebuild. That is deliberate: a
+ * device whose RPC never answers then shows the neutral SteamOS
+ * wording rather than confidently claiming to be a Deck, which on a
+ * Steam Machine would be a wrong device name.
  */
 export async function applyDeviceType(): Promise<void> {
   try {
@@ -113,7 +117,7 @@ export async function applyDeviceType(): Promise<void> {
       tabManager.rebuildTabs();
     }
   } catch {
-    // Non-fatal — the "deck" default label stays.
+    // Non-fatal — the neutral "other" default label stays.
   }
 }
 
@@ -144,7 +148,7 @@ export async function checkAccountSwitch(): Promise<void> {
  * Bootstrap task : install the singleton Steam
  * lifetime listener that drives the Unifideck game
  * runner. Returns the disposer used by
- * `runTeardown` (OP-79) on plugin shutdown.
+ * `runTeardown` on plugin shutdown.
  *
  * @returns a disposer that detaches the listener.
  */

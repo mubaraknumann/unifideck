@@ -34,7 +34,7 @@ def _ctx():
 def _fake_service():
     svc = MagicMock()
     plan = SimpleNamespace()
-    svc._prepare_windows_plan = AsyncMock(return_value=(plan, None))
+    svc._prepare_windows_plan = AsyncMock(return_value=plan)
     svc._cloud_sync_phase = AsyncMock()
     svc._run_game_subprocess = AsyncMock(return_value=0)
     svc._resolve_exit_code = MagicMock(return_value=0)
@@ -95,7 +95,7 @@ async def test_launch_plan_is_rebuilt_from_the_tool_setup_settled_on(monkeypatch
     svc = _fake_service()
     launch_plan = SimpleNamespace(name="rebuilt")
     svc._prepare_windows_plan = AsyncMock(
-        side_effect=[(SimpleNamespace(name="phase1"), None), (launch_plan, None)],
+        side_effect=[SimpleNamespace(name="phase1"), launch_plan],
     )
 
     await orch.launch_windows(svc, _ctx(), SimpleNamespace(rc=0, proton_tool_id="proton_11"))
@@ -116,8 +116,12 @@ async def test_dispatch_does_not_run_compat(monkeypatch):
     monkeypatch.setattr(compat_pkg, "apply_prefix_compat", compat_spy)
     monkeypatch.setattr(proton_pkg, "repair_incomplete_umu_runtime", MagicMock())
 
+    # Patch the routing table, not the module-level name: ``dispatch`` reads
+    # ``_STORE_LAUNCHERS``, which binds the handlers at import. Patching
+    # ``proton_pkg.epic_launch`` would leave the real handler in the map and
+    # silently test nothing.
     epic_spy = AsyncMock(return_value=0)
-    monkeypatch.setattr(proton_pkg, "epic_launch", epic_spy)
+    monkeypatch.setitem(proton_pkg._STORE_LAUNCHERS, "epic", epic_spy)
 
     plan = SimpleNamespace(context=SimpleNamespace(store="epic"))
     rc = await proton_pkg.dispatch(plan)

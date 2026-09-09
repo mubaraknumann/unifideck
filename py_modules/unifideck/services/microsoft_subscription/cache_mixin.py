@@ -61,7 +61,7 @@ class _CacheMixin:
             self._cache.set(_CACHE_STORE_NAME, key, entry.to_dict())
         except Exception:
             logger.exception("[MSSubSvc] cache write failed")
-    async def _store_tier_result(
+    def _store_tier_result(
         self, cache_key: str, tier: SubscriptionTier,
     ) -> None:
         """Store tier result.
@@ -71,6 +71,11 @@ class _CacheMixin:
         tier is stable for that window. Negative results (NONE) cache
         for 30 minutes only, so a transient gateway 403 can't lock
         out the user for weeks.
+
+        Synchronous: this used to end with an ``_emit_state_change`` await,
+        which was the only reason it was a coroutine. That emitted
+        SUBSCRIPTION_DETECTED / SUBSCRIPTION_EXPIRED into a channel with no
+        consumer on any leg and was retired (audit §1.3).
         """
         now = time.time()
         if tier == SubscriptionTier.NONE:
@@ -83,7 +88,6 @@ class _CacheMixin:
             detected_at=now,
         )
         self._write_cache(cache_key, entry)
-        await self._emit_state_change(cache_key, tier)  # type: ignore[attr-defined]  # self._emit_state_change provided by sibling mixin _EventHandlersMixin
 
     # ── Session persistence (gsToken + regions) ──────────────────
 

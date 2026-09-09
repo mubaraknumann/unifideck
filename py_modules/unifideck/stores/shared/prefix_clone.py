@@ -47,12 +47,23 @@ GAMES_DIR_NAME = "games"
 
 @dataclass(frozen=True, slots=True)
 class PrefixMarker:
-    """Proof that Unifideck created a prefix, and how."""
+    """Proof that Unifideck created a prefix, and how.
+
+    ``source`` is free-text provenance and the two stores fill it
+    differently on purpose: Battle.net records the template path it cloned,
+    Ubisoft records *how* the prefix came to exist (``cloned_from_template``,
+    ``fresh_install``, ``template_from_auth``, …). Nothing parses it, so it
+    is documented rather than forced into one shape.
+
+    ``game_id`` is set only for a per-game prefix; a template or auth prefix
+    leaves it None.
+    """
 
     store: str
     created_at: float
     source: str | None = None
     client_build: str | None = None
+    game_id: str | None = None
     version: int = 1
 
 
@@ -72,6 +83,7 @@ def write_marker(prefix: Path, filename: str, marker: PrefixMarker) -> bool:
         "created_at": marker.created_at,
         "source": marker.source,
         "client_build": marker.client_build,
+        "game_id": marker.game_id,
         "version": marker.version,
     }
     try:
@@ -109,6 +121,7 @@ def read_marker(prefix: Path, filename: str) -> PrefixMarker | None:
             if isinstance(data.get("client_build"), str)
             else None
         ),
+        game_id=data.get("game_id") if isinstance(data.get("game_id"), str) else None,
         version=int(data.get("version") or 1),
     )
 

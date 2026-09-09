@@ -1,7 +1,5 @@
 """GOG store configuration — frozen dataclass with deferred path resolution.
 
-OP-50b | py_modules/unifideck/stores/gog/config.py
-
 ``GOGConfig`` is a frozen dataclass holding every tunable parameter
 of the GOG sub-package: download directory, gogdl binary path,
 OAuth URLs, token file location, gogdl config directory, etc.
@@ -30,7 +28,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from unifideck.utils.config_helpers import get_cfg
+from unifideck.stores.shared.config_reader import StoreConfigReader
 
 if TYPE_CHECKING:
     from unifideck.config import ConfigManager
@@ -40,7 +38,6 @@ _DEFAULT_TOKEN_FILE = "~/.config/unifideck/gog_token.json"  # file path, not a t
 _DEFAULT_GOGDL_CONFIG_DIR = "~/.config/unifideck/gogdl"
 _DEFAULT_DOWNLOAD_DIR = "~/GOG Games"
 GOG_AUTH_URL_FILE = "~/.local/share/unifideck/gog_auth_url.txt"
-
 
 @dataclass(frozen=True)
 class GOGConfig:
@@ -79,31 +76,13 @@ class GOGConfig:
     def from_config_manager(cls, config: ConfigManager | None) -> GOGConfig:
         """From config manager."""
 
-        def _s(key: str, default: str = "") -> str:
-            """S."""
-            val = get_cfg(config, f"{_GOG_CONFIG_PREFIX}.{key}", default)
-            return str(val).strip() if val is not None else default
+        cfg = StoreConfigReader(config, _GOG_CONFIG_PREFIX)
 
-        def _i(key: str, default: int) -> int:
-            """I."""
-            val = get_cfg(config, f"{_GOG_CONFIG_PREFIX}.{key}", default)
-            try:
-                return int(val)
-            except (TypeError, ValueError):
-                return default
-
-        def _list(key: str) -> list[str]:
-            """List."""
-            val = get_cfg(config, f"{_GOG_CONFIG_PREFIX}.{key}", None)
-            if not isinstance(val, list):
-                return []
-            return [str(x) for x in val if isinstance(x, str) and x]
-
-        primary_redirect = _s("redirect_uri")
-        allowed = _list("allowed_redirect_uris")
+        primary_redirect = cfg.text("redirect_uri")
+        allowed = cfg.text_list("allowed_redirect_uris")
         if not allowed and primary_redirect:
             allowed = [primary_redirect]
-        supported = _list("supported_languages")
+        supported = cfg.text_list("supported_languages")
         if not supported:
             supported = [
                 "en",
@@ -119,26 +98,26 @@ class GOGConfig:
                 "ja",
             ]
         return cls(
-            client_id=_s("client_id"),
-            client_secret=_s("client_secret"),
-            auth_url=_s("auth_url"),
-            token_url=_s("token_url"),
+            client_id=cfg.text("client_id"),
+            client_secret=cfg.text("client_secret"),
+            auth_url=cfg.text("auth_url"),
+            token_url=cfg.text("token_url"),
             redirect_uri=primary_redirect,
             allowed_redirect_uris=allowed,
-            base_url=_s("base_url"),
-            api_gog_url=_s("api_gog_url"),
-            token_file=_s("token_file", _DEFAULT_TOKEN_FILE),
-            gogdl_config_dir=_s(
+            base_url=cfg.text("base_url"),
+            api_gog_url=cfg.text("api_gog_url"),
+            token_file=cfg.text("token_file", _DEFAULT_TOKEN_FILE),
+            gogdl_config_dir=cfg.text(
                 "gogdl_config_dir",
                 _DEFAULT_GOGDL_CONFIG_DIR,
             ),
-            download_dir=_s("download_dir", _DEFAULT_DOWNLOAD_DIR),
-            token_refresh_threshold_seconds=_i(
+            download_dir=cfg.text("download_dir", _DEFAULT_DOWNLOAD_DIR),
+            token_refresh_threshold_seconds=cfg.number(
                 "token_refresh_threshold_seconds",
                 2400,
             ),
             supported_languages=supported,
-            user_agent=_s("user_agent", "Unifideck/1.0"),
+            user_agent=cfg.text("user_agent", "Unifideck/1.0"),
         )
 
     def is_valid(self) -> bool:

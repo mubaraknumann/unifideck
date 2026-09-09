@@ -69,15 +69,6 @@
     "validationErrors.homeRoot": "ホームのルートディレクトリは指定できません",
     "freeSpaceLabel": "{{label}} (空き容量 {{freeSpace}} GB)"
   },
-  "gameGrid": {
-    "loading": "ゲームを読み込み中...",
-    "noGamesFound": "ゲームが見つかりません",
-    "noGamesHint": "Unifideckの設定からライブラリの同期を試してください",
-    "showingGames": "{{count}} 個のゲームを表示中",
-    "installed": "インストール済み",
-    "notInstalled": "未インストール",
-    "playtime": "プレイ時間: {{hours}} 時間 {{minutes}} 分"
-  },
   "downloadsTab": {
     "currentDownload": "現在のダウンロード",
     "queuedDownloads": "待機中 ({{count}})",
@@ -154,9 +145,9 @@
     "connected": "連携済み",
     "checking": "確認中...",
     "authenticate": "ログインする",
-    "legendaryNotInstalled": "⚠️ Epic Games ツールをインストール中...",
-    "nileNotInstalled": "⚠️ Amazon Games ツールが見つかりません",
-    "error": "エラー。ログを確認してください"
+    "error": "エラー。ログを確認してください",
+    "storefrontOpening": "{{store}} ストアを開いています...",
+    "storefrontFailed": "{{store}} ストアを開けませんでした"
   },
   "librarySync": {
     "title": "ライブラリ同期",
@@ -258,6 +249,8 @@
     "ubisoftLauncherAlreadyOpenMessage": "このインストールに対して Ubisoft Connect はすでに開いています。",
     "ubisoftLauncherOpenFailed": "Ubisoft Connect を開けませんでした",
     "ubisoftLauncherOpenFailedMessage": "インストールのための Ubisoft Connect の起動に失敗しました。",
+    "ubisoftSignInExpired": "Ubisoft のサインインの有効期限が切れました",
+    "ubisoftSignInExpiredMessage": "保存された Ubisoft のサインイン情報は受け付けられなくなりました。Unifideck の設定からサインアウトして、もう一度サインインしてください。",
     "multipartDetected": "マルチパートダウンロードを検出しました",
     "multipartMessage": "完了するまでお待ちください",
     "downloadFailed": "ダウンロード失敗",
@@ -349,10 +342,10 @@
       "installingUbisoft": "Ubisoft Connect でインストール中",
       "installingUbisoftMessage": "Ubisoft Connect を開いています。ランチャーのウィンドウからインストールを開始してください。",
       "protonReadyBody": "{{version}} を使用できます",
+      "externalProtonOutdatedTitle": "GE-Proton のアップデートが利用可能",
+      "externalProtonOutdatedBody": "最新バージョン {{version}} が利用可能です。外部マネージャーからアップデートしてください。",
       "protonReadyTitle": "Proton の準備完了",
       "protonSwitchedTo": "現在 {{version}} を使用中",
-      "signingInUbisoft": "Ubisoft Connect にサインインしています",
-      "signingInUbisoftMessage": "Ubisoft Connect を開いています。そこでサインインしてから戻ってください。",
       "ubisoftPrefixNotReady": "Ubisoft Connect の準備ができていません",
       "ubisoftPrefixNotReadyMessage": "このゲームの Ubisoft Connect プレフィックスを準備できませんでした。もう一度インストールしてみてください。それでも失敗する場合は、ライブラリの同期を再実行してください。",
       "ubisoftAuthPrefixNotReady": "Ubisoft Connect の準備ができていません",
@@ -390,10 +383,9 @@
       "battlenetInstallerDownloadFailedMessage": "Battle.net インストーラーをダウンロードできませんでした。接続を確認してもう一度お試しください。",
       "battlenetClientInstallFailed": "Battle.net のインストールに失敗しました",
       "battlenetClientInstallFailedMessage": "Battle.net クライアントのインストーラーが完了しませんでした。もう一度お試しいただくか、起動ログで報告内容をご確認ください。",
-      "signingInBattlenet": "Battle.net サインイン",
-      "signingInBattlenetMessage": "サインインできるように Battle.net クライアントを開いています…",
       "installingBattlenet": "Battle.net 経由でインストール中",
-      "installingBattlenetMessage": "Battle.net を開いています。{{gameTitle}} のダウンロードを開始するには、そこで「インストール」を押してください。"
+      "installingBattlenetMessage": "Battle.net を開いています。{{gameTitle}} のダウンロードを開始するには、そこで「インストール」を押してください。",
+      "wrapperOpening": "{{client}} を開いています"
     },
     "updateComplete": "アップデートが完了しました！",
     "updateCompleteMessage": "{{title}} をアップデートしました。",
@@ -401,7 +393,6 @@
     "updateCancelledMessage": "{{title}} のアップデートがキャンセルされました。",
     "updateFailed": "アップデート失敗",
     "updateFailedMessage": "アップデートを開始できませんでした。",
-    "storeError": "{{store}} との通信に失敗しました ({{errType}})",
     "captureLogsStarted": "ログを収集中...",
     "captureLogsStartedMessage": "ダウンロードフォルダーに診断パッケージを作成しています。数秒かかります。",
     "captureLogsDone": "ログを収集しました",
@@ -417,9 +408,7 @@
       "openStorageManager": "空き容量を増やす",
       "signInToStore": "ログインする",
       "retrySync": "再試行",
-      "retryLibrarySync": "ライブラリを更新",
-      "openSaveFolder": "セーブフォルダを表示",
-      "showLogs": "ログを表示"
+      "retryLibrarySync": "ライブラリを更新"
     },
     "library": {
       "_comment": "Toasts emitted by SyncService when a per-store library sync fails. The retry button triggers a fire-and-forget refresh via the unifideck://refresh-library/<store> verb; the user doesn't wait for the result inline, the Library view picks it up through its SYNC_PROGRESS subscription.",
@@ -485,6 +474,7 @@
       "authExpired": "セッションが切れました。もう一度ログインしてください",
       "toolMissing": "必要なダウンロードツールが見つかりません",
       "processFailed": "ダウンロードに失敗しました。再試行してください",
+      "stalled": "ダウンロードが進行しないまま停止しました。もう一度お試しください。",
       "directoryNotFound": "インストールされたファイルが見つかりません",
       "lockConflict": "他の処理が実行中です。再試行してください",
       "ubisoftClient": "Ubisoft Connect エラー。プレフィックスの修復を試してください",
@@ -551,7 +541,8 @@
     "amazon": "Amazon",
     "ubisoft": "Ubisoft",
     "microsoft": "Microsoft",
-    "battlenet": "Battle.net"
+    "battlenet": "Battle.net",
+    "gamevault": "GameVault"
   },
   "unifiedLibrary": {
     "error": "Unifideck エラー",
@@ -598,11 +589,14 @@
       "never": "なし"
     },
     "compatibility": {
-      "modalTitle": "Steam Deck 互換性",
+      "modalTitleDeck": "Steam Deck 互換性",
+      "modalTitleMachine": "Steam Machine 互換性",
+      "modalTitleSteamOS": "SteamOS 互換性",
       "viewOnProtonDb": "ProtonDB で見る",
       "close": "閉じる",
       "verified": "確認済み",
       "playable": "プレイ可能",
+      "compatible": "互換性あり",
       "unsupported": "非対応",
       "unknown": "不明"
     },
@@ -703,8 +697,7 @@
     "signInRequired": "プレイするにはログインが必要です",
     "syncSkippedNoSubscription": "有効な Xbox Game Pass サブスクリプションが見つかりません。xCloud ライブラリは同期されませんでした。",
     "syncSkippedTierUnknown": "Xbox Game Pass サブスクリプションが検出されましたが、プランの確認ができませんでした。利用できないゲームが表示されるのを防ぐため、同期をスキップしました。",
-    "subscriptionCheckFailed": "Xbox Game Pass サブスクリプションを検証できませんでした。xCloud の同期をスキップしました。接続が安定したら再試行してください。",
-    "subscriptionDetected": "有効な Xbox Game Pass {{tier}} サブスクリプションを検出しました。"
+    "subscriptionCheckFailed": "Xbox Game Pass サブスクリプションを検証できませんでした。xCloud の同期をスキップしました。接続が安定したら再試行してください。"
   },
   "playButton": {
     "play": "プレイ",
@@ -1009,9 +1002,14 @@
     "installingButton": "インストール中...",
     "installingTitle": "プラグインのインストール",
     "latestLabel": "最新",
+    "manageButton": "アップデート",
+    "manageButtonAvailable": "アップデート (v{{version}} が利用可能)",
+    "manageTitle": "プラグインのアップデート",
     "modalTitle": "UNIFIDECK v{{version}}。リリースノート",
     "noBackend": "Decky バックエンドが利用できません。",
     "noReleaseNotes": "リリースノートはありません。",
+    "noticeBody": "v{{version}} を Unifideck の設定からインストールできます。",
+    "noticeTitle": "Unifideck のアップデートがあります",
     "reinstallButton": "v{{version}} を再インストール",
     "refreshFailedMessage": "最新バージョンの情報を確認できませんでした。接続を確認してもう一度お試しください。",
     "releaseGoneMessage": "このリリースは現在利用できません。アップデートを確認して、もう一度選択してください。",
@@ -1052,5 +1050,36 @@
     "title": "STEAM コレクション",
     "enabled": "コレクションが有効",
     "disabled": "コレクションが無効"
+  },
+  "reconcile": {
+    "repairedTitle": "ライブラリデータを修復しました",
+    "repairedBody": "中断された同期で残っていたアートワーク {{artwork}} 件、メタデータ {{metadata}} 件、互換性情報 {{compat}} 件を補完しました。"
+  },
+  "gamevault": {
+    "connectTitle": "GameVaultに接続",
+    "connect": "接続",
+    "connecting": "接続中…",
+    "cancel": "キャンセル",
+    "modeRemote": "リモートサーバーに接続",
+    "modeRemoteDescription": "別の場所でホストしている GameVault サーバーにサインインします。",
+    "modeLocal": "このデバイスのフォルダーを使う",
+    "modeLocalDescription": "すでにここにある DRM フリーのゲームアーカイブを取り込みます。サーバーは不要です。",
+    "localTitle": "ローカルゲームフォルダー",
+    "localIntro": "このフォルダーにゲームアーカイブを置くと、次回の同期後にライブラリに表示されます。",
+    "vaultDir": "アーカイブフォルダー",
+    "vaultDirDescription": "ゲームアーカイブの保存場所です。",
+    "browse": "参照…",
+    "serverUrl": "サーバーURL",
+    "username": "ユーザー名",
+    "password": "パスワード",
+    "verifySsl": "SSL証明書の確認",
+    "verifySslDescription": "自己署名証明書の場合は無効にしてください",
+    "downloadDir": "アーカイブダウンロードディレクトリ",
+    "downloadDirDescription": "アーカイブダウンロード用の一時ディレクトリ。空欄のままにするとデフォルトが使用されます。",
+    "downloadDirPlaceholder": "~/.local/share/unifideck/gamevault_downloads",
+    "errorServerUrlRequired": "サーバーURLを入力してください",
+    "errorUsernameRequired": "ユーザー名を入力してください",
+    "errorPasswordRequired": "パスワードを入力してください",
+    "errorConnection": "GameVaultサーバーへの接続に失敗しました"
   }
 }

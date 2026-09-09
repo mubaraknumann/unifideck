@@ -42,7 +42,7 @@ import {
   isUnifideckCacheLoaded,
 } from "../lib/library-filters";
 import { getGameStateVersion } from "../lib/game-state-version";
-import { injectGameToAppinfo } from "../lib/steam-bridge/app-store-patcher";
+import { reinjectMetadataWhenLoaded } from "../lib/steam-bridge/app-store-patcher";
 import { shouldPatchShortcut } from "../lib/steam-bridge/shortcut-ownership";
 import { DownloadProvider } from "../contexts/DownloadContext";
 import { PlaySectionWrapper } from "../components/play";
@@ -137,7 +137,7 @@ function injectIntoTree(ret: unknown): void {
   // Steam's own UI (capsule image, tile, presence) renders the
   // matched Steam game. Fire-and-forget — the patcher reads from
   // its in-memory cache; the backend RPC is a no-op stub.
-  void injectGameToAppinfo(appId);
+  void reinjectMetadataWhenLoaded(appId);
 
   const innerContainer = findInReactTree<NodeWithChildren>(ret, (x) => {
     const n = x as NodeWithChildren | null;

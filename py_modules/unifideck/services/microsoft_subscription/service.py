@@ -6,7 +6,6 @@ import time
 from typing import TYPE_CHECKING
 
 from unifideck.core.types import SubscriptionTier
-from unifideck.core.types.events import Events
 from unifideck.event_bus.event_bus import EventBus
 from unifideck.event_bus.event_bus_devex import auto_wire
 
@@ -47,7 +46,6 @@ class MicrosoftSubscriptionService(
                 _CACHE_STORE_NAME,
             )
         self._lock = asyncio.Lock()
-        self._last_emitted: dict[str, SubscriptionTier] = {}
         self._last_standard_chain: XBLTokenChain | None = None
         # In-memory probe session: holds the most recent SubscriptionProbeResult
         # (gsToken + regions + market) so downstream consumers (catalog reader)
@@ -89,11 +87,11 @@ class MicrosoftSubscriptionService(
                     _fmt_ts(cached.detected_at),
                 )
                 return cached.tier
-            await self._bus.emit(
-                Events.SUBSCRIPTION_CHECK_FAILED,
-                store="microsoft",
-                reason=probe_result.error or "unknown",
-            )
+            # No SUBSCRIPTION_CHECK_FAILED emit here. Returning NONE makes
+            # MicrosoftStore emit SYNC_SKIPPED(reason="subscription_check_error"),
+            # which is the channel the frontend actually renders — a second
+            # event carrying the same news had no consumer on any leg
+            # (audit §1.3).
             logger.warning(
                 "[MSSubSvc] probe failed (%s) and no cache "
                 "— returning NONE",
@@ -111,7 +109,7 @@ class MicrosoftSubscriptionService(
         persisted to disk so they survive plugin restarts.
         """
         self._last_probe = probe_result
-        await self._store_tier_result(cache_key, probe_result.tier)
+        self._store_tier_result(cache_key, probe_result.tier)
         xuid = self._xuid_from_chain()
         if probe_result.is_session_fresh():
             self._persist_session(xuid, probe_result)
@@ -177,7 +175,7 @@ class MicrosoftSubscriptionService(
             self._last_probe = probe_result
             # Side-effect: update the tier cache so get_tier()
             # benefits from this fresh probe too.
-            await self._store_tier_result(
+            self._store_tier_result(
                 cache_key, probe_result.tier,
             )
             self._persist_session(xuid, probe_result)
@@ -205,7 +203,6 @@ class MicrosoftSubscriptionService(
             self._cache.clear(_CACHE_STORE_NAME)
         except Exception:
             logger.exception("[MSSubSvc] cache clear failed")
-        self._last_emitted.clear()
         self._last_probe = None
         self._clear_persisted_sessions()
         logger.info("[MSSubSvc] cache invalidated")

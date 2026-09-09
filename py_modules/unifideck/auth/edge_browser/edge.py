@@ -86,6 +86,14 @@ _MS_COOKIE_DOMAINS = (
     "%xbox.com%", "%microsoft.com%", "%live.com%", "%microsoftonline.com%",
 )
 
+# CDP port offsets from ``cdp_port``, one per window flavour. Chromium
+# refuses a second process on the same ``--user-data-dir`` (it hands the
+# URL to the running instance over SingletonSocket and exits), and all
+# three flavours share one profile by design — so the port is what tells
+# a caller WHICH window is currently alive before it tries to spawn.
+_XCLOUD_CDP_OFFSET = 1
+_STOREFRONT_CDP_OFFSET = 2
+
 # Edge flags shared between auth and game launch
 _BASE_FLAGS = [
     "--no-first-run",
@@ -191,6 +199,41 @@ class EdgeBrowser:
         """Delegate to EdgeCDPClient."""
         return self._cdp.list_targets()
 
+    # ── Per-flavour CDP ports ────────────────────────────────────────
+
+    def xcloud_cdp_port(self) -> int:
+        """The CDP port an xCloud kiosk window listens on."""
+        return self.cdp_port + _XCLOUD_CDP_OFFSET
+
+    def storefront_cdp_port(self) -> int:
+        """The CDP port a storefront window listens on."""
+        return self.cdp_port + _STOREFRONT_CDP_OFFSET
+
+    @staticmethod
+    def cdp_alive(port: int) -> bool:
+        """True when *some* Edge is answering CDP on ``port``.
+
+        ``is_running()`` cannot answer this: it reports on this
+        instance's own ``self.process`` plus the auth port only, and
+        the process handle is ``None`` in a freshly bootstrapped
+        launcher subprocess. This probes a specific port, so it sees a
+        window spawned by a different process — which is exactly the
+        collision the storefront flow has to detect.
+        """
+        return EdgeCDPClient(cdp_port=port).probe_cdp()
+
+    @staticmethod
+    async def navigate_on_port(port: int, url: str) -> bool:
+        """Point the Edge answering on ``port`` at ``url``."""
+        return await EdgeCDPClient(cdp_port=port).navigate_tab(url)
+
+    @staticmethod
+    async def close_targets_on_port(port: int, *, log_prefix: str) -> bool:
+        """Close every CDP target on ``port``."""
+        return await EdgeCDPClient(cdp_port=port).close_all_targets(
+            log_prefix=log_prefix,
+        )
+
     async def navigate_tab(
         self,
         url: str,
@@ -271,6 +314,10 @@ class EdgeBrowser:
     def launch_auth(self, auth_url: str) -> bool:
         """Launch the auth browser for OAuth — delegate to launch module."""
         return _launch.launch_auth(self, auth_url)
+
+    def launch_storefront(self, url: str) -> bool:
+        """Launch a browsable store window — delegate to launch module."""
+        return _launch.launch_storefront(self, url)
 
     def launch_xcloud(self, xcloud_url: str) -> bool:
         """Launch Edge in kiosk mode — delegate to launch module."""

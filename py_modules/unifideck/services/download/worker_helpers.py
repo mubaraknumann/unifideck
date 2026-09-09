@@ -6,13 +6,48 @@ volumetry cap. Pure module-level helpers — no mixin/host state.
 from __future__ import annotations
 
 import asyncio
+import logging
+from pathlib import Path
 from typing import Any
 
+from unifideck.launcher.wrapper_stores import uses_manual_download_phase
+
 from .models import DownloadItem
+
+logger = logging.getLogger(__name__)
 
 # Strong references to background install tasks so the GC can't
 # collect them mid-flight (see RUF006).
 _BACKGROUND_TASKS: set[asyncio.Task[Any]] = set()
+
+
+def prefix_warmup_supported(item: DownloadItem) -> bool:
+    """Whether ``item``'s store and depot shape get an install-time warmup.
+
+    Wrapper stores bootstrap their own prefix through the vendor client, so the
+    generic warmup must not run over the top of it.
+
+    A GOG *Linux-native* depot (root-level ``start.sh`` — the same signal
+    ``GOGExeResolver`` and the native-launch DOSBox dispatch use) never touches
+    Proton/Wine, so building a prefix for it is pure waste and, worse, can wedge
+    the shared prefix-setup machinery (wineserver locks, the GE-Proton retry
+    ladder) for a game that will never use it.
+
+    The cloud-only store used to be named here as well. It no longer needs to
+    be: the warmup runs on the install success path only, and that store now
+    refuses every install outright, so the arm was unreachable.
+    """
+    if uses_manual_download_phase(item.store):
+        return False
+    if item.store == "gog" and (Path(item.install_path) / "start.sh").is_file():
+        logger.info(
+            "[DownloadWorker] skipping prefix warmup for %s:%s — "
+            "Linux-native GOG depot (start.sh), no Proton prefix needed",
+            item.store,
+            item.game_id,
+        )
+        return False
+    return True
 
 
 def track_task(task: asyncio.Task[Any]) -> None:

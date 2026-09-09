@@ -8,7 +8,7 @@
  *   404 MB / 564 MB         19.6 MB/s · ETA 00:00:08
  *
  * Indeterminate phases (``extracting`` / ``verifying``) hide
- * the byte counter and show ``phase_message`` (or the i18n
+ * the byte counter and show the localized phase label (the i18n
  * fallback) so the user still has a textual signal.
  */
 import { FC, useEffect } from "react";
@@ -98,8 +98,10 @@ export const DownloadProgressRow: FC<Props> = ({
     { client },
   );
   // Indeterminate detail line: rendered purely from phase (+ percent) so it
-  // is always localized. The backend's ``phase_message`` is hardcoded English
-  // and is deliberately NOT displayed — see DownloadsTab i18n.
+  // is always localized. The backend used to also send a ``phase_message``
+  // of hardcoded English that was deliberately never displayed; it carried
+  // from nine producers through the queue item to this component and was
+  // deleted end to end (audit register item 45).
   const phase = download.download_phase;
   const detail =
     phase === "preparing"

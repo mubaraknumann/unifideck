@@ -85,16 +85,24 @@ def test_gog_non_start_sh_exe_does_not_use_dosbox_module(tmp_path):
     assert "gog_linux_dosbox" not in " ".join(argv)
 
 
-def test_wrappers_and_game_args_are_preserved(tmp_path):
+def test_game_args_are_appended(tmp_path):
+    """Game arguments land at the end of argv.
+
+    This test also asserted a leading ``gamemoderun`` from
+    ``RuntimeState.wrappers``. That field is gone: Steam applies wrapper
+    words pre-exec, so by the time the launcher holds an argv there is
+    nothing to wrap, and six argv builders were prepending a list that could
+    only ever be empty (audit register item 23b).
+    """
     exe = tmp_path / "game.x86_64"
     exe.write_text("")
     ctx = _ctx("epic", exe)
-    state = RuntimeState(wrappers=["gamemoderun"], game_args=["-fullscreen"])
+    state = RuntimeState(game_args=["-fullscreen"])
 
     argv = build_native_argv(ctx, state, ctx.exe_path)
 
-    assert argv[0] == "gamemoderun"
     assert argv[-1] == "-fullscreen"
+    assert not hasattr(state, "wrappers")
 
 
 def test_prepare_native_env_sets_pythonpath_to_plugin_py_modules(tmp_path):

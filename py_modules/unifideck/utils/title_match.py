@@ -24,6 +24,14 @@ matches the substring. Without normalisation and edition stripping:
 Each pass uses these helpers to widen the matching net without ever
 accepting a wrong game (the 0.85 Jaccard threshold prevents franchise
 confusion).
+
+The one thing widening must never dissolve is the *version* — see
+:func:`version_tokens`. A sequel number is a single word, and the
+edition stripper used to eat it: "The Settlers N - History Edition"
+collapsed to "the settlers" for every N, so one SteamGridDB entry
+supplied the artwork for seven different games. An *episode* number is
+not a version (see :func:`_strip_chapters_episodes`) — episodes of one
+season share their season's art on purpose.
 """
 from __future__ import annotations
 
@@ -61,6 +69,49 @@ EDITION_SUFFIXES: tuple[str, ...] = (
     # Short / standalone (word boundary ensured by space-prefix check)
     "goty", "hd", "ce", "dlc", "windows", "console", "xs",
 )
+
+# Multi-character Roman numerals → Arabic, for version folding ("Thief II"
+# ↔ "Thief 2"). Single letters (I/V/X) are deliberately excluded — they're
+# too often branding ("Mega Man X", "Entropy Effect X") rather than a
+# version, and folding them risks false matches.
+_ROMAN_TO_ARABIC: dict[str, str] = {
+    "ii": "2", "iii": "3", "iv": "4", "vi": "6", "vii": "7", "viii": "8",
+    "ix": "9", "xi": "11", "xii": "12", "xiii": "13", "xiv": "14", "xv": "15",
+}
+
+
+def version_tokens(normalized: str) -> frozenset[str]:
+    """Sequel discriminators in a normalised title, folded to Arabic.
+
+    The *one* part of a title that must survive every suffix strip. Two
+    titles that differ only here are different games, so the strippers
+    below refuse to consume these and the resolvers refuse to match
+    across a mismatch.
+
+    Counts multi-character Roman numerals (via ``_ROMAN_TO_ARABIC``, so
+    "II" and "2" agree) and bare integers. Deliberately NOT counted:
+
+    * 4-digit years 1980-2030 — an edition tag, not a sequel number, so
+      "Sea of Thieves" still matches "Sea of Thieves: 2026 Edition".
+      Anno's 1404 / 1701 / 1602 fall outside that window and DO count,
+      which is exactly right: they name different games.
+    * ordinals ("10th") and any token with non-digit characters — those
+      are words, not version markers.
+
+    Pure function. Empty input, or a title with no version marker,
+    returns an empty set (which is itself a value: "no number" differs
+    from "number 7", so ``The Settlers`` won't match ``The Settlers 7``).
+    """
+    tokens: set[str] = set()
+    for word in normalized.split():
+        roman = _ROMAN_TO_ARABIC.get(word)
+        if roman is not None:
+            tokens.add(roman)
+        elif word.isdigit() and not (
+            len(word) == 4 and 1980 <= int(word) <= 2030
+        ):
+            tokens.add(str(int(word)))
+    return frozenset(tokens)
 
 
 def normalize_for_match(title: str) -> str:
@@ -143,13 +194,45 @@ def _strip_known_suffix(s: str) -> str | None:
 
 
 def _strip_edition_phrase(s: str) -> str | None:
-    """Strip a trailing ``<1-3 words> edition`` phrase."""
-    m = re.match(r"^(.+?)\s+(?:\w+\s+){0,2}edition$", s)
-    return m.group(1).strip() if m and m.group(1).strip() else None
+    """Strip the bare trailing ``edition`` word.
+
+    This used to consume ``<1-2 words> edition`` via a non-greedy
+    ``(.+?)``, which meant it removed as MUCH as it could rather than as
+    little. Nothing distinguishes an edition qualifier from an ordinary
+    title word by position, so it ate both:
+
+        "sea of thieves 2026 edition"          → "sea of"
+        "halo the master chief collection ed…" → "halo the master"
+        "the settlers 7 history edition"       → "the settlers"
+
+    The last one is why a tester saw one cover on seven Settlers games:
+    a sequel number is exactly one word, so every "<game> N - <word>
+    Edition" collapsed to the bare franchise on both the query and the
+    candidate side.
+
+    Removing only the ``edition`` token cannot destroy a title word.
+    The multi-word edition names this used to absorb ("Marching Fire
+    Edition", "Gourmet Edition") are still recognised — by
+    :func:`_is_edition_remainder`, which reads them as edition noise
+    when comparing a base game against its edition, and which is
+    version-gated so it cannot bridge two different sequels.
+    """
+    m = re.match(r"^(.+)\s+edition$", s)
+    if not m or not m.group(1).strip():
+        return None
+    return m.group(1).strip()
 
 
 def _strip_chapters_episodes(s: str) -> str | None:
-    """Strip a trailing ``chapters/episodes <range>`` suffix."""
+    """Strip a trailing ``chapters/episodes <range>`` suffix.
+
+    Deliberately NOT version-guarded, unlike :func:`_strip_edition_phrase`.
+    An episode number is not a sequel number: "A New Frontier - Episode 1"
+    and "… Episode 2" are parts of one season, and storefronts carry a
+    single artwork entry for the season. Collapsing them to a shared base
+    is the correct answer, so an episodic shortcut inherits the season's
+    art instead of having none.
+    """
     m = re.match(r"^(.+?)\s+(?:chapters?|episodes?)\s+[\d\s]+$", s)
     return m.group(1).strip() if m and m.group(1).strip() else None
 
@@ -286,15 +369,6 @@ PUBLISHER_PREFIXES: tuple[str, ...] = (
     "dreamworks", "marvel s", "warner bros", "2k", "microsoft", "disney",
 )
 
-# Multi-character Roman numerals → Arabic, for version folding ("Thief II"
-# ↔ "Thief 2"). Single letters (I/V/X) are deliberately excluded — they're
-# too often branding ("Mega Man X", "Entropy Effect X") rather than a
-# version, and folding them risks false matches.
-_ROMAN_TO_ARABIC: dict[str, str] = {
-    "ii": "2", "iii": "3", "iv": "4", "vi": "6", "vii": "7", "viii": "8",
-    "ix": "9", "xi": "11", "xii": "12", "xiii": "13", "xiv": "14", "xv": "15",
-}
-
 # Tokens that, as the *only* leftover after a common prefix, mark the longer
 # title as an edition/year variant of the shorter (so "Sea of Thieves" still
 # matches Steam's "Sea of Thieves: 2026 Edition"). Built from the edition
@@ -319,9 +393,25 @@ def _fold_roman_numerals(normalized: str) -> str:
 
 
 def _is_edition_remainder(remainder: str) -> bool:
-    """True if every word left over after a prefix is edition/year noise."""
+    """True if the words left over after a prefix are edition/year noise.
+
+    Two ways to qualify. Either every word is a known edition/year token,
+    or the remainder simply *ends* in "edition" — which is how an
+    arbitrarily-named edition ("… Marching Fire Edition", "… Gourmet
+    Edition", "… Spacer's Choice Edition") is recognised without needing
+    a vocabulary of every publisher's marketing word.
+
+    The second rule is deliberately permissive, and is safe only because
+    :func:`titles_match` rejects a version mismatch before ever getting
+    here. Without that gate it would read "7 history edition" as noise
+    and match "The Settlers" to "The Settlers 7 - History Edition".
+    """
     words = remainder.split()
-    return bool(words) and all(
+    if not words:
+        return False
+    if words[-1] == "edition":
+        return True
+    return all(
         w in _EDITION_TOKENS or re.fullmatch(r"(?:19|20)\d{2}", w)
         for w in words
     )
@@ -370,10 +460,21 @@ def titles_match(query: str, candidate: str, threshold: float = 0.85) -> bool:
     opportunities, and the 0.85 Jaccard threshold still guards against
     franchise confusion. Returns ``False`` rather than guessing — callers
     prefer no data over wrong data.
+
+    One gate runs before all of that widening: the two titles must agree
+    on their :func:`version_tokens`. Nothing below may bridge *Settlers
+    5* and *Settlers 7*, however similar the strings look. Measured on
+    the edition-stripped base so an edition tag that happens to contain
+    a number ("20 Year Celebration", "2026 Edition") is not mistaken for
+    a sequel number.
     """
     qn = normalize_for_match(query)
     cn = normalize_for_match(candidate)
     if not qn or not cn:
+        return False
+    if version_tokens(strip_edition_suffix(qn)) != version_tokens(
+        strip_edition_suffix(cn),
+    ):
         return False
     q_forms = {qn, _strip_publisher_prefix(qn)}
     q_forms |= {_fold_roman_numerals(f) for f in q_forms}

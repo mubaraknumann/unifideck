@@ -3,15 +3,23 @@
  *
  * Ported from `staging:src/spoofing/SteamStorePatcher.ts`.
  *
- * Strategy: monkey-patch three Steam getter methods so that when
- * Steam asks for the overview / details of a Unifideck shortcut
- * (synthetic AppID), we return the real Steam Store data for the
- * matched real-Steam-AppID instead. The mappings and rich
- * `appdetails` JSON are pre-fetched by the backend
- * `MetadataService` during sync and read here via two RPCs.
+ * Strategy: monkey-patch three Steam getter methods so that a Unifideck
+ * shortcut (synthetic AppID) is presented with the real Steam Store
+ * *content* for its matched real-Steam-AppID. The mappings and rich
+ * `appdetails` JSON are pre-fetched by the backend `MetadataService`
+ * during sync and read here via two RPCs.
  *
  *   - `get_real_steam_appid_mappings` → `{shortcut_id: real_id}`
  *   - `get_steam_metadata_cache`      → `{real_id: appdetails}`
+ *
+ * **Borrow content, never identity.** These getters must always answer
+ * with the shortcut's OWN `appid` / `GameID()` / `unAppID`. They used to
+ * return the matched Steam app's overview and details objects outright,
+ * which made Steam resolve the shortcut to that app and launch it under
+ * that app's id — see the comment on `GetAppOverviewByAppID` below for the
+ * bundle evidence. Metadata now reaches the UI via
+ * `injectMetadataIntoOverview` / `borrowDetails`, which copy fields onto
+ * our own objects.
  *
  * Net effect: Epic / GOG / Amazon / Ubisoft shortcuts in Steam's
  * library show real cover art, store descriptions, Metacritic
@@ -21,14 +29,14 @@
  */
 import { call } from "@decky/api";
 import { rpcRoutes } from "../../api/rpc-routes";
+import { toSignedAppId, toUnsignedAppId } from "./appid";
 
 let steamAppIdMappings: Record<number, number> = {};
-let storeDataCache: Record<number, AppOverview> = {};
 let appDetailsCache: Record<number, AppDetails> = {};
 const patchedOverviews = new Set<number>();
 
 /** Resolves once `loadFromBackend()` has completed (mappings +
- *  metadata cache populated). `injectGameToAppinfo` awaits this
+ *  metadata cache populated). `reinjectMetadataWhenLoaded` awaits this
  *  so that navigation to a game page before the async init has
  *  finished still triggers artwork injection as soon as the data
  *  is ready. */
@@ -105,12 +113,18 @@ function getAppDetailsStore(): AppDetailsStoreLike | null {
   );
 }
 
-function toUnsignedAppId(id: number): number {
-  return id < 0 ? id + 0x100000000 : id;
-}
-
-function toSignedAppId(id: number): number {
-  return id > 0x7fffffff ? id - 0x100000000 : id;
+/** The real Steam AppID matched to a Unifideck shortcut, or 0.
+ *
+ *  `shortcuts.vdf` stores the *signed* 32-bit appid while callers hand us
+ *  either form, so probe both — the same signed/unsigned split the backend
+ *  `get_steam_compat_tool_override` documents. */
+function lookupRealId(shortcutAppId: number): number {
+  return (
+    steamAppIdMappings[toSignedAppId(shortcutAppId)] ??
+    steamAppIdMappings[toUnsignedAppId(shortcutAppId)] ??
+    steamAppIdMappings[shortcutAppId] ??
+    0
+  );
 }
 
 function extractIds(
@@ -140,38 +154,16 @@ function extractLanguages(
   }));
 }
 
-function buildOverview(steamAppId: number, raw: AppDetailsRaw): AppOverview {
-  const rtRelease = raw.release_date?.date
-    ? Math.floor(new Date(raw.release_date.date).getTime() / 1000)
-    : 0;
-  const controllerSupport =
-    raw.controller_support === "full"
-      ? 2
-      : raw.controller_support === "partial"
-      ? 1
-      : 0;
-  return {
-    appid: steamAppId,
-    display_name: raw.name ?? "",
-    app_type: 1,
-    visible_in_game_list: true,
-    sort_as: raw.name?.toLowerCase() ?? "",
-    rt_original_release_date: rtRelease,
-    rt_steam_release_date: rtRelease,
-    controller_support: controllerSupport,
-    steam_deck_compat_category: 0,
-    store_tag: extractIds(raw.genres),
-    store_category: extractIds(raw.categories),
-    metacritic_score: raw.metacritic?.score ?? 0,
-    icon_hash: "",
-    header_filename: raw.header_image ?? "",
-    library_capsule_filename: raw.capsule_image ?? "",
-    BIsShortcut: () => false,
-    BIsModOrShortcut: () => false,
-    GameID: () => String(steamAppId),
-    __from_web_api: true,
-  };
-}
+// NOTE: there used to be a `buildOverview(steamAppId, raw)` here that
+// synthesised a whole `AppOverview` for the matched Steam app, cached in
+// `storeDataCache` and returned from `GetAppOverviewByAppID` whenever the
+// user did NOT own that app. Its `appid`, `BIsShortcut: () => false` and
+// `GameID: () => String(steamAppId)` were the real Steam app's, so it leaked
+// the same wrong identity as the owned-overview path — just for a different
+// set of titles. Overviews are no longer substituted at all (see
+// `GetAppOverviewByAppID`), so the factory and its cache are gone; the
+// library-facing fields it supplied are set by `overview-enrichment.ts`,
+// which writes them onto the shortcut's own overview.
 
 function buildDetails(steamAppId: number, raw: AppDetailsRaw): AppDetails {
   const developers = raw.developers ?? [];
@@ -226,6 +218,26 @@ function buildDetails(steamAppId: number, raw: AppDetailsRaw): AppDetails {
   };
 }
 
+/** Rich store details for the matched Steam app, re-stamped with the
+ *  SHORTCUT's identity.
+ *
+ *  The AppDetails page genuinely wants the real store copy (description,
+ *  developer, languages, DLC…), but handing Steam the matched app's object
+ *  wholesale leaks its `unAppID` into every surface that reads details —
+ *  the same class of bug as returning its `AppOverview`. Copy the content,
+ *  keep our own id and display name. */
+function borrowDetails(
+  borrowed: AppDetails | null,
+  shortcutAppId: number,
+  own: AppDetails | null,
+): AppDetails | null {
+  if (!borrowed) return own;
+  const merged: AppDetails = { ...borrowed, unAppID: shortcutAppId };
+  const ownName = own?.strDisplayName;
+  if (typeof ownName === "string" && ownName) merged.strDisplayName = ownName;
+  return merged;
+}
+
 interface OverviewMutable extends AppOverview {
   TriggerChange?: () => void;
 }
@@ -238,8 +250,7 @@ function injectMetadataIntoOverview(overview: OverviewMutable): boolean {
       : overview.appid;
   if (typeof rawAppId !== "number") return false;
   if (patchedOverviews.has(rawAppId)) return false;
-  const signed = toSignedAppId(rawAppId);
-  const realId = steamAppIdMappings[signed] ?? steamAppIdMappings[rawAppId];
+  const realId = lookupRealId(rawAppId);
   if (!realId) return false;
   const details = appDetailsCache[realId];
   if (!details) return false;
@@ -303,7 +314,6 @@ async function loadFromBackend(): Promise<void> {
       for (const [k, raw] of Object.entries(metaResp.metadata)) {
         const steamId = Number(k);
         if (Number.isNaN(steamId)) continue;
-        storeDataCache[steamId] = buildOverview(steamId, raw);
         appDetailsCache[steamId] = buildDetails(steamId, raw);
       }
     }
@@ -324,10 +334,18 @@ export function forceInjectMetadataForShortcut(shortcutAppId: number): boolean {
   return injectMetadataIntoOverview(overview);
 }
 
-/** Fire-and-forget : also persist the spoofed metadata via the
- *  backend `inject_game_to_appinfo` RPC so the spoofing survives a
- *  Steam restart. The current backend handler is a no-op stub. */
-export async function injectGameToAppinfo(
+/** Re-spoof one shortcut's overview once the backend cache has loaded.
+ *
+ *  This used to end by awaiting the backend `inject_game_to_appinfo` RPC,
+ *  "so the spoofing survives a Steam restart". That RPC was a stub that
+ *  logged and returned `{success: true}` — its own docstring admitted the
+ *  success was only there to stop the fire-and-forget call logging a failure
+ *  on every navigation. The persistence it promised was redundant anyway:
+ *  `applyAppStorePatch` awaits `loadFromBackend()` and re-spoofs on every
+ *  plugin load, so surviving a restart is handled by re-patching rather than
+ *  by writing `appinfo.vdf`. RPC, route and round-trip deleted; the local
+ *  half, which does the real work, is all that is left. Audit item 35. */
+export async function reinjectMetadataWhenLoaded(
   shortcutAppId: number,
 ): Promise<void> {
   // Wait for the async backend load to finish so that
@@ -335,13 +353,8 @@ export async function injectGameToAppinfo(
   // may still be in-flight; on subsequent calls the cached
   // promise resolves immediately.
   if (_backendLoadPromise) await _backendLoadPromise;
-  if (!steamAppIdMappings[shortcutAppId]) return;
+  if (!lookupRealId(shortcutAppId)) return;
   forceInjectMetadataForShortcut(shortcutAppId);
-  try {
-    await call<[number], unknown>(rpcRoutes.injectGameToAppinfo, shortcutAppId);
-  } catch (e) {
-    console.error("[Unifideck Store Patch] inject_game_to_appinfo failed:", e);
-  }
 }
 
 interface PatchHandle {
@@ -369,30 +382,46 @@ export async function applyAppStorePatch(): Promise<PatchHandle> {
   const origGetData = appDetailsStore.GetAppData?.bind(appDetailsStore);
 
   appStore.GetAppOverviewByAppID = (id: number) => {
-    const realId = steamAppIdMappings[id];
-    if (!realId) return origGetOverview(id);
-    void injectGameToAppinfo(id);
-    const owned = origGetOverview(realId);
-    if (owned) return owned;
-    return storeDataCache[realId] ?? origGetOverview(id);
+    const own = origGetOverview(id);
+    if (!lookupRealId(id)) return own;
+    // This getter runs on every overview read across the whole library, not
+    // just on AppDetails open. Only re-spoof an id we have not already
+    // patched — the previous code fired an RPC round-trip here every time.
+    if (!patchedOverviews.has(toUnsignedAppId(id))) {
+      void reinjectMetadataWhenLoaded(id);
+    }
+    // ALWAYS the shortcut's own overview. This used to return
+    // `origGetOverview(realId)` — the matched Steam app's whole overview
+    // object — falling back to `storeDataCache[realId]`, whose synthetic
+    // `appid` / `GameID()` are also the real Steam app's. Either way Steam
+    // resolved our shortcut to a different app and launched it under that
+    // identity: the 2026-08-25 bundle shows Ys I (shortcut 3969905431)
+    // tracked as `gameID 223810` and Trails (3057628334) as `251150`, so
+    // the loading screen waited on a window for an app that never started
+    // and the game ran behind it with only Abort available. Borrowed store
+    // metadata reaches the UI through `injectMetadataIntoOverview`, which
+    // copies fields onto THIS object and never touches identity.
+    return own;
   };
   appDetailsStore.GetAppDetails = (id: number) => {
-    const realId = steamAppIdMappings[id];
-    if (!realId) return origGetDetails(id);
-    const owned = origGetDetails(realId);
-    if (owned) return owned;
-    return appDetailsCache[realId] ?? origGetDetails(id);
+    const own = origGetDetails(id);
+    const realId = lookupRealId(id);
+    if (!realId) return own;
+    const borrowed = origGetDetails(realId) ?? appDetailsCache[realId] ?? null;
+    return borrowDetails(borrowed, id, own);
   };
   if (origGetData) {
     appDetailsStore.GetAppData = (id: number) => {
-      const realId = steamAppIdMappings[id];
+      const realId = lookupRealId(id);
       if (!realId) return origGetData(id);
-      const owned = origGetData(realId);
-      if (owned) return owned;
-      const overview = storeDataCache[realId];
-      const details = appDetailsCache[realId];
+      const own = origGetData(id);
+      if (own) return own;
+      const borrowed =
+        origGetDetails(realId) ?? appDetailsCache[realId] ?? null;
+      const details = borrowDetails(borrowed, id, null);
+      const overview = origGetOverview(id);
       if (overview || details) return { overview, details };
-      return origGetData(id);
+      return own;
     };
   }
 
@@ -408,7 +437,6 @@ export async function applyAppStorePatch(): Promise<PatchHandle> {
       appDetailsStore.GetAppDetails = origGetDetails;
       if (origGetData) appDetailsStore.GetAppData = origGetData;
       steamAppIdMappings = {};
-      storeDataCache = {};
       appDetailsCache = {};
       patchedOverviews.clear();
     },

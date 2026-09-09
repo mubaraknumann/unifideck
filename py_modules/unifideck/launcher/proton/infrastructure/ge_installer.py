@@ -19,6 +19,7 @@ third-party HTTP client.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -33,6 +34,14 @@ import urllib.request
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+
+from unifideck.launcher.proton.infrastructure.ge_install_lock import (
+    install_lock,
+)
+from unifideck.launcher.proton.infrastructure.ge_marker import (
+    write_latest_tag as _write_marker,
+)
+from unifideck.utils import vdf_compat
 
 logger = logging.getLogger(__name__)
 
@@ -60,17 +69,13 @@ def _ssl_ctx() -> ssl.SSLContext:
 
 # Install target — the primary root the selector scans first.
 COMPAT_TOOLS_DIR = Path("~/.steam/root/compatibilitytools.d").expanduser()
-# Roots scanned to decide whether a tag is already installed. Mirrors
-# ``selector.STEAM_COMPAT_ROOTS`` (kept local to avoid a circular
-# import — selector imports this module, not the other way round).
-_SCAN_ROOTS: tuple[str, ...] = (
-    "~/.steam/root/compatibilitytools.d",
-    "~/.steam/steam/compatibilitytools.d",
-    "~/.local/share/Steam/compatibilitytools.d",
-)
-# Records the tag the background installer last validated, so the
-# launcher can resolve the default without a network round-trip.
-_MARKER = Path("~/.local/share/unifideck/proton_ge_latest.json").expanduser()
+# Roots scanned to decide whether a tag is already installed. Sourced from
+# ``vdf_compat`` — the one definition of where compat tools live — rather
+# than a local copy; ``vdf_compat`` is stdlib-only and launcher-safe, so it
+# imports cleanly here and there is no cycle (selector imports this module,
+# not the other way round). Excludes the unifideck compat dir: this answers
+# "is this *GE tag* installed", and GE lands in ``COMPAT_TOOLS_DIR``.
+_SCAN_ROOTS: tuple[str, ...] = vdf_compat.STEAM_COMPAT_ROOTS
 
 ProgressCb = Callable[[int, int], None]
 
@@ -225,27 +230,6 @@ def is_proton_install_complete(proton_script: Path) -> bool:
         )
         return False
     return True
-
-
-def read_cached_latest_tag() -> str | None:
-    """Return the tag the background installer last validated, if any."""
-    if not _MARKER.is_file():
-        return None
-    try:
-        data = json.loads(_MARKER.read_text())
-    except (OSError, ValueError):
-        return None
-    tag = data.get("tag")
-    return tag or None
-
-
-def _write_marker(tag: str) -> None:
-    """Record ``tag`` as the validated latest GE-Proton (best effort)."""
-    try:
-        _MARKER.parent.mkdir(parents=True, exist_ok=True)
-        _MARKER.write_text(json.dumps({"tag": tag, "installed_at": time.time()}))
-    except OSError as e:
-        logger.warning("[ge_installer] could not write marker: %s", e)
 
 
 def _select_tarball(assets: list[dict[str, Any]], tag: str | None = None) -> str | None:
@@ -424,9 +408,25 @@ def _promote_extracted(staging: Path, tag: str) -> Path | None:
     _make_executable(proton)
 
     dest = COMPAT_TOOLS_DIR / tag
-    if dest.exists():
-        shutil.rmtree(dest, ignore_errors=True)
-    shutil.move(extracted, dest)
+    # Rename-aside, never rmtree-then-move. ``dest`` may be the Proton a game
+    # or a live ``umu-run`` is executing out of right now: deleting it first
+    # leaves a window with no tag directory at all, and pulls the files out
+    # from under that process. Two renames on one filesystem (staging is
+    # created inside COMPAT_TOOLS_DIR) leave the path always resolvable, and a
+    # process holding the old tree's inodes keeps working until it exits.
+    aside = COMPAT_TOOLS_DIR / f".{tag}.old-{os.getpid()}"
+    try:
+        if dest.exists():
+            dest.rename(aside)
+        extracted.rename(dest)
+    except OSError as e:
+        logger.warning("[ge_installer] could not publish %s: %s", tag, e)
+        with contextlib.suppress(OSError):
+            if aside.exists() and not dest.exists():
+                aside.rename(dest)
+        return None
+    finally:
+        shutil.rmtree(aside, ignore_errors=True)
     final = dest / "proton"
     if not os.access(final, os.X_OK):
         return None
@@ -473,6 +473,13 @@ def ensure_latest_ge(
     when the release can't be fetched (offline / GitHub down) or the
     download/extract fails. When the latest is already validly installed
     it just refreshes the marker and returns it without downloading.
+
+    The install itself is serialised across processes by :func:`ge_install_lock.install_lock`
+    and re-checked under it with the STRONG :func:`is_proton_install_complete`
+    rather than the presence-only ``installed_ge_proton_path``. The weak check
+    is false during a publish, so without the re-check the loser of a race
+    would download and republish over the directory the winner just installed
+    — and over whatever is running out of it.
     """
     release = _fetch_latest_release(timeout)
     if not release:
@@ -492,8 +499,16 @@ def ensure_latest_ge(
         logger.warning("[ge_installer] no .tar.gz asset found for %s", tag)
         return None
 
-    logger.info("[ge_installer] downloading GE-Proton %s", tag)
-    script = _download_and_install(tag, url, progress_cb)
+    with install_lock():
+        settled = installed_ge_proton_path(tag)
+        if settled and is_proton_install_complete(settled):
+            _write_marker(tag)
+            logger.info(
+                "[ge_installer] GE-Proton %s installed while we waited", tag,
+            )
+            return settled, tag
+        logger.info("[ge_installer] downloading GE-Proton %s", tag)
+        script = _download_and_install(tag, url, progress_cb)
     if not script:
         return None
     _write_marker(tag)

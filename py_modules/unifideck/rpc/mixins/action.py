@@ -1,12 +1,10 @@
 """ActionRPCMixin — mixin form of the ``unifideck://`` URI dispatcher.
 
-OP-26a | py_modules/unifideck/rpc/mixins/action.py
-
-Mixin equivalent of ``ActionHandlers`` (OP-25b). Where the
-handler class accepts injected dependencies via its base, the
-mixin reaches for ``self.registry`` / ``self.services`` /
-``self.sync_service`` directly on the host plugin class —
-the older composition style.
+Reaches for ``self.registry`` / ``self.services`` /
+``self.sync_service`` directly on the host ``Plugin`` class, which
+composes this mixin as a base. That is the only composition style in
+the tree: there is no injected-dependency handler class to contrast
+it with, and no ``rpc/handlers/`` package.
 
 This mixin is **thin** by design: the heavy lifting lives in
 ``unifideck.actions.dispatch.dispatch_backend_action`` so the

@@ -1,7 +1,5 @@
 """Bus pipeline orchestrator — composes the EventBus + extensions.
 
-OP-09i | py_modules/unifideck/event_bus/bus_pipeline.py
-
 ``BusPipeline`` is a small dataclass-like container that holds the
 fully-composed bus stack — the core ``EventBus`` plus all the
 extensions (replay buffer, circuit breaker, batch dispatcher,
@@ -24,7 +22,6 @@ if TYPE_CHECKING:
     from .priority_dispatcher import PriorityDispatcher
     from .supervision.metrics_handler import HandlerLatencyCollector
     from .supervision.watchdog_handler import HandlerWatchdog
-
 
 class BusPipeline(NamedTuple):
     """Bus pipeline."""

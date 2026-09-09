@@ -10,16 +10,21 @@ _LSFG_KEY_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)$")
 @dataclass
 class ParsedOptions:
     """Parsed options."""
-    wrappers: list[str] = field(default_factory=list)
     game_args: list[str] = field(default_factory=list)
     env_overrides: dict[str, str] = field(default_factory=dict)
     lsfg_requested: bool = False
-def _tokenize_options(raw: str) -> list[str]:
+def tokenize_options(raw: str) -> list[str]:
     """Split a launch-options string respecting shell quoting.
 
     Falls back to a naive whitespace split if ``shlex`` chokes
     on malformed input — the previous behaviour Steam shipped
     before Proton 8 and we don't want to error out on it.
+
+    Public because the dispatcher's ``_promote_env_tokens`` shares it.
+    That function used to split with a bare ``raw.split()``, which loses a
+    quoted value containing a space; the frontend's ``extractUserParams``
+    regex already anticipates quoted values, so the two were one bad
+    launch-options string away from disagreeing (audit §2.9).
     """
     try:
         return shlex.split(raw)
@@ -80,7 +85,7 @@ def parse_launch_options(raw: str) -> ParsedOptions:
     if not raw or not raw.strip():
         return result
 
-    tokens = _tokenize_options(raw)
+    tokens = tokenize_options(raw)
     remaining = _split_env_overrides(tokens, result)
     home = str(Path("~").expanduser())
     lsfg_filtered = _filter_lsfg_marker(remaining, result, home)
@@ -99,8 +104,22 @@ def _split_tokens_around_command(
     tokens: list[str], result: ParsedOptions,
 ) -> None:
 
-    """Split tokens around command."""
+    """Collect the game arguments, ignoring the ``%command%`` markers.
+
+    With a ``%command%`` marker, only the tokens *after* it are game
+    arguments; the ones before are wrapper words and are **dropped**, because
+    Steam has already applied them pre-exec (audit §2.9, measured: with
+    ``env %command% epic:Salt`` Steam ran the launcher under ``env`` and still
+    delivered ``argv[1]``). They used to be collected into a ``wrappers``
+    list that six argv builders prepended and nothing ever populated in
+    production; passing them to the *game* instead would be the §2.9 hazard.
+    Audit register item 23b.
+
+    Without a marker every bare token is a game argument — measured: tokens
+    after the game key arrive as plain argv.
+    """
     found_cmd = False
+    before: list[str] = []
     for tok in tokens:
         if tok == "%command%":
             found_cmd = True
@@ -110,14 +129,11 @@ def _split_tokens_around_command(
         if found_cmd:
             result.game_args.append(tok)
         else:
-            result.wrappers.append(tok)
-    if (
-        not found_cmd
-        and result.wrappers
-        and not result.game_args
-    ):
-        result.game_args = result.wrappers
-        result.wrappers = []
+            before.append(tok)
+    if not found_cmd:
+        # No marker: every bare token is a game argument. Measured — Steam
+        # delivers tokens after the game key straight through as argv.
+        result.game_args = before
 
 
 def _strip_matching_quotes(value: str) -> str:

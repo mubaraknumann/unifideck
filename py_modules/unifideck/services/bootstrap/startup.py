@@ -25,6 +25,9 @@ logger = logging.getLogger(__name__)
 # Other services don't implement ``start`` and are skipped by the
 # getattr probe below.
 _ASYNC_START_SERVICES: tuple[str, ...] = (
+    # First, so its series covers the rest of boot — the window in which
+    # caches fill and every background loop is armed.
+    "memory_sampler",
     "download",
     "account",
     "playtime",

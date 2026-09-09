@@ -1,7 +1,5 @@
 """Core sub-package — cross-cutting primitives used everywhere.
 
-OP-08 | py_modules/unifideck/core/__init__.py
-
 The ``core/`` sub-package holds the **foundation layer** —
 primitives that every higher-level package (services, stores,
 rpc, event_bus) depends on:
@@ -29,6 +27,7 @@ of the most-used names so consumers can ``from unifideck.core
 import Game, Result, Events`` without knowing the internal
 split.
 """
+from __future__ import annotations
 
 from .cache_manager import CacheManager
 from .types import (

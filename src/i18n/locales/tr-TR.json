@@ -69,15 +69,6 @@
     "validationErrors.homeRoot": "Ana dizin kökü kullanılamaz",
     "freeSpaceLabel": "{{label}} ({{freeSpace}} GB boş)"
   },
-  "gameGrid": {
-    "loading": "Oyunlar yükleniyor...",
-    "noGamesFound": "Oyun bulunamadı",
-    "noGamesHint": "Kütüphanelerinizi Unifideck ayarlarından senkronize etmeyi deneyin",
-    "showingGames": "{{count}} oyun gösteriliyor",
-    "installed": "Yüklü",
-    "notInstalled": "Yüklü Değil",
-    "playtime": "{{hours}} sa {{minutes}} dk oynandı"
-  },
   "downloadsTab": {
     "currentDownload": "AKTİF İNDİRME",
     "queuedDownloads": "SIRADA ({{count}})",
@@ -154,9 +145,9 @@
     "connected": "Bağlı",
     "checking": "Kontrol ediliyor...",
     "authenticate": "Giriş Yap",
-    "legendaryNotInstalled": "⚠️ Epic Games aracı yükleniyor...",
-    "nileNotInstalled": "⚠️ Amazon Games aracı bulunamadı",
-    "error": "Hata. Günlükleri kontrol edin"
+    "error": "Hata. Günlükleri kontrol edin",
+    "storefrontOpening": "{{store}} mağazası açılıyor...",
+    "storefrontFailed": "{{store}} mağazası açılamadı"
   },
   "librarySync": {
     "title": "KÜTÜPHANE SENK.",
@@ -258,6 +249,8 @@
     "ubisoftLauncherAlreadyOpenMessage": "Ubisoft Connect bu kurulum için zaten açık.",
     "ubisoftLauncherOpenFailed": "Ubisoft Connect Açılamadı",
     "ubisoftLauncherOpenFailedMessage": "Kurulum için Ubisoft Connect açılamadı.",
+    "ubisoftSignInExpired": "Ubisoft oturumu sona erdi",
+    "ubisoftSignInExpiredMessage": "Kayıtlı Ubisoft oturumunuz artık kabul edilmiyor. Yeniden bağlanmak için Unifideck ayarlarından çıkış yapıp tekrar giriş yapın.",
     "multipartDetected": "Çok parçalı indirme algılandı",
     "multipartMessage": "Lütfen sabırlı olun ve tamamlanmasını bekleyin",
     "downloadFailed": "İndirme Başarısız",
@@ -349,10 +342,10 @@
       "installingUbisoft": "Ubisoft Connect ile yükleniyor",
       "installingUbisoftMessage": "Ubisoft Connect açılıyor. Kurulumu başlatıcı penceresinden başlatın.",
       "protonReadyBody": "{{version}} kullanıma hazır",
+      "externalProtonOutdatedTitle": "GE-Proton Güncellemesi Mevcut",
+      "externalProtonOutdatedBody": "En son {{version}} sürümü mevcut. Lütfen harici yöneticiniz üzerinden güncelleyin.",
       "protonReadyTitle": "Proton hazır",
       "protonSwitchedTo": "Şimdi {{version}} kullanılıyor",
-      "signingInUbisoft": "Ubisoft Connect'te oturum açılıyor",
-      "signingInUbisoftMessage": "Ubisoft Connect açılıyor. Orada oturum açın, sonra geri dönün.",
       "ubisoftPrefixNotReady": "Ubisoft Connect hazır değil",
       "ubisoftPrefixNotReadyMessage": "Bu oyun için Ubisoft Connect ön eki hazırlanamadı. Tekrar yüklemeyi deneyin; sorun devam ederse kitaplık eşitlemesini yeniden çalıştırın.",
       "ubisoftAuthPrefixNotReady": "Ubisoft Connect hazır değil",
@@ -390,10 +383,9 @@
       "battlenetInstallerDownloadFailedMessage": "Battle.net yükleyicisi indirilemedi. Bağlantınızı kontrol edip tekrar deneyin.",
       "battlenetClientInstallFailed": "Battle.net kurulumu başarısız",
       "battlenetClientInstallFailedMessage": "Battle.net istemci yükleyicisi tamamlanmadı. Tekrar deneyin veya ne bildirdiğini görmek için başlatma günlüğüne bakın.",
-      "signingInBattlenet": "Battle.net oturum açma",
-      "signingInBattlenetMessage": "Oturum açabilmeniz için Battle.net istemcisi açılıyor…",
       "installingBattlenet": "Battle.net üzerinden yükleniyor",
-      "installingBattlenetMessage": "Battle.net açılıyor. {{gameTitle}} indirmesini başlatmak için oradan Yükle'ye basın."
+      "installingBattlenetMessage": "Battle.net açılıyor. {{gameTitle}} indirmesini başlatmak için oradan Yükle'ye basın.",
+      "wrapperOpening": "{{client}} açılıyor"
     },
     "updateComplete": "Güncelleme Tamamlandı!",
     "updateCompleteMessage": "{{title}} güncellendi.",
@@ -401,7 +393,6 @@
     "updateCancelledMessage": "{{title}} güncellemesi iptal edildi.",
     "updateFailed": "Güncelleme Başarısız",
     "updateFailedMessage": "Güncelleme başlatılamadı.",
-    "storeError": "{{store}} ile iletişim kurulamadı ({{errType}})",
     "captureLogsStarted": "Günlükler toplanıyor...",
     "captureLogsStartedMessage": "İndirilenler klasörünüzde bir tanılama paketi oluşturuluyor. Bu birkaç saniye sürer.",
     "captureLogsDone": "Günlükler toplandı",
@@ -417,9 +408,7 @@
       "openStorageManager": "Yer Aç",
       "signInToStore": "Giriş Yap",
       "retrySync": "Yeniden Dene",
-      "retryLibrarySync": "Kütüphaneyi Yenile",
-      "openSaveFolder": "Kayıt Klasörünü Göster",
-      "showLogs": "Günlükleri Göster"
+      "retryLibrarySync": "Kütüphaneyi Yenile"
     },
     "library": {
       "_comment": "Toasts emitted by SyncService when a per-store library sync fails. The retry button triggers a fire-and-forget refresh via the unifideck://refresh-library/<store> verb; the user doesn't wait for the result inline, the Library view picks it up through its SYNC_PROGRESS subscription.",
@@ -485,6 +474,7 @@
       "authExpired": "Oturum süresi doldu. Lütfen tekrar giriş yapın",
       "toolMissing": "Gerekli indirme aracı bulunamadı",
       "processFailed": "İndirme başarısız. Lütfen tekrar deneyin",
+      "stalled": "İndirme ilerleme olmadan durdu. Lütfen tekrar deneyin.",
       "directoryNotFound": "Yüklü dosyalar bulunamadı",
       "lockConflict": "Başka bir işlem devam ediyor. Tekrar deneyin",
       "ubisoftClient": "Ubisoft Connect istemci hatası. Öneki onarmayı deneyin",
@@ -551,7 +541,8 @@
     "amazon": "Amazon",
     "ubisoft": "Ubisoft",
     "microsoft": "Microsoft",
-    "battlenet": "Battle.net"
+    "battlenet": "Battle.net",
+    "gamevault": "GameVault"
   },
   "unifiedLibrary": {
     "error": "Unifideck Hatası",
@@ -598,11 +589,14 @@
       "never": "Hiçbir Zaman"
     },
     "compatibility": {
-      "modalTitle": "Steam Deck Uyumluluğu",
+      "modalTitleDeck": "Steam Deck Uyumluluğu",
+      "modalTitleMachine": "Steam Machine Uyumluluğu",
+      "modalTitleSteamOS": "SteamOS Uyumluluğu",
       "viewOnProtonDb": "ProtonDB'de Görüntüle",
       "close": "Kapat",
       "verified": "ONAYLANDI",
       "playable": "OYNANABİLİR",
+      "compatible": "UYUMLU",
       "unsupported": "DESTEKLENMİYOR",
       "unknown": "BİLİNMİYOR"
     },
@@ -703,8 +697,7 @@
     "signInRequired": "Oynamak için Giriş Yapın",
     "syncSkippedNoSubscription": "Aktif bir Xbox Game Pass aboneliği bulunamadı. xCloud kütüphaneniz senkronize edilmedi.",
     "syncSkippedTierUnknown": "Xbox Game Pass aboneliği algılandı ancak abonelik düzeyi belirlenemedi. Kullanılamayan oyunların gösterilmesini önlemek için senkronizasyon atlandı.",
-    "subscriptionCheckFailed": "Xbox Game Pass aboneliği doğrulanamadı. xCloud senkronizasyonu atlandı. Bağlantınız kararlı olduğunda tekrar deneyin.",
-    "subscriptionDetected": "Aktif Xbox Game Pass {{tier}} aboneliği algılandı."
+    "subscriptionCheckFailed": "Xbox Game Pass aboneliği doğrulanamadı. xCloud senkronizasyonu atlandı. Bağlantınız kararlı olduğunda tekrar deneyin."
   },
   "playButton": {
     "play": "Oyna",
@@ -1009,9 +1002,14 @@
     "installingButton": "Yükleniyor...",
     "installingTitle": "Eklenti Yükleniyor",
     "latestLabel": "en son",
+    "manageButton": "Güncelle",
+    "manageButtonAvailable": "Güncelle (v{{version}} mevcut)",
+    "manageTitle": "Eklenti güncellemesi",
     "modalTitle": "UNIFIDECK v{{version}}. Sürüm Notları",
     "noBackend": "Decky arka ucu kullanılamıyor.",
     "noReleaseNotes": "Sürüm notu bulunmuyor.",
+    "noticeBody": "v{{version}} sürümü Unifideck ayarlarından kurulabilir.",
+    "noticeTitle": "Unifideck güncellemesi mevcut",
     "reinstallButton": "v{{version}} sürümünü yeniden yükle",
     "refreshFailedMessage": "En son sürüm bilgisi doğrulanamadı. Bağlantınızı kontrol edip tekrar deneyin.",
     "releaseGoneMessage": "Bu sürüm artık kullanılamıyor. Lütfen güncellemeleri denetleyip yeniden seçin.",
@@ -1052,5 +1050,36 @@
     "title": "STEAM KOLEKSİYONLARI",
     "enabled": "Koleksiyonlar etkin",
     "disabled": "Koleksiyonlar devre dışı"
+  },
+  "reconcile": {
+    "repairedTitle": "Kitaplık verileri onarıldı",
+    "repairedBody": "Yarıda kalan eşitlemeden kalan {{artwork}} görsel, {{metadata}} meta veri ve {{compat}} uyumluluk kaydı tamamlandı."
+  },
+  "gamevault": {
+    "connectTitle": "GameVault'a Bağlan",
+    "connect": "Bağlan",
+    "connecting": "Bağlanıyor…",
+    "cancel": "İptal",
+    "modeRemote": "Uzak sunucuya bağlan",
+    "modeRemoteDescription": "Başka bir yerde barındırdığınız bir GameVault sunucusunda oturum açın.",
+    "modeLocal": "Bu cihazdaki bir klasörü kullan",
+    "modeLocalDescription": "Zaten burada bulunan DRM'siz oyun arşivlerini içe aktarın. Sunucu gerekmez.",
+    "localTitle": "Yerel oyun klasörü",
+    "localIntro": "Oyun arşivlerini bu klasöre bırakın; bir sonraki eşitlemeden sonra kitaplığınızda görünürler.",
+    "vaultDir": "Arşiv klasörü",
+    "vaultDirDescription": "Oyun arşivlerinizi tuttuğunuz yer.",
+    "browse": "Gözat…",
+    "serverUrl": "Sunucu URL",
+    "username": "Kullanıcı Adı",
+    "password": "Şifre",
+    "verifySsl": "SSL Sertifikasını Doğrula",
+    "verifySslDescription": "Kendinden imzalı sertifikalar için devre dışı bırakın",
+    "downloadDir": "Arşiv indirme dizini",
+    "downloadDirDescription": "Arşiv indirmeleri için geçici dizin. Varsayılanı kullanmak için boş bırakın.",
+    "downloadDirPlaceholder": "~/.local/share/unifideck/gamevault_downloads",
+    "errorServerUrlRequired": "Lütfen sunucu URL'sini girin",
+    "errorUsernameRequired": "Lütfen kullanıcı adınızı girin",
+    "errorPasswordRequired": "Lütfen şifrenizi girin",
+    "errorConnection": "GameVault sunucusuna bağlanılamadı"
   }
 }

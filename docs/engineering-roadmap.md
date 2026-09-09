@@ -63,8 +63,8 @@ Written at the v0.7.0 handoff (2026-07-02, commit c64dbe0) after an audit of the
 ## 8. Stale-docs guard — Medium impact / Low effort
 
 **Problem**: Agent-facing docs rot invisibly and then actively mislead. This has already happened once.
-**Evidence**: The pre-rewrite `.github/copilot-instructions.md` described `defaults/backend/`, RAWG, and `build-plugin_old.sh` — an architecture dead since 0.7 — with no signal it was stale. `main.py`'s own docstring says "eleven mixins" while the class composes 20.
-**Sketch**: (a) `Last verified:` headers now exist on CLAUDE.md + all skills — bump them with related PRs (see CONTRIBUTING.md). (b) Small CI script that greps `.claude/skills/**/*.md` + `CLAUDE.md` for repo-relative path tokens and fails on nonexistent ones. (c) While here: delete the dead root artifacts (`build-plugin_old.sh`, `build-plugin_old-backup.sh`, `main.py.backup`, `.gitignore.backup`) — needs maintainer sign-off.
+**Evidence**: The pre-rewrite `.github/copilot-instructions.md` described `defaults/backend/`, RAWG, and `build-plugin_old.sh` — an architecture dead since 0.7 — with no signal it was stale. <!-- mixin-count-ok: historical citation; the 2026-08 audit §2.1 defect this item exists to prevent --> `main.py`'s own docstring claimed "eleven mixins" while the class composed 20; that specific instance is closed (`scripts/validate_architecture.py` check 5 now rejects any mixin count written in prose), but it is the shape of the problem this item is about.
+**Sketch**: (a) `Last verified:` headers now exist on CLAUDE.md + all skills — bump them with related PRs (see CONTRIBUTING.md). (b) Small CI script that greps `.claude/skills/**/*.md` + `CLAUDE.md` for repo-relative path tokens and fails on nonexistent ones. (c) ~~Delete the dead root artifacts~~ — **struck 2026-08-26**: all of them are untracked *and* gitignored, so they reach no contributor and deleting them would change the repo not at all while irrecoverably destroying the maintainer's local backups. Audit register item 42.
 **Files**: `scripts/check_agent_docs.py` (new), `.github/workflows/quality.yml`.
 
 ## 9. Metadata cache TTL / schema versioning — Medium impact / Medium effort
@@ -76,7 +76,7 @@ Written at the v0.7.0 handoff (2026-07-02, commit c64dbe0) after an audit of the
 
 ## 10. Cross-store parametrized test harness — High impact / High effort
 
-**Problem**: The five store connectors implement the same contract (auth-gated library fetch, install-status overlay, exe resolution) with store-specific code; regressions are found store-by-store, in production.
+**Problem**: Every store connector implements the same contract (auth-gated library fetch, install-status overlay, exe resolution) with store-specific code; regressions are found store-by-store, in production.
 **Evidence**: The GOG install-overlay regression (installed games flipping to "not installed" after every sync) was a contract violation that a parametrized suite would have caught for every store at once. Store bugs dominate the issue tracker.
 **Sketch**: `tests/stores/test_store_contract.py` parametrized over all registered stores: `get_library` overlays installs and sets `exe_path`; empty-on-auth-failure never reports an empty owned library; ids are stable across syncs. Feed with recorded fixtures, not live APIs.
 **Files**: `tests/stores/` (new), `py_modules/unifideck/stores/shared/`.

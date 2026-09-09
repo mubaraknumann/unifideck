@@ -68,6 +68,7 @@ def _device_blocks(ctx: BundleContext) -> dict[str, Callable[[], Any]]:
         "cpu": probe_device.cpu_block,
         "gpu": probe_device.gpu_block,
         "memory": probe_device.memory_block,
+        "plugin_memory": probe_device.plugin_memory_block,
         "session": probe_device.session_block,
         "python": probe_device.python_block,
         "time": probe_device.time_block,

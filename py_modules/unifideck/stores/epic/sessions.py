@@ -4,51 +4,35 @@ Mirror of ``gog/sessions.py`` for Epic. Pushes finalized local sessions to Epic
 so the launcher's "Time Played" / other devices reflect them, and reads the
 account's totals back for display.
 
-Auth resolution is identical to ``epic/achievements.py``: the legendary launcher
-OAuth token from ``user.json``, refreshed via ``legendary status`` when stale.
-(Kept self-contained rather than shared with achievements to avoid disturbing
-that working path; the resolver is small and stable.)
+Auth is the legendary launcher OAuth token from ``user.json``, refreshed via
+``legendary status`` when stale — shared with ``epic/achievements.py`` through
+``LegendaryLauncherAuth``. This header used to say the resolver was kept
+self-contained "to avoid disturbing that working path"; measuring the two
+copies found one of them silently broken, so they were merged (audit register
+item 47).
 """
 from __future__ import annotations
 
 import asyncio
-import contextlib
-import json
 import logging
 import time
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
-from unifideck.core.binaries import clean_cli_env
-
+from .launcher_auth import LegendaryLauncherAuth
 from .playtime_api import fetch_epic_playtime_all, put_epic_session
 
 logger = logging.getLogger(__name__)
 
-# Refresh the launcher token this many seconds before it actually expires.
-_TOKEN_SKEW_SECONDS = 120
 # Totals are pulled per-game during a drain; cache the whole-account map briefly
 # so one drain only hits ``/all`` once.
 _TOTALS_TTL_SECONDS = 60.0
 
 
-def _parse_ts(value: Any) -> float | None:
-    """ISO-8601 (``2024-09-09T17:25:39.535Z``) → epoch float, or None."""
-    if not value:
-        return None
-    if isinstance(value, (int, float)):
-        return float(value)
-    try:
-        return datetime.fromisoformat(
-            str(value).replace("Z", "+00:00"),
-        ).timestamp()
-    except (ValueError, TypeError):
-        return None
-
-
-class EpicSessions:
+class EpicSessions(LegendaryLauncherAuth):
     """Push play sessions to Epic and read back totals (launcher-token auth)."""
+
+    _LOG_TAG = "epic.sessions"
 
     def __init__(
         self,
@@ -132,50 +116,3 @@ class EpicSessions:
         self._totals = (time.monotonic(), mapping)
         return mapping
 
-    async def _resolve_auth(
-        self, force_refresh: bool = False,
-    ) -> tuple[str | None, str | None]:
-        """``(access_token, account_id)``, refreshing via legendary if stale."""
-        data = self._read_user()
-        if (force_refresh or self._is_expired(data)) and self._cli_path:
-            await self._refresh_token()
-            data = self._read_user()
-        return data.get("access_token"), data.get("account_id")
-
-    def _read_user(self) -> dict[str, Any]:
-        """Read legendary ``user.json`` (``{}`` on any failure)."""
-        try:
-            if self._user_file.is_file():
-                data = json.loads(self._user_file.read_text(encoding="utf-8"))
-                return data if isinstance(data, dict) else {}
-        except (OSError, ValueError):
-            logger.debug("[epic.sessions] user.json read failed", exc_info=True)
-        return {}
-
-    @staticmethod
-    def _is_expired(data: dict[str, Any]) -> bool:
-        """Expired (or unknown → force a refresh attempt)."""
-        exp = _parse_ts(data.get("expires_at"))
-        if exp is None:
-            return True
-        return time.time() >= (exp - _TOKEN_SKEW_SECONDS)
-
-    async def _refresh_token(self) -> None:
-        """Best-effort token refresh: ``legendary status`` rewrites user.json."""
-        if not self._cli_path:
-            return
-        logger.info("[epic.sessions] refreshing Epic token via legendary")
-        proc = None
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                self._cli_path, "status",
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
-                env=clean_cli_env(),
-            )
-            await asyncio.wait_for(proc.communicate(), timeout=self._info_timeout)
-        except (TimeoutError, OSError) as e:
-            logger.warning("[epic.sessions] token refresh failed: %s", e)
-            if proc is not None:
-                with contextlib.suppress(ProcessLookupError):
-                    proc.kill()

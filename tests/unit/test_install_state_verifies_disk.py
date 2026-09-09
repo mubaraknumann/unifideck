@@ -9,11 +9,16 @@ Vampire Survivors case). Both Epic (legendary) and Amazon (nile) record an
 """
 from __future__ import annotations
 
+from functools import partial
+
 from unifideck.core.types import Game
-from unifideck.stores.amazon.amazon_library import (
-    merge_install_status as amazon_merge,
-)
-from unifideck.stores.epic.library import merge_install_status as epic_merge
+from unifideck.stores.shared.install_status import merge_install_status
+
+#: The arguments each store's ``get_library`` passes to the shared merge.
+#: Epic takes the defaults; Amazon only renames the path key. Both keep
+#: ``verify_dir=True``, which is what this module is about.
+epic_merge = merge_install_status
+amazon_merge = partial(merge_install_status, path_key="path")
 
 
 def _owned(store: str, gid: str) -> Game:

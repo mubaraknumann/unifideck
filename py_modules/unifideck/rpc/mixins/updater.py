@@ -3,7 +3,13 @@
 Exposes plugin self-update operations to the frontend:
 - check_plugin_update: version comparison
 - get_available_versions: all installable releases
-- get_release_notes: markdown body for a specific version
+
+Release notes need no route of their own: ``Release.to_dict`` is
+``asdict``, so every row from ``get_available_versions`` already
+carries its markdown ``body`` — which is what
+``PluginUpdateModal`` renders. A ``get_release_notes(version)``
+route existed alongside it with no frontend caller and was
+deleted in the audit §1.2 pass.
 
 Installation is handled frontend-side by calling Decky's
 ``utilities/install_plugin`` directly — this mixin only
@@ -81,27 +87,6 @@ class UpdaterRPCMixin:
             raise RpcError("service_unavailable", service="updater")
         releases = await svc.fetch_releases(force=True)
         return [r.to_dict() for r in releases]
-
-    async def get_release_notes(self, version: str) -> str:
-        """Get release notes (markdown body) for a specific version.
-
-        Args:
-            version: semver string like ``"0.6.1"`` or, for a dev
-                build, the raw non-semver tag it was derived from
-                (e.g. ``"Dev-20260808-171205-47e6d28"``).
-
-        Returns the raw markdown body from the GitHub release, or
-        an empty string if the version is not found.
-        """
-        svc = getattr(self, "_updater_service", None)
-        if svc is None:
-            raise RpcError("service_unavailable", service="updater")
-        # Ensure cache is populated
-        await svc.fetch_releases()
-        release = svc.get_release_for_version(version)
-        if release is None:
-            return ""
-        return cast("str", release.body)
 
     async def log_update_event(self, stage: str, detail: str) -> None:
         """Record a plugin-install lifecycle event in the Unifideck log.

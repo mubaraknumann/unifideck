@@ -84,23 +84,35 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("extractUserParams", () => {
-  it("keeps the user's wrappers and drops our tokens", () => {
+  it("drops bare wrapper words along with our tokens", () => {
+    // `mangohud`/`gamemoderun` were preserved here until 2026-08-26. They
+    // are appended AFTER the game key, where a bare token is not a wrapper
+    // at all — Steam applies wrappers pre-exec, before `%command%`, which
+    // §2.9 measured on-device. Keeping them achieved nothing, and once
+    // `game_args` is populated (item 23a) they would have been handed to
+    // the game.
     const result = extractUserParams(
       'mangohud UNIFIDECK_UBISOFT_ACTION=auth "ubisoft:123" /path/launcher gamemoderun #%command%',
       "ubisoft:123",
       "/path/launcher",
     );
-    expect(result).toBe("mangohud gamemoderun");
+    expect(result).toBe("");
+  });
+
+  it("keeps the user's environment assignments", () => {
+    // These DO work in the tail — the route item 23 wired, and the only
+    // reliable one for a game under a forced Proton.
+    expect(extractUserParams("MY_VAR=1 mangohud LSFG=1", "ubisoft:123")).toBe("MY_VAR=1 LSFG=1");
   });
 
   it("strips every UNIFIDECK_ token regardless of store", () => {
     expect(
-      extractUserParams("UNIFIDECK_BATTLENET_ACTION=install mangohud", "battlenet:hs_beta"),
-    ).toBe("mangohud");
+      extractUserParams("UNIFIDECK_BATTLENET_ACTION=install USER_VAR=2", "battlenet:hs_beta"),
+    ).toBe("USER_VAR=2");
   });
 
   it("handles quoted values", () => {
-    expect(extractUserParams('UNIFIDECK_X="a b" mangohud', "s:1")).toBe("mangohud");
+    expect(extractUserParams('UNIFIDECK_X="a b" KEEP=1', "s:1")).toBe("KEEP=1");
   });
 
   it("returns empty when there is nothing of the user's", () => {
@@ -114,13 +126,13 @@ describe("buildTemporaryLaunchOptions", () => {
       {
         success: true,
         store_game_id: "ubisoft:123",
-        current_launch_options: "ubisoft:123 mangohud",
+        current_launch_options: "ubisoft:123 MY_VAR=1",
         launcher_path: "/l",
       },
       { UNIFIDECK_UBISOFT_ACTION: "auth" },
       "ubisoft:upc-auth",
     );
-    expect(options).toBe("ubisoft:upc-auth UNIFIDECK_UBISOFT_ACTION=auth mangohud");
+    expect(options).toBe("ubisoft:upc-auth UNIFIDECK_UBISOFT_ACTION=auth MY_VAR=1");
   });
 
   it("omits empty env values", () => {
@@ -141,10 +153,52 @@ describe("wrapperActionEnv", () => {
     });
   });
 
+  // The shop button opens UPC's own Store tab, and that session lives in
+  // the AUTH prefix — same as sign-in. Gating the hint on `=== "auth"`
+  // dropped it here, the launcher then derived the prefix from
+  // ctx.game_id, and UPC opened into an EMPTY prefix: a cart press
+  // landing on a login screen, with nothing in any log to say why.
+  it("threads the prefix hint for storefront too, not just auth", () => {
+    expect(wrapperActionEnv(UBISOFT, "storefront")).toEqual({
+      UNIFIDECK_UBISOFT_ACTION: "storefront",
+      UNIFIDECK_UBISOFT_PREFIX_NAME: ".upc-auth",
+    });
+  });
+
+  it("withholds it only from install, which targets a per-game prefix", () => {
+    expect(wrapperActionEnv(UBISOFT, "install")).not.toHaveProperty(
+      "UNIFIDECK_UBISOFT_PREFIX_NAME",
+    );
+  });
+
   it("omits it entirely for Battle.net, which has no prefix env var", () => {
     expect(wrapperActionEnv(BATTLENET, "auth")).toEqual({
       UNIFIDECK_BATTLENET_ACTION: "auth",
     });
+    expect(wrapperActionEnv(BATTLENET, "storefront")).toEqual({
+      UNIFIDECK_BATTLENET_ACTION: "storefront",
+    });
+  });
+});
+
+describe("buildTemporaryLaunchOptions for a storefront press", () => {
+  it("carries the action and the prefix hint, keeping user env vars", () => {
+    const options = buildTemporaryLaunchOptions(
+      {
+        success: true,
+        store_game_id: "ubisoft:123",
+        current_launch_options: "ubisoft:123 MY_VAR=1",
+        launcher_path: "/l",
+      },
+      wrapperActionEnv(UBISOFT, "storefront"),
+      "ubisoft:upc-auth",
+    );
+    expect(options).toContain("ubisoft:upc-auth");
+    expect(options).toContain("UNIFIDECK_UBISOFT_ACTION=storefront");
+    expect(options).toContain("UNIFIDECK_UBISOFT_PREFIX_NAME=.upc-auth");
+    // The user's env assignment survives; a bare wrapper word would not,
+    // because it cannot act as a wrapper after the game key (item 23a).
+    expect(options).toContain("MY_VAR=1");
   });
 });
 

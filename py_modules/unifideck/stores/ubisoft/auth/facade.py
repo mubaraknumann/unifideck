@@ -1,13 +1,11 @@
 """
 Ubisoft authentication facade — orchestrates the Steam-shortcut auth flow.
 
-OP-58a | py_modules/unifideck/stores/ubisoft/auth/facade.py
-
 Ubisoft Connect has no headless auth flow: the user must sign in
 through the UPC GUI. The trick we use is to create a Steam shortcut
 that launches UPC inside a dedicated auth prefix; once the user signs
 in, UPC writes credentials to the prefix and we propagate them to
-every game prefix afterwards (via ``UbisoftSession``, OP-60a).
+every game prefix afterwards (via ``UbisoftSession``).
 
 ``UbisoftAuth`` is the orchestration class that wires together the
 sub-modules: ``context`` (UI payload), ``shortcut`` (Steam shortcut
@@ -58,7 +56,6 @@ logger = logging.getLogger(__name__)
 # finish; the done-callback drops the ref.
 _PURGE_TASKS: set[asyncio.Task[None]] = set()
 
-
 @dataclass(frozen=True)
 class UbisoftAuthState:
     """Ubisoft auth state."""
@@ -70,7 +67,6 @@ class UbisoftAuthState:
     ensure_auth_prefix: Callable[[], Any]
     queue_auth_assets_ensure: Callable[[str], None]
 
-
 @dataclass(frozen=True)
 class UbisoftAuthServices:
     """Ubisoft auth services."""
@@ -78,7 +74,6 @@ class UbisoftAuthServices:
     plugin_dir: str | None
     shortcut_service: ShortcutService | None
     steamgriddb: SteamGridDBClient | None
-
 
 class UbisoftAuth:
     """Ubisoft auth."""
@@ -142,19 +137,48 @@ class UbisoftAuth:
         """Get auth shortcut context."""
         return await self._context.get_auth_shortcut_context()
 
-    async def is_available(self) -> bool:
-        """Check whether available.
+    def credential_state(self) -> str:
+        """What the ``.upc-auth`` vault says about the user's session.
 
-        Authentication is keyed on valid credentials in the ``.upc-auth``
-        prefix — which ``logout()`` deletes, so a signed-out user reads
-        as unavailable and the library self-heals. Known edge: if the
-        auth prefix is removed out-of-band while game prefixes still hold
-        credentials, this reads False and the whole library hides until
-        the user re-runs the auth shortcut. That is an acceptable
-        trade-off for the simple, single-source signed-in signal.
+        Three outcomes, because two of them are not the same answer
+        downstream (see ``UbisoftStore.get_library``):
+
+        * ``"signed_in"``  — a vault with an account attached.
+        * ``"signed_out"`` — a vault is there, but UPC has signed out of it
+          (or the server rejected the token and UPC cleared it). We know the
+          user *has* a Ubisoft account; we just cannot speak for its library.
+        * ``"absent"``     — no plausible vault at all: never signed in, or
+          ``logout()`` purged the prefix. Authoritatively not connected.
         """
         auth_dir = self._config.auth_prefix_dir_expanded
-        return self._session.has_valid_credentials(auth_dir)
+        if self._session.is_signed_in(auth_dir):
+            return "signed_in"
+        if self._session.has_valid_credentials(auth_dir):
+            return "signed_out"
+        return "absent"
+
+    async def is_available(self) -> bool:
+        """Whether the user is actually signed in to Ubisoft.
+
+        Keyed on the ``.upc-auth`` vault carrying an attached account, which
+        is what UPC itself reads at startup to decide whether to show the
+        library or a login form.
+
+        This used to ask ``has_valid_credentials`` — does a plausible vault
+        FILE exist — which is a different question, and the gap between the
+        two was user-visible: UPC signs itself out by rewriting the vault in
+        place (6471 bytes signed out vs 7612 signed in, measured on-device
+        2026-09-05), so the file survives sign-out and this returned True
+        forever after. The QAM then showed Ubisoft connected, with a Sign-out
+        button, while clicking the storefront opened UPC on a login screen.
+        Reported by a user, reproduced on this device: ``check_store_status``
+        answered ``available: true`` against a vault with no account in it.
+
+        ``logout()`` still deletes the whole prefix, so the sign-out path is
+        unchanged. Known edge, unchanged: an auth prefix removed out-of-band
+        while game prefixes still hold credentials reads False here.
+        """
+        return self.credential_state() == "signed_in"
 
     @audit_auth_flow(store="ubisoft", method="wine_installer")
     async def start_auth(self) -> AuthResult:

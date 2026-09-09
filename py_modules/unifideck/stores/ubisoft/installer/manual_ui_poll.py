@@ -8,12 +8,29 @@ ticks — used to live here and now lives once, in
 whatever wrapper store comes next. What is left is the part that is genuinely
 Ubisoft's: how you tell that UPC has put a game on disk.
 
-UPC gives no authoritative completion signal — nothing on disk says "finished",
-and the client stays running in a service-mode background loop afterwards — so
-:meth:`UbisoftInstallProbe.is_complete` returns ``None`` and the shared loop
-falls back to watching the install directory's size hold steady. Battle.net, by
-contrast, reads its client's own ``product.db``. That difference is exactly why
-the verdict is three-valued.
+UPC publishes no completion *message*, and the client stays running in a
+service-mode background loop afterwards, so for a long time this returned
+``None`` and left the shared loop watching the install directory's size hold
+steady. That was wrong twice over, and it cost an 18-minute-early completion on
+a Splinter Cell install: the queue's single slot was released to the next game
+while UPC was still writing, and finalisation recorded a launch executable that
+UPC then deleted.
+
+* **UPC does say when it is finished, just not in words.** It stages every
+  download under ``<game>/uplay_download/`` and drains that directory when the
+  install completes. Emptiness is the signal, and it is read here.
+* **The size it was watching was a lie.** UPC pre-allocates every file at its
+  full final length the instant it accepts the job, so the *apparent* size of a
+  2.4 GB game reaches 2.4 GB within seconds and then never moves. To a
+  three-unchanged-reads heuristic that is a finished, perfectly stable
+  download. :func:`~unifideck.stores.shared.installed_size.dir_allocated_bytes`
+  counts committed blocks instead, so progress tracks what has really landed.
+
+The verdict is three-valued and all three arms are load-bearing. ``False``
+while staging holds files is not merely "not yet": it *suppresses* the size
+heuristic, which is what stops a mid-download pause from ending the install.
+``None`` is reserved for a prefix where UPC has not staged anything yet, and
+hands the decision back to the (now honest) size fallback.
 """
 
 from __future__ import annotations
@@ -22,8 +39,11 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from unifideck.stores.shared.installed_size import dir_size_bytes
-from unifideck.stores.ubisoft.library.detection_helpers import looks_like_game_install
+from unifideck.stores.shared.installed_size import dir_allocated_bytes
+from unifideck.stores.ubisoft.library.detection_helpers import (
+    UPC_STAGING_DIR,
+    looks_like_game_install,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +83,21 @@ def _listing(path: str) -> set[str]:
     except OSError:
         return set()
 
+
+def _has_exe_outside_staging(install_dir: str) -> bool:
+    """Whether a ``.exe`` exists under ``install_dir`` but outside staging.
+
+    Only ever reached once staging is empty, so this walks a finished tree at
+    most once per install rather than on every poll.
+    """
+    root = Path(install_dir)
+    staging = root / UPC_STAGING_DIR
+    try:
+        return any(
+            staging not in exe.parents for exe in root.rglob("*.exe")
+        )
+    except OSError:
+        return False
 
 class UbisoftInstallProbe:
     """Detects a UPC install by diffing directory listings.
@@ -110,14 +145,41 @@ class UbisoftInstallProbe:
         return None
 
     def measure(self, install_dir: str) -> int:
-        return dir_size_bytes(install_dir)
+        """Bytes actually committed so far — never the apparent size.
+
+        UPC pre-allocates the whole game as sparse files up front, so
+        apparent size is final within seconds of the download starting and
+        tells you nothing about progress.
+        """
+        return dir_allocated_bytes(install_dir)
 
     def is_complete(self, install_dir: str) -> bool | None:
-        """UPC publishes no completion signal — defer to size stability.
+        """UPC's staging directory, read as a completion signal.
 
-        ``uplay_install.state`` flipping to ``0x0A`` looks like a candidate and
-        is not: it is written per *game slot* and the install detector already
-        treats it as "a game lives here", not "this download finished".
+        ``uplay_download/`` holds the download while it runs and is drained
+        when UPC finishes moving the game into place. So:
+
+        * absent — UPC has not staged anything yet. ``None``: no opinion,
+          let the size fallback decide.
+        * non-empty — actively downloading. ``False``, which also suppresses
+          the size heuristic for this poll, so a pause cannot end the install.
+        * empty, with a real executable outside it — done.
+
+        The executable check is corroboration, not decoration: at the moment
+        of the false completion that prompted this, *every* ``.exe`` in the
+        tree was still under ``uplay_download/``. Requiring one outside it
+        cannot pass until UPC has moved the game into its final layout.
+
+        Not used: ``uplay_install.state``. It does change on completion — it
+        grows and gains a leading record — but it is an undocumented protobuf
+        and we would be inferring its layout from a single observed install.
+        The staging directory is plain filesystem state that means one thing.
         """
-        del install_dir
-        return None
+        staging = Path(install_dir) / UPC_STAGING_DIR
+        try:
+            staged = any(staging.iterdir())
+        except OSError:
+            return None
+        if staged:
+            return False
+        return True if _has_exe_outside_staging(install_dir) else None

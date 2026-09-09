@@ -26,6 +26,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from unifideck.core.compat_bridge import to_unsigned
+
 from .launch_options import extract_store_id, get_full_id
 from .protected import is_protected
 
@@ -49,16 +51,6 @@ def _is_launcher_exe(exe: str, launcher_path: str) -> bool:
     if name in _LAUNCHER_BASENAMES:
         return True
     return bool(launcher_path) and name == Path(launcher_path).name
-
-
-def _to_unsigned(appid: int) -> int:
-    """Convert a signed 32-bit vdf appid to the unsigned runtime appid.
-
-    ``shortcuts.vdf`` stores the signed form; the frontend's
-    ``SteamClient.Apps.RemoveShortcut`` keys off the unsigned ``m_mapApps``
-    id. Mirror the idiom in ``registry.py``.
-    """
-    return appid if appid >= 0 else appid + 2 ** 32
 
 
 def _has_auth_tag(entry: dict[str, Any]) -> bool:
@@ -111,7 +103,7 @@ def classify_orphan(
     appid = entry.get("appid")
     if not isinstance(appid, int):
         return None
-    appid_unsigned = _to_unsigned(appid)
+    appid_unsigned = to_unsigned(appid)
 
     # 4. Type A — our launcher but no resolvable id -> delete.
     if is_launcher:

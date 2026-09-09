@@ -1,4 +1,4 @@
-"""Tests for the Ubisoft free-to-play feed supplement (OP-57g).
+"""Tests for the Ubisoft free-to-play feed supplement.
 
 Covers the public-CDN payload normalisation, the on-disk TTL cache, and
 the manifest ``supplement`` seam (enrich owned F2P titles + inject
@@ -19,15 +19,12 @@ from unifideck.stores.ubisoft.library.manifest import _VisibleManifestProcessor
 
 _SPACE = "11111111-2222-3333-4444-555555555555"
 
-
 def _norm(name: str) -> str:
     return UbisoftIdMap._normalize_for_matching(name)
-
 
 class _Cfg:
     def __init__(self, data_dir: str) -> None:
         self.data_dir_expanded = data_dir
-
 
 class _IdMap:
     def __init__(self) -> None:
@@ -40,6 +37,18 @@ class _IdMap:
         self.merged.setdefault(space_id, {}).update(fields)
         return True
 
+    def set_connect_id(
+        self,
+        space_id: str,
+        connect_id: str | None,
+        source: str,
+        extra: dict[str, Any] | None = None,
+    ) -> bool:
+        fields = dict(extra or {})
+        if connect_id:
+            fields["ubisoftconnect_game_id"] = str(connect_id)
+            fields["ubisoftconnect_game_id_source"] = source
+        return self.merge_entry(space_id, fields)
 
 def _ftp_entry(title: str, space_id: str, product_id: str = "999") -> dict[str, Any]:
     return {
@@ -53,9 +62,7 @@ def _ftp_entry(title: str, space_id: str, product_id: str = "999") -> dict[str, 
         "source": "free_feed",
     }
 
-
 # ── payload normalisation ─────────────────────────────────────────
-
 
 def test_normalise_payload_filters_and_maps():
     payload = {
@@ -86,15 +93,12 @@ def test_normalise_payload_filters_and_maps():
         },
     ]
 
-
 def test_normalise_payload_handles_garbage():
     assert _FreeToPlayFeed._normalise_payload({}) == []
     assert _FreeToPlayFeed._normalise_payload([]) == []
     assert _FreeToPlayFeed._normalise_payload({"root": ["str", 5]}) == []
 
-
 # ── disk cache ────────────────────────────────────────────────────
-
 
 @pytest.mark.asyncio
 async def test_fetch_entries_uses_fresh_cache(tmp_path: Path):
@@ -104,7 +108,6 @@ async def test_fetch_entries_uses_fresh_cache(tmp_path: Path):
     out = await feed.fetch_entries()
     assert len(out) == 1
     assert out[0]["title"] == "Cached Game"
-
 
 @pytest.mark.asyncio
 async def test_fetch_entries_network_failure_returns_stale_cache(
@@ -127,9 +130,7 @@ async def test_fetch_entries_network_failure_returns_stale_cache(
     out = await feed.fetch_entries()
     assert out and out[0]["title"] == "Stale"
 
-
 # ── manifest supplement (enrich + inject, never filter) ───────────
-
 
 def _processor() -> _VisibleManifestProcessor:
     return _VisibleManifestProcessor(
@@ -137,7 +138,6 @@ def _processor() -> _VisibleManifestProcessor:
         id_map=_IdMap(),
         load_json_file_safe=lambda _p: None,
     )
-
 
 def test_supplement_injects_unseen_free_game():
     proc = _processor()
@@ -148,7 +148,6 @@ def test_supplement_injects_unseen_free_game():
     assert titles == {"Owned Game", "Brawlhalla"}
     free = next(g for g in result if g.title == "Brawlhalla")
     assert free.metadata.get("ownership_type") == "free"
-
 
 def test_supplement_does_not_drop_owned_games():
     proc = _processor()
@@ -161,7 +160,6 @@ def test_supplement_does_not_drop_owned_games():
     result = proc.supplement(owned, {}, entries, "free-to-play")
     assert len(result) == 2
     assert {g.title for g in result} == {"Game A", "Game B"}
-
 
 def test_supplement_empty_entries_noop():
     proc = _processor()

@@ -1,8 +1,6 @@
 """
 Session propagator — push auth state to every active game prefix.
 
-OP-60d | py_modules/unifideck/stores/ubisoft/session/propagator.py
-
 After a successful sign-in (or sign-out), the auth state in the auth
 prefix needs to be reflected in every per-game prefix the user has.
 ``_SessionPropagator`` is the orchestration class for this:
@@ -29,7 +27,6 @@ if TYPE_CHECKING:
     from .payload import _PayloadSync
     from .reader import _CredentialReader
 logger = logging.getLogger(__name__)
-
 
 class _CredentialPropagator:
     """Credential propagator."""

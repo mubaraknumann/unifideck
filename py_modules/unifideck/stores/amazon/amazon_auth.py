@@ -1,7 +1,5 @@
 """Amazon Games OAuth — embedded-browser sign-in flow.
 
-OP-49b | py_modules/unifideck/stores/amazon/amazon_auth.py
-
 Amazon Games requires the user to sign in through Amazon's web SSO
 form. ``AmazonAuthFlow`` orchestrates the embedded CDP browser :
 
@@ -49,7 +47,6 @@ _NILE_ALREADY_AUTHED_MARKERS = (
     "already authenticated",
 )
 
-
 class _NileProbeRefusedError(StoreAuthError):
     """``nile auth --login`` exited non-zero on the login probe.
 
@@ -58,7 +55,6 @@ class _NileProbeRefusedError(StoreAuthError):
     therefore the only one a logout can repair. See
     :meth:`AmazonAuthFlow._fetch_login_url`.
     """
-
 
 class AmazonAuthFlow:
     """Amazon auth flow."""

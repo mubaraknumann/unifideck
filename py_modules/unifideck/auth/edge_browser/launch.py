@@ -163,6 +163,51 @@ def launch_auth(browser: EdgeBrowser, auth_url: str) -> bool:
     return _spawn_edge_process(browser, args, log_mode="w", label="Auth", env=env)
 
 
+def launch_storefront(browser: EdgeBrowser, url: str) -> bool:
+    """Launch a browsable store window on ``url``.
+
+    The third window flavour, alongside ``launch_auth`` (app mode,
+    chrome-less) and ``launch_xcloud`` (kiosk). Every difference from
+    ``launch_auth`` is deliberate:
+
+      - **The URL is positional, not ``--app=``.** ``--app`` is
+        precisely what removes the toolbar, and a shop needs Back,
+        Forward and an address bar — a wrong tap in app mode
+        dead-ends the user with no way back.
+      - ``--class=unifideck-store`` so the xdotool classname matching
+        used for the xCloud window can never grab this one.
+      - Its own CDP port (``storefront_cdp_port()``, auth+2) so a
+        store window and an auth or xCloud session are individually
+        identifiable over CDP. The caller uses that to detect a
+        collision *before* spawning — see
+        ``launcher/flows/storefront.py``.
+      - ``log_mode="a"`` so opening a shop never truncates the log of
+        the sign-in that preceded it.
+
+    Identical to ``launch_auth`` in the one respect that matters most:
+    the same ``--user-data-dir={PROFILE_DIR}``. That shared profile is
+    where every store's OAuth cookies live, and reusing it is the
+    whole reason this function exists rather than a plain
+    ``window.open``.
+
+    Returns True if Edge was launched. Does not block.
+    """
+    cmd = _prepare_for_launch(browser)
+    if not cmd:
+        logger.warning("[Edge] No compatible browser found for storefront")
+        return False
+    from .display import auth_window_flags
+    from .edge import _BASE_FLAGS, PROFILE_DIR
+
+    env = clean_env()
+    window_flags = auth_window_flags(env)
+    args = [*cmd, "--class=unifideck-store", f"--remote-debugging-port={browser.storefront_cdp_port()}", f"--user-data-dir={PROFILE_DIR}", *_BASE_FLAGS, "--start-maximized", "--enable-touch-events", *window_flags, f"--lang={browser.locale_fn().split('-')[0]}", url]
+    logger.info("[Edge] Launching storefront: %s", url[:80])
+    return _spawn_edge_process(
+        browser, args, log_mode="a", label="Storefront", env=env,
+    )
+
+
 def launch_xcloud(browser: EdgeBrowser, xcloud_url: str) -> bool:
     """Launch Edge in kiosk mode on an xCloud game streaming URL.
 
@@ -196,14 +241,24 @@ def launch_xcloud(browser: EdgeBrowser, xcloud_url: str) -> bool:
     if not cmd:
         logger.warning("[Edge] No compatible browser found for xCloud")
         return False
+    from .display import auth_window_flags
     from .edge import _BASE_FLAGS, PROFILE_DIR
 
     # xCloud uses a distinct CDP port so the auth browser (on
     # browser.cdp_port, typically 9222) and the xCloud session
-    # can coexist. Convention: auth=9222, xcloud=9223.
-    xcloud_cdp_port = browser.cdp_port + 1
-    args = [*cmd, "--kiosk", "--class=unifideck-xcloud", f"--remote-debugging-port={xcloud_cdp_port}", f"--user-data-dir={PROFILE_DIR}", *_BASE_FLAGS, "--autoplay-policy=no-user-gesture-required", "--window-size=1024,720", "--force-device-scale-factor=1.25", "--device-scale-factor=1.25", f"--lang={browser.locale_fn().split('-')[0]}", xcloud_url]
+    # can coexist. Convention: auth=9222, xcloud=9223, storefront=9224.
+    # The offsets live on EdgeBrowser so all three flavours agree.
+    xcloud_cdp_port = browser.xcloud_cdp_port()
+    # Size to the live display, like the other two window flavours.
+    # This was pinned at 1024x720 @ 1.25 — the Deck's panel geometry —
+    # which on a Steam Machine's TV is a small letterboxed window at
+    # handheld scaling.
+    env = clean_env()
+    window_flags = auth_window_flags(env)
+    args = [*cmd, "--kiosk", "--class=unifideck-xcloud", f"--remote-debugging-port={xcloud_cdp_port}", f"--user-data-dir={PROFILE_DIR}", *_BASE_FLAGS, "--autoplay-policy=no-user-gesture-required", *window_flags, f"--lang={browser.locale_fn().split('-')[0]}", xcloud_url]
     logger.info(
         "[Edge] Launching xCloud kiosk: %s", xcloud_url[:80],
     )
-    return _spawn_edge_process(browser, args, log_mode="a", label="xCloud")
+    return _spawn_edge_process(
+        browser, args, log_mode="a", label="xCloud", env=env,
+    )

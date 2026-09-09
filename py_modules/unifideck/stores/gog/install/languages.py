@@ -1,7 +1,5 @@
 """Language matching utility — re-export shim.
 
-OP-51c | py_modules/unifideck/stores/gog/install/languages.py
-
 Both functions now live in ``unifideck.utils.lang_normalize``:
 
 * ``normalize_language(raw)`` → ISO 639-1 base code, and

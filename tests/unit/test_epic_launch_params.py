@@ -37,7 +37,10 @@ WRAPPER = [
 ]
 
 
-def _plan(wrappers: list[str] | None = None) -> ProtonLaunchPlan:
+def _plan(_wrappers: list[str] | None = None) -> ProtonLaunchPlan:
+    """``_wrappers`` is accepted and ignored: ``RuntimeState.wrappers``
+    was deleted in audit register item 23b (Steam applies wrapper words
+    pre-exec, so the field could only ever be empty)."""
     return ProtonLaunchPlan(
         context=types.SimpleNamespace(
             game_id="abc123", store="epic",
@@ -45,7 +48,7 @@ def _plan(wrappers: list[str] | None = None) -> ProtonLaunchPlan:
             work_dir=Path("/install"),
         ),
         state=types.SimpleNamespace(
-            wrappers=list(wrappers or []), game_args=[], umu_id=None,
+            game_args=[], umu_id=None,
         ),
         python_bin=Path("/usr/bin/python3"),
         umu_wrapper=Path("/plugin/bin/umu/umu/umu-run"),
@@ -106,14 +109,20 @@ def test_absolute_executable_override_wins_over_game_directory():
     assert argv[len(WRAPPER)] == "/games/GTAV/PlayGTAV.exe"
 
 
-def test_user_wrappers_stay_in_front_of_the_command():
-    """A Steam launch-option wrapper (gamemoderun/mangohud) wraps the
-    game, not the metadata call — it is dropped from the ``--json`` argv
-    and re-applied here, like every other store handler does."""
-    argv = elp.build_umu_argv(_plan(["gamemoderun"]), _params())
+def test_the_argv_starts_with_the_umu_wrapper():
+    """No user wrapper is prepended any more, and umu's own still leads.
 
-    assert argv[0] == "gamemoderun"
-    assert argv[1:1 + len(WRAPPER)] == WRAPPER
+    This asserted ``argv[0] == "gamemoderun"``, re-applying a Steam
+    launch-option wrapper from ``RuntimeState.wrappers``. That field is
+    deleted (register item 23b): Steam applies wrapper words **pre-exec**,
+    measured — ``env %command% epic:Salt`` ran the launcher *under* ``env``
+    and still delivered ``argv[1]``. So by the time this builder runs the
+    wrapping has already happened, and the field it read could only ever be
+    empty. umu's ``--wrapper`` is a different thing and still leads.
+    """
+    argv = elp.build_umu_argv(_plan(), _params())
+
+    assert argv[:len(WRAPPER)] == WRAPPER
 
 
 def test_missing_optional_lists_are_tolerated():

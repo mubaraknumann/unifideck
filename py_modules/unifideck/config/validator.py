@@ -89,6 +89,28 @@ _SOURCE_USER = "user_overrides"
 _SOURCE_MERGED = "merged"
 
 
+def _safe_violation(err: Any) -> str:
+    """Describe a jsonschema error without quoting the offending value.
+
+    ``err.message`` embeds ``err.instance`` — the user's own config
+    value — which makes it unsafe for a support bundle. The pair
+    (``validator``, ``validator_value``) says the same thing using only
+    the schema side: ``required``/``['client_id']``, ``type``/``integer``.
+    Rendered as ``"type != integer"``.
+
+    Falls back to the bare keyword, then to ``""``, because a support
+    bundle losing one detail line is always preferable to a validation
+    run raising.
+    """
+    keyword = getattr(err, "validator", None)
+    if not keyword:
+        return ""
+    expected = getattr(err, "validator_value", None)
+    if expected is None:
+        return str(keyword)[:120]
+    return f"{keyword} != {expected}"[:120]
+
+
 @dataclass(frozen=True)
 class ValidationError:
     """A single schema violation, pinned to its source file.
@@ -106,11 +128,24 @@ class ValidationError:
             (capped at 256 chars). English only — target audience is
             operators debugging their config in plugin logs.
 
+            **Log-only — never put this in a support bundle.**
+            jsonschema interpolates the offending *instance* into its
+            message, so a bad ``stores.*.client_id`` renders as
+            ``"'sk-abc123' is not of type 'integer'"``. The bundle is
+            pasted in public; use ``safe_message`` there.
+        safe_message: The same violation with no user data — built
+            from jsonschema's ``validator`` keyword and its schema-side
+            ``validator_value`` (e.g. ``"type != integer"``). Both come
+            from the schema, never from the config, so this is safe to
+            put anywhere ``path`` is. Empty for errors raised by this
+            module rather than by jsonschema.
+
     """
 
     source: str
     path: str
     message: str
+    safe_message: str = ""
 
 
 @dataclass
@@ -421,6 +456,7 @@ class ConfigValidator:
                 source=source,
                 path=path,
                 message=err.message[:256],
+                safe_message=_safe_violation(err),
             ))
         return errors
 

@@ -60,7 +60,13 @@ class _GamesMapMixin(_ReconcilePhasesMixin):
         return entry
 
     async def set_executable(
-        self: Any, store: str, game_id: str, exe_abs: str,
+        self: Any,
+        store: str,
+        game_id: str,
+        exe_abs: str,
+        *,
+        work_dir: str = "",
+        app_id: int | None = None,
     ) -> bool:
         """Rewrite ONLY the games.map exe column for ``store:game_id``.
 
@@ -74,18 +80,34 @@ class _GamesMapMixin(_ReconcilePhasesMixin):
         games.map, which collapses the tab-delimited row to v1 and corrupts
         ``work_dir`` to ``dirname(exe)``.
 
-        Returns ``False`` (no row to update) when the game has no games.map
-        entry yet — e.g. Epic titles, whose launch goes through legendary's
-        ``--override-exe`` and need no row rewrite.
+        When the game has **no row yet**, one is created from *work_dir* and
+        *app_id* if the caller supplied them. That is not a convenience: the
+        row is missing in exactly the cases the picker exists to fix — an
+        install whose auto-detected executable came back empty writes none,
+        and a store that could not answer a sync used to have its row pruned
+        — and refusing here left an unlaunchable game with no way back. A
+        caller that cannot supply the two (Epic, whose launch goes through
+        legendary's ``--override-exe`` and needs no row) still gets ``False``.
         """
         await self._load_games_map()
         key = f"{store}:{game_id}"
         entry: GameMapEntry | None = self._games_map.get(key)
         if entry is None:
-            logger.warning(
-                "[ShortcutService] set_executable %s — no games.map row", key,
+            if not work_dir or app_id is None:
+                logger.warning(
+                    "[ShortcutService] set_executable %s — no games.map row "
+                    "and no work_dir/app_id to build one", key,
+                )
+                return False
+            logger.info(
+                "[ShortcutService] set_executable %s — creating the missing "
+                "row (work_dir=%s app_id=%s)", key, work_dir, app_id,
             )
-            return False
+            self._games_map[key] = GameMapEntry(
+                exe=exe_abs, work_dir=work_dir, app_id=app_id,
+            )
+            await self._save_all()
+            return True
         self._games_map[key] = GameMapEntry(
             exe=exe_abs, work_dir=entry.work_dir, app_id=entry.app_id,
         )

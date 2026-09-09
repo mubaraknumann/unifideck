@@ -1,7 +1,5 @@
 """TLS / SSL helpers — pre-built ``SSLContext`` factories.
 
-OP-08e | py_modules/unifideck/core/net/__init__.py
-
 Two factory functions for ``ssl.SSLContext``:
 
 * ``ssl_ctx_strict``     — full hostname + certificate

@@ -1,8 +1,6 @@
 """
 UPC installer orchestration — drives the multi-phase install pipeline.
 
-OP-56a | py_modules/unifideck/stores/ubisoft/installer/installer.py
-
 ``UbisoftInstaller`` orchestrates a full UPC install through the
 following phases:
 
@@ -29,6 +27,10 @@ from pathlib import Path
 from typing import Any
 
 from unifideck.core.types import InstallResult, Result
+from unifideck.stores.shared.prefix_forensics import (
+    preserve_vendor_logs,
+    salvage_path,
+)
 from unifideck.stores.shared.prefix_placement import (
     cleanup_abandoned_prefix,
     reset_for_fresh_install,
@@ -54,7 +56,6 @@ from .update_op import _UpdateOperation
 
 logger = logging.getLogger(__name__)
 _UPDATE_TIMEOUT_S = 4 * 60 * 60
-
 
 class UbisoftInstaller:
     """Ubisoft installer."""
@@ -353,7 +354,14 @@ class UbisoftInstaller:
         deleted — resume is intentionally not preserved: each Install rebuilds
         the prefix fresh, so keeping an abandoned UPC prefix would only orphan
         disk.
+
+        UPC's own logs come out first. They live inside the prefix, so this
+        deletion is otherwise the only thing standing between a failed install
+        and the sole first-hand account of why it failed — the same reason
+        Battle.net salvages here, and it has already cost one field
+        investigation there.
         """
+        await self._salvage_upc_logs(game_id, prefix_path)
         deleted = await cleanup_abandoned_prefix(
             prefix_path,
             recorded=self._id_map.resolve_prefix_path(game_id),
@@ -363,6 +371,19 @@ class UbisoftInstaller:
         )
         if deleted:
             self._id_map.clear_prefix_path(game_id)
+
+    @staticmethod
+    async def _salvage_upc_logs(game_id: str, prefix_path: str) -> None:
+        """Copy UPC's own logs out before the prefix goes.
+
+        Best-effort by construction — :func:`preserve_vendor_logs` swallows
+        everything and returns a count. A salvage must never be the reason a
+        prefix the user is waiting on does not get reclaimed, so this stays
+        ahead of the deletion but can never block it.
+        """
+        await preserve_vendor_logs(
+            "ubisoft", Path(prefix_path), salvage_path("ubisoft", game_id),
+        )
 
     def _prefix_holds_game(self, game_id: str, prefix_path: str) -> bool:
         """Whether this prefix holds a real game — double-guarded.
@@ -480,32 +501,16 @@ class UbisoftInstaller:
         self,
         store_game_id: str | None,
     ) -> dict[str, str]:
-        """Build steam window env."""
+        """Build steam window env.
+
+        The encoding lives in :mod:`unifideck.steam.window_env` — the game
+        launch path needs the same block, and it went years without one
+        (games launched behind Steam's loading screen as a result), so there
+        is exactly one implementation now.
+        """
+        from unifideck.steam.window_env import build_steam_window_env
+
         appid = self._shortcut_registry.resolve_shortcut_appid(
             store_game_id,
         )
-        if appid:
-            encoded = str(
-                (appid << 32) | 0x02000000,
-            )
-            logger.info(
-                "[UbisoftInstaller] Steam window env: appid=%d store_game_id=%s",
-                appid,
-                store_game_id or "<none>",
-            )
-            appid_str = str(appid)
-            return {
-                "SteamGameId": appid_str,
-                "STEAM_COMPAT_APP_ID": appid_str,
-                "SteamAppId": appid_str,
-                "UMU_STEAM_GAME_ID": encoded,
-            }
-        logger.info(
-            "[UbisoftInstaller] Steam window env: no shortcut appid resolved, using 0",
-        )
-        return {
-            "SteamGameId": "0",
-            "STEAM_COMPAT_APP_ID": "0",
-            "SteamAppId": "0",
-            "UMU_STEAM_GAME_ID": "0",
-        }
+        return build_steam_window_env(appid, log_tag="UbisoftInstaller")

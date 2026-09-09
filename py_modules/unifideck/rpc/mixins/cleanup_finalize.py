@@ -23,8 +23,8 @@ import asyncio
 import logging
 from typing import Any
 
+from unifideck.core import cleanup_sweeps
 from unifideck.core.types.events import Events
-from unifideck.rpc.mixins import cleanup_sweeps
 from unifideck.services.installed_disk_info import clear_memo
 
 logger = logging.getLogger(__name__)

@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 # override lives in (and is read back from) the games.map row for these. Other
 # stores (Epic → legendary ``--override-exe`` from the config key) use the
 # config-override path instead.
-_DIRECT_LAUNCH_STORES = frozenset({"gog", "amazon"})
+_DIRECT_LAUNCH_STORES = frozenset({"gog", "amazon", "gamevault"})
 
 # How deep to scan the install dir for candidate executables. Config tools and
 # shipping binaries live a level or two down (``Binaries/Win64/…``); deeper than
@@ -88,12 +88,41 @@ class ExecutableRPCMixin:
     config: Any
     registry: Any
 
-    def _install_dir(self, store: str, game_id: str) -> str:
-        """Read-only install dir from games.map ``work_dir`` (never written)."""
+    async def _install_dir(self, store: str, game_id: str) -> str:
+        """Read-only install dir: games.map ``work_dir``, else ask the store.
+
+        The games.map row is the normal answer and stays the first one — it
+        records where the user actually installed a game, including custom
+        SD-card locations.
+
+        The fallback exists because that row is exactly what goes missing in
+        the situation the picker is needed for. A GameVault install whose
+        auto-detected executable came back empty wrote no row, and a failed
+        library fetch used to prune one; either way the picker answered
+        ``install_dir_unresolved``, so the one tool for fixing an unlaunchable
+        game was unavailable precisely when it was needed. The store knows
+        where it put the files regardless — ``get_installed_path`` is on
+        ``StoreBase``, so every store can answer.
+        """
         from unifideck.services.cloud_save.save_location_resolver import (
             _install_path_from_games_map,
         )
-        return _install_path_from_games_map(store, game_id, self.config)
+        from_map = _install_path_from_games_map(store, game_id, self.config)
+        if from_map:
+            return from_map
+        inst = self.registry.get_store(store) if self.registry else None
+        hook = getattr(inst, "get_installed_path", None)
+        if not callable(hook):
+            return ""
+        try:
+            resolved = await hook(game_id)
+        except Exception:
+            logger.warning(
+                "[Executable] get_installed_path failed for %s:%s",
+                store, game_id, exc_info=True,
+            )
+            return ""
+        return resolved if isinstance(resolved, str) and resolved else ""
 
     async def _default_rel(
         self, store: str, game_id: str, install_dir: str,
@@ -138,7 +167,7 @@ class ExecutableRPCMixin:
         """Executable candidates + default/current/override for the picker."""
         if not store or not game_id:
             raise RpcError("invalid_args", store=store, game_id=game_id)
-        install_dir = self._install_dir(store, game_id)
+        install_dir = await self._install_dir(store, game_id)
         if not _is_dir(install_dir):
             raise RpcError("install_dir_unresolved", store=store, game_id=game_id)
 
@@ -187,7 +216,7 @@ class ExecutableRPCMixin:
         """
         if not store or not game_id or not rel:
             raise RpcError("invalid_args", store=store, game_id=game_id)
-        install_dir = self._install_dir(store, game_id)
+        install_dir = await self._install_dir(store, game_id)
         if not _is_dir(install_dir):
             raise RpcError("install_dir_unresolved", store=store, game_id=game_id)
 
@@ -202,8 +231,13 @@ class ExecutableRPCMixin:
             return await self.reset_game_executable(store, game_id)
 
         if store in _DIRECT_LAUNCH_STORES:
+            # Pass what a missing row would need to be built from, so a game
+            # whose row never existed (or was pruned) is fixable here rather
+            # than being permanently unlaunchable.
             if not await self.services.shortcut.set_executable(
                 store, game_id, target,
+                work_dir=install_dir,
+                app_id=await self._registered_app_id(store, game_id),
             ):
                 raise RpcError("no_games_map_row", store=store, game_id=game_id)
         else:
@@ -214,13 +248,34 @@ class ExecutableRPCMixin:
             "executable": clean_rel,
         }
 
+    async def _registered_app_id(self, store: str, game_id: str) -> int | None:
+        """The shortcut AppID already assigned to ``store:game_id``.
+
+        Read from the shortcut registry, which is the durable record of the
+        AppID a game's Steam shortcut was created with — not recomputed, so
+        a row built here points at the shortcut the user is actually looking
+        at rather than at a freshly-derived id.
+        """
+        from unifideck.services.shortcut.registry import (
+            get_registered_appid,
+            load_registry,
+        )
+        try:
+            return get_registered_appid(load_registry(), f"{store}:{game_id}")
+        except Exception:
+            logger.warning(
+                "[Executable] registry lookup failed for %s:%s",
+                store, game_id, exc_info=True,
+            )
+            return None
+
     async def reset_game_executable(self, store: str, game_id: str) -> Any:
         """Restore the store's auto-detected exe ("go back to default")."""
         if not store or not game_id:
             raise RpcError("invalid_args", store=store, game_id=game_id)
         restored: str | None = None
         if store in _DIRECT_LAUNCH_STORES:
-            install_dir = self._install_dir(store, game_id)
+            install_dir = await self._install_dir(store, game_id)
             default_rel = (
                 await self._default_rel(store, game_id, install_dir)
                 if install_dir else None

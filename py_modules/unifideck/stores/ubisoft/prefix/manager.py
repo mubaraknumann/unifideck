@@ -1,8 +1,6 @@
 """
 Wine prefix lifecycle manager for Ubisoft games.
 
-OP-59a | py_modules/unifideck/stores/ubisoft/prefix/manager.py
-
 ``UbisoftPrefixManager`` owns the creation, validation, and destruction
 of Wine prefixes used by Ubisoft games. Three categories of prefix
 coexist:
@@ -26,6 +24,7 @@ import shutil
 from collections.abc import Callable
 from pathlib import Path
 
+from unifideck.stores.shared.prefix_clone import rsync_clone
 from unifideck.stores.ubisoft.binaries import UbisoftBinaryResolver
 from unifideck.stores.ubisoft.config import UbisoftConfig
 from unifideck.stores.ubisoft.installer.cache import UbisoftInstallerCache
@@ -36,7 +35,6 @@ from .helpers import _PrefixHelpers
 from .template_builder import _TemplatePrefixBuilder
 
 logger = logging.getLogger(__name__)
-
 
 class UbisoftPrefixManager:
     """Ubisoft prefix manager."""
@@ -178,10 +176,19 @@ class UbisoftPrefixManager:
                 "from template (games preserved)",
                 space_id,
             )
-            ok = await self._helpers.rsync_clone(
-                self._config.template_dir_expanded,
-                prefix_path,
+            # ``checksum`` is load-bearing here, not a tuning knob. This is
+            # the one clone that can never delete its destination first —
+            # the game's files live inside this prefix — so it is always a
+            # repair over a populated tree. A ``MachineGuid`` rewrite is the
+            # same length as what it replaces, and a prefix cloned with
+            # ``rsync -a`` inherits its source's mtime exactly, so the
+            # default size-plus-mtime quick check can skip ``system.reg``
+            # and leave the identity diverged while reporting success.
+            ok = await rsync_clone(
+                Path(self._config.template_dir_expanded),
+                Path(prefix_path),
                 exclude_games=True,
+                checksum=True,
             )
             if not ok:
                 logger.error(

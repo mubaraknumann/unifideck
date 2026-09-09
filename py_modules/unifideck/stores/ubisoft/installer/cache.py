@@ -1,8 +1,6 @@
 """
 UPC installer cache — disk-backed store for the downloaded UPC installer.
 
-OP-56b | py_modules/unifideck/stores/ubisoft/installer/cache.py
-
 ``UbisoftInstallerCache`` manages the local cache of the
 ``UbisoftConnectInstaller.exe`` binary downloaded from Ubisoft's CDN.
 The cache lives under ``UbisoftConfig.installer_cache_dir_expanded`` and
@@ -34,7 +32,6 @@ _INSTALLER_MIN_SIZE_BYTES = 1000
 _PE_MAGIC = b"MZ"
 _INSTALLER_DOWNLOAD_TIMEOUT_S = 600.0
 _DOWNLOAD_CHUNK_SIZE = 1024 * 1024
-
 
 class UbisoftInstallerCache:
     """Ubisoft installer cache."""
@@ -119,7 +116,6 @@ class UbisoftInstallerCache:
                 with contextlib.suppress(OSError):
                     Path(tmp_path).unlink()
             return False
-
 
 def _stream_to_file(response: Any, path: str) -> int:
     """Stream to file."""

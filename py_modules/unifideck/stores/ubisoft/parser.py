@@ -1,8 +1,6 @@
 """
 Ubisoft UPC binary cache parser — configurations + ownership.
 
-OP-55e | py_modules/unifideck/stores/ubisoft/parser.py
-
 UPC stores its catalog in two protobuf-like binary files inside the Wine
 prefix:
 
@@ -41,7 +39,6 @@ BLACKLISTED_NAMES = frozenset(
     {"gamename", "l1", "l2", "thumbimage", "", "ubisoft game", "name"},
 )
 
-
 class GameConfig:
     """A parsed game entry from the configurations binary."""
 
@@ -64,9 +61,7 @@ class GameConfig:
             f"install_id={self.install_id}, launch_id={self.launch_id})"
         )
 
-
 # ── varint primitives ────────────────────────────────────────────
-
 
 def _decode_varint(raw: int) -> int:
     """Decode UPC's compact varint (the 'Konrad' correction formula)."""
@@ -76,7 +71,6 @@ def _decode_varint(raw: int) -> int:
     elif raw > 256:
         raw -= 128 * math.ceil(raw / 256)
     return raw
-
 
 def _read_varint_at(buf: bytes, offset: int) -> tuple[int, int]:
     """Read a varint at ``offset``; return ``(raw_value, bytes_consumed)``."""
@@ -92,7 +86,6 @@ def _read_varint_at(buf: bytes, offset: int) -> tuple[int, int]:
             break
     return raw, consumed
 
-
 def _read_binary_file(filepath: str, label: str) -> bytes | None:
     """Read a binary file, returning ``None`` (logged) on any failure."""
     if not Path(filepath).is_file():
@@ -105,9 +98,7 @@ def _read_binary_file(filepath: str, label: str) -> bytes | None:
         logger.exception("[UbiParser] Failed to read %s", label)
         return None
 
-
 # ── configurations parser ────────────────────────────────────────
-
 
 def parse_configurations(filepath: str) -> list[GameConfig]:
     """Parse the UPC ``configurations`` binary into game configs.
@@ -160,7 +151,6 @@ def parse_configurations(filepath: str) -> list[GameConfig]:
     )
     return results
 
-
 def _parse_single_record(record: bytes) -> GameConfig | None:
     """Parse one configurations record (header ids + embedded YAML)."""
     config = GameConfig()
@@ -210,7 +200,6 @@ def _parse_single_record(record: bytes) -> GameConfig | None:
             config.name = localized
     return config
 
-
 def _extract_yaml_from_record(record: bytes, start_pos: int) -> str | None:
     """Extract the YAML blob (after the ``0x1A`` length-prefixed field)."""
     yaml_start = -1
@@ -231,7 +220,6 @@ def _extract_yaml_from_record(record: bytes, start_pos: int) -> str | None:
     text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", text)
     return text if text.strip() else None
 
-
 def _yaml_extract(text: str, pattern: str) -> str:
     """Pull a single value out of the YAML-ish text via regex."""
     match = re.search(pattern, text)
@@ -239,9 +227,7 @@ def _yaml_extract(text: str, pattern: str) -> str:
         return match.group(1).strip().strip("'\"")
     return ""
 
-
 # ── ownership parser ─────────────────────────────────────────────
-
 
 def parse_ownership(filepath: str) -> list[int]:
     """Parse the UPC ``ownership`` binary into a list of owned ids."""
@@ -269,11 +255,9 @@ def parse_ownership(filepath: str) -> list[int]:
     )
     return owned
 
-
 _OWNERSHIP_UUID_RE = re.compile(
     rb"[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}",
 )
-
 
 def parse_ownership_uuids(filepath: str) -> list[str]:
     """Extract product UUIDs (appId/spaceId) from the UPC ownership binary.
@@ -299,7 +283,6 @@ def parse_ownership_uuids(filepath: str) -> list[str]:
     )
     return uuids
 
-
 def check_install_state(state_file: str) -> bool:
     """A first byte of ``0x0A`` in uplay_install.state means installed."""
     if not Path(state_file).is_file():
@@ -309,7 +292,6 @@ def check_install_state(state_file: str) -> bool:
             return f.read(1) == b"\x0a"
     except Exception:
         return False
-
 
 def build_id_map_from_configurations(
     filepath: str,

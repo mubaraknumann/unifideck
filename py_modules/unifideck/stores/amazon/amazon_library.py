@@ -1,7 +1,5 @@
 """Amazon Games library reader — owned games list + install status merger.
 
-OP-49c | py_modules/unifideck/stores/amazon/amazon_library.py
-
 ``AmazonLibraryReader`` reads the user's owned-games list from the
 ``nile`` user data file (the JSON state that nile maintains after a
 successful login).
@@ -14,9 +12,9 @@ Public methods :
 * ``parse_entries(data)`` — extract game records from raw JSON;
 * ``check_user_data_freshness()`` — TTL-aware freshness check.
 
-The module-level helper ``merge_install_status`` overlays installed-
-state (from the install registry) onto the owned-games list to
-produce the final ``GameRecord`` shape the UI consumes.
+Overlaying installed-state (from the install registry) onto the
+owned-games list is ``stores/shared/install_status.merge_install_status``,
+shared with Epic and GOG (audit §3.4).
 """
 
 from __future__ import annotations
@@ -33,7 +31,6 @@ from unifideck.core.io import async_file_ops as aio
 from unifideck.core.types import Game
 
 logger = logging.getLogger(__name__)
-
 
 class AmazonLibraryReader:
     """Amazon library reader."""
@@ -209,42 +206,3 @@ class AmazonLibraryReader:
                 e,
             )
             return None
-
-
-def merge_install_status(
-    owned: list[Game],
-    installed: dict[str, dict[str, Any]],
-) -> list[Game]:
-    """Merge install status."""
-    merged: list[Game] = []
-    for game in owned:
-        info = installed.get(game.store_game_id)
-        if info is None:
-            merged.append(game)
-            continue
-        install_path = info.get("path")
-        # Verify the files are on disk. nile's installed.json can outlive the
-        # directory (e.g. after "Delete all data" or a manual delete); without
-        # this the next sync re-marks the game installed and Steam shows PLAY
-        # for a game with no files. Treat a missing dir as not-installed.
-        if install_path and not Path(install_path).is_dir():
-            merged.append(game)
-            continue
-        merged.append(
-            Game(
-                app_id=game.app_id,
-                store=game.store,
-                store_game_id=game.store_game_id,
-                title=game.title,
-                installed=True,
-                install_path=install_path,
-                exe_path=game.exe_path,
-                icon_url=game.icon_url,
-                hero_url=game.hero_url,
-                logo_url=game.logo_url,
-                size_bytes=game.size_bytes,
-                tags=list(game.tags),
-                metadata=dict(game.metadata),
-            )
-        )
-    return merged

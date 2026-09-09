@@ -60,9 +60,9 @@ _KNOWN_HASHES: dict[str, str] = {
     "nile": (
         "3a8c080c864a5952a01d7661693c60727b34a355ae21e9eab2047096b606c1df"
     ),
-    # gogdl 1.2.2
+    # gogdl 1.3.0
     "gogdl": (
-        "d1f9f9a730ff442409bc11b14ae9ec410e5e45492f32899076481e58dd451117"
+        "cba013d42767c808237c437335ab1d56f58405d07e8f37b3324d264ea5c49655"
     ),
 }
 

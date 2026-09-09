@@ -1,7 +1,5 @@
 """Epic Games OAuth — embedded-browser sign-in flow.
 
-OP-48b | py_modules/unifideck/stores/epic/auth.py
-
 Epic Games requires the user to sign in through the Epic Games web
 login. ``EpicAuthFlow`` orchestrates the embedded CDP browser :
 
@@ -65,7 +63,6 @@ _LEGENDARY_ALREADY_AUTHED_MARKERS = (
     "Stored credentials are still valid",
     "Login successful",
 )
-
 
 class EpicAuthFlow:
     """Epic auth flow."""

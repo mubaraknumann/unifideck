@@ -93,9 +93,9 @@ jobs:
       #      root, outside the unifideck package) imports it.
       #   2. core.types must stay a pure data island — its
       #      dataclasses can be imported anywhere without cycles.
-      # The full 5-layer stack is documented in the technical
-      # doc §7.7 but not codified here — see .importlinter for
-      # the rationale behind the narrow-invariants approach.
+      # The full layer stack is drawn in docs/architecture.md but
+      # not codified here — see .importlinter for the rationale
+      # behind the narrow-invariants approach.
       - name: import-linter (hard gate)
         run: PYTHONPATH=py_modules lint-imports --config .importlinter
 
@@ -122,8 +122,10 @@ jobs:
 
       # Every unguarded config.get("key") must be registered in
       # key_presence.RUNTIME_REQUIRED_KEYS, otherwise the boot-time
-      # assert_all_keys_resolve check cannot see it and the read
-      # silently returns None. A read that carries its own default
+      # collect_missing_keys check cannot see it and the read
+      # silently returns None. (This comment named assert_all_keys_resolve
+      # until 2026-08-26 — a function with zero callers whose own docstring
+      # claimed it ran at boot. Audit register item 40.) A read that carries its own default
       # is an optional override and is skipped.
       - name: check_config_keys (hard gate)
         run: python3 scripts/check_config_keys.py

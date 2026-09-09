@@ -1,7 +1,5 @@
 """GOG DLC enumeration and installation.
 
-OP-50f | py_modules/unifideck/stores/gog/dlc.py
-
 ``GOGDlcManager`` handles the DLC lifecycle for a parent game :
 
 * enumerate DLCs owned for a given game id (queries GOG.com);
@@ -32,7 +30,6 @@ from .tokens import GOGTokenManager
 logger = logging.getLogger(__name__)
 _LANGUAGE_FALLBACK = ["en-US"]
 _LANG_PROBE_TIMEOUT_S = 30.0
-
 
 class GOGDlcManager:
     """Gogdlc manager."""
@@ -378,7 +375,6 @@ class GOGDlcManager:
             await progress_cb(
                 {
                     "progress_percent": percent,
-                    "phase_message": (f"Installing DLC… {percent:.1f}%"),
                     "dlc_id": dlc_id,
                 }
             )

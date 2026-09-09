@@ -22,6 +22,8 @@ Features:
 Reference: Technical Document v1.0 — Section 3.9 (Configuration
 service), Figure 30.
 """
+from __future__ import annotations
+
 import contextlib
 import json
 import logging

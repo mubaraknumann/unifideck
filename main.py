@@ -13,16 +13,16 @@ The module deliberately stays thin :
       ``boot_plugin``, called once Decky has signalled the plugin is
       mounted and the event loop is alive.
     * No top-level RPC method bodies — RPC surface comes from the
-      eleven mixins composed below ; ``@auto_wrap_rpc_methods``
+      mixins composed below (count is machine-checked by
+      ``scripts/validate_architecture.py``, not restated here) ;
+      ``@auto_wrap_rpc_methods``
       decorates each public coroutine so it returns a typed
       ``Result`` envelope instead of raising.
 
-The five-layer architecture (see operational plan v1.3, section 2)
-flows downward from this entry : Layer 6 (RPC mixins) → Layer 5
-(services) → Layer 4 (stores) → Layer 3 (event bus / cache /
-config) → Layer 2 (core) → Layer 1 (paths / I/O). This file
-references only Layer 6 (mixins) and the bootstrap helpers ; it
-never imports a service or store directly.
+The layered architecture flows downward from this entry (see
+``docs/architecture.md`` for the authoritative layer diagram; do not
+restate a layer count here). This file references only the RPC mixins
+and the bootstrap helpers ; it never imports a service or store directly.
 """
 
 from __future__ import annotations
@@ -75,9 +75,7 @@ from unifideck.rpc.mixins.account import AccountRPCMixin  # noqa: E402
 from unifideck.rpc.mixins.achievements import AchievementsRPCMixin  # noqa: E402
 from unifideck.rpc.mixins.action import ActionRPCMixin  # noqa: E402
 from unifideck.rpc.mixins.auth_shortcuts import AuthShortcutsRPCMixin  # noqa: E402
-from unifideck.rpc.mixins.cloud_failure import CloudFailureRPCMixin  # noqa: E402
 from unifideck.rpc.mixins.cloud_save import CloudSaveRPCMixin  # noqa: E402
-from unifideck.rpc.mixins.config_validation import ConfigValidationRPCMixin  # noqa: E402
 from unifideck.rpc.mixins.download import DownloadRPCMixin  # noqa: E402
 from unifideck.rpc.mixins.edge import EdgeRPCMixin  # noqa: E402
 from unifideck.rpc.mixins.executable import ExecutableRPCMixin  # noqa: E402
@@ -85,7 +83,6 @@ from unifideck.rpc.mixins.launch import LaunchRPCMixin  # noqa: E402
 from unifideck.rpc.mixins.library_facets import LibraryFacetsRPCMixin  # noqa: E402
 from unifideck.rpc.mixins.observability import ObservabilityRPCMixin  # noqa: E402
 from unifideck.rpc.mixins.playtime import PlaytimeRPCMixin  # noqa: E402
-from unifideck.rpc.mixins.security import SecurityRPCMixin  # noqa: E402
 from unifideck.rpc.mixins.storage import StorageRPCMixin  # noqa: E402
 from unifideck.rpc.mixins.store import StoreRPCMixin  # noqa: E402
 from unifideck.rpc.mixins.sync import SyncRPCMixin  # noqa: E402
@@ -98,7 +95,6 @@ logger = logging.getLogger(__name__)
 @auto_wrap_rpc_methods
 class Plugin(
     ObservabilityRPCMixin,
-    SecurityRPCMixin,
     DownloadRPCMixin,
     StorageRPCMixin,
     LaunchRPCMixin,
@@ -109,9 +105,7 @@ class Plugin(
     SyncRPCMixin,
     LibraryFacetsRPCMixin,
     UIRPCMixin,
-    CloudFailureRPCMixin,
     CloudSaveRPCMixin,
-    ConfigValidationRPCMixin,
     PlaytimeRPCMixin,
     ActionRPCMixin,
     AccountRPCMixin,
@@ -166,11 +160,17 @@ class Plugin(
 
         Runs after ``_main`` so the bus and config manager are
         already wired. Stores two pieces of state on the plugin
-        instance : ``_config_validation_result`` (the diff /
-        validation report shown in the UI) and ``_config_degraded``
-        (a boolean flag the frontend reads to display a non-blocking
-        warning when the config is partially broken but the plugin
-        can still operate).
+        instance : ``_config_validation_result`` (the validation
+        report) and ``_config_degraded`` (a boolean saying the config
+        is partially broken but the plugin can still operate).
+
+        Both are **diagnostics only** — they reach a human through the
+        support bundle's ``config_validation`` block
+        (``rpc/mixins/observability.py``), not through any UI. Neither
+        changes plugin behaviour: there is no "degraded mode". This
+        docstring described a frontend warning banner that has never
+        existed (audit §1.2/§1.3); the flag was in fact read by nothing
+        at all until the bundle fold.
         """
         from unifideck.bootstrap.boot import _resolve_defaults_path
         from unifideck.config.startup import validate_config_at_startup

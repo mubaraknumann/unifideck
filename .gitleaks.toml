@@ -30,8 +30,21 @@ tests/unit/test_support_bundle_scrub.py precisely because it LOOKS like
 a credential: the support-bundle scrubber is asserted to redact it under
 the aggressive profile and to leave it alone under the standard one. It
 grants access to nothing.
+
+`sk-SECRET-abc123` is the same idea one layer up, and its `sk-` prefix is
+what makes gitleaks' generic-api-key rule bite. Both uses assert that a
+jsonschema `ValidationError.message` — which interpolates the user's own
+config VALUE — never reaches a support bundle, which is pasted in public:
+tests/unit/test_config_validator_safe_message.py checks `_safe_violation`
+reduces it to `"type != integer"`, and tests/unit/test_support_bundle_rpc.py
+checks the RPC layer emits `safe_message` rather than `message`. Both
+literals already carry `# noqa: S105 — test fixture, not a credential`;
+that silences ruff, not gitleaks, which reads the commit patch and so
+keeps reporting them from the commit that introduced them no matter what
+the working tree says.
 """
 regexTarget = "match"
 regexes = [
   '''dBjftJeZ4CVPmB92K27uhbUJU1p1rwW1gFWFOEjXk9Qz2''',
+  '''sk-SECRET-abc123''',
 ]

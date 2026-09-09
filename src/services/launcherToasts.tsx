@@ -20,18 +20,27 @@ import { rpcRoutes } from "../api/rpc-routes";
 import { unwrapRpcEnvelope } from "../api/useRPC";
 import { EventBusClient } from "../api/event-bus-client";
 import { CloudSaveConflictModal } from "../components/modals/CloudSaveConflictModal";
+import { resolveToastDuration } from "./toast-duration";
+import { buildToastParams } from "./toast-params";
+import { isConflictAction, resolveToastAction } from "./toast-action";
+import type { ToastActionPayload } from "../types/events";
 
 const POLL_INTERVAL_MS = 2000;
-const DEFAULT_DURATION = 5000;
-const LONG_DURATION = 7500;
 
-interface LauncherToast {
-  i18n_key?: string;
-  i18n_title_key?: string;
-  i18n_params?: Record<string, unknown>;
-  severity?: "info" | "warning" | "error";
-  game_title?: string;
-  action?: { verb: string; args: string[] };
+/**
+ * One toast row from the launcher bridge file.
+ *
+ * Extends the canonical `ToastActionPayload` rather than restating it. This
+ * interface used to redeclare every field, including a **third** copy of the
+ * `action` shape — so the payload contract lived in three places
+ * (`core/types/events.py`, `types/events.ts`, and here) and adding a field
+ * to one silently left the others behind. Exactly the class audit §1.4 flags
+ * as "frontend event names maintained in three places".
+ *
+ * The two snapshot fields are local because only the cloud-save conflict
+ * path sends them.
+ */
+interface LauncherToast extends ToastActionPayload {
   local_snapshot?: Record<string, unknown>;
   remote_snapshot?: Record<string, unknown>;
 }
@@ -73,14 +82,14 @@ function showLauncherToast(ev: LauncherToast): void {
   // toast rendered with the placeholder unfilled ("Starting  through
   // Battle.net…"). An explicit i18n_params entry still wins, since a caller
   // that named the variable meant it.
-  const params = {
-    ...(ev.game_title ? { gameTitle: ev.game_title } : {}),
-    ...((ev.i18n_params ?? {}) as Record<string, string>),
-  } as Record<string, string>;
+  const params = buildToastParams(ev);
 
   // Cloud-save conflict → modal so the user can pick keep-local/remote.
-  if (ev.action?.verb === "retry-sync") {
-    const [store, gameId, phase] = ev.action.args;
+  // Discriminated on the SNAPSHOTS, not the verb: `cloud_failure` also sends
+  // `retry-sync` for a transient failure with nothing to choose between
+  // (audit register item 4b).
+  if (isConflictAction(ev)) {
+    const [store, gameId, phase] = ev.action?.args ?? [];
     showModal(
       <CloudSaveConflictModal
         gameTitle={String(ev.game_title ?? gameId)}
@@ -119,13 +128,22 @@ function showLauncherToast(ev: LauncherToast): void {
     ? String(i18n.t(ev.i18n_title_key, params))
     : message;
   const body = ev.i18n_title_key ? message : "";
-  const longer = ev.severity === "error" || ev.severity === "warning";
+
+  // Decky toasts take an onClick, not a button — so the whole toast is the
+  // affordance and the action's label goes in the subtext.
+  const onClick = resolveToastAction(ev.action);
+  const actionLabel =
+    onClick && ev.action?.i18n_label_key
+      ? String(i18n.t(ev.action.i18n_label_key))
+      : "";
 
   try {
     toaster.toast({
       title,
       body,
-      duration: longer ? LONG_DURATION : DEFAULT_DURATION,
+      duration: resolveToastDuration(ev.duration_ms, ev.severity),
+      ...(onClick ? { onClick } : {}),
+      ...(actionLabel ? { subtext: actionLabel } : {}),
     });
   } catch {
     console.log(`[LauncherToast] ${title}: ${body}`);

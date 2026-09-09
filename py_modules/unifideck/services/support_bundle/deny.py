@@ -10,7 +10,7 @@ surface and so adding a pattern is a one-line diff that reviewers
 can't miss.
 
 The credential patterns mirror ``_AUTH_DATA_CANDIDATES`` and
-``_CONFIG_AUTH_FILES`` in :mod:`unifideck.rpc.mixins.cleanup_sweeps`
+``_CONFIG_AUTH_FILES`` in :mod:`unifideck.core.cleanup_sweeps`
 — the two lists describe the same set of secrets (that module deletes
 them, this one refuses to read them), so they must not drift.
 

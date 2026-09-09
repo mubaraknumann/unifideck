@@ -27,8 +27,12 @@ Two on-device findings shape this module:
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from unifideck.launcher.proton.infrastructure.prefix_layout import resolve_drive_c
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 # Prefix directory names. Dot-prefixed so a game uid can never collide.
 AUTH_PREFIX_NAME = ".bnet-auth"
@@ -74,38 +78,38 @@ def drive_c(prefix: Path) -> Path | None:
     return resolve_drive_c(Path(prefix))
 
 
-def client_dir(prefix: Path) -> Path | None:
-    dc = drive_c(prefix)
-    if dc is None:
+def _existing(
+    base: Path | None, name: str, predicate: Callable[[Path], bool],
+) -> Path | None:
+    """``base / name`` if it exists and satisfies *predicate*, else ``None``.
+
+    Every lookup below is this shape, and each held its own copy of it
+    (audit register item 47). Threading the ``None`` base through rather
+    than raising is what lets a caller ask about a prefix that was never
+    created — the normal state before first launch.
+    """
+    if base is None:
         return None
-    found = dc / CLIENT_DIR
-    return found if found.is_dir() else None
+    found = base / name
+    return found if predicate(found) else None
+
+
+def client_dir(prefix: Path) -> Path | None:
+    return _existing(drive_c(prefix), CLIENT_DIR, Path.is_dir)
 
 
 def client_exe(prefix: Path) -> Path | None:
     """``Battle.net.exe`` — the binary that accepts ``--exec``."""
-    parent = client_dir(prefix)
-    if parent is None:
-        return None
-    exe = parent / CLIENT_EXE
-    return exe if exe.is_file() else None
+    return _existing(client_dir(prefix), CLIENT_EXE, Path.is_file)
 
 
 def launcher_exe(prefix: Path) -> Path | None:
     """``Battle.net Launcher.exe`` — spawned first, owns the wineserver."""
-    parent = client_dir(prefix)
-    if parent is None:
-        return None
-    exe = parent / LAUNCHER_EXE
-    return exe if exe.is_file() else None
+    return _existing(client_dir(prefix), LAUNCHER_EXE, Path.is_file)
 
 
 def client_config(prefix: Path) -> Path | None:
-    dc = drive_c(prefix)
-    if dc is None:
-        return None
-    cfg = dc / CLIENT_CONFIG
-    return cfg if cfg.is_file() else None
+    return _existing(drive_c(prefix), CLIENT_CONFIG, Path.is_file)
 
 
 def client_version_dirs(prefix: Path) -> list[Path]:

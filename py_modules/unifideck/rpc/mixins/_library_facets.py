@@ -5,10 +5,16 @@ into one ``FacetRecord`` per Unifideck shortcut. The frontend uses
 the result to:
 
 * drive Steam's **native** library Sort menu + Library Filters by
-  enriching the live ``AppOverview`` (metacritic, deck category,
-  store categories/tags, release date, reviews, date-added), and
-* resolve **Great on Deck** by shortcut AppID with zero title
-  matching (``protondb_tier`` / ``deck_status``).
+  enriching the live ``AppOverview`` (metacritic, per-device compat
+  categories, store categories/tags, release date, reviews,
+  date-added), and
+* resolve the compatibility tab by shortcut AppID with zero title
+  matching (``compat_status`` / ``protondb_tier``).
+
+Compat is emitted twice on purpose: ``compat_category``/
+``compat_status`` are already resolved for *this* device, and
+``compat_categories`` carries every track's raw int for the packed
+bitfield Steam's own filters read.
 
 Pure cache reads — this module never issues a network fetch. The
 two genuinely-new sources (Steam reviews, first-seen timestamp)
@@ -22,9 +28,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from unifideck.core.compat_bridge import appid_candidates
+from unifideck.rpc.mixins._compat_payload import (
+    active_track,
+    compat_categories,
+    compat_category,
+    compat_status,
+)
 from unifideck.rpc.mixins._metadata_display import (
-    appid_candidates,
-    deck_compat_enum,
     read_cache_store,
     read_compat_entry,
     read_steam_metadata,
@@ -109,21 +120,22 @@ def _recommendations_total(steam_meta: dict[str, Any]) -> int | None:
     return None
 
 
-def _deck_category(compat: dict[str, Any]) -> int:
-    """Numeric Deck-compat enum (0..3) with a ProtonDB-optimism fallback.
+def _compat_fields(compat: dict[str, Any]) -> dict[str, Any]:
+    """This shortcut's rating for the active device, plus every track.
 
-    Prefer Valve's Deck-Verified status. When Valve hasn't rated the
-    game (``Unknown`` → 0) but ProtonDB reports ``platinum``/``native``,
-    treat it as ``Playable`` (2) so the title still surfaces in Steam's
-    native "Verified and Playable" filter — matching Unifideck's own
-    Great-on-Deck criteria.
+    ``compat_category``/``compat_status`` are resolved for the device
+    actually running, so the tab filter and our badges need no device
+    branch of their own. ``compat_categories`` carries all four raw
+    ints because Steam's *own* library filters read them out of the
+    packed bitfield, and on a Steam Machine that is a different pair of
+    bits than the Deck's.
     """
-    category = deck_compat_enum(compat)
-    if category == 0:
-        tier = str(compat.get("protondb_tier", "")).lower()
-        if tier in ("platinum", "native"):
-            return 2
-    return category
+    track = active_track()
+    return {
+        "compat_category": compat_category(compat, track),
+        "compat_status": compat_status(compat, track),
+        "compat_categories": compat_categories(compat),
+    }
 
 
 def _read_int(data: dict[str, Any], shortcut_app_id: int) -> int:
@@ -170,12 +182,11 @@ def build_facet_record(
         "review_percentage": review.get("review_percentage"),
         "date_added_unix": _read_int(added_data, shortcut_app_id),
         # Filter dimensions
-        "deck_category": _deck_category(compat),
+        **_compat_fields(compat),
         "store_category": _extract_ids(steam_meta.get("categories")),
         "store_tag": _extract_ids(steam_meta.get("genres")),
-        # Great-on-Deck (shortcut-keyed compat — no title matching)
+        # Shortcut-keyed compat — no title matching
         "protondb_tier": compat.get("protondb_tier"),
-        "deck_status": compat.get("deck_status"),
     }
 
 

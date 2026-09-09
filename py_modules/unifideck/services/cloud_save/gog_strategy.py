@@ -19,6 +19,7 @@ from unifideck.services.cloud_save.gog_cloud_api import (
     summarize_cloud_objects,
 )
 from unifideck.services.cloud_save.gog_state_mixin import GOGStateMixin
+from unifideck.services.cloud_save.path_resolver import find_save_dir_by_title
 from unifideck.services.cloud_save.strategy_base import CloudSaveStrategy
 from unifideck.stores.gog.galaxy_api import (
     exchange_game_token,
@@ -139,35 +140,7 @@ class GOGCloudSaveStrategy(GOGStateMixin, CloudSaveStrategy):
         game_title = (
             self.config.get(f"games.{game_id}.title") or ""
         ) if self.config else ""
-        if not game_title:
-            return None
-        safe_title = re.sub(r"[^a-zA-Z0-9]", "", game_title).lower()
-        for candidate in (
-            drive_c / "users" / "steamuser" / "Saved Games",
-            drive_c / "users" / "steamuser" / "Documents",
-            drive_c / "users" / "steamuser" / "AppData" / "Local",
-            drive_c / "users" / "steamuser" / "AppData" / "Roaming",
-        ):
-            match = self._match_child_by_title(candidate, safe_title)
-            if match:
-                return match
-        return None
-
-    @staticmethod
-    def _match_child_by_title(candidate: Path, safe_title: str) -> str | None:
-        """Find a child dir of ``candidate`` whose name matches ``safe_title``."""
-        if not candidate.is_dir():
-            return None
-        for child in candidate.iterdir():
-            if not child.is_dir():
-                continue
-            child_name = re.sub(r"[^a-zA-Z0-9]", "", child.name).lower()
-            if safe_title in child_name or child_name in safe_title:
-                logger.info(
-                    "[GOGSync] Auto-detected save dir via title match: %s", child
-                )
-                return str(child)
-        return None
+        return find_save_dir_by_title(drive_c, game_title, tag="GOGSync")
 
     # ── GOG cloud-save location resolution (from GOG metadata) ───────
     def _resolve_save_dir_from_metadata(

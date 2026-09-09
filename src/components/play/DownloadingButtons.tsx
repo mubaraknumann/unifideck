@@ -18,6 +18,7 @@ import { FC, useCallback, useState } from "react";
 import { DialogButton, ConfirmModal, showModal } from "@decky/ui";
 import { useTranslation } from "react-i18next";
 import { FaTimes } from "react-icons/fa";
+import { useDownloads } from "../../contexts/DownloadContext";
 import { useGameActions } from "../../hooks/useGameActions";
 import { useToast } from "../../hooks/useToast";
 import { SteamBridge } from "../../lib/steam-bridge";
@@ -38,6 +39,7 @@ export const DownloadingButtons: FC<Props> = ({
 }) => {
   const { t } = useTranslation();
   const actions = useGameActions(bridge);
+  const downloads = useDownloads();
   const toast = useToast();
   const [cancelled, setCancelled] = useState(false);
 
@@ -46,9 +48,19 @@ export const DownloadingButtons: FC<Props> = ({
     const result = await actions.cancel(download.id);
     if (!result?.success) {
       setCancelled(false);
-      toast.error(t("toasts.cancelFailed"), result?.error ?? "");
+      // Re-read the queue before saying anything. A cancel fails mainly
+      // because this row outlived the operation it describes, and without a
+      // refetch nothing else would ever replace it — the button stayed live
+      // and the user could sit here failing the same cancel forever.
+      void downloads.refresh();
+      toast.error(
+        t("toasts.cancelFailed"),
+        t("downloadsTab.toastCancelFailedBody", {
+          error: result?.error ?? t("common.unknown"),
+        }),
+      );
     }
-  }, [actions, download.id, t, toast]);
+  }, [actions, download.id, downloads, t, toast]);
 
   const onCancelClick = useCallback(() => {
     if (cancelled) return;
@@ -82,7 +94,8 @@ export const DownloadingButtons: FC<Props> = ({
         {cancelled
           ? t("play.cancelling")
           : download.download_phase === "manual" ||
-            download.download_phase === "preparing"
+            download.download_phase === "preparing" ||
+            download.download_phase === "extracting"
           ? t("play.cancel")
           : `${t("play.cancel")} (${Math.round(
               Math.max(0, Math.min(100, download.progress_percent)),

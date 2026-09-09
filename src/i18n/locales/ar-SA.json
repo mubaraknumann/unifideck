@@ -69,15 +69,6 @@
     "validationErrors.homeRoot": "لا يمكن استخدام مجلد المستخدم الرئيسي كجذر",
     "freeSpaceLabel": "{{label}} (المساحة المتبقية {{freeSpace}} جيجابايت)"
   },
-  "gameGrid": {
-    "loading": "جاري تحميل الألعاب...",
-    "noGamesFound": "لم يتم العثور على ألعاب",
-    "noGamesHint": "حاول مزامنة مكتباتك من إعدادات Unifideck",
-    "showingGames": "عرض {{count}} من الألعاب",
-    "installed": "مثبتة",
-    "notInstalled": "غير مثبتة",
-    "playtime": "وقت اللعب: {{hours}} ساعة و {{minutes}} دقيقة"
-  },
   "downloadsTab": {
     "currentDownload": "التنزيل الحالي",
     "queuedDownloads": "في الانتظار ({{count}})",
@@ -154,9 +145,9 @@
     "connected": "متصل",
     "checking": "جاري التحقق...",
     "authenticate": "تسجيل الدخول",
-    "legendaryNotInstalled": "⚠️ جاري تثبيت أداة Epic Games...",
-    "nileNotInstalled": "⚠️ أداة Amazon Games غير موجودة",
-    "error": "خطأ. تحقق من السجلات"
+    "error": "خطأ. تحقق من السجلات",
+    "storefrontOpening": "جارٍ فتح متجر {{store}}...",
+    "storefrontFailed": "تعذّر فتح متجر {{store}}"
   },
   "librarySync": {
     "title": "مزامنة المكتبة",
@@ -258,6 +249,8 @@
     "ubisoftLauncherAlreadyOpenMessage": "Ubisoft Connect مفتوح بالفعل لهذا التثبيت.",
     "ubisoftLauncherOpenFailed": "فشل فتح Ubisoft Connect",
     "ubisoftLauncherOpenFailedMessage": "فشل تشغيل Ubisoft Connect للتثبيت.",
+    "ubisoftSignInExpired": "انتهت صلاحية تسجيل الدخول إلى Ubisoft",
+    "ubisoftSignInExpiredMessage": "لم يعد تسجيل الدخول المحفوظ إلى Ubisoft مقبولاً. سجّل الخروج ثم الدخول مرة أخرى من إعدادات Unifideck لإعادة الاتصال.",
     "multipartDetected": "تم اكتشاف تنزيل متعدد الأجزاء",
     "multipartMessage": "يرجى الانتظار لحين اكتمال العملية",
     "downloadFailed": "فشل التنزيل",
@@ -349,10 +342,10 @@
       "installingUbisoft": "التثبيت عبر Ubisoft Connect",
       "installingUbisoftMessage": "جارٍ فتح Ubisoft Connect. ابدأ التثبيت من نافذة المشغّل.",
       "protonReadyBody": "{{version}} جاهز للاستخدام",
+      "externalProtonOutdatedTitle": "تحديث GE-Proton متوفر",
+      "externalProtonOutdatedBody": "أحدث إصدار {{version}} متوفر. يرجى التحديث عبر المدير الخارجي.",
       "protonReadyTitle": "Proton جاهز",
       "protonSwitchedTo": "يتم الآن استخدام {{version}}",
-      "signingInUbisoft": "جارٍ تسجيل الدخول إلى Ubisoft Connect",
-      "signingInUbisoftMessage": "جارٍ فتح Ubisoft Connect. سجّل الدخول هناك ثم عُد.",
       "ubisoftPrefixNotReady": "Ubisoft Connect غير جاهز",
       "ubisoftPrefixNotReadyMessage": "تعذّر تجهيز بادئة Ubisoft Connect لهذه اللعبة. حاول التثبيت مرة أخرى؛ وإذا استمر الفشل، فأعد تشغيل مزامنة المكتبة.",
       "ubisoftAuthPrefixNotReady": "Ubisoft Connect غير جاهز",
@@ -390,10 +383,9 @@
       "battlenetInstallerDownloadFailedMessage": "تعذّر تنزيل مثبّت Battle.net. تحقّق من اتصالك وحاول مرة أخرى.",
       "battlenetClientInstallFailed": "فشل تثبيت Battle.net",
       "battlenetClientInstallFailedMessage": "لم يكتمل مثبّت عميل Battle.net. حاول مرة أخرى أو راجع سجل التشغيل لمعرفة ما أبلغ عنه.",
-      "signingInBattlenet": "تسجيل الدخول إلى Battle.net",
-      "signingInBattlenetMessage": "جارٍ فتح عميل Battle.net لتتمكن من تسجيل الدخول…",
       "installingBattlenet": "جارٍ التثبيت عبر Battle.net",
-      "installingBattlenetMessage": "جارٍ فتح Battle.net. اضغط على «تثبيت» هناك لبدء تنزيل {{gameTitle}}."
+      "installingBattlenetMessage": "جارٍ فتح Battle.net. اضغط على «تثبيت» هناك لبدء تنزيل {{gameTitle}}.",
+      "wrapperOpening": "جارٍ فتح {{client}}"
     },
     "updateComplete": "اكتمل التحديث!",
     "updateCompleteMessage": "تم تحديث {{title}}.",
@@ -401,7 +393,6 @@
     "updateCancelledMessage": "تم إلغاء تحديث {{title}}.",
     "updateFailed": "فشل التحديث",
     "updateFailedMessage": "تعذر بدء عملية التحديث.",
-    "storeError": "تعذر الاتصال بـ {{store}} ({{errType}})",
     "captureLogsStarted": "جارٍ جمع السجلات...",
     "captureLogsStartedMessage": "يجري إنشاء حزمة تشخيص في مجلد التنزيلات. يستغرق ذلك بضع ثوانٍ.",
     "captureLogsDone": "تم جمع السجلات",
@@ -417,9 +408,7 @@
       "openStorageManager": "تفريغ مساحة",
       "signInToStore": "تسجيل الدخول",
       "retrySync": "إعادة المحاولة",
-      "retryLibrarySync": "تحديث المكتبة",
-      "openSaveFolder": "فتح مجلد الحفظ",
-      "showLogs": "إظهار السجلات"
+      "retryLibrarySync": "تحديث المكتبة"
     },
     "library": {
       "_comment": "Toasts emitted by SyncService when a per-store library sync fails. The retry button triggers a fire-and-forget refresh via the unifideck://refresh-library/<store> verb; the user doesn't wait for the result inline, the Library view picks it up through its SYNC_PROGRESS subscription.",
@@ -485,6 +474,7 @@
       "authExpired": "انتهت صلاحية الجلسة. يرجى تسجيل الدخول مرة أخرى",
       "toolMissing": "أداة التنزيل المطلوبة غير موجودة",
       "processFailed": "فشل التنزيل. يرجى المحاولة مرة أخرى",
+      "stalled": "توقف التنزيل دون إحراز تقدم. يرجى المحاولة مرة أخرى.",
       "directoryNotFound": "تعذر العثور على ملفات اللعبة المثبتة",
       "lockConflict": "هناك عملية أخرى قيد التشغيل. يرجى المحاولة لاحقاً",
       "ubisoftClient": "خطأ في عميل Ubisoft Connect. يرجى محاولة إصلاح بيئة التشغيل",
@@ -551,7 +541,8 @@
     "amazon": "Amazon",
     "ubisoft": "Ubisoft",
     "microsoft": "Microsoft",
-    "battlenet": "Battle.net"
+    "battlenet": "Battle.net",
+    "gamevault": "GameVault"
   },
   "unifiedLibrary": {
     "error": "خطأ في Unifideck",
@@ -598,11 +589,14 @@
       "never": "أبداً"
     },
     "compatibility": {
-      "modalTitle": "التوافق مع Steam Deck",
+      "modalTitleDeck": "التوافق مع Steam Deck",
+      "modalTitleMachine": "التوافق مع Steam Machine",
+      "modalTitleSteamOS": "التوافق مع SteamOS",
       "viewOnProtonDb": "عرض على ProtonDB",
       "close": "إغلاق",
       "verified": "معتمد بالكامل",
       "playable": "قابل للعب",
+      "compatible": "متوافق",
       "unsupported": "غير مدعوم",
       "unknown": "غير معروف"
     },
@@ -703,8 +697,7 @@
     "signInRequired": "تسجيل الدخول مطلوب للعب",
     "syncSkippedNoSubscription": "لم يتم رصد اشتراك Xbox Game Pass نشط. تم تخطي مزامنة ألعاب xCloud.",
     "syncSkippedTierUnknown": "تم رصد اشتراك Xbox Game Pass ولكن تعذر تأكيد الفئة. لتفادي إظهار الألعاب غير القابلة للتشغيل، تم تخطي المزامنة.",
-    "subscriptionCheckFailed": "تعذر التحقق من حالة اشتراك Xbox Game Pass. تم تخطي مزامنة xCloud. يرجى المحاولة عند توفر اتصال شبكة مستقر.",
-    "subscriptionDetected": "تم رصد اشتراك Xbox Game Pass نشط من الفئة {{tier}}."
+    "subscriptionCheckFailed": "تعذر التحقق من حالة اشتراك Xbox Game Pass. تم تخطي مزامنة xCloud. يرجى المحاولة عند توفر اتصال شبكة مستقر."
   },
   "playButton": {
     "play": "تشغيل",
@@ -1009,9 +1002,14 @@
     "installingButton": "جاري التثبيت...",
     "installingTitle": "تثبيت الملحق",
     "latestLabel": "الأحدث",
+    "manageButton": "تحديث",
+    "manageButtonAvailable": "تحديث (v{{version}} متوفر)",
+    "manageTitle": "تحديث الإضافة",
     "modalTitle": "UNIFIDECK v{{version}}. سجل التغييرات",
     "noBackend": "خدمة Decky الخلفية غير متوفرة.",
     "noReleaseNotes": "لا تتوفر ملاحظات الإصدار.",
+    "noticeBody": "الإصدار v{{version}} جاهز للتثبيت من إعدادات Unifideck.",
+    "noticeTitle": "يتوفر تحديث لـ Unifideck",
     "reinstallButton": "إعادة تثبيت النسخة v{{version}}",
     "refreshFailedMessage": "تعذّر التحقق من معلومات أحدث إصدار. تحقّق من اتصالك وحاول مرة أخرى.",
     "releaseGoneMessage": "لم يعد هذا الإصدار متوفرًا. يُرجى التحقق من التحديثات والاختيار مرة أخرى.",
@@ -1052,5 +1050,36 @@
     "title": "مجموعات STEAM",
     "enabled": "تم تمكين المجموعات",
     "disabled": "تم تعطيل المجموعات"
+  },
+  "reconcile": {
+    "repairedTitle": "تم إصلاح بيانات المكتبة",
+    "repairedBody": "تمت تعبئة {{artwork}} من الصور و{{metadata}} من البيانات الوصفية و{{compat}} من إدخالات التوافق التي خلّفتها مزامنة متوقفة."
+  },
+  "gamevault": {
+    "connectTitle": "الاتصال بـ GameVault",
+    "connect": "اتصال",
+    "connecting": "جارٍ الاتصال…",
+    "cancel": "إلغاء",
+    "modeRemote": "الاتصال بخادم بعيد",
+    "modeRemoteDescription": "سجّل الدخول إلى خادم GameVault تستضيفه في مكان آخر.",
+    "modeLocal": "استخدام مجلد على هذا الجهاز",
+    "modeLocalDescription": "استورد أرشيفات الألعاب الخالية من الحماية الرقمية الموجودة لديك هنا. لا حاجة إلى خادم.",
+    "localTitle": "مجلد الألعاب المحلي",
+    "localIntro": "ضع أرشيفات الألعاب في هذا المجلد وستظهر في مكتبتك بعد المزامنة التالية.",
+    "vaultDir": "مجلد الأرشيفات",
+    "vaultDirDescription": "المكان الذي تحفظ فيه أرشيفات الألعاب.",
+    "browse": "استعراض…",
+    "serverUrl": "رابط الخادم",
+    "username": "اسم المستخدم",
+    "password": "كلمة المرور",
+    "verifySsl": "التحقق من شهادة SSL",
+    "verifySslDescription": "تعطيل للشهادات الموقعة ذاتياً",
+    "downloadDir": "مجلد تنزيل الأرشيف",
+    "downloadDirDescription": "مجلد مؤقت لتنزيلات الأرشيف. اتركه فارغاً للافتراضي.",
+    "downloadDirPlaceholder": "~/.local/share/unifideck/gamevault_downloads",
+    "errorServerUrlRequired": "الرجاء إدخال رابط الخادم",
+    "errorUsernameRequired": "الرجاء إدخال اسم المستخدم",
+    "errorPasswordRequired": "الرجاء إدخال كلمة المرور",
+    "errorConnection": "فشل الاتصال بخادم GameVault"
   }
 }

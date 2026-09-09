@@ -1,7 +1,5 @@
 """RPC wrapper decorator — uniform envelope + structured error mapping.
 
-OP-24b | py_modules/unifideck/rpc/wrapper.py
-
 ``rpc_wrapper`` is the decorator wrapped around every RPC method
 exposed to the frontend. It enforces a uniform response envelope
 and converts exceptions into typed error payloads.
@@ -47,7 +45,6 @@ from .errors import RpcError
 logger = logging.getLogger(__name__)
 F = TypeVar("F", bound=Callable[..., Awaitable[Any]])
 
-
 def _serialize(value: Any) -> Any:
     """Recursively convert dataclasses to dicts for JSON output.
 
@@ -75,7 +72,6 @@ def _serialize(value: Any) -> Any:
     if isinstance(value, dict):
         return {k: _serialize(v) for k, v in value.items()}
     return value
-
 
 def _to_envelope(value: Any) -> dict[str, Any]:
     """Coerce a handler return into the canonical RPC response envelope.
@@ -115,7 +111,6 @@ def _to_envelope(value: Any) -> dict[str, Any]:
         }
     return {"success": True, "error": None, "data": _serialize(value)}
 
-
 def rpc_wrapper(func: F) -> F:
     """Decorator: wrap an async RPC method with the envelope + error mapper.
 
@@ -132,7 +127,7 @@ def rpc_wrapper(func: F) -> F:
       via the ``__rpc_wrapped__`` marker), so applying the
       decorator twice doesn't double-wrap.
     * The wrapper has ``__rpc_wrapped__ = True`` after first
-      wrap so ``auto_wire`` (OP-24c) can detect it.
+      wrap so ``auto_wire`` can detect it.
 
     Args:
         func: the coroutine function to wrap.

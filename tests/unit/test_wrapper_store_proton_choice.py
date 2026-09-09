@@ -46,12 +46,12 @@ def _install_ge(root: Path, tag: str, *, executable: bool = True) -> Path:
 
 def _managed(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, tag: str | None) -> None:
     """Point ge_installer's marker and scan roots at ``tmp_path``."""
-    from unifideck.launcher.proton.infrastructure import ge_installer
+    from unifideck.launcher.proton.infrastructure import ge_installer, ge_marker
 
     marker = tmp_path / "proton_ge_latest.json"
     if tag is not None:
         marker.write_text(json.dumps({"tag": tag, "installed_at": 0.0}))
-    monkeypatch.setattr(ge_installer, "_MARKER", marker)
+    monkeypatch.setattr(ge_marker, "_MARKER", marker)
     monkeypatch.setattr(ge_installer, "_SCAN_ROOTS", (str(tmp_path / "tools"),))
 
 
@@ -128,7 +128,7 @@ def test_the_lookup_never_downloads(
     ``ensure_latest_ge`` fetches and installs; only the cached-tag read is
     allowed here.
     """
-    from unifideck.launcher.proton.infrastructure import ge_installer
+    from unifideck.launcher.proton.infrastructure import ge_installer, ge_marker
 
     _managed(monkeypatch, tmp_path, None)
 
@@ -149,12 +149,12 @@ def test_a_broken_lookup_does_not_break_resolution(
     resolver: UbisoftBinaryResolver, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The managed lookup is an improvement, never a new way to fail."""
-    from unifideck.launcher.proton.infrastructure import ge_installer
+    from unifideck.launcher.proton.infrastructure import ge_installer, ge_marker
 
     def _raise() -> str:
         raise OSError("marker unreadable")
 
-    monkeypatch.setattr(ge_installer, "read_cached_latest_tag", _raise)
+    monkeypatch.setattr(ge_marker, "read_cached_latest_tag", _raise)
     monkeypatch.setattr(
         UbisoftBinaryResolver, "_find_official_proton",
         staticmethod(lambda: "/steam/common/Proton - Experimental"),

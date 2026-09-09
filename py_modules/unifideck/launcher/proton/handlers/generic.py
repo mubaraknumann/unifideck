@@ -64,7 +64,7 @@ async def _amazon_launch(plan: ProtonLaunchPlan) -> int:
         if plan.context.exe_path.parent.is_dir()
         else None
     )
-    argv: list[str] = list(plan.state.wrappers)
+    argv: list[str] = []
     argv.extend([
         str(plan.python_bin),
         str(plan.umu_wrapper),
@@ -88,7 +88,7 @@ async def _raw_exe_launch(plan: ProtonLaunchPlan) -> int:
     cwd: Path | None = None
     if plan.context.exe_path.parent.is_dir():
         cwd = plan.context.exe_path.parent
-    argv: list[str] = list(plan.state.wrappers)
+    argv: list[str] = []
     argv.extend([
         str(plan.python_bin),
         str(plan.umu_wrapper),

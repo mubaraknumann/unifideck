@@ -1,7 +1,7 @@
 name: Complexity Gates
 
 # Complexity/size gates for the whole backend, aligned with the
-# five-layer architecture of the technical document v1.1.
+# layer model drawn in docs/architecture.md.
 # Previously limited to core/ + services/, this workflow now
 # covers main.py and every module under py_modules/unifideck/.
 #

@@ -1,6 +1,4 @@
 """Playtime RPC mixin for Plugin class.
-
-OP-26j | rpc/mixins/playtime.py
 """
 from __future__ import annotations
 
@@ -26,20 +24,12 @@ class PlaytimeRPCMixin:
 
         Real method is :meth:`PlaytimeService.get_playtime` (see
         handler twin for the rationale).
+
+        The only playtime route. Two siblings were removed as dead
+        (audit §1.2): ``get_all_playtimes``, because the library view
+        sources bulk playtime from Steam's own ``GetPlaytime`` rather
+        than from us, and ``sync_playtime_now``, because the drain
+        already runs at startup and on every ``PLAYTIME_UPDATED``,
+        with unreported sessions persisted in the DB until they land.
         """
         return await self._require_playtime().get_playtime(store, game_id)
-
-    async def get_all_playtimes(self) -> Any:
-        """Return playtime data for every game with sessions."""
-        return await self._require_playtime().get_all_playtimes()
-
-    async def sync_playtime_now(self) -> Any:
-        """Force a playtime → store drain now. Returns ``{store: pushed}``.
-
-        Sync is otherwise automatic (on every session end + at startup); this
-        is a manual/debug trigger. No-op-safe if the service is unavailable.
-        """
-        svc = getattr(self.services, "playtime_sync", None)
-        if svc is None:
-            raise RpcError("service_unavailable", service="playtime_sync")
-        return await svc.sync_now()

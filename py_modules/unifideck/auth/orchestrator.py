@@ -1,5 +1,5 @@
 """auth/orchestrator.py — Generic CDP OAuth flow orchestrator.
-Four of Unifideck's five stores (Epic, GOG, Amazon, Microsoft)
+Four of Unifideck's six stores (Epic, GOG, Amazon, Microsoft)
 share the same authentication pattern: a browser window opens
 on a store-specific OAuth URL, the user signs in, the browser
 redirects to a callback URL carrying an authorization code, the

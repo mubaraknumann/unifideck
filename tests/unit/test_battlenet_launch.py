@@ -25,6 +25,7 @@ import pytest
 
 from unifideck.launcher.proton.handlers import battlenet as handler
 from unifideck.launcher.proton.handlers import battlenet_client as client
+from unifideck.stores.battlenet import paths as store_paths
 from unifideck.launcher.proton.handlers import battlenet_watch as watch
 from unifideck.launcher.proton.handlers import battlenet_wsi as wsi
 from unifideck.launcher.proton.handlers import wrapper_clients as wc
@@ -59,10 +60,14 @@ class _Plan:
 
 
 def _install_client(prefix: Path) -> None:
-    d = prefix / "drive_c" / client.CLIENT_DIR
+    # Constants come from the store package, which owns them. The launcher
+    # handler used to declare identical literals of its own; those are gone
+    # (audit register item 47), and the sibling Battle.net tests already
+    # reached for the store's copies.
+    d = prefix / "drive_c" / store_paths.CLIENT_DIR
     d.mkdir(parents=True, exist_ok=True)
-    (d / client.CLIENT_EXE).write_bytes(b"MZ")
-    (d / client.LAUNCHER_EXE).write_bytes(b"MZ")
+    (d / store_paths.CLIENT_EXE).write_bytes(b"MZ")
+    (d / store_paths.LAUNCHER_EXE).write_bytes(b"MZ")
     # The versioned payload the shim loads. Without it the prefix is
     # the shape an interrupted install leaves and no client can start.
     build = d / "Battle.net.17651"
@@ -733,6 +738,11 @@ def test_auth_launch_opts_out_of_the_wineserver_reap(
     """A stop from the UI must unwind through stop_client's SIGTERM.
 
     A SIGKILL loses the token the client rotated into CachedData.db.
+
+    Patched on ``auth_wsi`` rather than on this module: the sign-in run moved
+    there so a first sign-in can measure the gamescope-WSI abort after
+    ``run_umu_with_retry`` returns, which it must, because that abort exits 0.
+    The flag under test moved with it.
     """
     seen: dict[str, Any] = {}
 
@@ -740,7 +750,7 @@ def test_auth_launch_opts_out_of_the_wineserver_reap(
         seen.update(kwargs)
         return 0
 
-    monkeypatch.setattr(handler, "run_umu_with_retry", fake_run)
+    monkeypatch.setattr(handler.auth_wsi, "run_umu_with_retry", fake_run)
     monkeypatch.setattr(handler.watch, "stop_client", lambda p: 0)
     assert asyncio.run(handler.battlenet_auth_launch(plan)) == 0
     assert seen["reap_wineserver"] is False

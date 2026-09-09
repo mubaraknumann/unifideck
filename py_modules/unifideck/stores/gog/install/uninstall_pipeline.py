@@ -1,7 +1,5 @@
 """Uninstall pipeline orchestrator.
 
-OP-51e | py_modules/unifideck/stores/gog/install/uninstall_pipeline.py
-
 ``_UninstallPipeline`` is the symmetric counterpart to ``GOGInstaller``:
 removes a game from every state-tracking layer (install directory,
 gogdl manifests, .unifideck-id marker, Steam shortcut, SteamGridDB
@@ -27,7 +25,6 @@ if TYPE_CHECKING:
     from .installer import GOGInstaller
 logger = logging.getLogger(__name__)
 _UNINSTALL_MAX_ATTEMPTS = 3
-
 
 class _UninstallPipeline:
     """Uninstall pipeline."""

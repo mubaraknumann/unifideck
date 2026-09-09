@@ -1,8 +1,6 @@
 """
 Clean and admit-filter raw UPC launcher titles.
 
-OP-57d | py_modules/unifideck/stores/ubisoft/library/title_filter.py
-
 Split out of ``game_builder.py`` (was pushing it over the volumetry file
 cap). Handles per-title admission: strip mojibake/quoting, then decide
 whether a cleaned title looks like a real game (vs. a UPC placeholder,
@@ -58,7 +56,6 @@ _CYRILLIC_PATTERN = re.compile(r"[Ѐ-ӿ]")
 _PLACEHOLDER_L_PATTERN = re.compile(r"(l\d+|[A-Z0-9_]+)")
 _PLACEHOLDER_LITERALS = frozenset({"a ubisoft game"})
 
-
 def clean_launcher_title(title: Any) -> str:
     """Clean launcher title."""
     if not isinstance(title, str):
@@ -67,7 +64,6 @@ def clean_launcher_title(title: Any) -> str:
     for bad, good in _MOJIBAKE_REPLACEMENTS:
         cleaned = cleaned.replace(bad, good)
     return cleaned
-
 
 class _TitleFilter:
     """Admission filter for cleaned launcher titles."""

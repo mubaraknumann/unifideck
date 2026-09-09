@@ -54,6 +54,14 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
 
+      # The three static gates below ALSO run as their own named
+      # checks in static-gates.yml, which is unfiltered and so
+      # covers docs-only and src-only PRs this workflow's paths
+      # filter skips. The duplication is deliberate: these copies
+      # run BEFORE the pytest matrix so a drift fails in seconds
+      # instead of as a confusing downstream test failure. Read
+      # static-gates.yml's header before deleting either copy.
+      #
       # Static event-contract gate. Runs BEFORE pytest (per the
       # script's own usage note): a kwarg/contract drift is
       # cheaper to surface here than as a confusing downstream
@@ -62,6 +70,25 @@ jobs:
       # event missing from CANONICAL_SCHEMA).
       - name: Validate event schemas
         run: python3 scripts/validate_event_schemas.py
+
+      # Static event-WIRING gate, the sibling of the above. The schema gate is
+      # emit-side only, so it cannot see an event with a subscriber and no
+      # emitter (or the reverse) — audit §1.3 found eleven, two of which cost
+      # users real behaviour for a release. Exits 1 unless every enum member
+      # has both a producer and a consumer, or carries an '# unwired: <reason>'
+      # marker. Needs src/ as well as py_modules/, so it runs unconditionally
+      # rather than behind a path filter.
+      - name: Validate event wiring
+        run: python3 scripts/validate_event_wiring.py
+
+      # Static architecture-invariant gate: main.py mixin set vs
+      # rpc/mixins/__init__.py __all__, store list (cache_registry vs disk),
+      # StoreInfo.name vs its directory, dead RPC methods, hardcoded mixin
+      # counts in prose, and the frontend's CLIENT_STOREFRONTS vs
+      # WRAPPER_STORES. Every check is hard: exits 1 on any mismatch. See
+      # the unifideck-drift-guard skill.
+      - name: Validate architecture invariants
+        run: python3 scripts/validate_architecture.py
 
       - name: Run tests with coverage (strict)
         run: |

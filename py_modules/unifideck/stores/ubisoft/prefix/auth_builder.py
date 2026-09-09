@@ -1,8 +1,6 @@
 """
 Auth prefix builder — variant of template_builder for the auth flow.
 
-OP-59d | py_modules/unifideck/stores/ubisoft/prefix/auth_builder.py
-
 The auth prefix has different requirements from the template prefix:
 it must allow the UPC GUI to come up and the user to sign in
 interactively, whereas the template prefix runs UPC headlessly. This
@@ -23,6 +21,8 @@ import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from unifideck.stores.shared.prefix_clone import rsync_clone
+
 if TYPE_CHECKING:
     from unifideck.stores.ubisoft.config import UbisoftConfig
     from unifideck.stores.ubisoft.installer.cache import UbisoftInstallerCache
@@ -31,7 +31,6 @@ if TYPE_CHECKING:
     from .helpers import _PrefixHelpers
     from .template_builder import _TemplatePrefixBuilder
 logger = logging.getLogger(__name__)
-
 
 class _AuthPrefixBuilder:
     """Auth prefix builder."""
@@ -129,10 +128,14 @@ class _AuthPrefixBuilder:
                 label,
             )
             await asyncio.to_thread(lambda: Path(auth_dir).mkdir(parents=True, exist_ok=True))
-            ok = await self._helpers.rsync_clone(
-                src,
-                auth_dir,
+            # ``checksum``: the auth prefix is not deleted before a rebuild,
+            # so this can be a repair over an existing tree — where rsync's
+            # quick check silently skips same-size identity files.
+            ok = await rsync_clone(
+                Path(src),
+                Path(auth_dir),
                 exclude_games=True,
+                checksum=True,
             )
             if not ok:
                 logger.error(

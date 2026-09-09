@@ -1,7 +1,7 @@
 /**
  * Library Facets — per-shortcut enrichment data for Steam's native
  * library Sort menu + Library Filters, plus shortcut-keyed
- * Great-on-Deck resolution.
+ * per-device compatibility resolution.
  *
  * Our custom tabs render through Steam's own grid, which sorts and
  * filters purely on `AppOverview` field values. Non-Steam shortcuts
@@ -10,8 +10,8 @@
  * reshape of the metadata/compat caches) and the overview-enrichment
  * layer writes them onto the live overviews.
  *
- * The same records carry `protondb_tier` / `deck_status` keyed by the
- * **shortcut** AppID, so Great-on-Deck no longer depends on fuzzy
+ * The same records carry `protondb_tier` / `compat_status` keyed by the
+ * **shortcut** AppID, so the compat tab no longer depends on fuzzy
  * title matching against the compat cache.
  *
  * Backend keys every record under BOTH the signed and unsigned 32-bit
@@ -21,8 +21,10 @@
 import { call } from "@decky/api";
 import { rpcRoutes } from "../api/rpc-routes";
 import { unwrapRpcEnvelope } from "../api/useRPC";
+import type { CompatTrack } from "./steam-bridge/compat-packed";
+import { getCachedCompatByTitle } from "./protondb-cache";
 import type {
-  DeckVerifiedStatus,
+  CompatStatus,
   GameCompatInfo,
   ProtonDBTier,
 } from "./protondb-cache";
@@ -48,12 +50,19 @@ export interface FacetRecord {
    *  the overview write (see `steam-bridge/overview-enrichment.ts`). */
   date_added_unix: number;
   /** Filter dimensions */
-  deck_category: number; // 0 Unknown · 1 Unsupported · 2 Playable · 3 Verified
+  /** Rating for the device this is running on, already resolved by the
+   *  backend (Valve's category, else our ProtonDB-optimism bump).
+   *  0 Unknown · 1 Unsupported · 2 Playable · 3 Verified. */
+  compat_category: number;
+  compat_status: string;
+  /** Every device's raw category, for the packed bitfield Steam's own
+   *  filters read. Not interchangeable with `compat_category`: the
+   *  SteamOS track uses a different 3-value enum. */
+  compat_categories?: Partial<Record<CompatTrack, number>>;
   store_category: number[];
   store_tag: number[];
-  /** Great-on-Deck (shortcut-keyed compat — no title matching) */
+  /** Shortcut-keyed compat — no title matching */
   protondb_tier: string | null;
-  deck_status: string;
 }
 
 const facetByAppId = new Map<number, FacetRecord>();
@@ -82,19 +91,19 @@ export function getFacetAppIds(): number[] {
 }
 
 /**
- * Derive a `GameCompatInfo` for Great-on-Deck from the shortcut-keyed
- * facet — no title matching. Returns null when this AppID has no
- * facet (caller falls back to the title-keyed compat cache).
+ * Derive a `GameCompatInfo` from the shortcut-keyed facet — no title
+ * matching. Returns null when this AppID has no facet (caller falls
+ * back to the title-keyed compat cache).
  *
- * `deck_status` strings ("verified"/"playable"/"unsupported"/"unknown")
- * line up 1:1 with `DeckVerifiedStatus`.
+ * `compat_status` is already resolved for the running device, so this
+ * needs no device branch of its own.
  */
 export function getCompatByShortcutAppId(appId: number): GameCompatInfo | null {
   const f = facetByAppId.get(appId);
   if (!f) return null;
   return {
     tier: (f.protondb_tier as ProtonDBTier | null) ?? null,
-    deckVerified: (f.deck_status as DeckVerifiedStatus) || "unknown",
+    status: (f.compat_status as CompatStatus) || "unknown",
     steamAppId: f.steam_app_id || null,
   };
 }
@@ -132,4 +141,25 @@ export async function loadFacets(force = false): Promise<void> {
   } catch (e) {
     console.error("[Unifideck] loadFacets failed", e);
   }
+}
+
+/**
+ * Compat for a Unifideck shortcut: facet first, title second.
+ *
+ * The two-step fallback is shared by the library-tab filter and the
+ * plugin's own library view, which each used to carry their own copy.
+ * Facet lookup is authoritative — the backend resolved this shortcut to
+ * a real Steam AppID through the central title matcher, so no fuzzy
+ * match against the lossy `display_name` is needed. The title path only
+ * covers shortcuts the metadata phase has not mapped yet.
+ */
+export function resolveCompatForShortcut(
+  appId: number | null | undefined,
+  title: string | null | undefined,
+): GameCompatInfo | null {
+  if (appId != null) {
+    const byFacet = getCompatByShortcutAppId(appId);
+    if (byFacet) return byFacet;
+  }
+  return title ? getCachedCompatByTitle(title) : null;
 }

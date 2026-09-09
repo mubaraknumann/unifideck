@@ -1,7 +1,5 @@
 """Event bus sub-package — public surface.
 
-OP-09 | py_modules/unifideck/event_bus/__init__.py
-
 Re-exports the canonical event-bus symbols a caller (services, RPC
 mixins, stores) typically reaches for : ``EventBus`` itself, the
 ``EventPriority`` enum, the ``BusPipeline`` orchestrator, and the
@@ -13,10 +11,11 @@ The internal modules (``priority_dispatcher``, ``event_replay``,
 are not re-exported — they're glued together by ``BusPipeline`` and
 the ``EventBus`` constructor, not consumed directly.
 
-Architecture role : Layer 3 of the plan's five-layer model — the
-message backbone. Sits below the service layer (which emits and
-consumes events) and above the cache + config layers (which the bus
-relies on for state).
+Architecture role : the message backbone, at the layer ``event_bus/``
+occupies in the diagram in ``docs/architecture.md`` (authoritative; do
+not restate a layer count here). Sits below the service layer (which
+emits and consumes events) and above the cache + config layers (which
+the bus relies on for state).
 """
 
 from .event_bus import EventBus

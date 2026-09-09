@@ -29,7 +29,7 @@ import { getUnifideckGame } from "../library-filters";
 import { ChangeExecutableModal } from "../../components/modals/ChangeExecutableModal";
 
 /** Stores whose launch target the user can override (see ExecutableRPCMixin). */
-const SUPPORTED_STORES = new Set(["gog", "amazon", "epic"]);
+const SUPPORTED_STORES = new Set(["gog", "amazon", "epic", "gamevault"]);
 
 /** Stable key so re-renders can dedupe our injected item. */
 const MENU_ITEM_KEY = "unifideck-change-exe";

@@ -90,8 +90,22 @@ function escapeRegExp(value: string): string {
 }
 
 /**
- * Strip Unifideck env tokens, the store_game_id and the launcher path from
- * the user's launch_options, keeping only their own wrappers.
+ * The user's own launch-option tokens that are still meaningful in the tail.
+ *
+ * Strips our `UNIFIDECK_*` flags, the store id and the launcher path — and
+ * **drops bare wrapper words**, which is the part that is not obvious.
+ *
+ * A wrapper like `mangohud` only works *before* `%command%`, where Steam
+ * applies it pre-exec: measured on-device (audit §2.9 finding 2), `env
+ * %command% epic:Salt` ran the launcher under `env` and still delivered
+ * `argv[1]`. Everything this function returns is appended **after** the game
+ * key, where a bare word is not a wrapper at all — it is just an argument.
+ * Preserving `mangohud` there achieved nothing, and once `game_args` is
+ * populated (register item 23a) it would have been passed to the *game*.
+ *
+ * `KEY=value` assignments are kept, because those genuinely do work in the
+ * tail — that is the route register item 23 wired, and the only reliable one
+ * for a game running under a forced Proton.
  */
 export function extractUserParams(
   launchOptions: string,
@@ -110,7 +124,13 @@ export function extractUserParams(
       .replace(new RegExp(`"${escLauncher}"`, "g"), "")
       .replace(new RegExp(escLauncher, "g"), "");
   }
-  return cleaned.replace(/\s{2,}/g, " ").trim();
+  // Keep only what still means something after the game key: environment
+  // assignments. A bare token here cannot act as a wrapper (see above).
+  return cleaned
+    .split(/\s+/)
+    .filter((tok) => tok !== "" && /^[A-Za-z_][A-Za-z0-9_]*=/.test(tok))
+    .join(" ")
+    .trim();
 }
 
 /** Compose the launch options string for one run. */
@@ -357,26 +377,46 @@ export async function launchWrapperViaShortcut(
   }
 }
 
-/** Env tokens for one action, including the optional prefix hint. */
+/**
+ * Env tokens for one action, including the optional prefix hint.
+ *
+ * The prefix hint goes to every action EXCEPT `install`, which is the
+ * one that targets a per-game prefix resolved from the store's id map.
+ * The test is deliberately `!== "install"` rather than `=== "auth"`:
+ * `storefront` also runs in the auth prefix, because that is where the
+ * vendor client's own signed-in session lives. Naming only `auth` here
+ * would omit the hint for a shop launch, the launcher would derive the
+ * prefix from `ctx.game_id`, and the client would open into an EMPTY
+ * prefix — a cart press landing on a login screen. See the
+ * `prefixEnvVar` docstring above for the same failure in its original
+ * form.
+ */
 export function wrapperActionEnv(
   config: WrapperShortcutConfig,
   action: string,
 ): Record<string, string> {
   const env: Record<string, string> = { [config.actionEnvVar]: action };
-  if (config.prefixEnvVar && config.authPrefixName && action === "auth") {
+  if (config.prefixEnvVar && config.authPrefixName && action !== "install") {
     env[config.prefixEnvVar] = config.authPrefixName;
   }
   return env;
 }
 
 /**
- * Open the vendor client so the user can sign in.
+ * Open the vendor client, for sign-in or for its own Store/Shop tab.
  *
  * Resolves the persistent auth shortcut through the store's dedicated
  * context route, which ensures the shortcut exists and repairs the VDF.
+ *
+ * `action` is `"auth"` or `"storefront"`; both open the client bare in
+ * the auth prefix, because that prefix holds the session — a wrapper
+ * store has no browser cookies to reuse, so its signed-in shop is the
+ * client's own. The launcher's `_wrapper_handler` maps both to the same
+ * handler for exactly that reason.
  */
 export async function launchWrapperAuthViaShortcut(
   config: WrapperShortcutConfig,
+  action: string = "auth",
 ): Promise<ShortcutLaunchResult> {
   const raw = await call<[], unknown>(config.authContextRoute).catch(
     () => null,
@@ -405,7 +445,7 @@ export async function launchWrapperAuthViaShortcut(
   return launchWrapperViaShortcut(
     config,
     config.authShortcutStoreId,
-    wrapperActionEnv(config, "auth"),
+    wrapperActionEnv(config, action),
     {
       appid_unsigned: authCtx.appid_unsigned,
       launch_wait_ms: authCtx.launch_wait_ms,

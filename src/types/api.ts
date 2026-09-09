@@ -11,12 +11,30 @@
  * The contract is enforced by reviewers, not by tooling
  * (TypeScript can't see Python).
  */
-/** A single Steam Deck verification test result row in the
- *  compatibility details modal. ``passed === true`` renders a
- *  green checkmark; ``false`` renders a yellow warning. */
-export interface DeckTestResult {
-  text: string;
+import type { CompatTrack } from "../lib/steam-bridge/compat-packed";
+
+/** One verification test-result row in the compatibility details
+ *  modal. ``passed === true`` renders a green checkmark; ``false``
+ *  renders a yellow warning.
+ *
+ *  Carries Valve's own ``loc_token``, localised at render time through
+ *  the Steam client (see ``lib/compat-tokens.ts``). ``text`` appears
+ *  only on cache entries written before that rework and holds
+ *  pre-resolved English. */
+export interface CompatTestResult {
+  token?: string;
+  text?: string;
   passed: boolean;
+}
+
+/** One device's rating for a game. */
+export interface CompatTrackInfo {
+  /** ``0`` unknown, ``1`` unsupported, ``2`` playable, ``3`` verified.
+   *  For the ``steamos`` track ``2`` means "SteamOS Compatible" and
+   *  ``3`` is never used. */
+  category: 0 | 1 | 2 | 3;
+  status: string;
+  test_results: CompatTestResult[];
 }
 
 /** Rich display metadata for the game info panel — sourced from
@@ -40,9 +58,13 @@ export interface GameMetadata {
   release_date: string;
   metacritic: number | null;
   description: string;
-  /** ``0`` unknown, ``1`` unsupported, ``2`` playable, ``3`` verified. */
-  deck_compatibility: 0 | 1 | 2 | 3;
-  deck_test_results: DeckTestResult[];
+  /** Which rating track describes the device this is running on —
+   *  resolved by the backend from DMI, so the UI never guesses. */
+  compat_device: CompatTrack;
+  /** Every device's rating, keyed by track. Shipping all of them costs
+   *  nothing at one game and leaves room to show cross-device ratings
+   *  without another RPC. */
+  compat: Record<CompatTrack, CompatTrackInfo>;
   genres: string[];
   homepage_url?: string;
   /** Whether THIS store's copy of the game has native cloud saves.
@@ -76,7 +98,6 @@ export interface Game {
   ownership_type?: OwnershipType;
   store_tags?: GameTag[];
   size_bytes?: number;
-  deck_rating?: DeckRating;
 }
 
 /** One achievement (definition + this user's unlock status). */
@@ -149,14 +170,44 @@ export interface DownloadResult extends Result {
   queued: boolean;
 }
 
-/** Per-store status block returned by `check_store_status`. */
+/**
+ * One entry of the `get_store_infos` payload.
+ *
+ * This interface used to declare `icon` and `auth_status`, **neither of
+ * which the backend has ever sent** — `StoreInfo` carries `icon_asset`, and
+ * auth state comes from the separate `check_store_status` route keyed by
+ * `store_id`. Four fields that *were* sent went undeclared. A type that
+ * matches an unread payload is still a lie, so this now mirrors the wire
+ * shape exactly (audit register item 26).
+ *
+ * The `supports_*` / `has_*` flags are derived server-side from
+ * `core/store_capabilities.py` and are the reason the frontend no longer
+ * hand-maintains its own per-store lists — the audit found sixteen of those
+ * with a single machine-checked pair between them. Read a capability off
+ * here (see `useStoreCapability`) rather than writing a new `Set([...])`.
+ */
 export interface StoreInfo {
   name: StoreId;
   display_name: string;
-  icon: string;
+  auth_method: string;
+  icon_asset: string;
+  supports_install: boolean;
   available: boolean;
-  auth_status: StoreStatus;
+  client_runs_in_prefix: boolean;
+  supports_achievements: boolean;
+  supports_cloud_saves: boolean;
+  has_language_picker: boolean;
+  has_browser_storefront: boolean;
 }
+
+/** Capability keys carried by {@link StoreInfo}. */
+export type StoreCapability =
+  | "supports_install"
+  | "supports_achievements"
+  | "supports_cloud_saves"
+  | "has_language_picker"
+  | "has_browser_storefront"
+  | "client_runs_in_prefix";
 
 /**
  * Discriminator for which store a Game/Auth/Download
@@ -175,7 +226,8 @@ export type StoreId =
   | "amazon"
   | "microsoft"
   | "ubisoft"
-  | "battlenet";
+  | "battlenet"
+  | "gamevault";
 
 /**
  * Per-store availability + auth state, returned by
@@ -213,11 +265,3 @@ export type GameTag =
   // Xbox Cloud Gaming title — streamed in a browser, never installed.
   // Drives the "Play on Cloud" play-section variant.
   | "xcloud";
-
-/**
- * Steam Deck verification rating, as returned by
- * Valve's Deck Verified compatibility report (or
- * inferred from ProtonDB community grades when
- * Valve has no rating yet).
- */
-export type DeckRating = "verified" | "playable" | "unsupported" | "unknown";

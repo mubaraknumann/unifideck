@@ -1,8 +1,6 @@
 """
 Canonical identity grouping and DLC/edition dedup.
 
-OP-57d | py_modules/unifideck/stores/ubisoft/library/identity_resolver.py
-
 Split out of ``game_builder.py`` (was pushing it over the volumetry file
 cap). Groups cleaned UPC entries into canonical ``(base_game,
 edition_tag)`` identities so a game reported under multiple space_ids
@@ -44,7 +42,6 @@ _BASE_EDITION_WORDS = frozenset({"standard"})
 # :meth:`_IdentityResolver._parent_matches` is allowed to fire — short
 # prefixes ("the", "tom") match far too eagerly.
 _MIN_SUBSTRING_PARENT_LEN = 5
-
 
 class _IdentityResolver:
     """Canonical identity grouping and DLC/edition classification."""

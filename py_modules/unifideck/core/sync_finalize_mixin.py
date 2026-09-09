@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any
 from .types import Events, Game, SyncResult
 
 if TYPE_CHECKING:
+    from unifideck.core.sync_generation import SyncGeneration
     from unifideck.core.sync_progress import SyncProgress
     from unifideck.event_bus import EventBus
     from unifideck.stores import StoreRegistry
@@ -44,6 +45,7 @@ class _SyncFinalizeMixin:
     _progress: SyncProgress
     _post_sync_pending: set[str]
     _registered_phases: set[str]
+    _generation: SyncGeneration
     _watchdog_task: asyncio.Task[None] | None
     _cache_snapshot: dict[str, dict[str, Any]] | None
 
@@ -91,6 +93,10 @@ class _SyncFinalizeMixin:
         self._all_games = libraries
         total_games = sum(len(g) for g in libraries.values())
         self._progress.set_library_totals(total_games)
+        skip_chain = self._chain_is_redundant(
+            libraries, total_games,
+            is_force=is_force, resync_artwork=resync_artwork,
+        )
         self._arm_artwork_phase(fetch_artwork, total_games)
         self._last_sync_time = time.time()
         self._save_library_cache()
@@ -101,11 +107,56 @@ class _SyncFinalizeMixin:
             fetch_artwork=fetch_artwork,
             resync_artwork=resync_artwork,
             is_force=is_force,
+            skip_chain=skip_chain,
         )
         # Successful finalize — release the snapshot so the GC can
         # reclaim it before the post-sync phases fill caches afresh.
         self._cache_snapshot = None
         return result
+
+    def _record_chain_complete(self) -> None:
+        """Remember what the just-finished post-sync chain covered.
+
+        Called only from the drain site's non-cancelled branch. Recording a
+        chain that was cancelled part-way would let the next identical run
+        skip work that never actually happened — which is precisely the
+        state that left thirteen Ubisoft games with no artwork.
+        """
+        self._generation.record_chain_complete(
+            frozenset(self._all_games.keys()),
+            sum(len(g) for g in self._all_games.values()),
+        )
+
+    def _chain_is_redundant(
+        self,
+        libraries: dict[str, list[Game]],
+        total_games: int,
+        *,
+        is_force: bool,
+        resync_artwork: bool,
+    ) -> bool:
+        """Whether the post-sync chain would repeat the last completed one.
+
+        Logging into six stores back to back produced seven syncs, each
+        re-running metadata → artwork → compat over the whole cumulative
+        library. The seventh covered exactly the store set and game count
+        of the sixth and reconciled ``added=0 removed=0``; its chain was
+        pure waste. This is the gate that skips that case.
+
+        A force or artwork-resync never skips: both exist precisely to
+        redo work the caches would otherwise short-circuit.
+        """
+        if is_force or resync_artwork:
+            return False
+        stores = frozenset(libraries.keys())
+        redundant = self._generation.chain_is_redundant(stores, total_games)
+        if redundant:
+            logger.info(
+                "[SyncService] post-sync chain skipped — %d games across "
+                "%d store(s), unchanged since the last completed chain",
+                total_games, len(stores),
+            )
+        return redundant
 
     def _arm_artwork_phase(self, fetch_artwork: bool, total_games: int) -> None:
         """Seed ``_post_sync_pending``; start the artwork phase if fetching.
@@ -148,22 +199,39 @@ class _SyncFinalizeMixin:
         fetch_artwork: bool,
         resync_artwork: bool,
         is_force: bool,
+        skip_chain: bool = False,
     ) -> None:
         """Emit SYNC_COMPLETE (UI) + LIBRARY_SYNC_COMPLETED (activity log)."""
         await self._bus.emit(
             Events.SYNC_COMPLETE,
             games=result.games,
+            # Every store this run actually fetched, errored or not.
+            # ``ShortcutService`` subtracts ``errors`` from this to decide
+            # whose stale shortcuts it may sweep, so the two must stay
+            # consistent — see ``shortcut/events._sweepable_stores``.
+            #
+            # A ``registered_stores`` key used to ride along here so the
+            # reconcile could sweep a store that never answered. It was
+            # removed rather than left unread: keeping it would invite the
+            # next reader to re-adopt a rule that deleted a signed-out
+            # store's entire library (audit §3.5, finding B).
             stores_synced=list(libraries.keys()),
-            # Every registered store, not just the ones that returned
-            # games — lets ShortcutService.reconcile sweep stale
-            # shortcuts for a logged-out / empty store (phantom Ubisoft
-            # entries, the legacy microsoft:ms-auth row).
-            registered_stores=self._registry.store_ids(),
             errors=errors,
             duration_ms=duration_ms,
             fetch_artwork=fetch_artwork,
             resync_artwork=resync_artwork,
             is_force=is_force,
+            # Generation tag. Every post-sync module forwards the whole
+            # SYNC_COMPLETE payload as ``sync_kwargs`` on its phase-done
+            # event, so putting it here is what lets the drain sites tell
+            # a live phase-done from a superseded run's.
+            run_id=self._generation.run_id,
+            # "Nothing changed since the last completed chain" — each of
+            # metadata / artwork / compat then reports its phase done
+            # without doing the work. Reconcile still runs regardless:
+            # install-state flips change what belongs in shortcuts.vdf
+            # without changing the store set or the game count.
+            skip_chain=skip_chain,
         )
         await self._bus.emit(
             Events.LIBRARY_SYNC_COMPLETED,

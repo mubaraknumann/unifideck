@@ -24,6 +24,12 @@ Pass strategy
    any pass if it clears the lower threshold. Logged at INFO so
    regressions in match quality are visible.
 
+Every pass scores only candidates that survive
+:func:`_reject_version_mismatch`, which drops any result whose sequel
+number differs from the original title's. Without it the 0.50 fuzzy
+floor accepted siblings — all of "The Settlers 2/5/6 - History
+Edition" resolved to Settlers 7's artwork.
+
 If all 6 passes fail, returns ``None`` and the caller falls through
 to Steam CDN.
 """
@@ -37,6 +43,7 @@ from unifideck.utils.title_match import (
     normalize_for_match,
     score_match,
     strip_edition_suffix,
+    version_tokens,
 )
 
 from .constants import PUBLISHER_PREFIXES
@@ -98,6 +105,72 @@ async def _autocomplete(
         return []
     data = payload.get("data") or []
     return data if isinstance(data, list) else []
+
+
+def _reject_version_mismatch(
+    results: list[dict[str, Any]],
+    want: frozenset[str],
+) -> list[dict[str, Any]]:
+    """Drop candidates whose sequel number differs from the query's.
+
+    A hard gate, applied to every result set before any pass scores it.
+    The scoring passes cannot do this themselves: "the settlers 5
+    history edition" vs "the settlers 7 history edition" is a Jaccard
+    0.67 — comfortably above pass 6's 0.50 fuzzy floor — so the fuzzy
+    fallback happily returned Settlers 7's art for Settlers 2, 5 and 6.
+
+    ``want`` MUST come from the original title, never from the current
+    pass's query string: pass 4 re-queries with the edition-stripped
+    base, which no longer carries the number, and anchoring there just
+    reintroduces the bug one layer down (it collapsed 2/5/6 onto plain
+    "The Settlers" in testing).
+
+    Absence is itself a value — a query with no number keeps only
+    candidates with no number, so "The Settlers" stops matching "The
+    Settlers 7". Callers prefer no art over another game's art.
+
+    Both sides are measured on the *edition-stripped* base, the same
+    way :func:`~unifideck.utils.title_match.titles_match` does it, so a
+    tag that merely contains a number is not read as a sequel number.
+    Measuring the raw title instead cost real artwork: "Rise of the Tomb
+    Raider: 20 Year Celebration" wanted version "20" and "A New Frontier
+    - Episode 1" wanted version "1", so both filtered away the very
+    entry they had been matching correctly.
+    """
+    return [
+        item for item in results
+        if _versions_of(str(item.get("name", ""))) == want
+    ]
+
+
+def _versions_of(title: str) -> frozenset[str]:
+    """Version tokens of a title, measured on its edition-stripped base."""
+    return version_tokens(strip_edition_suffix(normalize_for_match(title)))
+
+
+def _without_publisher(norm: str) -> set[str]:
+    """Words of a normalised title, minus any leading publisher prefix."""
+    for prefix in PUBLISHER_PREFIXES:
+        if norm.startswith(prefix + " "):
+            return set(norm[len(prefix):].split())
+    return set(norm.split())
+
+
+def _shares_a_distinctive_word(
+    forms: list[tuple[str, str]],
+    item: dict[str, Any],
+) -> bool:
+    """Whether a candidate overlaps the query beyond a publisher prefix.
+
+    Guard for the 0.50 fuzzy floor only. "EA SPORTS WRC" and "EA Sports
+    UFC" share two of four words, which is enough to clear that floor —
+    but both words are the publisher, and the parts naming the actual
+    game ("wrc" / "ufc") have nothing in common. Requiring one shared
+    non-publisher word keeps the fallback useful for truncated or noisy
+    titles while refusing a match built purely on branding.
+    """
+    cand = _without_publisher(normalize_for_match(str(item.get("name", ""))))
+    return any(_without_publisher(norm) & cand for norm, _base in forms)
 
 
 def _query_forms(title: str) -> list[tuple[str, str]]:
@@ -202,6 +275,7 @@ async def _pass4_retry_base(
     query_base: str,
     forms: list[tuple[str, str]],
     timeout_sec: int,
+    want: frozenset[str],
 ) -> tuple[int | None, list[dict[str, Any]]]:
     """Pass 4: re-query SGDB with the edition-stripped title.
 
@@ -209,8 +283,9 @@ async def _pass4_retry_base(
     is forwarded to the fuzzy fallback in pass 6 so we don't waste the
     extra round-trip.
     """
-    retry = await _autocomplete(
-        session, base, api_key, query_base, timeout_sec,
+    retry = _reject_version_mismatch(
+        await _autocomplete(session, base, api_key, query_base, timeout_sec),
+        want,
     )
     found = _best_exact_or_edition(retry, forms)
     if found is not None:
@@ -235,6 +310,7 @@ async def _pass5_publisher_prefix(
     api_key: str,
     query_base: str,
     timeout_sec: int,
+    want: frozenset[str],
 ) -> int | None:
     """Pass 5: strip a known publisher prefix and re-query.
 
@@ -248,8 +324,9 @@ async def _pass5_publisher_prefix(
         short = query_base[len(prefix):].strip()
         if not short:
             return None
-        prefix_results = await _autocomplete(
-            session, base, api_key, short, timeout_sec,
+        prefix_results = _reject_version_mismatch(
+            await _autocomplete(session, base, api_key, short, timeout_sec),
+            want,
         )
         for item in prefix_results:
             name = str(item.get("name", ""))
@@ -264,6 +341,34 @@ async def _pass5_publisher_prefix(
                     )
                     return coerced
         return None
+    return None
+
+
+def _pass6_fuzzy_fallback(
+    results: list[dict[str, Any]],
+    forms: list[tuple[str, str]],
+    title: str,
+) -> int | None:
+    """Pass 6: fuzzy fallback @ 0.50 across the last result set we have.
+
+    Candidates that overlap the query ONLY through a shared publisher
+    prefix are dropped first — "EA SPORTS WRC" vs "EA Sports UFC" is a
+    Jaccard 0.5 on the strength of "ea sports" alone, which cleared the
+    floor and put UFC artwork on a rally game.
+    """
+    score, hit = _best_scored(
+        [i for i in results if _shares_a_distinctive_word(forms, i)],
+        forms, 0.50,
+    )
+    if hit is not None:
+        logger.info(
+            "[sgdb.search] fuzzy match: %r → id=%d (score=%.2f)",
+            title, hit, score,
+        )
+        return hit
+    logger.debug(
+        "[sgdb.search] no match for %r (best score=%.2f)", title, score,
+    )
     return None
 
 
@@ -289,9 +394,18 @@ async def search_game_id(
     forms = _query_forms(title)
     # query_base drives the pass-4 re-query string (edition-stripped).
     query_base = forms[0][1]
+    # Sequel discriminator from the ORIGINAL title — see
+    # _reject_version_mismatch for why it must not come from a pass's
+    # own (already stripped) query string. forms[0][1] is that title's
+    # edition-stripped base, which is what keeps an edition tag that
+    # contains a number ("20 Year Celebration") from reading as one.
+    want = version_tokens(forms[0][1])
 
     # Pass 1+2: cleaned-query autocomplete → exact + edition match
-    results = await _autocomplete(session, base, api_key, cleaned, timeout_sec)
+    results = _reject_version_mismatch(
+        await _autocomplete(session, base, api_key, cleaned, timeout_sec),
+        want,
+    )
     found = _best_exact_or_edition(results, forms)
     if found is not None:
         return found
@@ -308,7 +422,7 @@ async def search_game_id(
     # Pass 4: retry with edition-stripped query
     if query_base and query_base != cleaned.lower():
         hit, retry = await _pass4_retry_base(
-            session, base, api_key, query_base, forms, timeout_sec,
+            session, base, api_key, query_base, forms, timeout_sec, want,
         )
         if hit is not None:
             return hit
@@ -317,21 +431,9 @@ async def search_game_id(
 
     # Pass 5: publisher-prefix strip
     prefix_hit = await _pass5_publisher_prefix(
-        session, base, api_key, query_base, timeout_sec,
+        session, base, api_key, query_base, timeout_sec, want,
     )
     if prefix_hit is not None:
         return prefix_hit
 
-    # Pass 6: fuzzy fallback @ 0.50 across the last result set we have
-    score6, id6 = _best_scored(results, forms, 0.50)
-    if id6 is not None:
-        logger.info(
-            "[sgdb.search] fuzzy match: %r → id=%d (score=%.2f)",
-            title, id6, score6,
-        )
-        return id6
-    logger.debug(
-        "[sgdb.search] no match for %r (best score=%.2f)",
-        title, score6,
-    )
-    return None
+    return _pass6_fuzzy_fallback(results, forms, title)

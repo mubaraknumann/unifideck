@@ -27,7 +27,17 @@ def resolve_registry_prefix(prefix_root: PathLike) -> Path:
         return pfx
     return root
 def resolve_drive_c(prefix_root: PathLike) -> Path | None:
-    """Resolve drive c."""
+    """Resolve a prefix's ``drive_c`` across both layouts, or ``None``.
+
+    umu creates ``pfx -> .`` as a self-symlink, so ``<prefix>/drive_c`` and
+    ``<prefix>/pfx/drive_c`` are the same directory — and both spellings
+    occur in the wild. The naive combine is what made Ubisoft's recovery path
+    fail to find a ``upc.exe`` that was genuinely present.
+
+    (That explanation came from a copy of this function in
+    ``launcher/wrapper_session_specs.py``; the copy is gone, the reasoning
+    is not. Audit register item 47.)
+    """
     root = Path(prefix_root) if isinstance(prefix_root, str) \
         else prefix_root
     modern = root / "pfx" / "drive_c"

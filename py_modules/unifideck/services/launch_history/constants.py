@@ -1,7 +1,5 @@
 """Launch history constants.
 
-OP-21f | py_modules/unifideck/services/launch_history/constants.py
-
 Small set of constants used across the launch_history sub-package
 (file names, max retention size, default thresholds).
 """

@@ -7,11 +7,13 @@
  * two Steam globals not abstracted by `SteamBridge` because the
  * collection APIs are too coupled to Steam's React tree to project.
  */
+import i18n from "i18next";
 import {
   getUnifideckTabs,
   isTabMasterInstalled,
   type UnifideckTab,
 } from "./tab-container";
+import { COMPAT_TAB_TITLE_KEYS, awaitDeviceType } from "../device-type";
 import { runFilters } from "../library-filters";
 import { EventBusClient } from "../../api/event-bus-client";
 import { Events } from "../../types/events";
@@ -211,8 +213,22 @@ function tabName(tab: UnifideckTab): string {
   return `${COLLECTION_PREFIX}${tab.title}`;
 }
 
+/**
+ * Names `cleanupStaleCollections` must NOT delete.
+ *
+ * The compat tab's title is named after the device ("Great on Deck" vs
+ * "Great on Machine"), but collections are account-global and synced
+ * through Steam Cloud. So a user with both a Deck and a Steam Machine
+ * would have each device treat the other's compat collection as stale
+ * and delete it, on every boot, forever. Recognise all three device
+ * names as valid even though only the local one is ever created.
+ */
 function validCollectionNames(): Set<string> {
-  return new Set(getUnifideckTabs().map(tabName));
+  const names = new Set(getUnifideckTabs().map(tabName));
+  for (const key of COMPAT_TAB_TITLE_KEYS) {
+    names.add(`${COLLECTION_PREFIX}${i18n.t(key)}`);
+  }
+  return names;
 }
 
 async function deleteCollection(c: Collection): Promise<void> {
@@ -317,6 +333,17 @@ async function syncTab(
 export async function syncUnifideckCollections(): Promise<void> {
   if (!isCollectionsEnabled()) return;
   if (!isCollectionsAvailable()) return;
+  // Collection names are device-specific ("Great on Deck" vs "Great on
+  // Machine") AND account-global + cloud-synced. This runs at plugin
+  // init, before the device-type RPC has answered, so without this
+  // await a Steam Machine would create "[Unifideck] Great on Deck" from
+  // the cached default and push it to every device on the account —
+  // where it is indistinguishable from a real sibling device's
+  // collection, and so deliberately never cleaned up.
+  //
+  // Transient UI is allowed to be briefly wrong and self-correct.
+  // Persistent cloud state is not.
+  await awaitDeviceType();
   await cleanupStaleCollections();
   const cs = getCollectionStore();
   if (!cs) return;
@@ -458,10 +485,26 @@ export function startCollectionManager(): CollectionManagerHandle {
 
   // Install/uninstall used to reach the collections only via the NEXT library
   // sync (or a Steam restart), so "[Unifideck] Installed" — and any TabMaster
-  // tab built on it — lagged behind reality. Both bus events already existed
-  // with no frontend consumer; rebuilding on them makes membership track the
-  // library live. Debounced because a multi-game operation emits a burst and
-  // each rebuild walks every collection.
+  // tab built on it — lagged behind reality.
+  //
+  // This listened on GAME_INSTALLED, which has NO backend emitter: its only
+  // emit site sat in `core/manifest.py`'s `discover_all`, which nothing calls.
+  // So installs never reached the collections while uninstalls did (via
+  // GAME_UNINSTALLED, which every store's uninstall path really emits) — the
+  // exact lag this block claimed to fix. SHORTCUT_INSTALL_STATE_CHANGED is the
+  // live event: `ShortcutService.mark_installed` / `mark_uninstalled` emit it in
+  // both directions, and `cleanup_finalize` emits it per cleared game.
+  // GAME_UNINSTALLED is kept as well — redundant under the debounce, but it
+  // covers the edge where `mark_uninstalled` finds no shortcut and returns
+  // without emitting.
+  //
+  // Debounced because a multi-game operation emits a burst and each rebuild
+  // walks every collection. The delay is also load-bearing for correctness:
+  // `runFilters` reads the install status that `lib/library-filters` keeps in
+  // memory, and library-filters flips it from ITS OWN subscription to this same
+  // event. Handlers for one poll run synchronously, so deferring the rebuild
+  // guarantees it observes the flip. Lowering this toward 0 would make the
+  // rebuild race that update and silently omit the just-installed game.
   let installDebounce: number | undefined;
   const onInstallChange = () => {
     window.clearTimeout(installDebounce);
@@ -473,7 +516,10 @@ export function startCollectionManager(): CollectionManagerHandle {
     if (syncAttached) return;
     window.addEventListener("unifideck-sync-completed", onSync);
     unsubInstallEvents = [
-      EventBusClient.subscribe(Events.GAME_INSTALLED, onInstallChange),
+      EventBusClient.subscribe(
+        Events.SHORTCUT_INSTALL_STATE_CHANGED,
+        onInstallChange,
+      ),
       EventBusClient.subscribe(Events.GAME_UNINSTALLED, onInstallChange),
     ];
     syncAttached = true;

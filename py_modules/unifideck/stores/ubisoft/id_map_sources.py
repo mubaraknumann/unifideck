@@ -1,8 +1,6 @@
 """
 Crowd-sourced Ubisoft game-ID lookup tables — download & cache.
 
-OP-55h | py_modules/unifideck/stores/ubisoft/id_map_sources.py
-
 Ubisoft does not publish a public mapping from UPC ``space_id`` to
 human-readable game name; we rely on a community-maintained list hosted
 on GitHub (``iArtorias/ubisoft_game_ids``).
@@ -58,100 +56,6 @@ _STANDARD_INSTALL_PATH_MARKERS = (
     "Ubisoft Game Launcher/games/",
     "Ubisoft Game Launcher\\games\\",
 )
-# space_id ↔ ubisoftConnectGameId pairs as stored (JSON-ish) inside UPC's
-# localStorage leveldb. The gap between the two keys is bounded so the
-# DOTALL scan can't backtrack catastrophically across a multi-MB blob
-# (staging used an unbounded ``.*?`` here).
-_LEVELDB_GAP = r"[^\x00]{0,4000}?"
-_SPACE_THEN_CONNECT = re.compile(
-    r'"spaceId"\s*:\s*"([a-f0-9-]+)"' + _LEVELDB_GAP + r'"ubisoftConnectGameId"\s*:\s*(\d+)',
-    re.IGNORECASE,
-)
-_CONNECT_THEN_SPACE = re.compile(
-    r'"ubisoftConnectGameId"\s*:\s*(\d+)' + _LEVELDB_GAP + r'"spaceId"\s*:\s*"([a-f0-9-]+)"',
-    re.IGNORECASE,
-)
-# Cap per-file read + decode + regex work. localStorage leveldb entries
-# are small (KB–low-MB); anything larger is cache spill we shouldn't
-# scan synchronously during a library fetch (it would stall the sync).
-_MAX_LEVELDB_FILE_BYTES = 16 * 1024 * 1024
-
-
-def extract_cache_game_ids(
-    prefix_path: str,
-    localstorage_relative_path: str,
-) -> dict[str, str]:
-    """Map ``space_id`` → ``ubisoftConnectGameId`` from UPC's leveldb cache.
-
-    Ubisoft Connect stores the canonical deeplink id (the value
-    ``uplay://launch/{id}/0`` expects) in its localStorage leveldb. This
-    is more reliable for native games than the configurations launch_id
-    or a community-DB name match. Both Wine layouts (root and ``pfx/``)
-    are probed; the first that yields any pairs wins. All read/parse
-    errors degrade to an empty/partial result — never an exception.
-    """
-    result: dict[str, str] = {}
-    prefix = Path(prefix_path)
-    for layout in ("", "pfx"):
-        base = prefix / layout if layout else prefix
-        leveldb = base / localstorage_relative_path / "leveldb"
-        if not leveldb.is_dir():
-            continue
-        _scan_leveldb_dir(leveldb, result)
-        if result:
-            logger.info(
-                "[UbisoftIdMap] extracted %d ubisoftConnectGameId mappings from cache",
-                len(result),
-            )
-            return result
-    return result
-
-
-def _scan_leveldb_dir(leveldb: Path, result: dict[str, str]) -> None:
-    """Scan every ``*.ldb``/``*.log`` file in a leveldb dir into ``result``.
-
-    Oversized files are skipped (cache spill we must not parse synchronously
-    during a library fetch); read errors degrade to a skip. Mutates
-    ``result`` in place via :func:`_extract_ids_from_binary`.
-    """
-    files = sorted(leveldb.glob("*.ldb")) or sorted(leveldb.glob("*.log"))
-    for ldb_file in files:
-        try:
-            if ldb_file.stat().st_size > _MAX_LEVELDB_FILE_BYTES:
-                logger.debug(
-                    "[UbisoftIdMap] skipping oversized leveldb file %s",
-                    ldb_file,
-                )
-                continue
-            content = ldb_file.read_bytes()
-        except OSError as e:
-            logger.debug(
-                "[UbisoftIdMap] leveldb read failed for %s: %s",
-                ldb_file,
-                e,
-            )
-            continue
-        _extract_ids_from_binary(content, result)
-
-
-def _extract_ids_from_binary(data: bytes, result: dict[str, str]) -> None:
-    """Pull ``spaceId``/``ubisoftConnectGameId`` pairs from a leveldb blob.
-
-    The cache stores the pair in either order, so both are scanned. The
-    first id seen for a space_id wins (``setdefault``).
-    """
-    decoded = data.decode("utf-8", errors="ignore")
-    for pattern, space_group, id_group in (
-        (_SPACE_THEN_CONNECT, 1, 2),
-        (_CONNECT_THEN_SPACE, 2, 1),
-    ):
-        for match in pattern.finditer(decoded):
-            space_id = match.group(space_group)
-            connect_id = match.group(id_group)
-            if space_id and connect_id:
-                result.setdefault(space_id, connect_id)
-
-
 def extract_game_id_from_registry(
     prefix_path: str,
 ) -> str | None:
@@ -174,7 +78,6 @@ def extract_game_id_from_registry(
             return user_id
     return None
 
-
 def read_reg_file(reg_path: str) -> str | None:
     """Read reg file."""
     try:
@@ -184,7 +87,6 @@ def read_reg_file(reg_path: str) -> str | None:
         )
     except OSError:
         return None
-
 
 def scan_system_reg_installs(content: str) -> str | None:
     """Scan system reg installs."""
@@ -211,7 +113,6 @@ def scan_system_reg_installs(content: str) -> str | None:
         return fallback_id
     return None
 
-
 def extract_id_from_user_reg_sibling(
     reg_path: str,
 ) -> str | None:
@@ -233,7 +134,6 @@ def extract_id_from_user_reg_sibling(
         )
         return game_id
     return None
-
 
 class _IdMapSources:
     """Id map sources."""
@@ -461,7 +361,6 @@ class _IdMapSources:
                 return install_id
         return None
 
-
 def _download_game_id_database(
     url: str,
     dest_path: str,
@@ -493,7 +392,6 @@ def _download_game_id_database(
             f.write(chunk)
     tmp_path.replace(dest_p)
 
-
 def _parse_uuid_catalog(filepath: str) -> dict[str, str]:
     """Parse unifiDB's ``uuid_catalog.json`` into ``uuid → name``.
 
@@ -516,7 +414,6 @@ def _parse_uuid_catalog(filepath: str) -> dict[str, str]:
         if isinstance(uuid, str) and isinstance(name, str) and name:
             out[uuid] = name
     return out
-
 
 def _parse_game_id_database(
     filepath: str,

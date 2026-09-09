@@ -1,8 +1,6 @@
 """
 UPC binary resolution — find the right executable for the install in a prefix.
 
-OP-55d | py_modules/unifideck/stores/ubisoft/binaries.py
-
 ``UbisoftBinaryResolver`` locates the Ubisoft Connect / UPC executable
 inside a Wine prefix. Modern UPC ships ``UbisoftConnect.exe`` (Electron-
 based UI) and a legacy ``upc.exe`` (the original launcher); newly
@@ -55,7 +53,6 @@ _STEAM_COMMON_CANDIDATES = (
     str(Path("~") / ".steam" / "root" / "steamapps" / "common"),
 )
 _COMPAT_TOOLS_DIR = "~/.local/share/Steam/compatibilitytools.d"
-
 
 class UbisoftBinaryResolver:
     """Ubisoft binary resolver."""
@@ -153,9 +150,9 @@ class UbisoftBinaryResolver:
         directory. Getting that wrong hands umu a path it cannot use.
         """
         try:
-            from unifideck.launcher.proton.infrastructure import ge_installer
+            from unifideck.launcher.proton.infrastructure import ge_installer, ge_marker
 
-            tag = ge_installer.read_cached_latest_tag()
+            tag = ge_marker.read_cached_latest_tag()
             script = ge_installer.installed_ge_proton_path(tag) if tag else None
         except Exception:
             logger.debug(

@@ -92,23 +92,14 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+# ``prefix_layout`` is stdlib-only (logging + pathlib) and its package
+# ``__init__`` is empty, so importing it here does not drag the Proton
+# stack into the plugin-side importers of this module.
+from unifideck.launcher.proton.infrastructure.prefix_layout import (
+    resolve_drive_c,
+)
+
 GAMES_DIR_NAME = "games"
-
-
-def resolve_drive_c(prefix: Path | str) -> Path | None:
-    """Resolve a prefix's ``drive_c`` across both layouts, or None.
-
-    umu creates ``pfx -> .`` as a self-symlink, so ``<prefix>/drive_c`` and
-    ``<prefix>/pfx/drive_c`` are the same directory — and both spellings
-    occur in the wild. The naive combine is what made Ubisoft's recovery path
-    fail to find a ``upc.exe`` that was genuinely present.
-    """
-    root = Path(prefix)
-    modern = root / "pfx" / "drive_c"
-    if modern.is_dir():
-        return modern
-    legacy = root / "drive_c"
-    return legacy if legacy.is_dir() else None
 
 
 @dataclass(frozen=True, slots=True)

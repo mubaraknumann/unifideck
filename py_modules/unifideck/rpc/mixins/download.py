@@ -1,18 +1,15 @@
 """Download RPC mixin for Plugin class.
 
-OP-26i | py_modules/unifideck/rpc/mixins/download.py
+Carries two related surfaces:
 
-Mixin merging two slices that the handler groups split apart:
-
-* per-game lifecycle (``install_game`` / ``uninstall_game`` /
-  ``check_game_update``) — these live in ``StoreHandlers`` in
-  the newer API;
-* download-queue management (``cancel_download`` /
-  ``get_download_queue``) — these live in ``DownloadHandlers``.
+* per-game lifecycle — ``install_game`` / ``uninstall_game`` /
+  ``update_game``;
+* download-queue management — ``cancel_download`` /
+  ``get_download_queue``.
 
 Storage-location RPCs (``get_storage_locations``,
 ``set_default_storage_location``, ``set_custom_install_path``)
-live in a sibling ``StorageRPCMixin`` (OP-26j); this file only
+live in a sibling ``StorageRPCMixin``; this file only
 resolves a chosen storage id to a filesystem path.
 
 Two private helpers centralise the null checks:
@@ -43,7 +40,6 @@ from unifideck.services import update_check_cache
 from unifideck.utils import mount_naming, mounts
 
 logger = logging.getLogger(__name__)
-
 
 class DownloadRPCMixin:
     """Game install/uninstall, download queue, and storage locations."""
@@ -123,6 +119,7 @@ class DownloadRPCMixin:
         # the game's own language codes, matched exactly downstream).
         # Other stores don't send this.
         language = opts.pop("language", None)
+        download_dir: str = opts.pop("download_dir", "") or ""
 
         logger.info(
             "[download] install_game store=%s game_id=%s storage=%s "
@@ -141,6 +138,7 @@ class DownloadRPCMixin:
             is_update=False,
             language=language,
             required_bytes=required_bytes,
+            download_dir=download_dir,
         )
         return {"success": result.success, "error": result.error}
 
@@ -171,7 +169,7 @@ class DownloadRPCMixin:
         """Queue an update for an already-installed game.
 
         Triggered by the Play→Update button, which only appears
-        when ``check_game_update`` reported an available update.
+        when ``get_available_updates`` listed this game as stale.
         Resolves the Steam ``app_id`` back to its ``(store,
         game_id, install_path)`` via the sync layer, then enqueues
         with ``is_update=True`` so the worker dispatches to
@@ -264,58 +262,35 @@ class DownloadRPCMixin:
         await asyncio.to_thread(marker_sweep.sweep_game, store, game_id)
         return result
 
-    async def check_game_update(self, store: str, game_id: str) -> Any:
-        """Check whether a specific game has an update available.
-
-        :meth:`StoreBase.check_for_updates` is bulk (no args) and
-        returns a ``list[str]`` of game ids with pending updates.
-        Earlier this mixin called ``check_update(game_id)`` which
-        matched neither the name nor the signature.
-
-        **This never blocks on a store round-trip.** It reads whatever
-        :class:`~unifideck.services.update_sweep.UpdateSweepService` last
-        cached and returns immediately. Answering a page open by running
-        the scan inline is what made the Update button take 5-10 s to
-        appear — long enough for the user to have pressed Play already.
-
-        On a cold cache (before the boot sweep has run) it reports "no
-        update" and schedules a background scan; the button arrives via
-        ``GAME_UPDATE_AVAILABLE`` when that lands. ``pending`` tells the
-        frontend which of the two it got, so "no update" and "don't know
-        yet" stay distinguishable.
-
-        Returns ``{"has_update": bool, "pending": bool}``. Note that the
-        RPC wrapper nests that under ``data`` (the dict has no
-        ``success`` key), so frontend callers must unwrap the envelope —
-        reading ``res.has_update`` directly is why the Update button
-        never appeared for any store.
-        """
-        store, game_id = self._validate_pair(store, game_id)
-        self._require_store(store)
-        updatable = update_check_cache.peek(store)
-        if updatable is None:
-            self._request_update_scan(store)
-            return {"has_update": False, "pending": True}
-        return {"has_update": game_id in updatable, "pending": False}
-
     async def get_available_updates(self) -> Any:
         """Return ``{store: [game_id, ...]}`` for every store, from cache only.
 
-        Bulk counterpart to :meth:`check_game_update`, for surfaces that
-        render many games at once (the QAM Downloads tab's Installed
-        list). Doing it per-row would mean one RPC per installed game.
+        The single update-state route. Every Update affordance reads it
+        through ``UpdateStore`` / ``useGameUpdate`` — the App-Details
+        Play section, the QAM Downloads tab's Installed rows, and the
+        pre-launch warning — so they can never disagree.
 
-        Cache-only and non-blocking, same as above: a store that has not
-        been swept yet is simply absent from the mapping rather than
-        holding the whole list up behind a scan.
+        **This never blocks on a store round-trip.** It reads whatever
+        :class:`~unifideck.services.update_sweep.UpdateSweepService` last
+        cached and returns immediately; a store not yet swept is simply
+        absent from the mapping rather than holding the whole list up
+        behind a scan, and gets a background refresh scheduled instead.
+        The button then arrives via ``GAME_UPDATE_AVAILABLE``.
+
+        Answering per-game and inline is what this replaced: a
+        ``check_game_update(store, game_id)`` route ran the scan on page
+        open, which made the Update button take 5-10 s to appear for
+        Epic (legendary logs in and refreshes its asset manifest first)
+        — long enough for the user to have pressed Play already. It was
+        left declared with no caller and deleted in the audit §1.2 pass.
+        Rendering many games at once through it would also have meant
+        one RPC per installed game.
         """
-        sweep = getattr(self, "_update_sweep_service", None)
         out: dict[str, list[str]] = {}
         for store_id in self.registry.store_ids():
             cached = update_check_cache.peek(store_id)
             if cached is None:
-                if sweep is not None:
-                    sweep.request_refresh(store_id)
+                self._request_update_scan(store_id)
                 continue
             out[store_id] = cached
         return out
@@ -410,7 +385,6 @@ class DownloadRPCMixin:
         removed = await self._require_download().clear_history(item_id)
         return {"success": True, "removed": removed}
 
-
 # ─── Storage type → path resolution ───────────────────────────
 #
 # External-mount enumeration is delegated to ``utils/mounts.py``
@@ -418,7 +392,6 @@ class DownloadRPCMixin:
 # see that module for why a FUSE-mounted external drive (NTFS via
 # ntfs-3g, some exFAT setups) needs a demoted subprocess to be
 # reachable from this backend's root process at all.
-
 
 def _size_cache_file(config: Any) -> str:
     """Path to the persistent download-size cache (in the data dir).
@@ -437,7 +410,6 @@ def _size_cache_file(config: Any) -> str:
                 or data_dir
             )
     return str(Path(data_dir).expanduser() / "game_sizes.json")
-
 
 def _resolve_storage_path(storage_type: str | None, config: Any) -> str | None:
     """Convert a storage type string to a filesystem path.
@@ -461,7 +433,6 @@ def _resolve_storage_path(storage_type: str | None, config: Any) -> str | None:
         return _external_games_path(storage_type)
     logger.warning("[download] unknown storage type: %s", storage_type)
     return None
-
 
 def _external_games_path(storage_type: str) -> str | None:
     """Resolve an external-mount storage id to its ``Games/`` dir.
@@ -518,7 +489,6 @@ def _external_games_path(storage_type: str) -> str | None:
     )
     logger.debug("[download] resolved %s → %s (%s)", storage_type, games_path, match.fstype)
     return games_path
-
 
 def _custom_path(config: Any) -> str | None:
     """Read ``download.custom_path`` from config; None if unset/invalid."""

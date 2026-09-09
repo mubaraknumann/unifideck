@@ -62,7 +62,6 @@ const WATCHED_EVENTS: EventName[] = [
   // → UPC — works; this allowlist omission was the whole bug).
   "ubisoft_install_launch_requested",
   "battlenet_install_launch_requested",
-  "game_installed",
   "game_uninstalled",
   "game_update_available",
   "game_launched",
@@ -71,7 +70,6 @@ const WATCHED_EVENTS: EventName[] = [
   "cloud_sync_down_failed",
   "cloud_sync_up_complete",
   "cloud_sync_up_failed",
-  "store_error",
   "launcher_stage",
   "circuit_state_changed",
 ];
@@ -99,6 +97,12 @@ const IMPERATIVE_EVENTS = new Set<string>([
  *  first poll after load; events emitted live during the session still fire
  *  normally (their timestamps exceed the watermark). */
 const STALE_ON_RELOAD_EVENTS = new Set<string>([
+  // A failure from a PRIOR session, replayed from timestamp 0, re-applies a
+  // store status of "error" that the authoritative restore (`authStore.start()`
+  // → `check_store_status`) had just answered correctly. That status is sticky
+  // for the rest of the session, so a single old event kept a store row in a
+  // stale failed state across every reload. Live failures still fire.
+  "store_auth_failed",
   "sync_started",
   "sync_progress",
   "sync_complete",
@@ -207,7 +211,18 @@ class EventBusClientImpl {
    * keeping the poll cheap when idle.
    */
   private scheduleNext(): void {
+    // Never leave a previously armed handle running. `pollOnce`'s `finally`
+    // and `ensurePolling` can both reach here for the same tick, and the
+    // loser used to be overwritten while still armed.
+    if (this.timer != null) clearTimeout(this.timer);
     this.timer = setTimeout(() => {
+      // The handle is dead the moment the callback runs, so clear it here
+      // rather than leaving a stale non-null value across the await in
+      // `pollOnce`. Without this, a subscriber that leaves and rejoins
+      // mid-poll makes `ensurePolling` arm one timer and `pollOnce`'s
+      // `finally` arm a second, and the poll rate doubles every time it
+      // happens.
+      this.timer = null;
       void this.pollOnce();
     }, this.currentInterval);
   }
@@ -220,9 +235,15 @@ class EventBusClientImpl {
    */
   private async pollOnce(): Promise<void> {
     try {
-      const raw = await call<[string[]], unknown>(
+      // Send our watermark so the backend filters server-side. It used to
+      // return the entire replay buffer on every poll, twice a second, for
+      // the life of the process, and we threw nearly all of it away below.
+      // The filter below stays: it costs nothing, and it keeps this client
+      // correct against a backend that predates the `since` argument.
+      const raw = await call<[string[], number], unknown>(
         rpcRoutes.subscribeReplay,
         WATCHED_EVENTS,
+        this.lastSeenTimestamp,
       );
       // Backend wraps every RPC response in `{success, error, data}`
       // via `@auto_wrap_rpc_methods`. `useRPC` unwraps it for

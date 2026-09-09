@@ -25,6 +25,7 @@ import { LanguageSelectModal } from "../components/modals/LanguageSelectModal";
 import { pickStorageForInstall } from "../components/modals/PickStorageModal";
 import type { Game, Result } from "../types/api";
 import type { StorageLocationsResponse } from "../types/downloads";
+import { storeHasCapability } from "./useStoreCapability";
 
 /** Steam bridge shape — same minimal surface useGameActions
  *  consumes. */
@@ -43,9 +44,15 @@ interface LanguagesResponse {
   labels?: Record<string, string>;
 }
 
-/** Stores whose installs offer a language choice, and which RPC
- *  reports it. Every other store installs without prompting. */
-const LANGUAGE_STORES: Record<string, "gog" | "epic" | undefined> = {
+/** Which RPC reports a store's language list.
+ *
+ *  *Whether* a store has one is the backend's `has_language_picker`
+ *  capability, not a list here — this map only records which of the two
+ *  routes to call, which the payload does not carry. It used to double as
+ *  the gate, making it a second copy of a per-store policy (audit register
+ *  items 26/31). Keys must stay a subset of the capability set;
+ *  `tests/unit/test_store_capabilities.py` pins the backend half. */
+const LANGUAGE_ROUTE: Record<string, "gog" | "epic" | undefined> = {
   gog: "gog",
   epic: "epic",
 };
@@ -120,7 +127,9 @@ export function useInstallFlow(bridge: SteamBridgeShape): UseInstallFlowResult {
           customPath ?? "none",
         );
 
-        const fetchLangs = LANGUAGE_STORES[game.store];
+        const fetchLangs = storeHasCapability(game.store, "has_language_picker")
+          ? LANGUAGE_ROUTE[game.store]
+          : undefined;
         if (!fetchLangs) {
           console.log(
             "[useInstallFlow] installing %s/%s with storage=%s",

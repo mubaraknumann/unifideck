@@ -1,7 +1,5 @@
 """Launch history config readers — typed parsers.
 
-OP-21d | py_modules/unifideck/services/launch_history/config_readers.py
-
 Three readers for the launch-history tunables :
 
 * ``read_threshold`` — failure count that opens the circuit;
@@ -18,7 +16,6 @@ from typing import Any
 DEFAULT_THRESHOLD = 3
 DEFAULT_WINDOW_SECONDS = 600.0
 DEFAULT_FAST_BOOT_SECONDS = 10.0
-
 
 def read_threshold(config: Any | None) -> int:
     """Read the failure threshold from the config.
@@ -40,7 +37,6 @@ def read_threshold(config: Any | None) -> int:
         )
     )
 
-
 def read_window_seconds(config: Any | None) -> float:
     """Read the rolling-window length from the config.
 
@@ -60,7 +56,6 @@ def read_window_seconds(config: Any | None) -> float:
             int(DEFAULT_WINDOW_SECONDS),
         )
     )
-
 
 def read_fast_boot_seconds(config: Any | None) -> float:
     """Read the fast-boot-failure cutoff from the config.

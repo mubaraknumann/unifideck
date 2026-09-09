@@ -1,7 +1,5 @@
 """Event bus — core asynchronous pub/sub primitive.
 
-OP-09a | py_modules/unifideck/event_bus/event_bus.py
-
 ``EventBus`` is the central pub/sub primitive of the plugin.
 Every asynchronous interaction between services, RPC mixins and
 stores flows through it.
@@ -65,7 +63,6 @@ Handler = Callable[..., Awaitable[Any]] | Callable[..., Any]
 # writes) while still surfacing a genuinely stuck handler in a bounded
 # window instead of never (UD-013).
 HANDLER_TIMEOUT_SECONDS = 60.0
-
 
 class EventBus:
     """In-process async pub/sub with persistent + one-shot subscriptions."""
@@ -339,17 +336,7 @@ class EventBus:
             self._once[key] = []
         dt_total = (time.monotonic() - started) * 1000
         ok = sum(1 for r in results if not isinstance(r, Exception))
-        for i, r in enumerate(results):
-            if isinstance(r, Exception):
-                handler_name = getattr(handlers[i], "__qualname__", repr(handlers[i]))
-                logger.error(
-                    "[EventBus] handler #%d (%s) for %s failed: %s: %s",
-                    i,
-                    handler_name,
-                    key,
-                    type(r).__name__,
-                    r,
-                )
+        self._log_handler_failures(key, handlers, results)
         logger.debug(
             "[DIAG] event=%s total=%.2fms success=%d/%d",
             key,
@@ -358,6 +345,37 @@ class EventBus:
             len(results),
         )
         return results
+
+    @staticmethod
+    def _log_handler_failures(
+        key: str, handlers: list[Handler], results: list[Any],
+    ) -> None:
+        """Report per-handler failures from one fan-out.
+
+        Split out of ``emit`` when the quarantine branch pushed it past the
+        80-line cap. Volumetry rule: an over-cap function is split, never
+        allowlisted.
+        """
+        for i, r in enumerate(results):
+            if not isinstance(r, Exception):
+                continue
+            name = getattr(handlers[i], "__qualname__", repr(handlers[i]))
+            # A quarantined handler is a deliberate skip, not a crash: the
+            # watchdog refused to run it after repeated timeouts and the
+            # other handlers still ran. Logging it at ERROR would train
+            # readers to ignore the line that reports real failures
+            # (audit register item 4g).
+            if type(r).__name__ == "HandlerQuarantinedError":
+                logger.warning(
+                    "[EventBus] handler #%d (%s) for %s SKIPPED — "
+                    "quarantined by the watchdog",
+                    i, name, key,
+                )
+                continue
+            logger.error(
+                "[EventBus] handler #%d (%s) for %s failed: %s: %s",
+                i, name, key, type(r).__name__, r,
+            )
 
     async def _invoke(self, handler: Handler, payload: dict[str, Any]) -> Any:
         """Dispatch one handler call, awaiting it directly or on a thread.
@@ -383,6 +401,10 @@ class EventBus:
             The handler's return value (after await for async
             handlers, after thread completion for sync ones).
         """
+        watchdog = getattr(self, "watchdog", None)
+        if watchdog is not None:
+            return await self._invoke_supervised(watchdog, handler, payload)
+
         if inspect.iscoroutinefunction(handler):
             return await asyncio.wait_for(
                 handler(**payload), timeout=HANDLER_TIMEOUT_SECONDS,
@@ -390,6 +412,60 @@ class EventBus:
         return await asyncio.wait_for(
             asyncio.to_thread(handler, **payload),
             timeout=HANDLER_TIMEOUT_SECONDS,
+        )
+
+    async def _invoke_supervised(
+        self, watchdog: Any, handler: Handler, payload: dict[str, Any],
+    ) -> Any:
+        """Run one handler under ``HandlerWatchdog`` supervision.
+
+        The watchdog holds the per-handler timeout, the consecutive-timeout
+        count and the quarantine escalation. Until 2026-08-26 its ``invoke``
+        had **zero callers** while ``priority_dispatcher`` claimed the
+        opposite in a comment — "invocation goes through the bus directly
+        (the bus uses the watchdog internally)" — which was simply untrue.
+        Audit register item 4g.
+
+        Two details the watchdog's own ``invoke`` does not handle, which is
+        why this wrapper exists rather than a direct delegation:
+
+        * **Sync handlers.** ``watchdog.invoke`` awaits ``handler(...)``
+          directly. A plain function would return a non-awaitable and raise.
+          Passing a thunk that returns ``asyncio.to_thread(...)`` keeps sync
+          handlers on a worker thread exactly as before.
+        * **Quarantine.** A quarantined handler raises
+          ``HandlerQuarantinedError`` instead of running. ``emit`` gathers
+          with ``return_exceptions=True``, so it lands in that handler's slot
+          like any other failure and the other handlers still run — which is
+          the intended behaviour, but it must not be logged as a crash.
+
+        Falls back to the unsupervised path if the watchdog is a stub without
+        ``invoke`` (the tests build bare objects), so supervision can never
+        stop an event being delivered.
+        """
+        invoke = getattr(watchdog, "invoke", None)
+        if invoke is None:
+            if inspect.iscoroutinefunction(handler):
+                return await asyncio.wait_for(
+                    handler(**payload), timeout=HANDLER_TIMEOUT_SECONDS,
+                )
+            return await asyncio.wait_for(
+                asyncio.to_thread(handler, **payload),
+                timeout=HANDLER_TIMEOUT_SECONDS,
+            )
+
+        name = getattr(handler, "__self__", None)
+        qualname = (
+            f"{type(name).__name__}.{handler.__name__}"
+            if name is not None and hasattr(handler, "__name__")
+            else getattr(handler, "__qualname__", repr(handler))
+        )
+        if inspect.iscoroutinefunction(handler):
+            return await invoke(qualname, handler, **payload)
+        return await invoke(
+            qualname,
+            lambda **kw: asyncio.to_thread(handler, **kw),
+            **payload,
         )
 
     @staticmethod

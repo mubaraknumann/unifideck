@@ -1,7 +1,5 @@
 """Install mode + verification — pre-flight planning logic.
 
-OP-51d | py_modules/unifideck/stores/gog/install/planner.py
-
 ``GOGInstallPlanner`` answers two pre-install questions:
 
 * **Install mode** — should gogdl run as ``install`` (fresh download
@@ -26,6 +24,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from unifideck.core.safe_delete import foreign_installs_under, safe_rmtree
 from unifideck.stores.gog.config import GOGConfig
 from unifideck.stores.gog.tokens import GOGTokenManager
 
@@ -35,6 +34,28 @@ logger = logging.getLogger(__name__)
 _CORRUPT_INSTALL_SIZE_THRESHOLD = 100 * 1024 * 1024
 _MIN_SIZE_RATIO = 0.8
 
+# Returned by ``determine_install_mode`` when the target directory holds
+# another store's install. Not a mode gogdl can run — the caller must fail the
+# install rather than proceed, because every other mode either deletes that
+# directory or downloads into it.
+INSTALL_MODE_BLOCKED = "blocked"
+
+
+def _may_delete(target_folder: str, *, owner_key: str) -> bool:
+    """False when *target_folder* holds an install belonging to someone else.
+
+    Logged at ``error`` because the alternative — what this code did before —
+    is silent data loss in a directory the user filled deliberately.
+    """
+    foreign = foreign_installs_under(target_folder, owner_key=owner_key)
+    if not foreign:
+        return True
+    logger.error(
+        "[GOGInstallPlanner] refusing to clean %s: it holds %d install(s) "
+        "belonging to %s. Install %s somewhere else, or uninstall those first.",
+        target_folder, len(foreign), ", ".join(sorted(foreign)), owner_key,
+    )
+    return False
 
 def _build_verify_result(
     *,
@@ -105,7 +126,6 @@ def _build_verify_result(
         "has_exe": has_exe,
     }
 
-
 def _extract_disk_size_from_size_info(size_info: dict[str, Any]) -> int | None:
     """Extract disk size from size info."""
     for lang_key in ("en-US", "en", "*"):
@@ -119,7 +139,6 @@ def _extract_disk_size_from_size_info(size_info: dict[str, Any]) -> int | None:
             size_info[first].get("disk_size", 0) or 0,
         )
     return None
-
 
 class GOGInstallPlanner:
     """Goginstall planner."""
@@ -160,10 +179,11 @@ class GOGInstallPlanner:
                     "+ download",
                     folder_size / (1024 * 1024),
                 )
-                await self._cleanup_corrupt_install(
+                if not await self._cleanup_corrupt_install(
                     game_id,
                     target_folder,
-                )
+                ):
+                    return INSTALL_MODE_BLOCKED
                 return "download"
             logger.info(
                 "[GOGInstallPlanner] valid existing install → repair",
@@ -175,10 +195,11 @@ class GOGInstallPlanner:
                 "%.1fMB) → cleanup + download",
                 folder_size / (1024 * 1024),
             )
-            await self._cleanup_orphaned_install(
+            if not await self._cleanup_orphaned_install(
                 game_id,
                 target_folder,
-            )
+            ):
+                return INSTALL_MODE_BLOCKED
         return "download"
 
     async def verify_installation(
@@ -320,19 +341,30 @@ class GOGInstallPlanner:
                 return extracted
         return 0
 
-    async def _cleanup_corrupt_install(self, game_id: str, target_folder: str) -> None:
-        """Cleanup corrupt install."""
+    async def _cleanup_corrupt_install(
+        self, game_id: str, target_folder: str,
+    ) -> bool:
+        """Remove a too-small install at *target_folder*. False if kept.
+
+        Same ownership guard as :meth:`_cleanup_orphaned_install` — see there
+        for why "this game's install looks wrong" is not a licence to delete
+        the whole directory. The support cache below is keyed by game id and
+        belongs to GOG unconditionally, so it is cleared either way.
+        """
+        may_delete = _may_delete(target_folder, owner_key=f"gog:{game_id}")
 
         def _sync() -> None:
             """Sync."""
-            try:
-                shutil.rmtree(target_folder)
+            if may_delete and not safe_rmtree(target_folder):
+                logger.warning(
+                    "[GOGInstallPlanner] corrupt cleanup refused or failed: %s",
+                    target_folder,
+                )
+            elif may_delete:
                 logger.info(
                     "[GOGInstallPlanner] removed %s",
                     target_folder,
                 )
-            except OSError:
-                logger.exception("[GOGInstallPlanner] corrupt cleanup failed for %s", target_folder)
             support_dir = (
                 Path(self._config.gogdl_config_dir).expanduser()
                 / "gog-support"
@@ -352,24 +384,37 @@ class GOGInstallPlanner:
                     )
 
         await asyncio.to_thread(_sync)
+        return may_delete
 
     async def _cleanup_orphaned_install(
         self,
         game_id: str,
         target_folder: str,
-    ) -> None:
-        """Cleanup orphaned install."""
+    ) -> bool:
+        """Remove orphaned data at *target_folder*. False if it must be kept.
+
+        "Orphaned" only means *this game* left no ``goggame-*.info`` there. It
+        does not mean the directory is unowned: two stores can pick the same
+        folder name under the same install root, and this cleanup used to
+        ``rmtree`` the lot. On a real device a GameVault archive extracted into
+        ``<root>/Bastion`` was destroyed four times over by exactly this path,
+        because GOG's folder for the same game is also ``Bastion``.
+        """
+        if not _may_delete(target_folder, owner_key=f"gog:{game_id}"):
+            return False
 
         def _sync() -> None:
             """Sync."""
-            try:
-                shutil.rmtree(target_folder)
+            if not safe_rmtree(target_folder):
+                logger.warning(
+                    "[GOGInstallPlanner] orphan cleanup refused or failed: %s",
+                    target_folder,
+                )
+            else:
                 logger.info(
                     "[GOGInstallPlanner] removed orphan %s",
                     target_folder,
                 )
-            except OSError:
-                logger.exception("[GOGInstallPlanner] orphan cleanup failed")
             for manifest_path in self._manifest_locations(
                 game_id,
             ):
@@ -388,6 +433,7 @@ class GOGInstallPlanner:
                         )
 
         await asyncio.to_thread(_sync)
+        return True
 
     def _manifest_locations(self, game_id: str) -> list[str]:
         """Manifest locations."""

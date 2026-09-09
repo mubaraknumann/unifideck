@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 from unifideck.core.types.events import Events
 from unifideck.event_bus.event_bus_devex import auto_wire, subscribe
+from unifideck.utils.config_helpers import merge_str_list_mapping
 
 if TYPE_CHECKING:
     from unifideck.event_bus.event_bus import EventBus
@@ -59,7 +60,9 @@ class FeatureFlagService:
     ) -> None:
         """Merge config-supplied mapping, init flags."""
         self._bus = bus
-        self._mapping = self._load_mapping(config)
+        self._mapping = merge_str_list_mapping(
+            config, "probes.probe_to_features", PROBE_TO_FEATURES,
+        )
 
         self._flags = dict.fromkeys(ALL_FEATURES, True)
 
@@ -71,30 +74,6 @@ class FeatureFlagService:
         # not a bus method, so the hasattr check returned
         # False and every subscription was silently dropped.
         auto_wire(self, self._bus)
-
-    @staticmethod
-    def _load_mapping(config: object | None) -> dict[str, list[str]]:
-        """Return the probe→features mapping."""
-        mapping = PROBE_TO_FEATURES.copy()
-
-        # Early-return guards flatten the 5-level pyramid into a
-        # single linear pass — same structural fix as
-        # :meth:`ProbeReactionService._load_mapping`.
-        if config is None or not hasattr(config, "get"):
-            return mapping
-        try:
-            user_mapping = config.get("probes.probe_to_features")
-        except Exception as e:
-            # User overrides for probes.probe_to_features may be
-            # malformed or missing; fall back to defaults.
-            logger.debug("[FeatureFlags] user probe-mapping load failed: %s", e)
-            return mapping
-        if not isinstance(user_mapping, dict):
-            return mapping
-        for k, v in user_mapping.items():
-            if isinstance(v, list) and all(isinstance(i, str) for i in v):
-                mapping[k] = v
-        return mapping
 
     def get_flags(self) -> dict[str, bool]:
         """Return a copy of the current feature flag state."""

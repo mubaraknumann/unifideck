@@ -9,9 +9,11 @@ non-Steam binaries (Wine, Proton, store CLIs). Both variables are
 scrubbed before any Python import so the dispatcher inherits a
 clean environment.
 
-The wrapper has two responsibilities :
+The wrapper has THREE responsibilities, in order:
     1. Sanitise the inherited environment.
-    2. Prepend the plugin's ``py_modules`` directory to
+    2. Re-exec onto a modern (>=3.10) Python interpreter if the one
+       that started this script is too old — see ``_reexec_on_modern_python``.
+    3. Prepend the plugin's ``py_modules`` directory to
        ``sys.path`` so ``unifideck.launcher.dispatcher`` resolves
        at import time.
 
@@ -27,6 +29,160 @@ os.environ.pop("LD_PRELOAD", None)
 
 import sys
 from pathlib import Path
+
+# Interpreters tried, newest first, as a LAST-RESORT fallback when the
+# pressure-vessel escape below is unavailable — mirrors
+# ``launcher.proton.infrastructure.selector.PYTHON_CANDIDATES`` (kept in
+# sync manually; that module cannot be imported yet at this point in the
+# bootstrap, see ``_reexec_on_modern_python``'s docstring for why).
+_MODERN_PYTHON_CANDIDATES: tuple[str, ...] = (
+    "/usr/bin/python3.14",
+    "/usr/bin/python3.13",
+    "/usr/bin/python3.12",
+    "/usr/bin/python3.11",
+    "/usr/bin/python3.10",
+)
+# Env var guarding the re-execs below against an infinite loop — see
+# ``_escape_pressure_vessel``/``_reexec_on_modern_python``'s docstrings.
+_REEXEC_GUARD_ENV = "_UNIFIDECK_LAUNCHER_REEXECED"
+_ESCAPE_CLIENT = "steam-runtime-launch-client"
+
+
+def _in_pressure_vessel() -> bool:
+    """Whether this process is running inside a pressure-vessel container.
+
+    Mirrors ``launcher.proton.infrastructure.container_escape.in_pressure_vessel``
+    exactly (duplicated rather than imported — see this module's docstring
+    for why nothing from ``unifideck.*`` can be imported yet at this point).
+    """
+    return (
+        os.environ.get("container") == "pressure-vessel"  # noqa: SIM112
+        or os.path.isdir("/run/pressure-vessel")
+    )
+
+
+def _find_on_path(name: str) -> str | None:
+    """Minimal ``shutil.which`` substitute using only ``os`` (stdlib-safe
+    on any Python version — this runs before we know the version is even
+    new enough for ``shutil.which``'s modern keyword args, though that
+    function itself is fine on 3.9 too; kept dependency-free anyway since
+    correctness here matters more than brevity)."""
+    for directory in os.environ.get("PATH", "").split(os.pathsep):
+        candidate = os.path.join(directory, name) if directory else name
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+    return None
+
+
+def _escape_pressure_vessel() -> None:
+    """Re-exec this script OUTSIDE Steam's pressure-vessel container.
+
+    This wrapper's own ``#!/usr/bin/env python3`` shebang is only ever as
+    good as whatever ``python3`` resolves to in the CALLER's environment.
+    Steam runs this script directly (no shell in between) whenever a
+    Unifideck shortcut launches — normally against the host's own
+    ``python3``, which is fine on every distro this plugin ships for.
+
+    But Steam ALSO wraps this exact same script inside its own
+    Steam-Linux-Runtime pressure-vessel container whenever the user sets
+    **Properties > Compatibility > "Force the use of a specific Steam Play
+    compatibility tool"** on the shortcut (a supported, intended workflow —
+    see ``launcher.proton.infrastructure.container_escape`` for the sibling
+    fix that gets umu itself back OUT of that same container later in the
+    launch, once this script has already gotten far enough to reach it).
+    Inside that container ``python3`` resolves to the CONTAINER's OWN much
+    older bundled interpreter (observed: 3.9), not the host's — and
+    critically, the container's ``/usr/bin/`` does NOT contain any newer
+    interpreter to fall back to either (it is the container's own private
+    filesystem, not bind-mounted to the host's ``/usr``): a first attempt
+    at this fix that searched hardcoded ``/usr/bin/python3.1x`` paths
+    (see ``_reexec_on_modern_python`` below) silently found nothing and
+    kept running under the container's 3.9, reproducing the exact same
+    crash it was meant to fix.
+
+    That old interpreter is a version this codebase's ``unifideck.*``
+    package was never written to run on: it relies throughout on
+    ``X | Y`` union syntax and ``dict[str, Any]`` generics at both
+    annotation AND plain runtime-expression scope (not just inside function
+    signatures, where ``from __future__ import annotations`` would save
+    it), plus 3.11+-only stdlib members like ``enum.StrEnum``. Patching
+    every individual crash site as they turn up (already hit in
+    ``core/cache_manager.py``, ``core/types/events.py``,
+    ``event_bus/event_bus.py``) is whack-a-mole with no bounded end.
+
+    The fix that actually works: escape the container entirely via
+    ``steam-runtime-launch-client --alongside-steam``, exactly like
+    ``container_escape.escape_argv`` does for the umu subprocess deeper in
+    the launch — confirmed there to hand the escaped process a clean HOST
+    environment (host ``PATH``, no container/``PRESSURE_VESSEL_*``
+    leakage). Re-``exec``ing THIS SAME SCRIPT through that client, before
+    ``_bootstrap_path``/the dispatcher import ever run, means the escaped
+    process's own ``python3`` resolves on the HOST — the exact same
+    resolution a normal (non-Force-Compat) launch already gets, which is
+    known-good.
+
+    Guarded by ``_REEXEC_GUARD_ENV`` against re-exec looping (the escaped
+    process re-invokes this very script, which would otherwise try to
+    escape again — though by then it is no longer inside pressure-vessel,
+    so ``_in_pressure_vessel()`` alone would already prevent a loop; the
+    guard is defence in depth).
+    """
+    if not _in_pressure_vessel():
+        return
+    if os.environ.get(_REEXEC_GUARD_ENV):
+        return
+    client = _find_on_path(_ESCAPE_CLIENT)
+    if client is None:
+        # No escape route available — fall through to the version-based
+        # fallback below, which will likely also fail to find a newer
+        # interpreter (same container filesystem), but at least doesn't
+        # regress behaviour from before this fix existed.
+        return
+    env = dict(os.environ)
+    env[_REEXEC_GUARD_ENV] = "1"
+    script_path = os.path.abspath(__file__)
+    argv = [
+        client, "--alongside-steam", "--",
+        "python3", script_path, *sys.argv[1:],
+    ]
+    try:
+        os.execve(client, argv, env)
+    except OSError:
+        return
+
+
+def _reexec_on_modern_python() -> None:
+    """Re-exec this script onto a modern Python if the CURRENT one is too old.
+
+    Fallback for the (currently unobserved, but possible) case where this
+    process is running under an old Python WITHOUT being inside a
+    pressure-vessel container — ``_escape_pressure_vessel`` above only
+    fires when ``_in_pressure_vessel()`` is true. Kept as a second line of
+    defence; see that function's docstring for the primary fix and why a
+    hardcoded host-path search alone was insufficient for the actual
+    container case.
+    """
+    if sys.version_info >= (3, 10):
+        return
+    if os.environ.get(_REEXEC_GUARD_ENV):
+        return
+    for candidate in _MODERN_PYTHON_CANDIDATES:
+        if not os.path.isfile(candidate):
+            continue
+        env = dict(os.environ)
+        env[_REEXEC_GUARD_ENV] = "1"
+        script_path = os.path.abspath(__file__)
+        try:
+            os.execve(candidate, [candidate, script_path, *sys.argv[1:]], env)
+        except OSError:
+            continue
+    # No modern interpreter found on this system at all — proceed under
+    # the current (old) one; the dispatcher's own import errors are the
+    # existing fallback behaviour and still get surfaced to the user.
+
+
+_escape_pressure_vessel()
+_reexec_on_modern_python()
 
 
 def _bootstrap_path() -> None:
