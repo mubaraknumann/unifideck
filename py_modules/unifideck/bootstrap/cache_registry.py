@@ -15,8 +15,8 @@ exist and how long their entries survive. TTL semantics (from
     time)
   - positive integer — seconds until entry becomes stale
 
-Six stores (epic, gog, amazon, microsoft, ubisoft, battlenet) also get
-one cache slot each, all TTL=0 — they're used to memoize the
+Every store in ``_STORE_CACHES`` below also gets one cache slot,
+all TTL=0 — they're used to memoize the
 per-store ``is_available`` result inside a single plugin session
 so we don't re-probe every RPC call.
 """
@@ -44,6 +44,11 @@ from typing import Any
 _NAMED_CACHES: tuple[tuple[str, int], ...] = (
     ("steam_appid", 0),
     ("steam_real_appid", 0),
+    # The title each ``steam_real_appid`` MISS was searched under. A
+    # negative mapping means "no Steam counterpart for this title", and
+    # the title can change under a stable game id — so the miss has to
+    # record what it asked, or it silently becomes permanent.
+    ("steam_appid_miss", 0),
     ("steam_metadata", 30 * 24 * 3600),
     # ``MetadataService`` caches the Steam ``appreviews`` summary
     # ({review_score, review_percentage, total_reviews}) per real
@@ -86,6 +91,7 @@ _NAMED_CACHES: tuple[tuple[str, int], ...] = (
 
 _STORE_CACHES: tuple[str, ...] = (
     "epic", "gog", "amazon", "microsoft", "ubisoft", "battlenet",
+    "gamevault",
 )
 
 

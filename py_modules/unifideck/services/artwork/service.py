@@ -2,10 +2,12 @@
 
 EventBus subscriber that downloads game artwork from SteamGridDB
 and writes files to Steam's grid/ directory so non-Steam
-shortcuts display rich cover art. Subscribes to GAME_INSTALLED
-(fetch newly-installed game) and SYNC_COMPLETE (bulk-fetch games
-missing artwork). Concurrency capped via ``asyncio.Semaphore``
-to stay under SGDB's rate limit.
+shortcuts display rich cover art. Game covers come from the bulk
+post-sync phase (``POST_SYNC_PHASE_CHANGED``, gated behind
+MetadataService so the three services don't hammer Steam's
+``storesearch`` in parallel), which covers every owned game
+whether installed or not. Concurrency capped via
+``asyncio.Semaphore`` to stay under SGDB's rate limit.
 """
 from __future__ import annotations
 
@@ -100,7 +102,11 @@ class ArtworkService(_EventHandlersMixin):
             max_concurrent = self._config.get("artwork.max_concurrent", DEFAULT_MAX_CONCURRENT)
             self._download_timeout = self._config.get("artwork.download_timeout", DEFAULT_DOWNLOAD_TIMEOUT)
 
-        self._semaphore = asyncio.Semaphore(max_concurrent)
+        # Kept alongside the semaphore because the semaphore's own counter
+        # drops as slots are taken; ``_batch_concurrency`` needs the
+        # configured ceiling, not the momentary free count.
+        self._max_concurrent = max(1, int(max_concurrent))
+        self._semaphore = asyncio.Semaphore(self._max_concurrent)
 
         # Track pending tasks so we can wait for them on shutdown
         self._pending_tasks: set[asyncio.Task[Any]] = set()
@@ -210,7 +216,7 @@ class ArtworkService(_EventHandlersMixin):
         if not target:
             return result
 
-        if self._missing_set_unchanged(cache_key, target, force):
+        if self._missing_set_unchanged(cache_key, target, force, title):
             logger.debug(
                 "[ArtworkService] skipping %s: missing set unchanged (%s)",
                 title, sorted(target),
@@ -250,17 +256,42 @@ class ArtworkService(_EventHandlersMixin):
         cache_key: str,
         target: set[str],
         force: bool,
+        title: str,
     ) -> bool:
-        """Whether ``target`` matches the last recorded attempt (skip signal).
+        """Whether the last attempt for this game asked the same question.
 
         Incremental skip: an identical missing set as last attempt means
         those kinds are genuinely unavailable upstream, so don't retry.
         ``force`` always re-fetches, so it never reports unchanged.
+
+        **The title is part of the question.** Every source below the
+        per-store phase — SGDB, the Steam CDN — matches on the title and
+        nothing else, so the same missing set under a *different* title is a
+        different query and its previous "nothing found" says nothing about
+        it. Comparing only the kinds made a game whose title changed
+        unfixable: it was skipped on every subsequent sync, forever, and the
+        batch counter reported it as "no match" (see ``_fetch_one``), which
+        reads as "SGDB has no art" rather than "we never asked".
+
+        Found on a GameVault game the user's own server first exposed as
+        ``Test Game 2026`` and later, once they enriched it, as ``Ghost of
+        Tsushima``. GameVault is where this surfaces because the title comes
+        from the user's server and changes when they curate it — but nothing
+        about the bug is GameVault-specific: an Epic edition rename or a GOG
+        re-release strands a game the same way.
+
+        A record written before this fix carries no title. Treat that as
+        changed rather than matching it: one extra query per affected game,
+        once, and the cache is self-healing from then on.
         """
         if force:
             return False
         attempted = self._cache.get(_ATTEMPTS_NAMESPACE, cache_key)
-        return attempted is not None and set(attempted) == target
+        if not isinstance(attempted, dict):
+            return False
+        if attempted.get("title") != title:
+            return False
+        return set(attempted.get("missing") or ()) == target
 
     def _flush_artwork_caches(self) -> None:
         """Persist the batch's deferred attempts-cache writes."""
@@ -312,7 +343,14 @@ class ArtworkService(_EventHandlersMixin):
         # Deferred write — one per game in the batch; the batch's
         # done-callback flushes via ``_flush_artwork_caches``.
         still_missing = sorted(k for k in _ARTWORK_KINDS if not result.get(k))
-        self._cache.set(_ATTEMPTS_NAMESPACE, cache_key, still_missing, flush=False)
+        # Title included: it is what SGDB and the Steam CDN were asked for,
+        # so a later title makes this record inapplicable rather than final.
+        self._cache.set(
+            _ATTEMPTS_NAMESPACE,
+            cache_key,
+            {"missing": still_missing, "title": title},
+            flush=False,
+        )
         if sources:
             self._log_sources(title, sources)
 

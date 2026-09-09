@@ -1,7 +1,5 @@
 """Bus developer-experience helpers — auto-wire + introspection.
 
-OP-09h | py_modules/unifideck/event_bus/event_bus_devex.py
-
 Developer-facing helpers that make working with the bus less
 boilerplate-heavy:
 
@@ -62,7 +60,6 @@ logger = logging.getLogger(__name__)
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
 
-
 @dataclass
 class _Subscription:
     """One subscription declaration produced by ``@subscribe``.
@@ -84,7 +81,6 @@ class _Subscription:
     priority: int | None = None
     timeout: float | None = None
     scope: str | None = None
-
 
 class SubscriptionRegistry:
     """Append-only registry of declared subscriptions.
@@ -161,9 +157,7 @@ class SubscriptionRegistry:
         """
         self._subs.clear()
 
-
 default_registry = SubscriptionRegistry()
-
 
 def _build_subscription(
     fn: Callable[_P, _R],
@@ -192,7 +186,6 @@ def _build_subscription(
         timeout=timeout,
         scope=scope,
     )
-
 
 def subscribe(
     event: str | Events,
@@ -246,7 +239,6 @@ def subscribe(
 
     return decorator
 
-
 def _looks_like_instance_method(fn: Callable[..., Any]) -> bool:
     """Heuristic: does ``fn``'s first parameter look like ``self`` / ``cls``?
 
@@ -275,7 +267,6 @@ def _looks_like_instance_method(fn: Callable[..., Any]) -> bool:
         return bool(params) and params[0] in ("self", "cls")
     except (TypeError, ValueError):
         return False
-
 
 def auto_wire(
     instance: Any,
@@ -312,6 +303,24 @@ def auto_wire(
     Returns:
         Number of methods that were actually subscribed.
     """
+    # Fall back to the bus's own watchdog when the caller did not pass one.
+    #
+    # This parameter existed from the start and **every one of the ~20
+    # ``auto_wire`` call sites passes two positional arguments**, so
+    # ``watchdog`` was always ``None``, ``_register_with_watchdog`` never
+    # ran, and ``HandlerWatchdog`` tracked zero handlers for the life of the
+    # project — a support bundle reported ``watchdog: {}`` against 42
+    # registered events, which reads as "healthy" rather than "not wired"
+    # (audit register item 4g).
+    #
+    # Reading it off the bus rather than editing 20 constructors is what
+    # makes this safe to land on its own: services are constructed with a
+    # bus and have no access to the pipeline, so threading it by hand would
+    # have meant a new parameter on every service. ``pipeline_factory``
+    # attaches it once.
+    if watchdog is None:
+        watchdog = getattr(bus, "watchdog", None)
+
     count = 0
     for attr_name in dir(instance):
         if attr_name.startswith("__"):
@@ -328,7 +337,7 @@ def auto_wire(
         bus.on(meta.event, attr)
         count += 1
         if watchdog is not None:
-            _register_with_watchdog(instance, attr_name, watchdog)
+            _register_with_watchdog(instance, attr_name, watchdog, meta.timeout)
         if registry is not None:
             registry.add(
                 _Subscription(
@@ -340,7 +349,6 @@ def auto_wire(
                 ),
             )
     return count
-
 
 def _resolve_subscribe_target(
     instance: Any, attr_name: str,
@@ -380,11 +388,11 @@ def _resolve_subscribe_target(
             meta = getattr(func, "__subscribe_meta__", None)
     return (attr if meta is not None else None), meta
 
-
 def _register_with_watchdog(
     instance: Any,
     attr_name: str,
     watchdog: HandlerWatchdog,
+    timeout: float | None = None,
 ) -> None:
     """Register the qualified handler name with the watchdog.
 
@@ -392,6 +400,19 @@ def _register_with_watchdog(
     so the watchdog's metrics are readable
     (``ShortcutService._on_download_complete`` rather than
     just ``_on_download_complete``).
+
+    ``timeout`` is the handler's ``@subscribe(timeout=...)``
+    override. It used not to be forwarded: this function called
+    ``watchdog.register(qualname)`` with one argument, so
+    ``HandlerWatchdog`` fell back to its 5s
+    ``DEFAULT_HANDLER_TIMEOUT_SEC`` for *every* handler and a
+    declared override was silently inert — the meta reached only the
+    introspection-only ``SubscriptionRegistry``, which enforces
+    nothing. That is what made ``ShortcutService._on_sync_complete``
+    undeclarable: a full 1242-game reconcile legitimately takes ~5s,
+    so it was being cancelled mid-write by a budget it had no way to
+    raise, leaving shortcuts.vdf unwritten and
+    ``SHORTCUT_RECONCILE_COMPLETE`` never emitted.
 
     Watchdog registration failures (e.g. a stub watchdog
     without a ``register`` method) are caught and logged at
@@ -402,17 +423,18 @@ def _register_with_watchdog(
         instance: the host instance.
         attr_name: the method's attribute name.
         watchdog: the watchdog to register on.
+        timeout: per-handler budget in seconds, or ``None`` for the
+            watchdog's default.
     """
     qualname = f"{type(instance).__name__}.{attr_name}"
     try:
-        watchdog.register(qualname)
+        watchdog.register(qualname, timeout=timeout)
     except (AttributeError, RuntimeError) as e:
         logger.debug(
             "[event_bus_devex] watchdog register failed for %s: %s",
             qualname,
             e,
         )
-
 
 class SchemaExtractor:
     """Static analysis: pull per-event kwarg sets out of source code.

@@ -26,6 +26,29 @@ The other two moments only the backend knows about:
 Generic by construction: a store supplies its id and how to find its
 prefixes, and the spec table supplies the rest. Adding a wrapper store is a
 row in ``wrapper_session.SPECS`` plus these three small overrides.
+
+**Battle.net is the only consumer, and Ubisoft is deliberately not one.**
+That looks like drift and is not, so the reasoning is recorded here rather
+than left to be rediscovered:
+
+* ``wrapper_session.SPECS`` has exactly one row. ``spec_for("ubisoft")``
+  returns ``None``, so inheriting this mixin today would give Ubisoft a
+  ``GAME_STOPPED`` subscriber that returns ``False`` and does nothing —
+  replacing working behaviour with a no-op.
+* Ubisoft's own ``stores/ubisoft/session/`` facade is a **superset** of this
+  one. It covers the same three moments (``store.py``'s stop hook,
+  ``installer/uninstall.py``'s capture before deletion,
+  ``auth/facade.py``'s purge on sign-out) and adds two things this mixin has
+  no equivalent for: ``propagate_all_to_all`` after a capture, and
+  ``stored_credential_was_rejected`` reporting a server-dead token to the
+  user.
+* Migrating means first **measuring** a UPC ``SessionSpec`` — its files,
+  evidence, DPAPI registry keys and identity source. ``wrapper_session_specs``
+  records what guessing that costs: a session whose files arrived and whose
+  token did not, answered with ``ERROR_TOKEN_NOT_FOUND (49)``.
+
+What Ubisoft did lack is the bounded wait, so that half is shared as the
+free function :func:`await_client_exit` below and Ubisoft calls it directly.
 """
 
 from __future__ import annotations
@@ -53,6 +76,31 @@ logger = logging.getLogger(__name__)
 # event handler open.
 _EXIT_WAIT_SECONDS = 20.0
 _EXIT_POLL_SECONDS = 1.0
+
+
+async def await_client_exit(store: str, prefix: Path) -> None:
+    """Wait, bounded, for ``store``'s vendor client in ``prefix`` to be gone.
+
+    A free function rather than only a method on :class:`WrapperSessionHooks`
+    because the wait is useful to a store that does **not** inherit the mixin.
+    Ubisoft is exactly that case: it owns a richer session facade of its own
+    (see this module's note below) but had no equivalent of this wait, so its
+    post-play capture read the vault the instant ``GAME_STOPPED`` fired.
+
+    Over-reporting liveness costs a short wait; under-reporting it reads a
+    torn vault. ``client_running_in`` is deliberately the wider probe for
+    that reason.
+    """
+    waited = 0.0
+    while waited < _EXIT_WAIT_SECONDS:
+        if not await asyncio.to_thread(client_running_in, store, prefix):
+            return
+        await asyncio.sleep(_EXIT_POLL_SECONDS)
+        waited += _EXIT_POLL_SECONDS
+    logger.info(
+        "[%s] client still up in %s after %.0fs — capturing anyway",
+        store, Path(prefix).name, _EXIT_WAIT_SECONDS,
+    )
 
 
 class WrapperSessionHooks:
@@ -125,17 +173,7 @@ class WrapperSessionHooks:
 
     async def _await_client_exit(self, prefix: Path) -> None:
         """Wait, bounded, for the vendor client in ``prefix`` to be gone."""
-        store = self.session_store_id
-        waited = 0.0
-        while waited < _EXIT_WAIT_SECONDS:
-            if not await asyncio.to_thread(client_running_in, store, prefix):
-                return
-            await asyncio.sleep(_EXIT_POLL_SECONDS)
-            waited += _EXIT_POLL_SECONDS
-        logger.info(
-            "[%s] client still up in %s after %.0fs — capturing anyway",
-            store, Path(prefix).name, _EXIT_WAIT_SECONDS,
-        )
+        await await_client_exit(self.session_store_id, prefix)
 
     async def capture_session_from(self, prefix: Path) -> bool:
         """Capture ``prefix``'s session back to auth. Never raises.

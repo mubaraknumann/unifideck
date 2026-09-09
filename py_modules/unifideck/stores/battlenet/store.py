@@ -10,12 +10,14 @@ store, and none of the NGDP projects ship a downloader.
 Ownership is read from the **client's own local state**, not from the web:
 ``CachedData.db`` holds the account's licence ids, and the cached PUB
 catalog turns them into playable titles by evaluating a small rule
-language. The web endpoint (``games-and-subs``) supplies the
-``game_account`` facts those rules need for free-to-play and subscription
-titles, and is optional enrichment rather than the source of truth.
+language. Those rules also need ``game_account`` facts for free-to-play and
+subscription titles, which would come from ``games-and-subs``. **Nothing
+fetches them**, so those titles are missing — see
+:meth:`_game_account_programs` and audit §3.5 finding A.
 
-Consequence: the library is empty until the user has signed into the client
-once. That is not a new constraint — install and launch already require it.
+Consequence: the library is unknown until the user has signed into the
+client once. That is not a new constraint — install and launch already
+require it.
 
 Delegation only. Every concern lives in its own module (``ownership/``,
 ``prefix/``, ``library``, ``id_map``), mirroring the Ubisoft layout.
@@ -47,7 +49,6 @@ from . import library as library_mod
 from . import paths
 from .id_map import BattlenetIdMap
 from .install import BattlenetInstaller
-from .ownership import read_catalog
 from .prefix import BattlenetPrefixManager, inspect_prefix
 
 if TYPE_CHECKING:
@@ -67,9 +68,7 @@ class BattlenetStore(WrapperSessionHooks, StoreBase):
         display_name="Battle.net",
         auth_method="shortcut",
         icon_asset="battlenet.png",
-        uses_wine=True,
         supports_install=True,
-        supports_cloud_saves=False,
     )
 
     def __init__(
@@ -152,6 +151,7 @@ class BattlenetStore(WrapperSessionHooks, StoreBase):
         """
         return await build_context(
             self._shortcut_service, self.AUTH_SHORTCUT, self._plugin_dir,
+            bus=self._bus,   # lets a first-time write fetch its tile artwork
         )
 
     def _launcher_path(self) -> str:
@@ -161,9 +161,12 @@ class BattlenetStore(WrapperSessionHooks, StoreBase):
     def _game_account_programs(self) -> frozenset[str]:
         """Programs the account has a game account for.
 
-        Supplied by the optional web enrichment; empty is safe and simply
-        means free-to-play titles the user has touched will not appear
-        until that runs.
+        **Always empty today: a gap, not a safe default.** Nothing writes
+        the ``game_accounts`` cache this reads — the consumer shipped, the
+        producer never did (§3.5 A) — so every free-to-play and
+        subscription title is dropped. ``library.py``'s header measures 17
+        programs from licences against 22 with game accounts;
+        ``count_game_account_gated`` logs the loss each sync.
         """
         cached = self._cached_game_accounts()
         return frozenset(cached)
@@ -351,25 +354,28 @@ class BattlenetStore(WrapperSessionHooks, StoreBase):
         return Result(success=True, store=self.store_name)
 
     async def get_library(self, *, force: bool = False) -> list[Game] | None:
-        """Owned + installed titles, read entirely from client-local state."""
+        """Owned + installed titles, read entirely from client-local state.
+
+        Returns ``None`` — not ``[]`` — when that state cannot be read.
+        Every fact here lives in the client's Wine prefix, so a missing
+        prefix or an empty catalog cache means *we don't know what you
+        own*, not *you own nothing*. The sync layer treats ``[]`` as
+        authoritative and lets reconcile delete every Battle.net shortcut;
+        ``None`` reports ``library_unreadable`` and keeps them (§3.5 B).
+        """
         drive_c = self._auth_drive_c
         if drive_c is None:
-            logger.info("[Battlenet] no client prefix yet — empty library")
-            return []
+            logger.info("[Battlenet] no client prefix yet — library unknown")
+            return None
 
-        catalog = await asyncio.to_thread(read_catalog, drive_c)
-        if not catalog.program_configurations:
-            logger.warning(
-                "[Battlenet] PUB catalog cache is empty — launch the client "
-                "once so it populates",
-            )
-        facts = await asyncio.to_thread(
-            library_mod.read_account_facts, drive_c, self._game_account_programs(),
+        games = await library_mod.read_library(
+            drive_c,
+            game_account_programs=self._game_account_programs(),
+            collect_installed=self._collect_installed,
+            launcher_path=self._launcher_path(),
         )
-        installed = await asyncio.to_thread(self._collect_installed)
-        games = library_mod.build_library(
-            catalog, facts, installed, launcher_path=self._launcher_path(),
-        )
+        if games is None:
+            return None
         self._record_families(games)
         logger.info(
             "[Battlenet] library: %d titles (%d installed, force=%s)",
@@ -528,22 +534,7 @@ class BattlenetStore(WrapperSessionHooks, StoreBase):
         return row.host_install_path if row else None
 
     async def _install_row(self, game_id: str) -> Any | None:
-        """This game's row in the client's install records, or ``None``.
-
-        Keyed on the uid asked for. The earlier form returned the *first* game
-        in the prefix, which is only ever right by accident — a prefix that
-        picked up a second Blizzard title reported that one's path and size
-        under this game's id.
-        """
-        prefix = self.id_map.resolve_prefix(game_id)
-        if prefix is None:
-            return None
-        drive_c = paths.drive_c(prefix)
-        if drive_c is None:
-            return None
-        import asyncio
-
-        state = await asyncio.to_thread(
-            library_mod.install_state_by_uid, drive_c, prefix,
+        """This game's row in the client's install records, or ``None``."""
+        return await library_mod.install_row(
+            game_id, self.id_map.resolve_prefix(game_id),
         )
-        return state.get(game_id)

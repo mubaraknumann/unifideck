@@ -51,6 +51,67 @@ SYSTEM_COMPAT_DIRS: tuple[str, ...] = (
     "/usr/local/share/steam/compatibilitytools.d",
 )
 
+# ``~/.steam/root`` is a symlink Steam creates to the active install; on most
+# distros it points at ``~/.local/share/Steam``. ``~/.steam/steam`` is listed
+# explicitly so Proton still resolves if that symlink is absent (fresh
+# install, unusual setup) — it costs nothing when the dirs don't exist.
+STEAM_COMPAT_ROOTS: tuple[str, ...] = (
+    "~/.steam/root/compatibilitytools.d",
+    "~/.steam/steam/compatibilitytools.d",
+    "~/.local/share/Steam/compatibilitytools.d",
+)
+
+# Unifideck's own compat-tool dir. Not "external" by definition, so external
+# detection excludes it while name resolution includes it.
+UNIFIDECK_COMPAT_DIR = "~/.local/share/unifideck/compat-tools"
+
+
+def compat_tool_roots(
+    *, include_unifideck: bool = True, include_system: bool = True,
+) -> list[Path]:
+    """Every ``compatibilitytools.d`` root to search, in priority order.
+
+    The single definition of "where compat tools live". Four copies of this
+    list existed before 2026-09-07 (``selector.STEAM_COMPAT_ROOTS``,
+    ``ge_installer._SCAN_ROOTS``, ``selector._compat_tool_roots`` and
+    ``external_ge.EXTERNAL_COMPAT_ROOTS``); two of them had already drifted
+    apart on whether the unifideck dir counts. Callers now say what they
+    mean with the two flags instead of maintaining a fifth list.
+
+    Order is unifideck dir, then the user Steam dirs, then the system-wide
+    dirs distro packages install into but Steam never lists. The pre-0.7.1
+    resolver scanned only the three user dirs, so a system-wide /
+    manifest-registered tool the user force-selected was unresolvable and
+    silently fell back to GE-latest.
+
+    **Deduplicated by real path.** ``~/.steam/root``, ``~/.steam/steam`` and
+    ``~/.local/share/Steam`` are normally the same directory, so a naive list
+    made ``iter_compat_tools`` enumerate and parse it three times: measured
+    3.0 ms per call on a Steam Deck against 0.98 ms deduplicated, on a path
+    that now runs at every game launch. A broken symlink cannot be resolved,
+    so those fall back to the unresolved path rather than being dropped.
+    """
+    raw: list[str] = []
+    if include_unifideck:
+        raw.append(UNIFIDECK_COMPAT_DIR)
+    raw.extend(STEAM_COMPAT_ROOTS)
+    if include_system:
+        raw.extend(SYSTEM_COMPAT_DIRS)
+
+    roots: list[Path] = []
+    seen: set[Path] = set()
+    for entry in raw:
+        path = Path(entry).expanduser()
+        try:
+            key = path.resolve()
+        except OSError:
+            key = path
+        if key in seen:
+            continue
+        seen.add(key)
+        roots.append(path)
+    return roots
+
 
 # loginusers.vdf user blocks are flat KeyValues (no nested braces), so a
 # ``[^{}]*`` body capture is safe and keeps this launcher-safe — no need to

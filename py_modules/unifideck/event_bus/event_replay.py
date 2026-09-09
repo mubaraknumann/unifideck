@@ -1,14 +1,12 @@
 """Event replay buffer — per-event-type ring buffers of recent events.
 
-OP-09d | py_modules/unifideck/event_bus/event_replay.py
-
 ``EventReplayBuffer`` is **not** a single FIFO of all events — it's
 a dict of per-event-type ``deque(maxlen=...)`` buffers. Different
 event types get different caps:
 
 * high-frequency events (``SYNC_PROGRESS``, ``DOWNLOAD_PROGRESS``)
   → cap 50 (recent progress only);
-* lifecycle events (``GAME_INSTALLED``, ``STORE_AUTH_COMPLETE``)
+* lifecycle events (``GAME_UNINSTALLED``, ``STORE_AUTH_COMPLETE``)
   → cap 10-20 (full history of recent state changes);
 * anything else → fallback cap (20).
 
@@ -47,13 +45,11 @@ MAX_SNAPSHOT_ENTRIES = 500
 _DEFAULT_CAPS: dict[Events, int] = {
     Events.SYNC_PROGRESS: 50,
     Events.DOWNLOAD_PROGRESS: 50,
-    Events.GAME_INSTALLED: 20,
     Events.GAME_UNINSTALLED: 20,
     Events.STORE_AUTH_COMPLETE: 10,
     Events.STORE_LOGOUT: 10,
 }
 _FALLBACK_CAP = 20
-
 
 @dataclass
 class _RecordedEvent:
@@ -89,7 +85,6 @@ class _RecordedEvent:
             "kwargs": self.kwargs,
             "timestamp": round(self.timestamp, 3),
         }
-
 
 class EventReplayBuffer:
     """Per-event-type ring buffers with custom caps."""
@@ -154,6 +149,7 @@ class EventReplayBuffer:
         self,
         events: Iterable[Events | str] | None = None,
         limit: int = MAX_SNAPSHOT_ENTRIES,
+        since: float | None = None,
     ) -> list[dict[str, Any]]:
         """Return a flattened, timestamp-sorted view of recent events.
 
@@ -166,11 +162,29 @@ class EventReplayBuffer:
         Each entry goes through ``_RecordedEvent.to_dict`` so
         the result is directly JSON-serialisable.
 
+        ``since`` exists because the frontend polls this twice a
+        second forever and used to discard almost all of it
+        client-side. Without it, every poll re-serialised the whole
+        buffer — and ``rpc.wrapper._serialize`` deep-copies each
+        dataclass on the way out — for the life of the process. The
+        watermark the caller already tracks makes the steady-state
+        answer an empty list.
+
+        The comparison is against the *rounded* timestamp, because
+        that is the only value a caller ever saw: ``to_dict`` emits
+        millisecond precision, so filtering on the raw float would
+        keep re-sending every record whose true timestamp rounds
+        down — exactly the boundary records a poll sees most often.
+
         Args:
             events: optional iterable of event types to include.
                 ``None`` (default) returns every type.
             limit: maximum entries returned (hard-capped at
                 ``MAX_SNAPSHOT_ENTRIES`` = 500).
+            since: optional exclusive lower bound, compared against
+                the same rounded timestamp the caller was given.
+                ``None`` (default) returns the whole buffer, which
+                is what a caller with no watermark yet wants.
 
         Returns:
             List of entry dicts, newest first.
@@ -181,7 +195,12 @@ class EventReplayBuffer:
         for event_str, buf in self._buffers.items():
             if wanted is not None and event_str not in wanted:
                 continue
-            gathered.extend(buf)
+            if since is None:
+                gathered.extend(buf)
+            else:
+                gathered.extend(
+                    r for r in buf if round(r.timestamp, 3) > since
+                )
         gathered.sort(key=lambda r: r.timestamp, reverse=True)
         return [r.to_dict() for r in gathered[:limit]]
 

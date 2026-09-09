@@ -1,7 +1,5 @@
 """Bus reliability — per-handler circuit breaker with rolling failure rate.
 
-OP-09f | py_modules/unifideck/event_bus/event_bus_reliability.py
-
 When a subscriber handler keeps raising exceptions, the bus protects
 itself (and the rest of the subscribers) by opening a circuit breaker
 on that handler — it stops being invoked until a cooldown elapses.
@@ -30,7 +28,7 @@ unconditionally, and a single new failure that pushes the rate back
 above threshold re-opens immediately.
 
 Failures themselves are written to the dead-letter queue in
-``event_bus_extensions.py`` (OP-09e) for post-mortem inspection.
+``event_bus_extensions.py`` for post-mortem inspection.
 """
 
 from __future__ import annotations
@@ -45,7 +43,6 @@ logger = logging.getLogger(__name__)
 CB_WINDOW_SIZE = 20
 CB_OPEN_THRESHOLD = 0.5
 CB_RESET_TIMEOUT_SEC = 30.0
-
 
 @dataclass
 class _CBState:
@@ -63,7 +60,6 @@ class _CBState:
         default_factory=lambda: deque(maxlen=CB_WINDOW_SIZE),
     )
     open_until: float = 0.0
-
 
 class CircuitBreaker:
     """Per-handler circuit breaker driven by rolling failure rate."""

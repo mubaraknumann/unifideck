@@ -1,8 +1,6 @@
 """
 Detection cascade — chain of strategies to identify a game on disk.
 
-OP-57g | py_modules/unifideck/stores/ubisoft/library/detection_cascade.py
-
 Identifying an unknown Ubisoft install on disk requires trying several
 strategies in order:
 
@@ -39,7 +37,6 @@ if TYPE_CHECKING:
     from .detection import _InstallDetector
 logger = logging.getLogger(__name__)
 _INSTALL_MARKER_FILENAME = ".unifideck_ubisoft"
-
 
 class _DetectionCascade:
     """Detection cascade."""

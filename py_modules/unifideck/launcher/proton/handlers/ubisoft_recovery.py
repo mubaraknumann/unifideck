@@ -152,6 +152,14 @@ def clone_template_into(prefix_dir: Path) -> bool:
     stale family, reset again, re-cloned, reverted again (2026-08-01,
     Rayman Origins). Done around the copy rather than with ``--exclude`` so
     the ``cp -a`` fallback cannot drift from the rsync path.
+
+    **Deliberately not ``shared/prefix_clone.rsync_clone``**, which the
+    backend's Ubisoft clones all use. Three reasons, each disqualifying on
+    its own: this runs in the launcher under the system Python, so it is
+    synchronous ``subprocess.run`` rather than asyncio; it needs the
+    ``cp -a`` fallback for a host with no rsync; and it must restore the
+    marker described above, which a generic clone knows nothing about.
+    Folding it in would drop that restoration and re-open the loop.
     """
     if find_upc_in(prefix_dir) is not None:
         return True

@@ -1,7 +1,5 @@
 """Launch history service — record per-launch outcomes.
 
-OP-21 | py_modules/unifideck/services/launch_history/__init__.py
-
 Re-exports ``LaunchHistoryService``. The service maintains a per-game
 history of recent launches with their outcome (success, crash,
 quick-exit) so the circuit breaker, telemetry, and UI can decide

@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from unifideck.services.feature_flag_service import FeatureFlagService
     from unifideck.services.launch_history import LaunchHistoryService
     from unifideck.services.launch_logs import LaunchLogsService
+    from unifideck.services.memory_sampler import MemorySamplerService
     from unifideck.services.metadata_service import MetadataService
     from unifideck.services.microsoft_subscription import MicrosoftSubscriptionService
     from unifideck.services.playtime import PlaytimeService
@@ -40,6 +41,12 @@ if TYPE_CHECKING:
 class ServiceContainer:
     """Dependency injection container holding all service instances."""
 
+    # MemorySamplerService — records this process's own memory footprint on
+    # a timer so a support bundle carries a growth curve, not a single
+    # reading. Declared first so that, since teardown walks these fields in
+    # reverse, it is the last thing stopped and keeps sampling across the
+    # rest of the shutdown. Depends on nothing but config.
+    memory_sampler: MemorySamplerService | None = None
     shortcut: ShortcutService | None = None
     download: DownloadService | None = None
     metadata: MetadataService | None = None

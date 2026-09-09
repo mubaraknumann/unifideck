@@ -53,10 +53,12 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from unifideck.launcher.proton.infrastructure.prefix_layout import (
+    resolve_drive_c,
+)
 from unifideck.launcher.wrapper_session_specs import (
     PrefsSpec,
     SessionSpec,
-    resolve_drive_c,
 )
 
 logger = logging.getLogger(__name__)

@@ -1,7 +1,5 @@
 """Authenticated GOG user info — small frozen dataclass.
 
-OP-52e | py_modules/unifideck/stores/gog/tokens/user_info.py
-
 ``GOGUserInfo`` is a frozen dataclass with ``username`` and
 ``galaxy_user_id``. Used as the public face of the authenticated user
 for the UI (avatar, displayed name) and stored alongside tokens for

@@ -1,7 +1,5 @@
 """Brute-force detector — count recent failures, emit threshold events.
 
-OP-19c | py_modules/unifideck/services/security/bruteforce.py
-
 ``BruteForceDetector`` tracks the total count of failed
 authentication attempts (across **all** stores and users) within a
 rolling time window. When the count crosses one of two thresholds,
@@ -31,7 +29,6 @@ from collections.abc import Callable
 from typing import Any
 
 logger = logging.getLogger(__name__)
-
 
 class BruteForceDetector:
     """Rolling-window failure counter with two-tier alerting."""

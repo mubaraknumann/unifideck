@@ -1,16 +1,14 @@
 """Epic Games Store — Layer-4 implementation of the unified store interface.
 
-OP-48a | py_modules/unifideck/stores/epic/store.py
-
 ``EpicStore`` is the orchestration class that wires every Epic
 sub-component together and exposes them through the ``StoreBase``
 contract. It owns one instance each of :
 
-* ``EpicAuthFlow`` (OP-48b)      — OAuth via embedded browser.
-* ``EpicLibraryReader`` (OP-48c) — owned-games library reader.
-* ``EpicInstaller`` (OP-48d)     — install/uninstall pipeline.
-* ``EpicUpdateChecker`` (OP-48e) — periodic update polling.
-* ``EpicExeResolver`` (OP-48g)   — locate the launchable .exe.
+* ``EpicAuthFlow`` — OAuth via embedded browser.
+* ``EpicLibraryReader`` — owned-games library reader.
+* ``EpicInstaller`` — install/uninstall pipeline.
+* ``EpicUpdateChecker`` — periodic update polling.
+* ``EpicExeResolver`` — locate the launchable .exe.
 
 Epic Games uses ``legendary`` (a community CLI replacement for the
 Epic Games Launcher, written in Python) for all download/install
@@ -27,7 +25,6 @@ appropriate sub-component.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import socket
 from pathlib import Path
@@ -45,8 +42,12 @@ from unifideck.core.types import (
     Result,
     StoreInfo,
 )
-from unifideck.security import emit_external_auth_check_failed
 from unifideck.services.shortcut import ShortcutService
+from unifideck.stores.shared.browser_auth_rebuild import (
+    BrowserAuthRebuildMixin,
+)
+from unifideck.stores.shared.cli_credentials import read_cli_user_json
+from unifideck.stores.shared.install_status import merge_install_status
 from unifideck.stores.shared.store_base import StoreBase
 from unifideck.utils.config_helpers import get_cfg
 
@@ -58,7 +59,7 @@ from .install import (
     EpicInstaller,
     ProgressCallback,
 )
-from .library import EpicLibraryReader, merge_install_status
+from .library import EpicLibraryReader
 from .sessions import EpicSessions
 from .uninstall import read_legendary_install_path
 from .updates import EpicUpdateChecker
@@ -70,8 +71,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-
-class EpicStore(StoreBase):
+class EpicStore(BrowserAuthRebuildMixin, StoreBase):
     """Epic store."""
 
     store_info = StoreInfo(
@@ -79,14 +79,12 @@ class EpicStore(StoreBase):
         display_name="Epic Games",
         auth_method="oauth",
         icon_asset="epic.png",
-        uses_wine=False,
         supports_install=True,
     )
 
     CLI_TOOL = CLITool(
         name="legendary",
         search_paths=["bin/legendary"],
-        version_flag="--version",
     )
 
     def __init__(
@@ -167,26 +165,14 @@ class EpicStore(StoreBase):
         self._auth: EpicAuthFlow | None = None
         self._rebuild_auth_after_injection()
 
-    def _rebuild_auth_after_injection(self) -> None:
-        """(Re-)build the Epic auth flow once a browser monitor is set."""
-        if self._auth is not None:
-            return
-        monitor = getattr(self, "_browser_monitor", None)
-        if monitor is None:
-            logger.debug("[EpicStore] no browser_monitor; auth disabled")
-            return
-        orchestrator = AuthOrchestrator(
-            bus=self._bus,
-            browser_monitor=monitor,
-            store_name="epic",
-        )
-        self._auth = EpicAuthFlow(
+    def _build_auth_flow(self, orchestrator: AuthOrchestrator) -> EpicAuthFlow:
+        """Epic's half of ``BrowserAuthRebuildMixin``."""
+        return EpicAuthFlow(
             bus=self._bus,
             orchestrator=orchestrator,
             cli_path=self.cli_path,
             cli_timeout_seconds=self._timeouts["auth_check"],
         )
-        logger.info("[EpicStore] auth flow wired")
 
     async def is_available(self) -> bool:
         """Check whether available."""
@@ -195,43 +181,24 @@ class EpicStore(StoreBase):
         return ok
 
     def _check_legendary_authenticated(self) -> bool:
-        """Check LEGENDARY authenticated."""
-        if not self.cli_path:
-            emit_external_auth_check_failed(
-                self._bus,
-                "epic",
-                "cli_not_found",
-                "legendary binary missing from search paths",
-            )
-            return False
-        user_file = str(Path(get_cfg(
+        """Check LEGENDARY authenticated.
+
+        The read, the permission hardening and the audit emits are shared
+        with Amazon in ``stores/shared/cli_credentials`` — the two were
+        near-identical readers differing only in the store label, the config
+        key and the predicate below (audit §3.2).
+        """
+        return read_cli_user_json(
+            "epic",
+            self.cli_path,
+            str(Path(get_cfg(
                 self._config,
                 "stores.epic.user_file",
                 "~/.config/legendary/user.json",
-            )).expanduser())
-        if not Path(user_file).is_file():
-            return False
-        try:
-            with Path(user_file).open(encoding="utf-8") as f:
-                data = json.load(f)
-        except (OSError, json.JSONDecodeError) as e:
-            logger.debug("[EpicStore] user.json invalid: %s", e)
-            emit_external_auth_check_failed(
-                self._bus,
-                "epic",
-                "parse_error",
-                f"{type(e).__name__}",
-            )
-            return False
-        if not isinstance(data, dict):
-            emit_external_auth_check_failed(
-                self._bus,
-                "epic",
-                "malformed_payload",
-                "not a JSON object",
-            )
-            return False
-        return "access_token" in data
+            )).expanduser()),
+            self._bus,
+            validate=lambda data: "access_token" in data,
+        )
 
     async def get_game_achievements(
         self, game_id: str, force: bool = False,
@@ -325,6 +292,9 @@ class EpicStore(StoreBase):
         try:
             owned = await self._library.read_owned_games()
             installed = await self._library.read_installed_map()
+            # Defaults throughout: legendary records ``install_path``, and
+            # its installed.json can outlive the directory, so the shared
+            # helper's disk re-check is exactly what this store wants.
             return merge_install_status(owned, installed)
         except Exception:
             logger.exception("[EpicStore] get_library failed")

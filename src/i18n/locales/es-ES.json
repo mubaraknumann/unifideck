@@ -69,15 +69,6 @@
     "validationErrors.homeRoot": "No se puede usar la raíz del directorio personal",
     "freeSpaceLabel": "{{label}} ({{freeSpace}} GB libres)"
   },
-  "gameGrid": {
-    "loading": "Cargando juegos...",
-    "noGamesFound": "No se encontraron juegos",
-    "noGamesHint": "Intenta sincronizar tus bibliotecas desde los ajustes de Unifideck",
-    "showingGames": "Mostrando {{count}} juegos",
-    "installed": "Instalado",
-    "notInstalled": "No instalado",
-    "playtime": "{{hours}} h {{minutes}} m jugados"
-  },
   "downloadsTab": {
     "currentDownload": "DESCARGA ACTUAL",
     "queuedDownloads": "EN COLA ({{count}})",
@@ -154,9 +145,9 @@
     "connected": "Conectado",
     "checking": "Comprobando...",
     "authenticate": "Iniciar sesión",
-    "legendaryNotInstalled": "⚠️ Instalando herramienta de Epic Games...",
-    "nileNotInstalled": "⚠️ Herramienta de Amazon Games no encontrada",
-    "error": "Error - Ver registros"
+    "error": "Error - Ver registros",
+    "storefrontOpening": "Abriendo la tienda de {{store}}...",
+    "storefrontFailed": "No se pudo abrir la tienda de {{store}}"
   },
   "librarySync": {
     "title": "SINC. DE BIBLIOTECA",
@@ -258,6 +249,8 @@
     "ubisoftLauncherAlreadyOpenMessage": "Ubisoft Connect ya está abierto para esta instalación.",
     "ubisoftLauncherOpenFailed": "No se pudo abrir Ubisoft Connect",
     "ubisoftLauncherOpenFailedMessage": "Error al abrir Ubisoft Connect para la instalación.",
+    "ubisoftSignInExpired": "Sesión de Ubisoft caducada",
+    "ubisoftSignInExpiredMessage": "Tu sesión guardada de Ubisoft ya no se acepta. Cierra sesión y vuelve a iniciarla desde los ajustes de Unifideck para reconectar.",
     "multipartDetected": "Descarga de varias partes detectada",
     "multipartMessage": "Por favor, ten paciencia y espera a que termine",
     "downloadFailed": "Error de descarga",
@@ -349,10 +342,10 @@
       "installingUbisoft": "Instalando con Ubisoft Connect",
       "installingUbisoftMessage": "Abriendo Ubisoft Connect: inicia la instalación desde la ventana del lanzador.",
       "protonReadyBody": "{{version}} está listo para usar",
+      "externalProtonOutdatedTitle": "Actualización de GE-Proton disponible",
+      "externalProtonOutdatedBody": "La última versión {{version}} está disponible. Actualice mediante su gestor externo.",
       "protonReadyTitle": "Proton listo",
       "protonSwitchedTo": "Ahora se usa {{version}}",
-      "signingInUbisoft": "Iniciando sesión en Ubisoft Connect",
-      "signingInUbisoftMessage": "Abriendo Ubisoft Connect: inicia sesión allí y luego vuelve.",
       "ubisoftPrefixNotReady": "Ubisoft Connect no está listo",
       "ubisoftPrefixNotReadyMessage": "No se pudo preparar el prefijo de Ubisoft Connect para este juego. Intenta instalarlo de nuevo; si sigue fallando, vuelve a ejecutar una sincronización de la biblioteca.",
       "ubisoftAuthPrefixNotReady": "Ubisoft Connect no está listo",
@@ -390,10 +383,9 @@
       "battlenetInstallerDownloadFailedMessage": "No se pudo descargar el instalador de Battle.net. Comprueba tu conexión e inténtalo de nuevo.",
       "battlenetClientInstallFailed": "Error al instalar Battle.net",
       "battlenetClientInstallFailedMessage": "El instalador del cliente de Battle.net no terminó. Inténtalo de nuevo o revisa el registro de inicio para ver qué informó.",
-      "signingInBattlenet": "Inicio de sesión en Battle.net",
-      "signingInBattlenetMessage": "Abriendo el cliente de Battle.net para que inicies sesión…",
       "installingBattlenet": "Instalando a través de Battle.net",
-      "installingBattlenetMessage": "Abriendo Battle.net. Pulsa Instalar allí para empezar la descarga de {{gameTitle}}."
+      "installingBattlenetMessage": "Abriendo Battle.net. Pulsa Instalar allí para empezar la descarga de {{gameTitle}}.",
+      "wrapperOpening": "Abriendo {{client}}"
     },
     "updateComplete": "¡Actualización completada!",
     "updateCompleteMessage": "{{title}} ha sido actualizado.",
@@ -401,7 +393,6 @@
     "updateCancelledMessage": "Se canceló la actualización de {{title}}.",
     "updateFailed": "Error al actualizar",
     "updateFailedMessage": "Error al iniciar la actualización.",
-    "storeError": "Error al comunicar con {{store}} ({{errType}})",
     "captureLogsStarted": "Recopilando registros...",
     "captureLogsStartedMessage": "Creando un paquete de diagnóstico en tu carpeta de Descargas. Tardará unos segundos.",
     "captureLogsDone": "Registros capturados",
@@ -417,9 +408,7 @@
       "openStorageManager": "Liberar espacio",
       "signInToStore": "Iniciar sesión",
       "retrySync": "Reintentar",
-      "retryLibrarySync": "Actualizar biblioteca",
-      "openSaveFolder": "Ver carpeta de guardado",
-      "showLogs": "Ver registros"
+      "retryLibrarySync": "Actualizar biblioteca"
     },
     "library": {
       "_comment": "Toasts emitted by SyncService when a per-store library sync fails. The retry button triggers a fire-and-forget refresh via the unifideck://refresh-library/<store> verb; the user doesn't wait for the result inline, the Library view picks it up through its SYNC_PROGRESS subscription.",
@@ -485,6 +474,7 @@
       "authExpired": "Sesión caducada. Inicia sesión de nuevo",
       "toolMissing": "Herramienta de descarga requerida no encontrada",
       "processFailed": "Error de descarga. Por favor inténtalo de nuevo",
+      "stalled": "La descarga se ha detenido sin progreso. Inténtalo de nuevo.",
       "directoryNotFound": "No se pudieron localizar los archivos instalados",
       "lockConflict": "Otra operación está en curso. Inténtalo de nuevo",
       "ubisoftClient": "Error del cliente Ubisoft Connect. Intenta reparar el prefijo",
@@ -551,7 +541,8 @@
     "amazon": "Amazon",
     "ubisoft": "Ubisoft",
     "microsoft": "Microsoft",
-    "battlenet": "Battle.net"
+    "battlenet": "Battle.net",
+    "gamevault": "GameVault"
   },
   "unifiedLibrary": {
     "error": "Error de Unifideck",
@@ -598,11 +589,14 @@
       "never": "Nunca"
     },
     "compatibility": {
-      "modalTitle": "Compatibilidad con Steam Deck",
+      "modalTitleDeck": "Compatibilidad con Steam Deck",
+      "modalTitleMachine": "Compatibilidad con Steam Machine",
+      "modalTitleSteamOS": "Compatibilidad con SteamOS",
       "viewOnProtonDb": "Ver en ProtonDB",
       "close": "Cerrar",
       "verified": "VERIFICADO",
       "playable": "JUGABLE",
+      "compatible": "COMPATIBLE",
       "unsupported": "NO COMPATIBLE",
       "unknown": "DESCONOCIDO"
     },
@@ -703,8 +697,7 @@
     "signInRequired": "Inicia sesión para jugar",
     "syncSkippedNoSubscription": "No se detectó ninguna suscripción activa a Xbox Game Pass. No se sincronizó tu biblioteca de xCloud.",
     "syncSkippedTierUnknown": "Se detectó tu suscripción a Xbox Game Pass pero no se pudo determinar el plan. Sincronización omitida para evitar listar juegos no disponibles.",
-    "subscriptionCheckFailed": "No se pudo verificar tu suscripción a Xbox Game Pass. Sincronización de xCloud omitida. Reinténtalo cuando tu conexión se estabilice.",
-    "subscriptionDetected": "Suscripción activa a Xbox Game Pass {{tier}}."
+    "subscriptionCheckFailed": "No se pudo verificar tu suscripción a Xbox Game Pass. Sincronización de xCloud omitida. Reinténtalo cuando tu conexión se estabilice."
   },
   "playButton": {
     "play": "Jugar",
@@ -1009,9 +1002,14 @@
     "installingButton": "Instalando...",
     "installingTitle": "Instalando plugin",
     "latestLabel": "última",
+    "manageButton": "Actualizar",
+    "manageButtonAvailable": "Actualizar (v{{version}} disponible)",
+    "manageTitle": "Actualización del complemento",
     "modalTitle": "UNIFIDECK v{{version}}. Notas de versión",
     "noBackend": "El backend de Decky no está disponible.",
     "noReleaseNotes": "No hay notas de versión disponibles.",
+    "noticeBody": "La v{{version}} está lista para instalarse desde los ajustes de Unifideck.",
+    "noticeTitle": "Actualización de Unifideck disponible",
     "reinstallButton": "Reinstalar v{{version}}",
     "refreshFailedMessage": "No se pudo verificar la información de la última versión. Comprueba tu conexión e inténtalo de nuevo.",
     "releaseGoneMessage": "Esta versión ya no está disponible. Busca actualizaciones y selecciónala de nuevo.",
@@ -1052,5 +1050,36 @@
     "title": "COLECCIONES DE STEAM",
     "enabled": "Colecciones activadas",
     "disabled": "Colecciones desactivadas"
+  },
+  "reconcile": {
+    "repairedTitle": "Datos de la biblioteca reparados",
+    "repairedBody": "Se completaron {{artwork}} imágenes, {{metadata}} metadatos y {{compat}} entradas de compatibilidad que dejó una sincronización interrumpida."
+  },
+  "gamevault": {
+    "connectTitle": "Conectar a GameVault",
+    "connect": "Conectar",
+    "connecting": "Conectando…",
+    "cancel": "Cancelar",
+    "modeRemote": "Conectar a un servidor remoto",
+    "modeRemoteDescription": "Inicia sesión en un servidor GameVault que alojes en otro lugar.",
+    "modeLocal": "Usar una carpeta de este dispositivo",
+    "modeLocalDescription": "Importa archivos de juegos sin DRM que ya tengas aquí. No necesitas servidor.",
+    "localTitle": "Carpeta de juegos local",
+    "localIntro": "Coloca archivos de juegos en esta carpeta y aparecerán en tu biblioteca tras la próxima sincronización.",
+    "vaultDir": "Carpeta de archivos",
+    "vaultDirDescription": "Donde guardas tus archivos de juegos.",
+    "browse": "Explorar…",
+    "serverUrl": "URL del servidor",
+    "username": "Usuario",
+    "password": "Contraseña",
+    "verifySsl": "Verificar certificado SSL",
+    "verifySslDescription": "Deshabilitar para certificados autofirmados",
+    "downloadDir": "Directorio de descarga de archivos",
+    "downloadDirDescription": "Directorio temporal para descargas de archivos. Dejar vacío para usar el predeterminado.",
+    "downloadDirPlaceholder": "~/.local/share/unifideck/gamevault_downloads",
+    "errorServerUrlRequired": "Por favor ingresa la URL del servidor",
+    "errorUsernameRequired": "Por favor ingresa tu nombre de usuario",
+    "errorPasswordRequired": "Por favor ingresa tu contraseña",
+    "errorConnection": "Error al conectar con el servidor GameVault"
   }
 }

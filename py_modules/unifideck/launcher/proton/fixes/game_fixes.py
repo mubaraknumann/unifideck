@@ -105,11 +105,12 @@ ROCKSTAR_PLAY_EXES: dict[str, str] = {
 # load first. Heroic's documented RDR2/GTA5 fix for the launch failure.
 ROCKSTAR_WINEDLLOVERRIDES = "vulkan-1=n,b"
 # ── Titles that ship their own ICU and must not get Wine's stub ────
-# icuuc=n,b = native-then-builtin, the same shape as the Rockstar
-# override above: the game's own icuuc.dll loads first, and Wine's
-# builtin is still there to fall back on.
+# ``=n,b`` = native-then-builtin, the same shape as the Rockstar override
+# above: the game's own DLL loads first, and Wine's builtin is still there
+# to fall back on.
 #
-# Cyberpunk 2077 bundles ICU **65** as ``icuuc.dll`` beside the game exe.
+# Cyberpunk 2077 bundles ICU **65** beside the game exe as BOTH
+# ``icuuc.dll`` (the "common" library) and ``icuin.dll`` (the "i18n" one).
 # From a user log bundle (2026-08-12, SteamOS desktop, Unifideck 0.7.3),
 # every launch that reached the game died on the same line, via BOTH
 # ``REDprelauncher.exe`` and a direct ``Cyberpunk2077.exe`` retry:
@@ -121,21 +122,32 @@ ROCKSTAR_WINEDLLOVERRIDES = "vulkan-1=n,b"
 # aborted — so the window opens and stays blank. Wine loaded its BUILTIN
 # ``icuuc.dll`` ahead of the game's, and that builtin is a stub.
 #
-# Which Proton builds carry that stub, checked on-device:
+# This override initially covered ``icuuc`` alone, which moved the abort
+# one DLL along rather than curing it. A later bundle (2026-08-23) shows
+# the game getting FURTHER and then dying on the sibling library:
 #
-#   GE-Proton9-26   builtin icuuc.dll: no    bundled ICU: none
-#   GE-Proton10-10  builtin icuuc.dll: no    bundled ICU: icuuc68.dll
-#   GE-Proton10-34  builtin icuuc.dll: no    bundled ICU: icuuc68.dll
-#   GE-Proton11-1   builtin icuuc.dll: no    bundled ICU: icuuc68.dll
-#   GE-Proton11-3   builtin icuuc.dll: YES   bundled ICU: icuuc68.dll
+#   wine: Call from 00006FFFFFF5C8C0 to unimplemented function
+#         icuin.dll.?compile@RegexPattern@icu_65@@..., aborting
 #
-# GE-Proton11-3 is the first build to ship it, which is why this surfaced
-# now. Proton's own bundled ICU is **68**, so it cannot serve an ICU-65
+# Which Proton builds carry those stubs, checked on-device:
+#
+#   GE-Proton9-26   builtin icuuc/icuin: no / no    bundled ICU: none
+#   GE-Proton10-10  builtin icuuc/icuin: no / no    bundled ICU: icuuc68.dll
+#   GE-Proton10-34  builtin icuuc/icuin: no / no    bundled ICU: icuuc68.dll
+#   GE-Proton11-1   builtin icuuc/icuin: no / no    bundled ICU: icuuc68.dll
+#   GE-Proton11-3   builtin icuuc/icuin: YES / YES  bundled ICU: icuuc68.dll
+#   GE-Proton11-5   builtin icuuc/icuin: YES / YES  bundled ICU: icuuc68.dll
+#   GE-Proton11-6   builtin icuuc/icuin: YES / YES  bundled ICU: icuuc68.dll
+#
+# GE-Proton11-3 is the first build to ship them, and it shipped BOTH at
+# once — which is why overriding only ``icuuc`` was never going to be
+# enough. Proton's own bundled ICU is **68**, so it cannot serve an ICU-65
 # symbol either — bumping Proton is not the fix, loading the game's own
 # copy is. protonfixes cannot cover this: there is no gamefix for this
 # title in any store's directory, and nothing in the protonfixes tree
 # touches ICU at all.
-ICU_NATIVE_WINEDLLOVERRIDES = "icuuc=n,b"
+ICU_NATIVE_DLLS: tuple[str, ...] = ("icuuc", "icuin")
+ICU_NATIVE_WINEDLLOVERRIDES = ";".join(f"{dll}=n,b" for dll in ICU_NATIVE_DLLS)
 # PRIMARY tier = the exe name, for the same reason it is primary for
 # Rockstar: it survives re-releases and is identical on every store.
 # ``REDprelauncher.exe`` also fronts The Witcher 3 next-gen, which is

@@ -7,6 +7,7 @@ anywhere. These pin `UbisoftSession.capture()`'s target selection + logout guard
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -28,10 +29,17 @@ def _session(tmp_path: Path):
     s._payload = MagicMock()
     s._reader.has_valid_credentials.return_value = True
     s._reader.get_credential_mtime.return_value = 100.0
-    s._reader.get_credential_size.return_value = 7612  # logged-in everywhere
+    s._reader.is_signed_in.return_value = True  # signed in everywhere
     s._read_stored_mtime = lambda: 0.0  # type: ignore[method-assign]
     s._write_stored_mtime = lambda _m: None  # type: ignore[method-assign]
+    s._serialised = _no_lock  # type: ignore[method-assign]
     return s, auth, template
+
+
+@contextmanager
+def _no_lock():
+    """Stand in for the cross-process flock — nothing to serialise here."""
+    yield True
 
 
 def _synced_targets(s) -> list[str]:
@@ -64,10 +72,11 @@ def test_logged_out_source_is_skipped_entirely(tmp_path: Path):
     s, _auth, _template = _session(tmp_path)
     game = tmp_path / "game"
     game.mkdir()
-    # Game credential is SMALLER than auth's → logout signature.
-    s._reader.get_credential_size.side_effect = (
-        lambda p: 6471 if str(p) == str(game) else 7612
-    )
+    # The game prefix holds no account (no ``user.dat``) → signed out. Note
+    # this is a question about the SOURCE alone: it used to be decided by
+    # comparing sizes against the auth prefix, which froze auth on the first
+    # token it saw once a rotation shrank the vault (GH #435).
+    s._reader.is_signed_in.side_effect = lambda p: str(p) != str(game)
 
     result = s.capture(str(game))
 

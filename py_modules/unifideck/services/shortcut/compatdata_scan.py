@@ -53,8 +53,9 @@ is also what keeps a live game's real prefix out of reach.
 
 Note there is no staleness *test*: redundancy follows from the launcher always
 pointing ``WINEPREFIX`` at our own per-game directory. ``atime`` is useless as
-an "in use" signal because :func:`_dir_size_bytes` walks the tree and updates
-it; ``mtime`` survives a read and is reported for diagnostics.
+an "in use" signal because the size walk (``dir_size_bytes``, shared with
+every store from ``stores/shared/installed_size``) touches the tree and
+updates it; ``mtime`` survives a read and is reported for diagnostics.
 
 Read-only. Deletion is the caller's job (``services/prefix_bridge``).
 """
@@ -65,6 +66,7 @@ from pathlib import Path
 from typing import Any
 
 from unifideck.core.compat_bridge import compatdata_dir, to_unsigned
+from unifideck.stores.shared.installed_size import dir_size_bytes
 
 from .games_map import UNIFIDECK_TAG
 
@@ -182,21 +184,6 @@ def index_shortcuts(shortcuts: dict[str, Any]) -> dict[int, tuple[str, bool]]:
     return index
 
 
-def _dir_size_bytes(path: Path) -> int:
-    """Recursive size of *path*; unreadable entries count as 0."""
-    total = 0
-    try:
-        for child in path.rglob("*"):
-            try:
-                if child.is_file() and not child.is_symlink():
-                    total += child.stat().st_size
-            except OSError:
-                continue
-    except OSError:
-        logger.debug("[compatdata_scan] could not walk %s", path)
-    return total
-
-
 def classify(app_id: int, index: dict[int, tuple[str, bool]]) -> tuple[str, str]:
     """``(classification, display name)`` for *app_id*."""
     hit = index.get(app_id)
@@ -237,7 +224,7 @@ def _describe(
         "name": name,
         "classification": classification,
         "path": str(child),
-        "size_bytes": _dir_size_bytes(child) if with_sizes else 0,
+        "size_bytes": dir_size_bytes(str(child)) if with_sizes else 0,
         "marker": marker,
         "mtime": mtime,
         "in_use": in_use,

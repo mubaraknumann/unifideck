@@ -17,6 +17,7 @@ from unifideck.launcher.proton.infrastructure.game_log import (
 )
 
 from .container_escape import escape_argv
+from .proton_health import assert_proton_still_complete
 
 logger = logging.getLogger(__name__)
 # Short pause before a recoverable umu retry — gives a transient
@@ -506,6 +507,7 @@ async def _run_umu_once(
     orphaned wineserver is left spinning.
     """
     _strip_loader_env(env)
+    assert_proton_still_complete(env)
     # If Steam wrapped our launcher in its OWN pressure-vessel (the user set
     # Properties > Compatibility on this shortcut — a supported workflow),
     # hop back out to the host first: Proton's python3 cannot load libz.so.1

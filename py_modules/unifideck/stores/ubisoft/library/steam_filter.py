@@ -1,7 +1,6 @@
 """
 Hide Ubisoft games that are owned on the native Steam library.
 
-OP-55i (re-implementation) | py_modules/unifideck/stores/ubisoft/library/steam_filter.py
 
 A Ubisoft title the user owns on Steam still shows up in UPC, but its
 ``uplay://`` shortcut is a dead end — the entitlement is bound to the

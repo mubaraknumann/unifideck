@@ -78,16 +78,10 @@ def build_standalone() -> LauncherService:
         games_map_path=games_map_path,
     )
 
-    # Drift fix (lot 12d): ProtonService.__init__ requires ``bus``
-    # and ``config_vdf_path`` (Steam's ``~/.steam/root/config/config.vdf``
-    # is where CompatToolMapping entries are written). The previous
-    # zero-arg construction raised TypeError at the first launch in
-    # standalone mode.
-    config_vdf_path = str(Path(steam_root) / "config" / "config.vdf")
-    proton_svc = ProtonService(
-        bus=bus,
-        config_vdf_path=config_vdf_path,
-    )
+    # ProtonService only keeps the latest GE-Proton installed for the
+    # launcher to select; it writes no config.vdf entries, so ``bus`` is
+    # the whole contract.
+    proton_svc = ProtonService(bus=bus)
 
     cloud_svc = CloudSaveService(
         bus=bus,

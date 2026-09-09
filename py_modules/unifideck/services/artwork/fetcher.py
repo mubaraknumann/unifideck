@@ -19,6 +19,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
+from unifideck.core.compat_bridge import to_unsigned
+
 if TYPE_CHECKING:
     from unifideck.config import ConfigManager
 logger = logging.getLogger(__name__)
@@ -89,7 +91,7 @@ async def get_missing_kinds(grid_dir: str, app_id: int) -> set[str]:
     from unifideck.core.io import async_file_ops as aio
 
     # Steam stores shortcut art under the *unsigned* 32-bit appid.
-    unsigned = app_id if app_id >= 0 else app_id + 0x100000000
+    unsigned = to_unsigned(app_id)
     grid_path = Path(grid_dir)
     missing: set[str] = set()
     for kind in _ALL_KINDS:
@@ -226,7 +228,7 @@ async def delete_artwork_files(grid_dir: str, app_id: int) -> int:
     import asyncio
 
     # Steam stores shortcut art under the *unsigned* 32-bit appid.
-    unsigned = app_id if app_id >= 0 else app_id + 0x100000000
+    unsigned = to_unsigned(app_id)
 
     def _sweep() -> int:
         base = Path(grid_dir)
@@ -257,7 +259,7 @@ async def find_artwork_url(
     """Resolve the best SGDB artwork URL for a given game title + kind.
 
     Thin delegation wrapper over ``steam.steamgriddb.search_artwork``
-    (owned by OP-32a). Two responsibilities:
+    Two responsibilities:
 
     1. **Lazy import** of the SGDB client to keep this
        module's import graph clean — the SGDB module pulls
@@ -391,7 +393,7 @@ async def download_and_save(
     # ``has_artwork`` checks for. Mismatch caused every cover to
     # be re-fetched on every sync and Steam's UI to find none of
     # them on disk.
-    unsigned = app_id if app_id >= 0 else app_id + 0x100000000
+    unsigned = to_unsigned(app_id)
     target = str(Path(grid_dir) / f"{unsigned}{suffix}")
     data = await _fetch_url_bytes(url, timeout)
     if data is None:

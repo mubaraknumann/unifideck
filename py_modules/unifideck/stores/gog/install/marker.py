@@ -1,7 +1,5 @@
 """Post-install bookkeeping — locate install dir + write marker.
 
-OP-51g | py_modules/unifideck/stores/gog/install/marker.py
-
 ``_PostInstallMarker`` handles the post-download phase of an install:
 
 * **locate the install** — GOG installer behaviour is inconsistent
@@ -32,7 +30,6 @@ from .primitives import GOGFolderOps
 if TYPE_CHECKING:
     from .installer import GOGInstaller
 logger = logging.getLogger(__name__)
-
 
 class _PostInstallMarker:
     """Post install marker."""

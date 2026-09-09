@@ -123,10 +123,11 @@ export interface UseGameInfoResult {
  * @returns aggregated info + loading/error flags.
  */
 export function useGameInfo(appId: number | null): UseGameInfoResult {
-  // Backend's `get_game_metadata(store, game_id)` requires a
-  // store/game-id pair we don't have at the appId boundary.
-  // `get_game_info(app_id)` is the right route for "look up
-  // by Steam shortcut appid".
+  // `get_game_info(app_id)` is the route for "look up by Steam
+  // shortcut appid" — the appId boundary has no store/game-id pair.
+  // (A store-keyed `get_game_metadata` route once existed for that
+  // shape; it had no caller and was deleted in the audit §1.2 pass.
+  // `get_game_metadata_display` is the appid-keyed survivor.)
   // We receive the raw backend dict (snake_case, ``installed``
   // not ``is_installed``, etc.) and adapt it via ``adaptGame``
   // below; declaring the RPC return as ``unknown`` keeps the

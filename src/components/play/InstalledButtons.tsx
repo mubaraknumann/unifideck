@@ -9,8 +9,9 @@
  *   Update:  [ Update ]  Space Required · Last Played      [ 🎮 ] [ ⚙ ] [ ✕ ]
  *
  * Running detection polls Steam's per-client ``display_status``
- * every 2 s (4 = running, 1 = launching). Update detection
- * fires ``check_game_update`` once on mount.
+ * every 2 s (4 = running, 1 = launching). Update detection is a
+ * reactive read of ``UpdateStore`` via ``useGameUpdate`` — the
+ * backend sweep fills it, so no per-mount RPC fires here.
  */
 import { FC, useCallback, useEffect, useState } from "react";
 import { DialogButton, showModal } from "@decky/ui";
@@ -98,7 +99,7 @@ export const InstalledButtons: FC<Props> = ({
   const gameId = game?.id;
   // Read-only view of the backend sweep's result — already in memory, so
   // this costs nothing and cannot delay the button the way the old
-  // inline `check_game_update` scan did (5-10 s for Epic, because
+  // inline per-game update scan did (5-10 s for Epic, because
   // legendary logs in and refreshes its asset manifest first).
   const hasUpdate = useGameUpdate(gameStore, gameId);
 

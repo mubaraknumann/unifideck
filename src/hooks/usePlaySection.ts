@@ -71,7 +71,9 @@ export function usePlaySection(appId: number | null): PlaySectionState {
     // takes precedence over `is_installed` flag staleness.
     const inQueue =
       findInQueue(downloads.queue?.current, game.id) ??
-      downloads.queue?.queued.find((d) => d.game_id === game.id) ??
+      downloads.queue?.queued.find(
+        (d) => d.game_id === game.id && !isTerminal(d),
+      ) ??
       null;
     if (inQueue) {
       return { kind: "downloading", shouldOverride: true, download: inQueue };
@@ -84,11 +86,33 @@ export function usePlaySection(appId: number | null): PlaySectionState {
   }, [appId, info.data, downloads.queue]);
 }
 
+/**
+ * Statuses meaning the item is finished with. A finished download must never
+ * render as an active one: the "downloading" branch above deliberately
+ * outranks `is_installed`, so a stale row does not just look wrong, it hides
+ * the Play button behind a progress bar whose Cancel cannot succeed.
+ *
+ * The backend filters these out of `current` too (`get_queue`). This is the
+ * second line of defence, and it is worth having: the queue snapshot is only
+ * replaced when a download event arrives, there is no polling refetch, and the
+ * event that clears a row is the same one that races the backend's own
+ * cleanup.
+ */
+const TERMINAL_STATUSES: ReadonlySet<string> = new Set([
+  "complete",
+  "failed",
+  "cancelled",
+]);
+
+function isTerminal(item: DownloadItem): boolean {
+  return TERMINAL_STATUSES.has(item.status);
+}
+
 function findInQueue(
   current: DownloadItem | null | undefined,
   gameId: string,
 ): DownloadItem | null {
-  if (!current) return null;
+  if (!current || isTerminal(current)) return null;
 
   return current.game_id === gameId ? current : null;
 }

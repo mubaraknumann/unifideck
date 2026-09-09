@@ -15,14 +15,16 @@ contained a ``"<store>:<id>"``-shaped token — or our stale
 genuine Unifideck phantoms stay sweepable and foreign shortcuts survive.
 
 These tests exercise the decision function
-``_ReconcilePhasesMixin._is_stale_managed_shortcut`` directly.
+``stale_predicate.is_stale_managed_shortcut`` directly.
 """
 from __future__ import annotations
 
 from unifideck.services.shortcut.games_map import UNIFIDECK_TAG
-from unifideck.services.shortcut.reconcile_phases import _ReconcilePhasesMixin
+from unifideck.services.shortcut.stale_predicate import (
+    is_stale_managed_shortcut,
+)
 
-_is_stale = _ReconcilePhasesMixin._is_stale_managed_shortcut
+_is_stale = is_stale_managed_shortcut
 
 # The launcher path the running plugin resolves to; ownership is a
 # basename match on ``unifideck-launcher``, so the exact dir is irrelevant.

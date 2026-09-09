@@ -1,8 +1,6 @@
 """
 Session sub-package — public exports.
 
-OP-60 | py_modules/unifideck/stores/ubisoft/session/__init__.py
-
 Re-exports ``UbisoftSession``, the orchestration class for UPC session
 state propagation between Wine prefixes.
 """
@@ -44,6 +42,5 @@ def build_standalone_session() -> UbisoftSession:
         paths=paths,
         read_machine_guid=UbisoftPrefixManager.read_machine_guid,
     )
-
 
 __all__ = ["UbisoftSession", "build_standalone_session"]

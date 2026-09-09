@@ -1,7 +1,5 @@
 """Install-pipeline helpers — game info probe + language picking.
 
-OP-51h | py_modules/unifideck/stores/gog/install/helpers.py
-
 ``_InstallHelpers`` exposes the two helper methods that the installer
 calls during the "probe & prepare" phase :
 
@@ -10,7 +8,7 @@ calls during the "probe & prepare" phase :
 * ``pick_languages(preferred, explicit, supported)`` — given the user's
   locale and the game's available languages, decide which language
   list to pass to gogdl. Honors an explicit override (always wins) or
-  picks a smart match (delegates to ``languages.py``, OP-51c).
+  picks a smart match (delegates to ``languages.py``).
 
 Refactor history (2026-05-14): ``parse_info_output`` was a single
 function at CC=17 — the reversed-line walk inlined the JSON parse,
@@ -39,7 +37,6 @@ from .languages import smart_match_language
 if TYPE_CHECKING:
     from .installer import GOGInstaller
 logger = logging.getLogger(__name__)
-
 
 class _InstallHelpers:
     """Install helpers."""

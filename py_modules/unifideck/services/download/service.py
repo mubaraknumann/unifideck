@@ -22,6 +22,7 @@ from unifideck.launcher.wrapper_stores import uses_manual_download_phase
 from .models import MAX_FINISHED_HISTORY, DownloadItem
 from .persistence import load_queue, save_queue
 from .validators import validate_path
+from .warmup_runner import PrefixWarmupRunner
 from .worker import _WorkerMixin
 
 if TYPE_CHECKING:
@@ -29,6 +30,18 @@ if TYPE_CHECKING:
     from unifideck.stores import StoreRegistry
 
 logger = logging.getLogger(__name__)
+
+# How long ``cancel`` waits for a cancelled install to unwind before
+# answering. Long enough for the common case (a subprocess being reaped),
+# short enough that the RPC always returns while the user is still looking
+# at the button.
+_CANCEL_SETTLE_S = 3.0
+
+# Statuses that mean "this item is finished with". An item can still be sitting
+# in ``_running`` while wearing one of these — the worker publishes the terminal
+# event before its ``finally`` pops the entry — so the read boundary filters on
+# status rather than trusting the dict membership.
+_TERMINAL_STATUSES = frozenset({"complete", "failed", "cancelled"})
 
 
 def _newest_per_id(items: list[DownloadItem]) -> list[DownloadItem]:
@@ -81,6 +94,11 @@ class DownloadService(_WorkerMixin):
         # ``already_running`` — the worker catches CancelledError,
         # emits DOWNLOAD_CANCELLED, and runs its own cleanup.
         self._running_tasks: dict[str, asyncio.Task[Any]] = {}
+        # Post-install prefix setup. Separate from ``_running_tasks`` because
+        # cancelling it means something different: the download has already
+        # finished and been made durable, so a cancel here abandons the setup
+        # and leaves the install standing. See ``warmup_runner``.
+        self._warmup_runner = PrefixWarmupRunner()
         # Recent finished items (capped FIFO). Populated by the
         # worker's ``_cleanup_running``; surfaced to the frontend
         # via ``get_queue()["finished"]`` so the Downloads page can
@@ -139,6 +157,7 @@ class DownloadService(_WorkerMixin):
         is_update: bool = False,
         language: str | None = None,
         required_bytes: int | None = None,
+        download_dir: str = "",
     ) -> Result:
         """Queue a new download request.
 
@@ -161,6 +180,10 @@ class DownloadService(_WorkerMixin):
         val_result = validate_path(install_path, required_bytes)
         if not val_result.success:
             return val_result
+        if download_dir and download_dir != install_path:
+            dl_result = validate_path(download_dir, required_bytes)
+            if not dl_result.success:
+                return dl_result
 
         key = f"{store}:{game_id}"
 
@@ -181,6 +204,7 @@ class DownloadService(_WorkerMixin):
                 title=title,
                 is_update=is_update,
                 language=language or "",
+                download_dir=download_dir,
                 # Ubisoft is a launcher-driven (UPC) install with no real
                 # download — mark it "manual" from enqueue so the UI shows the
                 # indeterminate "Installing in <vendor client>" state instead
@@ -205,45 +229,103 @@ class DownloadService(_WorkerMixin):
         store: str,
         game_id: str,
     ) -> Result:
-        """Cancel a download — pending OR running.
+        """Cancel whatever this game currently has in flight.
 
-        - Pending (in ``_queue``): remove + emit CANCELLED.
-        - Running (in ``_running_tasks``): cancel the task; the
-          worker's ``_run_install`` catches ``CancelledError``,
-          marks the item, emits CANCELLED, and runs
-          ``_cleanup_running`` in its finally block.
+        Five cases, in priority order:
+
+        - **Post-install warmup** (in the warmup runner): abandon the prefix
+          setup only. The download is already finished and durable.
+        - **Already finished** (terminal status, still in ``_running``): there
+          is nothing left to cancel, so report success and let the row clear.
+          Cancelling here would be actively harmful — the worker is inside its
+          finalisation, DOWNLOAD_COMPLETE has already gone out, and killing the
+          task would flip a completed install to ``cancelled``.
+        - **Running install** (in ``_running_tasks``): cancel the task; the
+          worker's ``_run_install`` catches ``CancelledError``, marks the item,
+          emits CANCELLED, and runs ``_cleanup_running`` in its finally block.
+        - **Pending** (in ``_queue``): remove + emit CANCELLED.
+        - **Orphan** (in ``_running`` with no live task): a row the frontend is
+          still rendering that the backend has already finished with. Clear it
+          instead of answering ``not_found``, which is what the user saw as
+          "Cancel Failed / not_found" on a dead-but-visible row.
+
+        Every outcome is logged. Nothing here used to log at all, which is why
+        diagnosing that report needed a cross-check against on-disk state.
         """
         key = f"{store}:{game_id}"
-
-        # Running case first — kill the task outside the lock so
-        # the worker's cleanup (which itself takes locks) can run.
-        running_task = self._running_tasks.get(key)
-        if running_task is not None and not running_task.done():
-            running_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError, Exception):
-                await running_task
+        logger.info("[DownloadService] cancel requested for %s", key)
+        if self._warmup_runner.cancel(key):
+            logger.info(
+                "[DownloadService] cancel %s: abandoned prefix warmup; "
+                "the install stands", key,
+            )
             return Result(success=True)
+        active = self._running.get(key)
+        if active is not None and active.status in _TERMINAL_STATUSES:
+            logger.info(
+                "[DownloadService] cancel %s: already %s, nothing to cancel",
+                key, active.status,
+            )
+            return Result(success=True)
+        if await self._cancel_running(key):
+            logger.info("[DownloadService] cancel %s: running install cancelled", key)
+            return Result(success=True)
+        return await self._cancel_queued_or_orphan(store, game_id, key)
 
+    async def _cancel_running(self, key: str) -> bool:
+        """Cancel a live install task. False when there isn't one.
+
+        The wait on the cancelled task is bounded. Cancellation is requested
+        synchronously, but an installer sitting in a thread — ``zipfile``
+        extraction, a large ``rmtree`` — only takes it at its next checkpoint,
+        and this used to block for as long as that took. It is reached from an
+        RPC handler: the frontend's cancel call would hang and be reported to
+        the user as "cancel failed", for an install that was in fact being
+        cancelled. Nothing here needs the unwind to finish: the worker emits
+        ``DOWNLOAD_CANCELLED`` from its own handler, and its ``finally`` clears
+        ``_running_tasks``.
+        """
+        running_task = self._running_tasks.get(key)
+        if running_task is None or running_task.done():
+            return False
+        running_task.cancel()
+        with contextlib.suppress(
+            asyncio.CancelledError, asyncio.TimeoutError, Exception,
+        ):
+            await asyncio.wait_for(
+                asyncio.shield(running_task), _CANCEL_SETTLE_S,
+            )
+        return True
+
+    async def _cancel_queued_or_orphan(
+        self, store: str, game_id: str, key: str,
+    ) -> Result:
+        """Drop a pending entry, or clear an orphaned running row."""
         async with self._lock:
             found_idx = -1
-            for i, item in enumerate(self._queue):
-                if item.store == store and item.game_id == game_id:
+            for i, queued in enumerate(self._queue):
+                if queued.store == store and queued.game_id == game_id:
                     found_idx = i
                     break
-
-            if found_idx == -1:
-                return Result(success=False, error="not_found")
-
-            item = self._queue.pop(found_idx)
-            item.status = "cancelled"
-
+            if found_idx >= 0:
+                item = self._queue.pop(found_idx)
+                origin = "pending queue entry removed"
+            else:
+                orphan = self._running.pop(key, None)
+                if orphan is None:
+                    logger.info(
+                        "[DownloadService] cancel %s: nothing in flight", key,
+                    )
+                    return Result(success=False, error="not_found")
+                item = orphan
+                origin = "cleared orphaned row (no live task)"
+        item.status = "cancelled"
         await self._save_queue()
-
         if self._bus:
             from unifideck.core.types.events import Events
 
             await self._bus.emit(Events.DOWNLOAD_CANCELLED, item=item.to_dict())
-
+        logger.info("[DownloadService] cancel %s: %s", key, origin)
         return Result(success=True)
 
     def get_queue(self) -> dict[str, Any]:
@@ -254,8 +336,27 @@ class DownloadService(_WorkerMixin):
         (pending items), ``finished`` (history), ``state``
         (``"idle"`` / ``"running"``). Also keeps ``running``
         for backward compatibility with any internal consumers.
+
+        A **terminal** item is never reported as active, even while it is still
+        in ``_running``. The worker emits ``DOWNLOAD_COMPLETE`` before
+        ``_cleanup_running`` pops the item, and the frontend refetches the
+        queue the moment it sees that event — landing inside the gap and
+        caching a row the backend was already done with. That gap is 243 ms on
+        a GOG install and **6.5 s** on an Epic one, and since no further event
+        follows, the stale row stuck permanently: an indeterminate "SETTING UP
+        GAME..." whose Cancel could only ever answer ``not_found``. Filtering
+        at the read boundary closes it regardless of timing, and keeps working
+        if the ordering is ever changed again.
+
+        ``add``'s ``already_running`` guard deliberately still reads raw
+        ``_running``, so a duplicate install cannot be queued during that same
+        gap.
         """
-        running_items = list(self._running.values())
+        running_items = [
+            item
+            for item in self._running.values()
+            if item.status not in _TERMINAL_STATUSES
+        ]
         current = running_items[0] if running_items else None
         # Newest-first: callers typically render the most recent
         # completion at the top of the Finished section.

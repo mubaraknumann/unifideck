@@ -55,9 +55,18 @@ PER_STORE_CONCURRENCY = 1
 # Per-game ceiling. A store that hangs must not park a worker slot forever.
 LOOKUP_TIMEOUT_S = 30
 
-# Stores whose adapters implement ``get_game_size``. Ubisoft/Microsoft return
-# None by design (no download-size API), so walking them is pure waste.
-SIZE_CAPABLE_STORES = frozenset({"epic", "gog", "amazon"})
+# Stores whose ``get_game_size`` returns a real answer. Every store
+# *overrides* the method — it is abstract on ``StoreBase`` — so this cannot be
+# derived with ``hasattr``: Ubisoft's body is a literal ``return None`` (no
+# download-size API), and walking it would be pure waste.
+#
+# It has to be a written list, so it has to be MAINTAINED. GameVault was
+# absent from it for its first release and every one of its games showed
+# "Size: 0 MB" in App Details while the download row, which reads the same
+# HEAD at install time, showed the real 34.6 GB. Battle.net is deliberately
+# absent: its size comes from ``product.db`` and is 0 until the client
+# finishes writing, so a pre-install lookup has nothing to return.
+SIZE_CAPABLE_STORES = frozenset({"epic", "gog", "amazon", "gamevault"})
 
 
 def is_running() -> bool:

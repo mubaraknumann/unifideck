@@ -1,6 +1,4 @@
 """Launch RPC mixin for Plugin class.
-
-OP-26d | rpc/mixins/launch.py
 """
 from __future__ import annotations
 
@@ -13,7 +11,6 @@ from unifideck.rpc.errors import RpcError
 logger = logging.getLogger(__name__)
 
 _MAX_SAVE_FILES = 500
-
 
 class LaunchRPCMixin:
     """Game launch notifications, circuit breaker, launch logs, save folders."""
@@ -175,6 +172,10 @@ class LaunchRPCMixin:
         """Arm a one-shot bypass flag (5-minute validity)."""
         return self._require_launch_history().arm_bypass(game_key)
 
+    # no-frontend-caller: audit register 4b — reached only by the
+    # show-logs toast action, which no frontend renders. LaunchLogsModal
+    # exists as translated strings in 16 locales but not as a component.
+    # Delete this with the dead verb, or build the modal.
     async def get_launch_logs(
         self, launch_id: str, max_lines: int = 500,
     ) -> Any:
@@ -184,15 +185,9 @@ class LaunchRPCMixin:
             raise RpcError("service_unavailable", service="launch_logs")
         return await svc.read(launch_id, max_lines=max_lines)
 
-    async def export_launch_logs(
-        self, launch_id: str, dest_path: str = "",
-    ) -> Any:
-        """Copy archived logs to ``dest_path``."""
-        svc = getattr(self.services, "launch_logs", None)
-        if svc is None:
-            raise RpcError("service_unavailable", service="launch_logs")
-        return await svc.export(launch_id, dest_path=dest_path)
-
+    # no-frontend-caller: audit register 4b — reached only by the
+    # open-save-folder toast action; SaveFolderModal likewise exists only
+    # as locale strings. Same decision as get_launch_logs.
     async def list_save_folder(
         self,
         store: str,

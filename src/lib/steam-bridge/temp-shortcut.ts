@@ -22,10 +22,18 @@ const SHORTCUT_POLL_DELAY_MS = 250;
 const SHORTCUT_POLL_TIMEOUT_MS = 5000;
 /** Safety-net delay for removing a temporary shortcut when the "game
  *  stopped" lifetime notification is never observed (missed event or a
- *  Steam API change). Sized past the launcher's 600s auth ceiling so it
- *  can't fire during a normal sign-in; on the happy path the shortcut is
- *  removed the instant the launched "game" stops. */
-const TEMP_SHORTCUT_SAFETY_CLEANUP_MS = 10 * 60 * 1000;
+ *  Steam API change). On the happy path the shortcut is removed the
+ *  instant the launched "game" stops.
+ *
+ *  MUST stay strictly larger than the longest launcher ceiling, or it
+ *  fires while the window is still up — and removing the shortcut ends
+ *  its gamescope session, which destroys the window mid-use. It is
+ *  therefore COUPLED to two backend constants; change one, change this:
+ *    - `launcher.auth_max_seconds` (600s) — sign-in
+ *    - `launcher/flows/storefront._MAX_STOREFRONT_SECONDS` (1800s) plus
+ *      its 90s reconcile tail — browsing a shop, which is easily longer
+ *      than ten minutes and is why this is no longer 10 * 60 * 1000. */
+const TEMP_SHORTCUT_SAFETY_CLEANUP_MS = 35 * 60 * 1000;
 
 /** App store entry. */
 interface AppStoreEntry {

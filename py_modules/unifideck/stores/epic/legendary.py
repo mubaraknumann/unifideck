@@ -1,7 +1,5 @@
 """Thin wrapper for the ``legendary`` CLI — info-fetch helper.
 
-OP-48h | py_modules/unifideck/stores/epic/legendary.py
-
 A single module-level function (no class) that wraps the
 ``legendary info <game_id>`` subprocess call and returns the parsed
 JSON output. Used by ``install.py``, ``library.py``, and
@@ -43,19 +41,25 @@ from unifideck.utils.lang_normalize import normalize_language
 
 _logger = logging.getLogger(__name__)
 
-
 def legendary_config_dir() -> Path:
     """Return legendary's config dir (honours ``LEGENDARY_CONFIG_DIR``).
 
-    ``security.ephemeral_creds`` points that variable at an isolated
-    directory, so this must never hardcode the default path.
+    legendary itself reads this variable, so a user (or a test) can point
+    it at a non-default directory and every path we derive must follow —
+    hence never hardcoding the default.
+
+    This docstring used to credit ``security.ephemeral_creds`` with
+    setting the variable. Nothing ever did: that module had no callers in
+    the project's history and was deleted (audit §1.4 f). The credential
+    file it lives beside is protected by
+    :func:`unifideck.stores.shared.cli_credentials.harden_cli_credential_file`
+    instead, which is mode-only — not encryption at rest.
     """
     env = os.environ.get("LEGENDARY_CONFIG_DIR")
     return (
         Path(env).expanduser() if env
         else Path("~/.config/legendary").expanduser()
     )
-
 
 def write_app_language(app_name: str, language: str) -> None:
     """Record a per-game UI language in legendary's ``config.ini``.
@@ -103,7 +107,6 @@ def write_app_language(app_name: str, language: str) -> None:
     _logger.info(
         "[epic_legendary] recorded language=%s for %s", code, app_name,
     )
-
 
 async def fetch_info(cli_path: str, game_id: str, *, timeout: float, log_prefix: str = "[epic_legendary]") -> dict[str, Any] | None:  # noqa: ASYNC109 — timeout is API value passed to underlying lib (urllib/aiohttp/subprocess), not an asyncio.timeout() wrapper
     """Fetch info."""

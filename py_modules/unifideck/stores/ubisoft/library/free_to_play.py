@@ -1,8 +1,6 @@
 """
 Ubisoft free-to-play catalog feed — download, cache, normalise.
 
-OP-57g | py_modules/unifideck/stores/ubisoft/library/free_to_play.py
-
 Ported (and trimmed) from staging's ``_fetch_free_to_play_manifest_entries``
 (staging ``ubisoft.py`` ~L1302-1360). Staging fetched the public CDN feed
 *and then* enriched each entry with an authenticated space-metadata call.
@@ -44,7 +42,6 @@ _CONFIGS_URL = (
 _CACHE_MAX_AGE_SECONDS = 24 * 3600
 _CACHE_FILENAME = "ubisoft_free_games.json"
 _HTTP_TIMEOUT = 30.0
-
 
 class _FreeToPlayFeed:
     """Fetches Ubisoft's public free-to-play catalogue as manifest entries."""

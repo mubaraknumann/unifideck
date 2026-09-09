@@ -1,8 +1,6 @@
 """
 Game update operation — re-runs the installer in "update" mode.
 
-OP-56h | py_modules/unifideck/stores/ubisoft/installer/update_op.py
-
 When UPC publishes a new version of an installed game, the update is
 applied by re-running the installer with a flag that tells UPC to
 update-in-place rather than fresh-install. This module exposes
@@ -29,7 +27,6 @@ if TYPE_CHECKING:
     from unifideck.stores.ubisoft.session import UbisoftSession
 _UPDATE_TIMEOUT_S = 4 * 60 * 60
 logger = logging.getLogger(__name__)
-
 
 class _UpdateOperation:
     """Update operation."""

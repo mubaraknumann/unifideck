@@ -1,6 +1,6 @@
 ; .importlinter — architectural invariants contract
 ;
-; The full 5-layer stack doesn't cleanly map to the current tree
+; The full layer stack in docs/architecture.md doesn't cleanly map to the current tree
 ; because several modules historically placed under core/ are
 ; actually orchestrators (core.sync_service, core.metrics_collector)
 ; and several store connectors legitimately import services

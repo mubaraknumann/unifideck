@@ -1,8 +1,6 @@
 """
 Detection helpers — pure functions used by the detection cascade.
 
-OP-57h | py_modules/unifideck/stores/ubisoft/library/detection_helpers.py
-
 A grab-bag of pure-function helpers shared by ``detection.py`` and
 ``detection_cascade.py``:
 
@@ -43,6 +41,27 @@ _EXE_SKIP_PATTERNS = (
     "upc",
     "uplay",
 )
+#: UPC's download staging directory, created inside the game folder while a
+#: download runs and drained when it finishes. Two things follow, and both
+#: matter:
+#:
+#: * nothing under it may ever be recorded as the game's executable — the
+#:   directory is emptied the moment the install actually completes, so a
+#:   path taken from it is dead on arrival;
+#: * that same emptying is UPC's one honest "I am finished" signal, which is
+#:   what ``UbisoftInstallProbe.is_complete`` reads.
+#:
+#: Both facts were learned the same way. A Splinter Cell install was declared
+#: complete 18 minutes early, so finalisation ran while the whole tree was
+#: still staged and recorded ``uplay_download/109/…/register.exe`` — an
+#: installer helper — as the game's launch target.
+UPC_STAGING_DIR = "uplay_download"
+
+#: Path components that disqualify an ``.exe`` whatever it is called.
+#: ``_EXE_SKIP_PATTERNS`` matches basenames, and the staging executables have
+#: perfectly ordinary ones (``register.exe``, ``UCC.exe``); what disqualifies
+#: them is where they live, which nothing used to look at.
+_EXE_SKIP_DIRS = (UPC_STAGING_DIR,)
 _GAME_INSTALL_MIN_SIZE = 100 * 1024 * 1024
 _IN_PREFIX_GAMES_PATH = str(
     Path("drive_c")
@@ -52,7 +71,6 @@ _IN_PREFIX_GAMES_PATH = str(
     / "games"
 )
 _INSTALL_MARKER_FILENAME = ".unifideck_ubisoft"
-
 
 def load_json_file_safe(path: str) -> Any | None:
     """Load JSON file safe."""
@@ -65,7 +83,6 @@ def load_json_file_safe(path: str) -> Any | None:
         )
     except (OSError, json.JSONDecodeError):
         return None
-
 
 def walk_install_candidates(
     roots: list[str],
@@ -95,7 +112,6 @@ def walk_install_candidates(
                 continue
             yield str(entry), entry.name
 
-
 def in_prefix_game_roots(prefix_path: str) -> list[str]:
     """In prefix game roots."""
     prefix = Path(prefix_path)
@@ -104,11 +120,30 @@ def in_prefix_game_roots(prefix_path: str) -> list[str]:
         str(prefix / "pfx" / _IN_PREFIX_GAMES_PATH),
     ]
 
+def _in_skipped_dir(exe_path: Path, install_path: str) -> bool:
+    """True when *exe_path* sits under a directory we must never launch from.
+
+    Checked against the path *relative to* the install root, so a component
+    of the user's own games folder — a library at ``~/uplay_download`` — can
+    never disqualify every game inside it. A path that isn't under the root
+    at all falls back to the whole path, which is the conservative read.
+    """
+    try:
+        parts = exe_path.relative_to(install_path).parts
+    except ValueError:
+        parts = exe_path.parts
+    return any(part in _EXE_SKIP_DIRS for part in parts)
 
 def find_game_executable(
     install_path: str,
 ) -> str | None:
-    """Find game executable."""
+    """Find the game's launchable ``.exe`` under ``install_path``.
+
+    Two independent filters, because they catch different things: a
+    basename blocklist for uninstallers and redistributables, and a path
+    blocklist for UPC's staging directory, whose executables are named like
+    ordinary ones and are deleted when the install completes.
+    """
     if not install_path or not Path(install_path).is_dir():
         return None
     candidates: list[tuple[str, int]] = []
@@ -120,6 +155,8 @@ def find_game_executable(
         exe_path = str(exe_path_obj)
         basename = exe_path_obj.name.lower()
         if any(skip in basename for skip in _EXE_SKIP_PATTERNS):
+            continue
+        if _in_skipped_dir(exe_path_obj, install_path):
             continue
         try:
             size = exe_path_obj.stat().st_size
@@ -141,7 +178,6 @@ def find_game_executable(
     )
     return result
 
-
 def _has_exe_within_depth(path: str, max_depth: int) -> bool:
     """Return True if any ``.exe`` exists within ``max_depth`` of ``path``.
 
@@ -152,7 +188,6 @@ def _has_exe_within_depth(path: str, max_depth: int) -> bool:
     walk is swallowed — partial result counts as "no exe found".
     """
     return _scan_for_exe(Path(path), max_depth)
-
 
 def _scan_for_exe(directory: Path, remaining_depth: int) -> bool:
     """Recursive helper for :func:`_has_exe_within_depth`.
@@ -177,7 +212,6 @@ def _scan_for_exe(directory: Path, remaining_depth: int) -> bool:
         return False
     return any(_scan_for_exe(d, remaining_depth - 1) for d in subdirs)
 
-
 def _total_size_exceeds(path: str, threshold: int) -> bool:
     """Return True as soon as the cumulative file size under
     ``path`` exceeds ``threshold`` bytes.
@@ -200,7 +234,6 @@ def _total_size_exceeds(path: str, threshold: int) -> bool:
             if total > threshold:
                 return True
     return False
-
 
 def looks_like_game_install(path: str) -> bool:
     """Heuristic: does ``path`` look like a real game install?
@@ -231,7 +264,6 @@ def looks_like_game_install(path: str) -> bool:
     return _has_exe_within_depth(path, max_depth=2) or _total_size_exceeds(
         path, _GAME_INSTALL_MIN_SIZE,
     )
-
 
 async def write_install_marker(
     space_id: str,
@@ -273,7 +305,6 @@ async def write_install_marker(
             e,
         )
 
-
 def write_marker_sync(
     install_path: str,
     space_id: str,
@@ -293,7 +324,6 @@ def write_marker_sync(
             json.dumps(marker_data),
             encoding="utf-8",
         )
-
 
 class _DetectionHelpers:
     """Detection helpers."""

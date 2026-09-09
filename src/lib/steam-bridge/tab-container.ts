@@ -16,27 +16,10 @@ import {
   setStoreCountSink,
   type TabFilter,
 } from "../library-filters";
-import { getDeviceType } from "../device-type";
+import { compatTabTitleKey } from "../device-type";
 import type { SteamAppOverview } from "../../types/steam";
 
 const t = (key: string): string => i18n.t(key);
-
-/** Title key for the compatibility tab, named after the actual device.
- *
- * Only the title varies. The tab id and its `deckCompat` filter stay
- * fixed, so nobody's tab layout moves when the label changes.
- * Non-Valve hardware gets the neutral rating name rather than being
- * told its games are great on a handheld it does not own. */
-function compatTabTitleKey(): string {
-  switch (getDeviceType()) {
-    case "machine":
-      return "deckTabs.greatOnMachine";
-    case "other":
-      return "deckTabs.steamOSCompatible";
-    default:
-      return "deckTabs.greatOnDeck";
-  }
-}
 
 export interface UnifideckTab {
   id: string;
@@ -49,6 +32,9 @@ export interface UnifideckTab {
 export function getUnifideckTabs(): UnifideckTab[] {
   return [
     {
+      // Only the title varies by device. The id and its `deckCompat`
+      // filter stay fixed, so nobody's tab layout moves when the label
+      // changes.
       id: "unifideck-deck",
       title: t(compatTabTitleKey()),
       position: 0,
@@ -109,16 +95,38 @@ export function getUnifideckTabs(): UnifideckTab[] {
       filters: [{ type: "store", params: { store: "microsoft" } }],
     },
     {
+      id: "unifideck-gamevault",
+      title: t("deckTabs.gamevault"),
+      position: 10,
+      filters: [{ type: "store", params: { store: "gamevault" } }],
+    },
+    {
+      // Stays last: "Non-Steam" is the catch-all, so a store tab inserted
+      // before it takes its number and this one moves down.
       id: "unifideck-nonsteam",
       title: t("deckTabs.nonSteam"),
-      position: 10,
+      position: 11,
       filters: [{ type: "nonSteam", params: {} }],
     },
   ];
 }
 
+/**
+ * Steam's own tabs we replace with ours.
+ *
+ * Steam picks its compat tab's id from the device it is running on:
+ * `GreatOnDeck` on a Deck, `GreatOnMachine` on a Steam Machine,
+ * `SteamOSCompatible` on other SteamOS hardware (the Steam Frame reuses
+ * the `GreatOnDeck` id). All three are listed unconditionally rather
+ * than branching on `getDeviceType()` — an id Steam did not emit is
+ * simply never matched, so the constant stays a constant and a Valve
+ * build that changes which id it emits cannot strand a duplicate tab
+ * next to ours.
+ */
 const DEFAULT_TABS_TO_HIDE = [
   "GreatOnDeck",
+  "GreatOnMachine",
+  "SteamOSCompatible",
   "AllGames",
   "Installed",
   "DesktopApps",
@@ -376,7 +384,8 @@ type ConnectableStore =
   | "amazon"
   | "ubisoft"
   | "battlenet"
-  | "microsoft";
+  | "microsoft"
+  | "gamevault";
 
 class TabManager {
   private tabs: UnifideckTabContainer[] = [];
@@ -388,6 +397,7 @@ class TabManager {
     ubisoft: 0,
     battlenet: 0,
     microsoft: 0,
+    gamevault: 0,
   };
   private version = 0;
   private listeners: (() => void)[] = [];
@@ -440,6 +450,7 @@ class TabManager {
       "unifideck-ubisoft": "ubisoft",
       "unifideck-battlenet": "battlenet",
       "unifideck-microsoft": "microsoft",
+      "unifideck-gamevault": "gamevault",
     };
     const store = m[id];
     if (!store) return true;

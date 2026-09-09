@@ -12,10 +12,11 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import unifideck.compatibility.proton_helpers as pth_mod
 import unifideck.launcher.proton.infrastructure.ge_installer as ge_mod
+import unifideck.launcher.proton.infrastructure.ge_marker as gm_mod
 from unifideck.launcher.proton.compat import ge_fallback as gf
 from unifideck.launcher.proton.compat import prefix_init as pi
 from unifideck.launcher.proton.compat import save_migration as sm
@@ -24,7 +25,9 @@ from unifideck.launcher.proton.compat import save_migration as sm
 def _plan(prefix_root: Path, tool: str):
     return SimpleNamespace(
         prefix_path=prefix_root,
-        state=SimpleNamespace(proton_tool_id=tool),
+        # Mirrors RuntimeState, which carries both fields; the fallback's
+        # identity guard reads proton_path as well as the tool id.
+        state=SimpleNamespace(proton_tool_id=tool, proton_path=None),
         context=SimpleNamespace(
             game_key="epic:Hazelnut", store="epic", game_id="Hazelnut",
         ),
@@ -37,6 +40,7 @@ async def test_fallback_skipped_when_already_ge_proton(tmp_path, monkeypatch):
     root = tmp_path / "prefix"
     root.mkdir()
     plan = _plan(root, "GE-Proton10-34")
+    monkeypatch.setattr(gf, "_resolve_ge_proton", lambda: (Path("/opt/ge/proton"), "GE-Proton10-34"))
     retry = MagicMock()
     monkeypatch.setattr(pi, "_run_createprefix_with_retry", retry)
 
@@ -52,7 +56,7 @@ async def test_fallback_succeeds_persists_choice_and_restamps_marker(
     root.mkdir()
     plan = _plan(root, "proton_experimental")
 
-    monkeypatch.setattr(ge_mod, "read_cached_latest_tag", lambda: "GE-Proton11-1")
+    monkeypatch.setattr(gm_mod, "read_cached_latest_tag", lambda: "GE-Proton11-1")
     monkeypatch.setattr(
         ge_mod, "installed_ge_proton_path", lambda tag: Path("/opt/ge/proton"),
     )
@@ -102,7 +106,7 @@ async def test_fallback_warns_when_ge_proton_unavailable(tmp_path, monkeypatch):
     root.mkdir()
     plan = _plan(root, "proton_experimental")
 
-    monkeypatch.setattr(ge_mod, "read_cached_latest_tag", lambda: None)
+    monkeypatch.setattr(gm_mod, "read_cached_latest_tag", lambda: None)
     monkeypatch.setattr(ge_mod, "ensure_latest_ge", lambda: None)
     retry = MagicMock()
     monkeypatch.setattr(pi, "_run_createprefix_with_retry", retry)
@@ -118,7 +122,7 @@ async def test_fallback_when_ge_proton_retry_also_fails(tmp_path, monkeypatch):
     root.mkdir()
     plan = _plan(root, "proton_experimental")
 
-    monkeypatch.setattr(ge_mod, "read_cached_latest_tag", lambda: "GE-Proton11-1")
+    monkeypatch.setattr(gm_mod, "read_cached_latest_tag", lambda: "GE-Proton11-1")
     monkeypatch.setattr(
         ge_mod, "installed_ge_proton_path", lambda tag: Path("/opt/ge/proton"),
     )
@@ -137,3 +141,55 @@ async def test_fallback_when_ge_proton_retry_also_fails(tmp_path, monkeypatch):
 
     save.assert_not_called()
     assert not (root / pi._MARKER_NAME).exists()
+
+
+async def test_fallback_recovers_from_external_ge_failure(tmp_path, monkeypatch):
+    """An external GE that cannot build a prefix must still fall back.
+
+    Restored after the #448 merge dropped it (register 62). The guard used
+    to be a *family* test, and "Proton-GE Latest" normalises into the
+    ge-proton family, so a failing external tool left the launch with no
+    recovery at all.
+    """
+    root = tmp_path / "prefix"
+    root.mkdir()
+    plan = _plan(root, "Proton-GE Latest")
+    plan.state.proton_path = tmp_path / "external-ge" / "proton"
+
+    bundled = tmp_path / "bundled-ge" / "proton"
+    monkeypatch.setattr(gf, "_resolve_ge_proton", lambda: (bundled, "GE-Proton11-5"))
+    ge_plan = _plan(root, "GE-Proton11-5")
+    ge_plan.env = {}
+    monkeypatch.setattr(gf, "proton_prepare", lambda ctx, state, **kw: ge_plan)
+    retry = AsyncMock(return_value=True)
+    monkeypatch.setattr(pi, "_run_createprefix_with_retry", retry)
+    monkeypatch.setattr(sm, "restore_or_migrate_saves", AsyncMock())
+    monkeypatch.setattr(pth_mod, "save_proton_setting", MagicMock())
+
+    await gf.fallback_to_ge_proton(plan, root)
+    retry.assert_awaited_once()
+
+
+async def test_fallback_skipped_when_alias_resolves_to_the_bundled_ge(tmp_path, monkeypatch):
+    """Register 61: an alias symlinked at the fallback is the same Proton.
+
+    Comparing raw paths made the guard miss, so the fallback re-ran
+    createprefix against the identical build that had just failed.
+    """
+    root = tmp_path / "prefix"
+    root.mkdir()
+    real = tmp_path / "GE-Proton11-5"
+    real.mkdir()
+    (real / "proton").write_text("#!/bin/sh\n")
+    alias = tmp_path / "Proton-GE Latest"
+    alias.symlink_to(real)
+
+    plan = _plan(root, "Proton-GE Latest")
+    plan.state.proton_path = alias / "proton"
+
+    monkeypatch.setattr(gf, "_resolve_ge_proton", lambda: (real / "proton", "GE-Proton11-5"))
+    retry = AsyncMock(return_value=True)
+    monkeypatch.setattr(pi, "_run_createprefix_with_retry", retry)
+
+    await gf.fallback_to_ge_proton(plan, root)
+    retry.assert_not_awaited()

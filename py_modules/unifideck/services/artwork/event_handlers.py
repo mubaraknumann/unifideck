@@ -1,8 +1,20 @@
 """services/artwork/event_handlers.py — EventBus subscribers.
 
-4 ``@subscribe``-decorated handlers driving the artwork
-pipeline. All ultimately call ``self.fetch_artwork`` on the
-host; they differ in trigger signals and payload shapes.
+``@subscribe``-decorated handlers driving the artwork pipeline.
+All ultimately call ``self.fetch_artwork`` on the host; they
+differ in trigger signals and payload shapes.
+
+Which handler covers what:
+
+* ``POST_SYNC_PHASE_CHANGED`` — the bulk pass, and the one that covers game
+  shortcuts. See the note above ``_on_artwork_request`` for why there is no
+  install-time handler.
+* ``SHORTCUT_CREATED`` — auth tiles, emitted by
+  ``stores/shared/auth_shortcut.ensure_auth_shortcut`` when it writes a new
+  persistent shortcut. Battle.net is its only live source; Ubisoft fetches
+  its own auth artwork and the four OAuth stores use ephemeral shortcuts.
+* ``ARTWORK_REQUEST`` — on-demand force-refetch. No emitter yet; see the
+  ``unwired:`` note on the enum member.
 """
 from __future__ import annotations
 
@@ -10,6 +22,7 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
+from unifideck.core.sync_generation import run_id_of
 from unifideck.core.types import Events
 from unifideck.event_bus.event_bus_devex import subscribe
 
@@ -38,31 +51,60 @@ def _sync_progress(bus: Any) -> Any:
     return bus.get_sync_progress()
 
 
+def _batch_results(future: asyncio.Future[list[Any]]) -> list[Any] | None:
+    """The gather's results, or ``None`` when the batch was cancelled.
+
+    A cancelled batch shows up in two states and only one answers ``True``
+    to ``future.cancelled()``: cancelling a ``gather(...,
+    return_exceptions=True)`` usually leaves the gathering future *finished*
+    carrying a ``CancelledError``. The old ``if future.cancelled(): return``
+    guard therefore fell through and ``future.result()`` raised inside the
+    done-callback, killing it before it could emit the artwork phase-done —
+    stranding ``"artwork"`` in ``_post_sync_pending`` until the 1800s
+    watchdog. That is why cancelling a sync mid-artwork stuck the bar.
+    """
+    if future.cancelled():
+        return None
+    try:
+        return future.result()
+    except asyncio.CancelledError:
+        return None
+
+
 def _log_batch_result(
     future: asyncio.Future[list[Any]], label: str,
 ) -> None:
     """Log a completion summary for a batch artwork / metadata gather."""
-    if future.cancelled():
+    results = _batch_results(future)
+    if results is None:
         logger.info("%s batch was cancelled", label)
         return
-    results = future.result()
     downloaded = sum(1 for r in results if r == "cover-saved")
     existing = sum(1 for r in results if r == "cover-exists")
     no_match = sum(1 for r in results if r == "no-cover-found")
     skipped = sum(1 for r in results if r == "skipped")
-    exc_count = sum(1 for r in results if isinstance(r, BaseException))
+    # Cancelled children are counted apart from real errors. ``gather``
+    # runs with ``return_exceptions=True``, so cancelling the batch does
+    # not cancel the gathering future — each child's CancelledError comes
+    # back as a *result*. Lumping those in with errors meant one
+    # superseded 1242-game batch logged 1242 "artwork fetch error:
+    # CancelledError" warnings describing nothing wrong.
+    cancelled = sum(1 for r in results if isinstance(r, asyncio.CancelledError))
+    errors = [
+        r for r in results
+        if isinstance(r, BaseException)
+        and not isinstance(r, asyncio.CancelledError)
+    ]
     logger.info(
         "%s artwork batch finished: %d covers saved, %d already on disk, "
-        "%d no match, %d skipped, %d errors — %d total",
-        label, downloaded, existing, no_match, skipped, exc_count, len(results),
+        "%d no match, %d skipped, %d cancelled, %d errors — %d total",
+        label, downloaded, existing, no_match, skipped, cancelled,
+        len(errors), len(results),
     )
-    if exc_count:
-        for r in results:
-            if isinstance(r, BaseException):
-                logger.warning(
-                    "%s artwork fetch error: %s: %s",
-                    label, type(r).__name__, r,
-                )
+    for r in errors:
+        logger.warning(
+            "%s artwork fetch error: %s: %s", label, type(r).__name__, r,
+        )
 
 
 def _emit_artwork_phase_done(
@@ -83,10 +125,16 @@ def _emit_artwork_phase_done(
     """
     if bus is None:
         return
+    sk = sync_kwargs or {}
     _track(asyncio.ensure_future(bus.emit(
         Events.POST_SYNC_PHASE_CHANGED,
         phase="artwork", active=False, total=total, done=total,
-        sync_kwargs=sync_kwargs or {},
+        sync_kwargs=sk,
+        # Echo the generation this batch belongs to. ``SyncService`` and
+        # the frontend both drop a phase-done from a superseded run, so
+        # a batch that outlives its sync can no longer mark the *current*
+        # sync complete. See ``core/sync_generation.py``.
+        run_id=run_id_of(sk),
     )))
 
 
@@ -94,9 +142,16 @@ def _on_artwork_batch_done(
     future: asyncio.Future[list[Any]], bus: Any,
     sync_kwargs: dict[str, Any] | None = None,
 ) -> None:
-    """Done callback: log the batch result + emit POST_SYNC_PHASE_CHANGED."""
+    """Done callback: log the batch result + emit POST_SYNC_PHASE_CHANGED.
+
+    The phase-done emit is unconditional — including for a cancelled batch.
+    A user-cancelled sync must still drain ``"artwork"`` from
+    ``_post_sync_pending`` or the progress bar never completes. (A batch
+    cancelled by *replacement* never reaches here: its finisher returns
+    early, because the replacing batch owns the phase.)
+    """
     _log_batch_result(future, "[ArtworkService]")
-    total = len(future.result() if not future.cancelled() else [])
+    total = len(_batch_results(future) or [])
     _emit_artwork_phase_done(bus, total, sync_kwargs)
 
 # Store id → SteamGridDB title for auth shortcuts. SGDB has art
@@ -119,24 +174,13 @@ class _EventHandlersMixin:
     # Handlers assume host provides fetch_artwork
     # async def fetch_artwork(self, app_id: int, store: str, game_id: str, title: str) -> dict: ...
 
-    @subscribe(Events.GAME_INSTALLED)
-    async def _on_game_installed(self: Any, **kwargs: Any) -> None:
-        """Fetch artwork immediately after a new install.
-
-        Missing ``app_id``/``store``/``game_id`` → silent skip
-        (partial payloads happen when the emitter failed to
-        resolve one of the fields).
-        """
-        app_id = kwargs.get("app_id")
-        store = kwargs.get("store")
-        game_id = kwargs.get("game_id")
-        title = kwargs.get("title")
-
-        if not all((app_id, store, game_id, title)):
-            return
-
-        # Fire and forget; background task
-        _track(asyncio.create_task(self.fetch_artwork(app_id, store, game_id, title)))
+    # There is deliberately no install-time handler. A game's shortcut —
+    # and therefore its artwork — is created at SYNC time; installing only
+    # flips that shortcut's install tag and preserves its appid, so the
+    # cover art already exists by then. ``DownloadWorker`` documents the
+    # same reasoning where it declines to emit on install completion.
+    # A ``GAME_INSTALLED`` handler used to sit here reading ``app_id``; the
+    # event had no live emitter and never sent that key.
 
     @subscribe(Events.ARTWORK_REQUEST)
     async def _on_artwork_request(self: Any, **kwargs: Any) -> None:
@@ -165,9 +209,9 @@ class _EventHandlersMixin:
         """Fetch a cover for a newly-created shortcut.
 
         Only acts on auth shortcuts (``is_auth=True``) — game
-        shortcuts already get artwork via ``GAME_INSTALLED``
-        with richer data. Uses ``_AUTH_TITLE_FOR_LOOKUP`` to
-        map the store id to what SGDB actually has art for.
+        shortcuts get artwork from the bulk post-sync phase
+        below, with richer data. Uses ``_AUTH_TITLE_FOR_LOOKUP``
+        to map the store id to what SGDB actually has art for.
         """
         is_auth = kwargs.get("is_auth", False)
         if not is_auth:
@@ -221,12 +265,25 @@ class _EventHandlersMixin:
         """
         if kwargs.get("phase") != "metadata" or kwargs.get("active") is not False:
             return
+        # Same dead fallback as CompatibilityService carried; no emitter has
+        # ever sent a flat ``games``. Audit register item 41.
         sync_kwargs = kwargs.get("sync_kwargs") or {}
-        games = sync_kwargs.get("games") or kwargs.get("games", [])
+        games = sync_kwargs.get("games") or []
         bus = getattr(self, "_bus", None)
         grid_dir = getattr(self, "_grid_dir", None)
         if not bool(sync_kwargs.get("fetch_artwork", True)):
             logger.info("[ArtworkService] fetch_artwork=False — skipping phase")
+            _emit_artwork_phase_done(bus, 0, sync_kwargs)
+            return
+        if bool(sync_kwargs.get("skip_chain")):
+            # SyncService determined this run covers exactly the store set
+            # and game count of the last completed chain, so every game's
+            # gaps were already resolved. Announce the phase and hand off.
+            logger.info(
+                "[ArtworkService] artwork skipped — library unchanged "
+                "since the last completed chain",
+            )
+            self._cancel_prior_batch()
             _emit_artwork_phase_done(bus, 0, sync_kwargs)
             return
         if not games or not grid_dir:
@@ -280,29 +337,124 @@ class _EventHandlersMixin:
         *,
         resync: bool,
     ) -> None:
-        """Fan out per-game artwork fetches and wire the completion callback."""
-        tasks: list[Any] = [
-            self._process_one_game(g, grid_dir, bus, force=resync)
-            for g in games
-        ]
-        if not tasks:
+        """Fan out per-game artwork fetches and wire the completion callback.
+
+        Single-flight with replace, mirroring
+        ``MetadataService._on_sync_complete``: a batch still running when a
+        newer sync arrives is cancelled rather than abandoned. Leaving it
+        running was the defect behind the whole overlapping-sync cluster —
+        measured 2026-08-29, three batches alive at once, the 645-game
+        generation announcing its artwork phase done at 02:17:12 against a
+        library that had been 1242 games since 02:15:00. That stale
+        announcement drained the live run's pending set (restart modal fired
+        early), re-triggered CompatibilityService, rewrote shortcut icons
+        from a stale generation, and stole two thirds of the shared
+        download semaphore from the batch that was actually current.
+
+        It also caused redundant downloads: each game's on-disk gap is
+        sampled when its task starts, so a batch that samples while another
+        is still writing sees gaps that are about to be filled and fetches
+        them again. The 1229-game batch saved 783 covers where only 584 were
+        new — 199 wasted round-trips.
+        """
+        self._cancel_prior_batch()
+        if not games:
             _emit_artwork_phase_done(bus, 0, sync_kwargs)
             return
-        fut = asyncio.ensure_future(
-            asyncio.gather(*tasks, return_exceptions=True),
+        # ``superseded`` is flipped by ``_cancel_prior_batch`` on the run
+        # that replaces this one. A batch cancelled that way must NOT
+        # announce the artwork phase — the replacing batch owns it now.
+        # A batch cancelled by *user* cancel still announces, or
+        # ``_post_sync_pending`` keeps "artwork" forever and the progress
+        # bar never completes. Same distinction MetadataService draws with
+        # ``cancelled_by_replace``.
+        state: dict[str, bool] = {"superseded": False}
+        fut = self._spawn_batch(games, grid_dir, bus, resync=resync)
+        fut.add_done_callback(
+            self._make_batch_finisher(bus, sync_kwargs, state),
         )
-        # Bind sync_kwargs into the done callback so CompatibilityService
-        # (which waits on phase="artwork" done) receives the original
-        # SYNC_COMPLETE payload. Flush the batch's deferred attempts-cache
-        # writes before announcing the phase done.
-        def _finish(f: Any, sk: dict[str, Any] = sync_kwargs) -> None:
-            self._flush_artwork_caches()
-            _on_artwork_batch_done(f, bus, sk)
-        fut.add_done_callback(_finish)
         _track(fut)
         # Stash on ``self`` so the SYNC_CANCELLED handler can cancel the
-        # whole batch in one shot.
+        # whole batch in one shot, and so the next dispatch can replace it.
         self._batch_task = fut
+        self._batch_state = state
+
+    def _spawn_batch(
+        self: Any, games: list[Any], grid_dir: Any, bus: Any, *, resync: bool,
+    ) -> Any:
+        """Gather every game's artwork pass under a concurrency gate.
+
+        Bounding matters. Each task begins with ``get_missing_kinds``,
+        which stats up to two candidate filenames for each of the five
+        kinds, so an unbounded gather over 1242 games queued ~12k stat
+        calls at once — on the same loop as the shortcut reconcile, whose
+        handler-watchdog timeout then fired *late* (9.5s and 11.6s against
+        a 5s budget), the signature of a starved loop. The inner
+        per-download semaphore in ``fetch_artwork`` is a separate, smaller
+        gate and stays the real network throttle.
+        """
+        gate = asyncio.Semaphore(self._batch_concurrency())
+
+        async def _one(game: Any) -> Any:
+            async with gate:
+                return await self._process_one_game(
+                    game, grid_dir, bus, force=resync,
+                )
+
+        return asyncio.ensure_future(
+            asyncio.gather(*(_one(g) for g in games), return_exceptions=True),
+        )
+
+    def _make_batch_finisher(
+        self: Any, bus: Any, sync_kwargs: dict[str, Any],
+        state: dict[str, bool],
+    ) -> Any:
+        """Build the batch done-callback.
+
+        Closes over ``sync_kwargs`` so CompatibilityService (which waits on
+        phase="artwork" done) receives the original SYNC_COMPLETE payload,
+        and over ``state`` so a superseded batch stays silent. Flushes the
+        deferred attempts-cache writes either way — partial results are
+        still valid results.
+        """
+        def _finish(f: Any) -> None:
+            self._flush_artwork_caches()
+            if state["superseded"]:
+                logger.info(
+                    "[ArtworkService] batch superseded by a newer sync — "
+                    "not signalling the artwork phase",
+                )
+                return
+            _on_artwork_batch_done(f, bus, sync_kwargs)
+        return _finish
+
+    def _batch_concurrency(self: Any) -> int:
+        """How many games may be in the artwork pipeline at once.
+
+        A multiple of the per-download semaphore so the cheap on-disk gap
+        checks keep the (slower) download gate fed without queueing a stat
+        call for every game in the library at t=0.
+        """
+        base = getattr(self, "_max_concurrent", 0) or 0
+        return max(8, int(base) * 3)
+
+    def _cancel_prior_batch(self: Any) -> None:
+        """Cancel a still-running batch, marking it superseded first.
+
+        Order matters: the flag has to be set before ``cancel()`` because
+        the done-callback can run as soon as the loop next ticks.
+        """
+        prior = getattr(self, "_batch_task", None)
+        if prior is None or prior.done():
+            return
+        prior_state = getattr(self, "_batch_state", None)
+        if isinstance(prior_state, dict):
+            prior_state["superseded"] = True
+        logger.info(
+            "[ArtworkService] cancelling in-flight artwork batch — "
+            "a newer sync replaced it",
+        )
+        prior.cancel()
 
     @subscribe(Events.SYNC_CANCELLED)
     async def _on_sync_cancelled(self: Any, **_kwargs: Any) -> None:

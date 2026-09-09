@@ -1,7 +1,5 @@
 """Epic Games launchable .exe resolver — handle multi-binary installs.
 
-OP-48g | py_modules/unifideck/stores/epic/exe_resolver.py
-
 Epic-installed games often contain multiple .exe files (the game, a
 crash reporter, an Easy Anti-Cheat launcher, a redistributable
 installer). ``EpicExeResolver`` implements the heuristics to pick
@@ -31,7 +29,6 @@ from typing import Any
 from .legendary import fetch_info
 
 logger = logging.getLogger(__name__)
-
 
 class EpicExeResolver:
     """Epic exe resolver."""

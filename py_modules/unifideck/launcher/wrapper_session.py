@@ -47,13 +47,15 @@ import shutil
 from pathlib import Path
 
 from unifideck.launcher import wine_registry, wrapper_locale, wrapper_prefs
+from unifideck.launcher.proton.infrastructure.prefix_layout import (
+    resolve_drive_c,
+)
 from unifideck.launcher.wrapper_session_specs import (
     GAMES_DIR_NAME,
     SPECS,
     PrefsSpec,
     SessionSpec,
     read_gaclientid,
-    resolve_drive_c,
     spec_for,
 )
 

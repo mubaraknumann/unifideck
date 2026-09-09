@@ -60,7 +60,11 @@ import logging
 import shutil
 from pathlib import Path
 
-from .wrapper_session_specs import SessionSpec, resolve_drive_c
+from unifideck.launcher.proton.infrastructure.prefix_layout import (
+    resolve_drive_c,
+)
+
+from .wrapper_session_specs import SessionSpec
 
 logger = logging.getLogger(__name__)
 

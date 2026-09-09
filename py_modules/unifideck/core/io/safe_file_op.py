@@ -1,7 +1,5 @@
 """``@safe_file_op`` decorator — uniform OSError handling for file ops.
 
-OP-08c1 | py_modules/unifideck/core/io/safe_file_op.py
-
 Most file operations across the plugin (config reads, cache
 loads, manifest writes) have the same fallback contract:
 ``OSError`` → log + return a default. Without this decorator
@@ -40,7 +38,6 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 _Callable = Callable[..., T | Awaitable[T]]
 
-
 def _log_file_op_failure(
     fname: str,
     log_level: int,
@@ -67,7 +64,6 @@ def _log_file_op_failure(
         type(exc).__name__,
         exc,
     )
-
 
 def safe_file_op(
     default: Any = None,

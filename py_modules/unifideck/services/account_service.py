@@ -25,6 +25,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 DEFAULT_POLL_INTERVAL = 5  # seconds — tunable via config
+# Floor for the tunable above. Detecting an account switch a second sooner
+# is worth nothing; a poll that never sleeps costs a core.
+MIN_POLL_INTERVAL = 1
 
 
 class AccountService:
@@ -46,7 +49,19 @@ class AccountService:
 
         self._interval = DEFAULT_POLL_INTERVAL
         if self._config:
-            self._interval = self._config.get("accounts.poll_interval_seconds", DEFAULT_POLL_INTERVAL)
+            # ``get_int`` rather than ``get``: a non-numeric override used to
+            # reach ``asyncio.sleep`` verbatim. The floor matters more — the
+            # loop body reads the whole of ``loginusers.vdf`` and posts two
+            # ``to_thread`` jobs, so a 0 would turn this into a spin that
+            # allocates continuously while logging nothing. The schema types
+            # the key ``positiveInt``, but config validation is non-fatal, so
+            # a bad value can still arrive here.
+            self._interval = max(
+                MIN_POLL_INTERVAL,
+                self._config.get_int(
+                    "accounts.poll_interval_seconds", DEFAULT_POLL_INTERVAL,
+                ),
+            )
 
     async def start(self) -> None:
         """Begin the polling loop."""

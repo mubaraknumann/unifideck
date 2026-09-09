@@ -1,7 +1,5 @@
 """TLS SSLContext factories with thread-safe lazy singletons.
 
-OP-08e1 | py_modules/unifideck/core/net/ssl_helpers.py
-
 Two singleton ``SSLContext`` instances kept module-level
 because ``ssl.create_default_context`` is non-trivial
 (reads cert chain from disk) and reusing the context
@@ -31,7 +29,6 @@ _permissive_lock = Lock()
 _permissive_ctx: ssl.SSLContext | None = None
 _permissive_warned = False
 
-
 def ssl_ctx_strict() -> ssl.SSLContext:
     """Return the shared strict-mode SSLContext (singleton).
 
@@ -50,7 +47,6 @@ def ssl_ctx_strict() -> ssl.SSLContext:
             if _strict_ctx is None:
                 _strict_ctx = ssl.create_default_context()
     return _strict_ctx
-
 
 def ssl_ctx_permissive(reason: str) -> ssl.SSLContext:
     """Return the permissive SSLContext (hostname + cert checks disabled).

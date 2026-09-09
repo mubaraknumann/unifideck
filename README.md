@@ -1,6 +1,6 @@
 # Unifideck - Unified Game Library for Steam Deck
 
-A Decky Loader plugin that brings together Steam, Epic Games Store, GOG, Amazon Games, Ubisoft Connect, Battle.net, and Xbox Cloud Gaming in a single library experience on your Steam Deck.
+A Decky Loader plugin that brings together Steam, Epic Games Store, GOG, Amazon Games, Ubisoft Connect, Battle.net, GameVault, and Xbox Cloud Gaming in a single library experience on your Steam Deck.
 
 ![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Steam%20OS-orange.svg)
@@ -30,7 +30,7 @@ A Decky Loader plugin that brings together Steam, Epic Games Store, GOG, Amazon 
 
 Unifideck brings your games from other stores into Steam, so they show up in your library and play just like Steam games — same Play button, same Gaming Mode, same controller-friendly feel. No switching to desktop mode, no juggling separate launchers.
 
-- **All your games in one place** — Your Epic, GOG, Amazon, Ubisoft, Battle.net, and Xbox titles sit right alongside your Steam library, in tabs you can browse like any other.
+- **All your games in one place** — Your Epic, GOG, Amazon, Ubisoft, Battle.net, GameVault, and Xbox titles sit right alongside your Steam library, in tabs you can browse like any other.
 - **Install and play like a Steam game** — Press Install, watch the progress, then press Play — all from the game's page in Gaming Mode, exactly the way Steam games work.
 - **Install games wherever you like** — Internal storage, an SD card, or a folder you pick yourself.
 - **Proton handled for you** — Most Windows games just work; Unifideck sets up a recent Proton automatically. If a game is picky, you can force a specific version from Steam's usual Compatibility menu.
@@ -88,10 +88,11 @@ Installed games are playable immediately after install. The Steam restart is sti
 - **[Proton Compatibility](docs/proton-compatibility.md)** - Choosing a Proton version and troubleshooting/quick fixes.
 - **[Cloud Saves](docs/cloud-saves.md)** - How Epic/GOG cloud sync works, conflict handling, and custom save paths.
 - **[Microsoft / xCloud](docs/microsoft-xcloud.md)** - Xbox Game Pass and cloud-streaming integration.
+- **[GameVault Setup](docs/gamevault-setup.md)** - Connecting your own GameVault server, or a local folder of game archives.
 
 **Developer / reference**
 
-- **[Architecture & Build](docs/architecture.md)** - The 5-layer backend, EventBus, RPC mixins, and build flow.
+- **[Architecture & Build](docs/architecture.md)** - The layered backend, EventBus, RPC mixins, and build flow.
 - **[Ubisoft Store Spec](docs/ubisoft-store-spec.md)** - How the Ubisoft Connect integration works end to end.
 - **[UI Injection](docs/ui-injection.md)** & **[Steam UI Patching Reference](docs/STEAM_UI_PATCHING_REFERENCE.md)** - How Unifideck patches Steam's React UI.
 - **[CONTRIBUTING](CONTRIBUTING.md)** - PR process and contribution guidelines.
@@ -172,9 +173,9 @@ Common flows (`build-plugin.sh`):
 ## Tech Stack
 
 - **Frontend** - React, TypeScript, Rollup, `@decky/api`, `@decky/ui`, `i18next`
-- **Backend** - Python, Decky Loader RPC, a 5-layer architecture with an EventBus and dependency-injection core, CDP-based auth and browser helpers
+- **Backend** - Python, Decky Loader RPC, a layered architecture with an EventBus and dependency-injection core, CDP-based auth and browser helpers
 - **Store tooling** - legendary, gogdl, nile, comet, winetricks, umu-launcher
-- **Services and data** - SteamGridDB, Epic/GOG/Amazon/Microsoft APIs, Microsoft Edge, Metacritic, compatibility metadata
+- **Services and data** - SteamGridDB, Epic/GOG/Amazon/Microsoft APIs, self-hosted GameVault servers, Microsoft Edge, Metacritic, compatibility metadata
 
 ## Credits
 
@@ -183,7 +184,7 @@ This project builds on a lot of open source work and community help.
 - **Platform and UI** - [Decky Loader](https://github.com/SteamDeckHomebrew/decky-loader), `@decky/api`, `@decky/ui`, and the SteamDeckHomebrew community
 - **Store and runtime tooling** - [legendary](https://github.com/derrod/legendary), gogdl, [nile](https://github.com/imLinguin/nile), [comet](https://github.com/imLinguin/comet), [winetricks](https://github.com/Winetricks/winetricks), [umu-launcher](https://github.com/Open-Wine-Components/umu-launcher), and [SteamGridDB](https://www.steamgriddb.com/)
 - **Reference projects and patterns** - [TabMaster](https://github.com/Tormak9970/TabMaster), [SteamGridDB Decky](https://github.com/SteamGridDB/decky-steamgriddb), [ProtonDB Decky](https://github.com/OMGDuke/protondb-decky), [Heroic Games Launcher](https://github.com/Heroic-Games-Launcher/HeroicGamesLauncher), and [Junk-Store](https://github.com/ebenbruyns/junkstore)
-- **Special thanks** - @src893, @xXJSONDeruloXx, @moi952, @Lazer-zx5, @buddax2, @Grails125, @clach04, @kevbenjam, @kmturley, @FreudsCAT, @frank460699, @matheussilva421, DeckWizard, sufi0511, \_badbug, lutianxing, u/EnTei7K, u/IN50MNIAC, derrod, and the Discord testers for invaluable feedback.
+- **Special thanks** - @src893, @xXJSONDeruloXx, @moi952, @Lazer-zx5, @buddax2, @Grails125, @clach04, @kevbenjam, @kmturley, @FreudsCAT, @frank460699, @matheussilva421, @stm85, @EricwanAR, @HSNEM, @uglierwan, DeckWizard, sufi0511, \_badbug, lutianxing, mmmtimmah, u/EnTei7K, u/IN50MNIAC, derrod, and the Discord testers for invaluable feedback.
 
 ## Support
 
@@ -203,4 +204,4 @@ Numan Mubarak (numanmuabrak@protonmail.com)
 
 ## Disclaimer
 
-This is an unofficial third-party tool. It is not affiliated with Valve, Epic Games, CD Projekt / GOG, Amazon, Ubisoft, Blizzard Entertainment, or Microsoft.
+This is an unofficial third-party tool. It is not affiliated with Valve, Epic Games, CD Projekt / GOG, Amazon, Ubisoft, Blizzard Entertainment, GameVault, or Microsoft.

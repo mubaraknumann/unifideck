@@ -20,9 +20,14 @@ import {
   getCachedCompatByTitle,
   getCachedRating,
   loadCompatCacheFromBackend,
-  meetsGreatOnDeckCriteria,
+  meetsGreatOnCurrentDevice,
 } from "../protondb-cache";
 import { getCompatByShortcutAppId, loadFacets } from "../library-facets";
+import { activeCompatTrack } from "../device-type";
+import {
+  isTopRated,
+  overviewCompatCategory,
+} from "../steam-bridge/compat-packed";
 import { invalidateGameSize } from "../game-size-cache";
 import type { SteamAppOverview } from "../../types/steam";
 
@@ -33,7 +38,8 @@ export type StoreSlug =
   | "amazon"
   | "ubisoft"
   | "battlenet"
-  | "microsoft";
+  | "microsoft"
+  | "gamevault";
 
 export type FilterType =
   | "installed"
@@ -58,7 +64,6 @@ export interface TabFilter<T extends FilterType = FilterType> {
 }
 
 const NON_STEAM_APP_TYPE = 1073741824;
-const DECK_VERIFIED = 3;
 
 interface UnifideckCacheEntry {
   store: Exclude<StoreSlug, "steam">;
@@ -247,7 +252,18 @@ const filterFunctions: { [K in FilterType]: FilterFn<K> } = {
     return store === params.store;
   },
   deckCompat: (_p, app) => {
-    if (app.steam_deck_compat_category === DECK_VERIFIED) return true;
+    // Read the bits for the device actually running. Steam packs a
+    // separate rating per device, and on a Machine the Deck's bits are
+    // not the ones its own filters and badges use.
+    //
+    // The threshold has to be per-track, not a hardcoded 3: the SteamOS
+    // enum's best value is 2, so comparing it against 3 made this fast
+    // path unreachable and dropped every Valve-rated native Steam game
+    // out of the tab on non-Deck SteamOS hardware.
+    const track = activeCompatTrack();
+    if (isTopRated(overviewCompatCategory(app, track), track)) {
+      return true;
+    }
     const cached = unifideckGameCache.get(app.appid);
     if (cached) {
       // Prefer the shortcut-keyed facet compat — the backend already
@@ -255,12 +271,12 @@ const filterFunctions: { [K in FilterType]: FilterFn<K> } = {
       // centralised title matcher, so no fuzzy lookup against the
       // lossy ``display_name`` is needed here.
       const facetCompat = getCompatByShortcutAppId(app.appid);
-      if (facetCompat) return meetsGreatOnDeckCriteria(facetCompat);
+      if (facetCompat) return meetsGreatOnCurrentDevice(facetCompat);
       // Fallback: title-keyed compat for shortcuts the metadata phase
       // never mapped to a Steam AppID (no facet yet).
       const title = app.display_name || "";
       if (!title) return false;
-      return meetsGreatOnDeckCriteria(getCachedCompatByTitle(title));
+      return meetsGreatOnCurrentDevice(getCachedCompatByTitle(title));
     }
     // Native Steam game (not a Unifideck shortcut): ``app.appid`` is a
     // real Steam AppID, so the appid-keyed ProtonDB rating applies.
@@ -386,6 +402,7 @@ export async function loadUnifideckCache(): Promise<void> {
       ubisoft: 0,
       battlenet: 0,
       microsoft: 0,
+      gamevault: 0,
     };
     for (const g of games ?? []) {
       if (g.app_id == null) continue;
@@ -440,9 +457,16 @@ export async function loadUnifideckCache(): Promise<void> {
 }
 
 /** Kick off the eager load + subscribe to sync-completed events
- *  for refresh. Idempotent — calls after the first are no-ops. */
-export function startUnifideckCacheAutoload(): void {
-  if (cacheLoadStarted) return;
+ *  for refresh. Idempotent — calls after the first are no-ops.
+ *
+ *  Returns a disposer that unregisters both subscriptions and clears any
+ *  pending retry, then releases the started-guard. It used to return
+ *  nothing, so the window listener and the EventBus subscription survived
+ *  plugin unload; because ``EventBusClient`` only stops polling once its
+ *  subscriber set empties, that alone kept a 2s ``subscribe_replay`` loop
+ *  alive for the life of the Steam UI process, once per plugin reload. */
+export function startUnifideckCacheAutoload(): () => void {
+  if (cacheLoadStarted) return () => {};
   cacheLoadStarted = true;
   void loadUnifideckCache();
   // Eager-load the compat cache + per-shortcut facet enrichment at
@@ -451,7 +475,7 @@ export function startUnifideckCacheAutoload(): void {
   // first render in Gaming Mode, where the panel is never opened.
   void loadCompatCacheFromBackend();
   void loadFacets();
-  window.addEventListener("unifideck-sync-completed", () => {
+  const onSyncCompleted = (): void => {
     // A fresh sync is a new chance for a previously-failed load —
     // reset the retry budget so a transient earlier failure doesn't
     // leave us out of retries.
@@ -461,26 +485,44 @@ export function startUnifideckCacheAutoload(): void {
     // derived compat + facet data so badges/sort/filters reflect it.
     void loadCompatCacheFromBackend(true);
     void loadFacets(true);
-  });
+  };
+  window.addEventListener("unifideck-sync-completed", onSyncCompleted);
   // ShortcutService emits SHORTCUT_INSTALL_STATE_CHANGED on
   // post-install/uninstall — flip the per-app entry immediately so
   // the GOG tab and detail-page UI react without waiting for the
   // next full library reload.
-  EventBusClient.subscribe(Events.SHORTCUT_INSTALL_STATE_CHANGED, (kw) => {
-    const appId = kw.app_id;
-    const store = kw.store;
-    const installed = kw.installed;
-    if (typeof appId !== "number") return;
-    if (typeof store !== "string") return;
-    if (typeof installed !== "boolean") return;
-    if (!isNonSteamStore(store as StoreSlug)) return;
-    updateSingleGameStatus({
-      appId,
-      store: store as Exclude<StoreSlug, "steam">,
-      isInstalled: installed,
-    });
-    // The bytes on disk just changed by an entire game. Every cached size
-    // for this app is now wrong in one direction or the other.
-    invalidateGameSize(appId);
-  });
+  const unsubscribeInstallState = EventBusClient.subscribe(
+    Events.SHORTCUT_INSTALL_STATE_CHANGED,
+    (kw) => {
+      const appId = kw.app_id;
+      const store = kw.store;
+      const installed = kw.installed;
+      if (typeof appId !== "number") return;
+      if (typeof store !== "string") return;
+      if (typeof installed !== "boolean") return;
+      if (!isNonSteamStore(store as StoreSlug)) return;
+      updateSingleGameStatus({
+        appId,
+        store: store as Exclude<StoreSlug, "steam">,
+        isInstalled: installed,
+      });
+      // The bytes on disk just changed by an entire game. Every cached size
+      // for this app is now wrong in one direction or the other.
+      invalidateGameSize(appId);
+    },
+  );
+  return () => {
+    window.removeEventListener("unifideck-sync-completed", onSyncCompleted);
+    unsubscribeInstallState();
+    // A retry armed before unload would otherwise fire into a torn-down
+    // plugin and re-populate the module caches.
+    if (cacheRetryTimer != null) {
+      clearTimeout(cacheRetryTimer);
+      cacheRetryTimer = null;
+    }
+    // Release the guard so a re-loaded bundle starts cleanly. The guard is
+    // module-scoped, so a fresh module instance resets it anyway; this
+    // matters for the same-instance reload path.
+    cacheLoadStarted = false;
+  };
 }

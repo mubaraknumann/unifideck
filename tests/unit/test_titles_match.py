@@ -27,6 +27,11 @@ _ACCEPT = [
     ("Rise of the Tomb Raider: 20 Year Celebration",
      "Rise of the Tomb Raider™"),                                  # N-Year Celebration re-release tag
     ("Tomb Raider: Anniversary Celebration", "Tomb Raider"),       # anniversary celebration
+    # A sequel number survives an edition suffix, so the RIGHT sibling
+    # still matches (Roman on either side included).
+    ("The Settlers 7 - History Edition", "The Settlers 7 : History Edition"),
+    ("The Settlers 4 - History Edition", "The Settlers IV: History Edition"),
+    ("The Settlers - History Edition", "The Settlers: History Edition"),
 ]
 
 _REJECT = [
@@ -39,6 +44,18 @@ _REJECT = [
     ("Control", "Steam Controller"),        # unrelated
     ("Calico", "Quilts and Cats of Calico"),  # unrelated
     ("Halo", "Halo 5: Guardians"),          # bare franchise vs entry
+    # Sequel number destroyed by the edition-phrase strip: every
+    # "<game> N - <word> Edition" collapsed to the bare franchise, so
+    # the whole Settlers set resolved to one SteamGridDB entry and the
+    # tester saw a single cover on seven games. Same shape in DOOM /
+    # Darksiders / Total War / Anno.
+    ("The Settlers 5 - History Edition", "The Settlers 7 : History Edition"),
+    ("The Settlers 2 - History Edition", "The Settlers 3: History Edition"),
+    ("The Settlers", "The Settlers 7 : History Edition"),
+    ("Anno 1404 - History Edition", "Anno 1701 - History Edition"),
+    ("DOOM 3: BFG Edition", "DOOM"),
+    ("Darksiders II Deathinitive Edition", "Darksiders"),
+    ("Total War: Rome II - Emperor Edition", "Total War: Rome"),
 ]
 
 

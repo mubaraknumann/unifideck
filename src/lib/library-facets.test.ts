@@ -37,11 +37,11 @@ const RECORD = {
   review_score: 8,
   review_percentage: 95,
   date_added_unix: 1690000000,
-  deck_category: 3,
+  compat_category: 3,
   store_category: [2, 1],
   store_tag: [1, 23],
   protondb_tier: "platinum",
-  deck_status: "verified",
+  compat_status: "verified",
 };
 
 describe("library-facets", () => {
@@ -64,7 +64,7 @@ describe("library-facets", () => {
     const compat = getCompatByShortcutAppId(APPID);
     expect(compat).not.toBeNull();
     expect(compat?.tier).toBe("platinum");
-    expect(compat?.deckVerified).toBe("verified");
+    expect(compat?.status).toBe("verified");
     expect(compat?.steamAppId).toBe(1147860);
   });
 

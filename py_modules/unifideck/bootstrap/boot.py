@@ -63,7 +63,6 @@ logger = logging.getLogger(__name__)
 #: on completion via ``add_done_callback``.
 _BACKGROUND_TASKS: set[asyncio.Task[None]] = set()
 
-
 async def boot_plugin(
     plugin: Any,
     *,
@@ -107,10 +106,10 @@ async def boot_plugin(
     await _boot_layer5_services(plugin, pipeline, decky_plugin_dir)
     await _boot_updater(plugin, decky_plugin_dir)
     await _boot_update_sweep(plugin)
+    _boot_post_sync_reconcile(plugin)
     await _start_store_background_tasks(plugin)
     _wire_prefix_bridge(plugin)
     logger.info("[Unifideck] plugin loaded")
-
 
 async def _boot_layer2_core(plugin: Any, decky_runtime_dir: str) -> Any:
     """Layer 2 — EventBus + pipeline + cache.
@@ -126,7 +125,6 @@ async def _boot_layer2_core(plugin: Any, decky_runtime_dir: str) -> Any:
     register_default_caches(plugin.cache)
     return pipeline
 
-
 def _resolve_defaults_path(decky_plugin_dir: str) -> str:
     """Locate the bundled config.json across Decky build layouts.
 
@@ -138,7 +136,6 @@ def _resolve_defaults_path(decky_plugin_dir: str) -> str:
     from unifideck.config.defaults_path import resolve_defaults_config_path
     return resolve_defaults_config_path(decky_plugin_dir)
 
-
 async def _boot_config_and_validate(
     plugin: Any,
     decky_plugin_dir: str,
@@ -147,11 +144,18 @@ async def _boot_config_and_validate(
     """Layer 3 — ConfigManager + startup validation.
 
     Validates the config at boot BEFORE stores are instantiated.
-    Failures log a warning, flag the plugin as "degraded", emit
-    CONFIG_VALIDATION_FAILED on the bus for SecurityService, and
-    continue booting anyway so the user can still see the
-    DiagnosticsPanel and fix their config. Validation covers
-    user overrides as well.
+    Failures log a warning, set the "degraded" flag, emit
+    CONFIG_VALIDATION_FAILED on the bus for SecurityService's audit
+    log, and continue booting anyway. Validation covers user
+    overrides as well.
+
+    None of that is user-facing at boot: the flag drives no behaviour
+    and there is no UI for it. A malformed config surfaces afterwards
+    through Capture Logs — the bundle carries both the audit trail and
+    a ``config_validation`` block with the errors. This docstring
+    promised a "DiagnosticsPanel" the user could see and fix their
+    config in; no such component has ever existed in ``src/``
+    (audit §1.2/§1.3).
 
     ConfigManager merges defaults/config.json + user overrides
     from the XDG location (~/.config/unifideck/config.json by
@@ -175,7 +179,6 @@ async def _boot_config_and_validate(
         defaults_path=defaults_path,
         user_config_path=plugin._user_config_path,
     )
-
 
 def _boot_layer4_stores(plugin: Any, decky_plugin_dir: str) -> None:
     """Layer 4 — StoreRegistry + SyncService + auto-discovery."""
@@ -205,7 +208,6 @@ def _boot_layer4_stores(plugin: Any, decky_plugin_dir: str) -> None:
         config=plugin.config,
     )
 
-
 async def _boot_layer5_services(
     plugin: Any, pipeline: Any, decky_plugin_dir: str,
 ) -> None:
@@ -216,7 +218,7 @@ async def _boot_layer5_services(
     1. ``bootstrap_services`` builds the full service container
        (shortcut, download, cdp, browser_monitor, ...).
     2. ``inject_store_dependencies`` walks ``_STORE_INJECTIONS``
-       (OP-13g) and writes each (attr, service) pair onto its
+ and writes each (attr, service) pair onto its
        auto-discovered store. Stores that expose
        ``_rebuild_auth_after_injection`` get it called so they
        can wire their auth flow against the freshly-injected
@@ -258,7 +260,6 @@ async def _boot_layer5_services(
     plugin.sync_service.resume_size_backfill()
     await start_async_services(plugin.services)
 
-
 async def _boot_updater(plugin: Any, decky_plugin_dir: str) -> None:
     """Wire the self-updater service.
 
@@ -282,7 +283,6 @@ async def _boot_updater(plugin: Any, decky_plugin_dir: str) -> None:
         logger.exception("[Updater] failed to wire — update checking disabled")
         plugin._updater_service = None
 
-
 async def _boot_update_sweep(plugin: Any) -> None:
     """Wire the background game-update sweep.
 
@@ -304,6 +304,46 @@ async def _boot_update_sweep(plugin: Any) -> None:
     except Exception:
         logger.exception("[UpdateSweep] failed to wire — updates checked on demand")
         plugin._update_sweep_service = None
+
+def _boot_post_sync_reconcile(plugin: Any) -> None:
+    """Wire the boot-time post-sync data reconcile.
+
+    The metadata → artwork → compat chain runs as background tasks in this
+    process, and this process restarts independently of Steam — most often
+    right after a sync, because that is exactly when the user is told to
+    restart Steam for new shortcuts and artwork. An interrupted chain used
+    to be lost outright: boot checked orphaned *shortcuts* and resumed the
+    size backfill, but nothing ever asked whether artwork, metadata or
+    compat data were actually complete. One measured session left 111 of
+    1242 games with incomplete artwork and 13 (all of Ubisoft, the last
+    store signed into) with none at all.
+
+    Constructed outside the ServiceContainer for the same reason as the
+    updater and the update sweep: it needs ``plugin.sync_service``, which
+    is not a container member. A failure here never blocks boot — the gaps
+    simply wait for the next sync, which is the old behaviour.
+    """
+    try:
+        from unifideck.services.post_sync_reconcile import (
+            PostSyncReconcileService,
+        )
+
+        services = plugin.services
+        svc = PostSyncReconcileService(
+            plugin.bus,
+            plugin.sync_service,
+            artwork=getattr(services, "artwork", None),
+            metadata=getattr(services, "metadata", None),
+            compat=getattr(services, "compatibility", None),
+        )
+        plugin._post_sync_reconcile_service = svc
+        svc.start()
+    except Exception:
+        logger.exception(
+            "[PostSyncReconcile] failed to wire — post-sync gaps will wait "
+            "for the next sync",
+        )
+        plugin._post_sync_reconcile_service = None
 
 
 def _wire_prefix_bridge(plugin: Any) -> None:
@@ -371,7 +411,6 @@ def _wire_prefix_bridge(plugin: Any) -> None:
             task.add_done_callback(_BACKGROUND_TASKS.discard)
     except Exception:
         logger.exception("[Unifideck] could not wire the prefix bridge")
-
 
 async def _start_store_background_tasks(plugin: Any) -> None:
     """Kick off per-store background tasks outside the generic Layer-5

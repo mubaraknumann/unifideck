@@ -344,3 +344,84 @@ class WinePrefixResolver:
         resolved = os.path.normpath(os.path.join(*out_parts))
         resolved = cls.realize_case_insensitive(resolved)
         return os.path.realpath(resolved)
+
+
+# ── title-matched save-dir auto-detection ─────────────────────────────
+#: The four in-prefix roots a Windows game plausibly writes saves under,
+#: in the order worth trying. Both former copies of this heuristic listed
+#: the same four in the same order.
+_SAVE_DIR_ROOTS = (
+    ("users", "steamuser", "Saved Games"),
+    ("users", "steamuser", "Documents"),
+    ("users", "steamuser", "AppData", "Local"),
+    ("users", "steamuser", "AppData", "Roaming"),
+)
+
+
+def _sanitise_title(title: str) -> str:
+    """Strip *title* to lowercase ASCII alphanumerics."""
+    return re.sub(r"[^a-zA-Z0-9]", "", title).lower()
+
+
+def find_save_dir_by_title(
+    drive_c: str | os.PathLike[str],
+    game_title: str,
+    *,
+    tag: str = "CloudSave",
+) -> str | None:
+    """Guess a game's in-prefix save directory by matching its title.
+
+    Last-resort heuristic, used only when neither an explicit override nor
+    the store's own cloud-save metadata resolved a path.
+
+    **The empty-title guard is on the sanitised value, not the raw one.**
+    This existed twice; the copy in ``gog_strategy`` guarded the *raw*
+    title, so a title with no ASCII alphanumerics — a non-Latin GOG
+    release, or one that is all punctuation — sanitised to ``""``, passed
+    the guard, and then matched on ``"" in child_name``: the **first**
+    directory under ``Saved Games`` was returned as the save dir, and
+    cloud sync would have carried an unrelated folder. A drift finding
+    names a difference, not a direction (audit §3.2); here the direction
+    was clear once both were read side by side. Audit register item 47.
+
+    Args:
+        drive_c: the prefix's ``drive_c``.
+        game_title: the game's display title; ``None``-ish or
+            non-alphanumeric yields ``None`` rather than a guess.
+        tag: log prefix, so a hit is still attributable to its caller.
+
+    Returns:
+        Absolute path of the matched directory, or ``None``.
+    """
+    safe_title = _sanitise_title(game_title or "")
+    if not safe_title:
+        return None
+    for parts in _SAVE_DIR_ROOTS:
+        candidate = os.path.join(str(drive_c), *parts)
+        match = _match_child_by_title(candidate, safe_title, tag=tag)
+        if match:
+            return match
+    return None
+
+
+def _match_child_by_title(
+    candidate: str, safe_title: str, *, tag: str,
+) -> str | None:
+    """First child dir of *candidate* whose sanitised name matches."""
+    try:
+        if not os.path.isdir(candidate):
+            return None
+        children = sorted(os.listdir(candidate))
+    except OSError:
+        return None
+    for name in children:
+        child = os.path.join(candidate, name)
+        if not os.path.isdir(child):
+            continue
+        child_name = _sanitise_title(name)
+        if not child_name:
+            continue
+        if safe_title in child_name or child_name in safe_title:
+            logger.info("[%s] Auto-detected save dir via title match: %s", tag, child)
+            return child
+    return None

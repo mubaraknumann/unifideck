@@ -1,8 +1,6 @@
 """
 UPC ID ↔ Unifideck install ID mapping — persistent on-disk store.
 
-OP-55g | py_modules/unifideck/stores/ubisoft/id_map.py
-
 UPC identifies a game by its ``space_id`` (a GUID-like string), but
 Unifideck uses a stable ``install_id`` for shortcuts, save-management,
 and cross-store correlation. ``UbisoftIdMap`` is the bidirectional
@@ -31,15 +29,39 @@ from .id_map_sources import (
     _IdMapSources,
 )
 from .id_map_sources import (
-    extract_cache_game_ids as _extract_cache_game_ids,
-)
-from .id_map_sources import (
     extract_game_id_from_registry as _extract_game_id_from_registry,
+)
+from .leveldb_ids import drop_conflicting_ids
+from .leveldb_ids import (
+    extract_cache_game_ids as _extract_cache_game_ids,
 )
 from .paths import UbisoftPrefixPaths
 
 logger = logging.getLogger(__name__)
 
+CONNECT_ID_KEY = "ubisoftconnect_game_id"
+CONNECT_ID_SOURCE_KEY = "ubisoftconnect_game_id_source"
+# Confidence order for whoever wrote a game's deeplink id, lowest first.
+# A source may only overwrite an id written by an equal-or-weaker one.
+# ``manual`` is a hand-edited ``ubisoft_id_map.json`` and always wins;
+# ``registry`` is the installed game's own Wine registry key, which is
+# per-game and therefore unambiguous; ``leveldb`` is UPC's cache. An
+# entry with no source key predates #436 and is treated as untrusted.
+_CONNECT_ID_SOURCES: tuple[str, ...] = (
+    "",
+    "name_db",
+    "configurations",
+    "manifest",
+    "leveldb",
+    "registry",
+    "manual",
+)
+
+def _connect_id_rank(source: str) -> int:
+    """Confidence rank of ``source``; unknown sources rank lowest."""
+    if source in _CONNECT_ID_SOURCES:
+        return _CONNECT_ID_SOURCES.index(source)
+    return 0
 
 class UbisoftIdMap:
     """Ubisoft ID map."""
@@ -154,6 +176,139 @@ class UbisoftIdMap:
         self._cache[space_id] = merged
         self._save()
         return True
+
+    def set_connect_id(
+        self,
+        space_id: str,
+        connect_id: str | None,
+        source: str,
+        extra: dict[str, Any] | None = None,
+    ) -> bool:
+        """Write a deeplink id only when ``source`` is trusted enough.
+
+        The single gate for ``ubisoftconnect_game_id`` (#436). A source
+        may overwrite an id recorded by an equal-or-weaker source only
+        (see ``_CONNECT_ID_SOURCES``), so a leveldb re-scan during a
+        force sync can no longer clobber the registry id of an installed
+        game, nor a hand-edited entry. ``extra`` fields are merged either
+        way. Returns whether the entry changed.
+        """
+        fields: dict[str, Any] = dict(extra or {})
+        existing = self._cache.get(space_id, {})
+        allowed = bool(connect_id) and _connect_id_rank(source) >= _connect_id_rank(
+            str(existing.get(CONNECT_ID_SOURCE_KEY, "")),
+        )
+        if allowed:
+            fields[CONNECT_ID_KEY] = str(connect_id)
+            fields[CONNECT_ID_SOURCE_KEY] = source
+        elif connect_id and connect_id != str(existing.get(CONNECT_ID_KEY, "")):
+            logger.info(
+                "[UbisoftIdMap] keeping %s id %s over %s id %s for %s",
+                existing.get(CONNECT_ID_SOURCE_KEY, ""),
+                existing.get(CONNECT_ID_KEY),
+                source,
+                connect_id,
+                space_id,
+            )
+        return self.merge_entry(space_id, fields) if fields else False
+
+    def reconcile_connect_ids(
+        self,
+        fresh: dict[str, str],
+        space_ids: list[str],
+    ) -> None:
+        """Fold a whole leveldb scan into the map in one write.
+
+        For every game rebuilt this sync: adopt the scanned id when
+        ``leveldb`` outranks whatever is recorded, and drop a previously
+        leveldb-sourced id the scan no longer corroborates —
+        ``update_bulk`` merges, so a stale id would otherwise outlive
+        every future sync (#436). An untagged id (written before #436)
+        is left in place unless it is adopted over or the conflict sweep
+        finds it shared; on its own it is not evidence of damage.
+        """
+        rank = _connect_id_rank("leveldb")
+        changed = False
+        for space_id in space_ids:
+            entry = self._cache.setdefault(space_id, {})
+            connect_id = fresh.get(space_id)
+            current_rank = _connect_id_rank(str(entry.get(CONNECT_ID_SOURCE_KEY, "")))
+            if current_rank > rank:
+                continue
+            if connect_id:
+                changed |= entry.get(CONNECT_ID_KEY) != connect_id
+                entry[CONNECT_ID_KEY] = connect_id
+                entry[CONNECT_ID_SOURCE_KEY] = "leveldb"
+            elif entry.get(CONNECT_ID_SOURCE_KEY) == "leveldb":
+                entry.pop(CONNECT_ID_KEY, None)
+                entry.pop(CONNECT_ID_SOURCE_KEY, None)
+                changed = True
+                logger.info(
+                    "[UbisoftIdMap] dropped uncorroborated deeplink id for %s",
+                    space_id,
+                )
+        if changed:
+            self._save()
+
+    def sweep_conflicting_connect_ids(self) -> int:
+        """Repair a persisted map where one deeplink id serves two games.
+
+        Self-heal for users already carrying the #436 damage: an id is
+        kept only on an entry that corroborates it (its own
+        ``install_id``/``launch_id``, or a registry/manual source) and
+        stripped from every other claimant, which then re-derives its id
+        on this same sync. Returns the number of entries stripped.
+        """
+        owners: dict[str, list[str]] = {}
+        for space_id, entry in self._cache.items():
+            connect_id = entry.get(CONNECT_ID_KEY)
+            if connect_id:
+                owners.setdefault(str(connect_id), []).append(space_id)
+        stripped = 0
+        for connect_id, spaces in owners.items():
+            if len(spaces) > 1:
+                stripped += self._resolve_connect_id_conflict(connect_id, spaces)
+        if stripped:
+            self._save()
+        return stripped
+
+    def _resolve_connect_id_conflict(
+        self,
+        connect_id: str,
+        spaces: list[str],
+    ) -> int:
+        """Strip ``connect_id`` from every space id that can't corroborate it."""
+        keeper = next(
+            (s for s in sorted(spaces) if self._corroborates_connect_id(s, connect_id)),
+            None,
+        )
+        logger.warning(
+            "[UbisoftIdMap] deeplink id %s claimed by %d games (%s) — keeping it "
+            "on %s",
+            connect_id,
+            len(spaces),
+            ", ".join(sorted(spaces)),
+            keeper or "none",
+        )
+        stripped = 0
+        for space_id in spaces:
+            if space_id == keeper:
+                continue
+            entry = self._cache[space_id]
+            entry.pop(CONNECT_ID_KEY, None)
+            entry.pop(CONNECT_ID_SOURCE_KEY, None)
+            stripped += 1
+        return stripped
+
+    def _corroborates_connect_id(self, space_id: str, connect_id: str) -> bool:
+        """Whether ``space_id`` has independent evidence for ``connect_id``."""
+        entry = self._cache.get(space_id, {})
+        if entry.get(CONNECT_ID_SOURCE_KEY) in ("registry", "manual"):
+            return True
+        return connect_id in (
+            str(entry.get("install_id", "")),
+            str(entry.get("launch_id", "")),
+        )
 
     def get_entry(
         self,
@@ -281,6 +436,10 @@ class UbisoftIdMap:
         into the id_map (the builder records it on each game so
         :meth:`resolve_launch_id` returns the canonical deeplink id).
         Returns an empty dict when no cache is present.
+
+        An id claimed by more than one game is dropped rather than
+        guessed at (#436); that game falls back to its configurations
+        ``launch_id``, exactly as it would with no cache at all.
         """
         for prefix_dir in (
             self._config.auth_prefix_dir_expanded,
@@ -291,7 +450,7 @@ class UbisoftIdMap:
                 self._config.localstorage_relative_path,
             )
             if ids:
-                return ids
+                return drop_conflicting_ids(ids)
         return {}
 
     @staticmethod

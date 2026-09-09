@@ -12,6 +12,7 @@ import logging
 from collections.abc import Iterable
 from typing import Any
 
+from .deck_verified import TRACK_DECK
 from .library import CompatLibrary
 
 logger = logging.getLogger(__name__)
@@ -57,13 +58,16 @@ async def fetch_deck_verified(
     """Fetch the Steam Deck verification status for ``appid``.
 
     Module-level facade — keeps the legacy single-string return
-    shape for older callers. New code should use
-    :meth:`CompatLibrary._fetch_deck_verified` directly to also
-    receive the per-test result entries.
+    shape for older callers, and answers for the Deck specifically
+    regardless of the host device. New code should use
+    :meth:`CompatLibrary._fetch_compat` directly to receive every
+    device's rating plus the per-test result entries.
     """
     lib = CompatLibrary()
-    status, _ = await lib._fetch_deck_verified(appid)
-    return status
+    tracks = await lib._fetch_compat(appid)
+    if tracks is None:          # request failed, not "nothing rated"
+        return "unknown"
+    return tracks[TRACK_DECK].status
 
 
 async def get_compat_for_title(

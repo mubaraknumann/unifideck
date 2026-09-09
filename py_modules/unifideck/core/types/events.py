@@ -15,7 +15,50 @@ Reference: Technical Document v1.0 — Section 3.3 (EventBus topology).
 
 from __future__ import annotations
 
-from enum import StrEnum
+import sys
+
+# UP036/UP042: ruff reads requires-python (3.11) and concludes this block
+# is dead and the shim redundant. It is neither. The interpreter that
+# imports this module is not always the one the project targets — see
+# below — and the shim only ever runs on the interpreter ruff is not
+# looking at.
+if sys.version_info >= (3, 11):  # noqa: UP036
+    from enum import StrEnum
+else:
+    # StrEnum was only added to the stdlib in Python 3.11. This module sits
+    # in the EAGER import chain every Unifideck shortcut launch pulls in
+    # (bin/unifideck-launcher -> launcher.dispatcher -> core -> core.types
+    # -> .events), which normally runs under a modern system Python via
+    # find_python_3_10_plus()'s ACCEPTED_VERSIONS — but that selection only
+    # applies to the Proton/umu subprocess, never to the launcher SCRIPT
+    # itself. bin/unifideck-launcher's own "#!/usr/bin/env python3" shebang
+    # resolves whatever "python3" the CALLING process's environment
+    # provides, and when Steam wraps the launcher in its own
+    # SteamLinuxRuntime_sniper pressure-vessel container — which it does
+    # automatically whenever the user sets Force-Compatibility on a
+    # Unifideck shortcut, see
+    # launcher.proton.infrastructure.container_escape's docstring for the
+    # umu-side twin of this same container problem — that "python3" is the
+    # CONTAINER's own (observed: too old for StrEnum, and for the `X | None`
+    # syntax core/cache_manager.py used to use unguarded). Reproduced
+    # on-device: entering the sniper container directly
+    # (_v2-entry-point --verb=run --) and invoking bin/unifideck-launcher
+    # failed on exactly this import one level deeper, right after an
+    # earlier `Any | None` TypeError in cache_manager.py was fixed.
+    #
+    # A plain (str, Enum) shim needs no stdlib newer than 3.4, which
+    # sidesteps having to know which interpreters are reachable inside an
+    # arbitrary Steam Runtime container. It differs from the real StrEnum in
+    # exactly one respect — ``str(member)`` would return "Events.NAME"
+    # instead of the value — so ``__str__`` is pinned back to ``str``'s.
+    # Without that the shim would be a silent behaviour change on the one
+    # interpreter nothing here is tested against.
+    from enum import Enum
+
+    class StrEnum(str, Enum):  # type: ignore[no-redef]  # noqa: UP042
+        """Pre-3.11 stand-in for :class:`enum.StrEnum`."""
+
+        __str__ = str.__str__
 
 
 class Events(StrEnum):
@@ -32,8 +75,15 @@ class Events(StrEnum):
     """
 
     # Plugin lifecycle
-    PLUGIN_LOADED = "plugin_loaded"
-    PLUGIN_UNLOADING = "plugin_unloading"
+    # PLUGIN_LOADED and PLUGIN_UNLOADING lived here and were retired 2026-08.
+    # Found by scripts/validate_event_wiring.py while resolving audit §1.3,
+    # which did not list them: they were dead in BOTH directions — never
+    # emitted, never subscribed — and only looked load-bearing because
+    # event_priority.py assigned them EventPriority.CRITICAL. Plugin lifecycle
+    # is not event-driven here and never has been: boot runs through
+    # bootstrap/boot.py's explicit layer calls and shutdown through
+    # services/bootstrap/teardown.py's ordered list, both direct calls with
+    # ordering guarantees a bus fan-out could not give them.
 
     # Sync lifecycle
     SYNC_STARTED = "sync_started"
@@ -74,61 +124,117 @@ class Events(StrEnum):
     STORE_AUTH_FAILED = "store_auth_failed"
     STORE_LOGOUT = "store_logout"
 
-    # Store registration lifecycle — emitted by StoreRegistry
-    # when a store plugin is registered at bootstrap. Consumed
-    # by metrics_collector.py and any future store-aware
-    # dashboards.
+    # Store registration lifecycle — emitted by StoreRegistry when a store
+    # plugin is registered at bootstrap. Consumed by
+    # src/stores/store-info-store.ts, which refetches store infos on it; the
+    # boot-time emit reaches the frontend through the replay buffer on its
+    # first poll (the event is in WATCHED_EVENTS and deliberately NOT in
+    # STALE_ON_RELOAD_EVENTS, since re-fetching store infos is idempotent).
+    # This block claimed metrics_collector.py consumed it until 2026-08; it
+    # never has. Audit §1.3 in turn recorded the event as having no consumer
+    # at all, which was also wrong — the frontend one is live.
     STORE_REGISTERED = "store_registered"
 
     # Game lifecycle
-    GAME_INSTALLED = "game_installed"
+    # No GAME_INSTALLED counterpart: install completion is
+    # ``DOWNLOAD_COMPLETE`` (worker) → ``mark_installed`` →
+    # ``SHORTCUT_INSTALL_STATE_CHANGED``, which fires in BOTH
+    # directions and is what flips the ``installed`` flag readers
+    # actually observe. A ``GAME_INSTALLED`` member existed for a
+    # long time with no live emitter; the asymmetry with
+    # GAME_UNINSTALLED made it look real, and three subscribers
+    # (artwork, proton, Steam Collections) were silently dead.
     GAME_UNINSTALLED = "game_uninstalled"
     GAME_UPDATE_AVAILABLE = "game_update_available"
     GAME_LAUNCHED = "game_launched"
     GAME_STOPPED = "game_stopped"
     PLAYTIME_UPDATED = "playtime_updated"
     # Playtime → store sync (GOG/Epic) outcome, per drain.
+    # Payload: store (str), pushed (int) on complete; store, error on failed.
+    # unwired: consumer deferred. Audit §1.3 found _COMPLETE emitted with no
+    # subscriber on any leg (its emitter's docstring claimed a toast bridge
+    # consumed it — none does) and _FAILED with neither an emitter nor a
+    # subscriber. Kept deliberately: surfacing "your playtime reached GOG" is
+    # wanted, it just has no UI yet. Wiring it means a frontend subscriber
+    # plus rows in src/types/events.ts and WATCHED_EVENTS — all three, or it
+    # is silent again.
     PLAYTIME_SYNC_COMPLETE = "playtime_sync_complete"
+    # unwired: same deferral as _COMPLETE above, plus this one has no emitter
+    # either — PlaytimeSyncService only reports successful drains today.
     PLAYTIME_SYNC_FAILED = "playtime_sync_failed"
 
     # Power/Sleep lifecycle
-    SUSPEND = "suspend"
-    RESUME = "resume"
+    # SUSPEND and RESUME lived here and were retired 2026-08. PlaytimeService
+    # was their only subscriber, accumulating a per-session sleep total so a
+    # session's duration could be billed as wall-clock minus sleep. Nothing in
+    # the tree ever emitted them — no logind/D-Bus listener, no SteamClient
+    # hook — so the sleep total was permanently 0 and suspending the Deck
+    # mid-game billed the entire suspend as playtime, a number
+    # ``PlaytimeSyncService`` then pushed to GOG/Epic. The fix was not to add
+    # an emitter: ``PlaytimeService._provisional_duration`` now measures awake
+    # time off ``time.monotonic()`` (CLOCK_MONOTONIC does not advance across
+    # suspend on Linux), which needs no signal and also covers a hard suspend
+    # that would fire none. Do not reintroduce these without a real emitter.
 
-    # Launcher progress stages + toast bridge.
-    # Emitted by LauncherService and cloud_failure.py as a
+    # Launcher progress stages + the plugin's ONLY user-facing toast
+    # channel. Emitted by LauncherService and cloud_failure.py as a
     # game moves through the launch pipeline (prefix setup,
     # cloud sync, proton selection, umu-run start, ...).
     # Also emitted on cloud sync failures, disk space checks,
-    # and circuit breaker events. The frontend's
-    # LauncherToastListener subscribes to this channel to
-    # render toast notifications with optional action buttons
-    # (see actions/unifideck_uri.py for the URI scheme).
+    # circuit breaker refusals, and shortcut write refusals.
+    #
+    # Despite the name it is not launch-only: any service that needs to
+    # surface an asynchronous message to the user emits here. A separate
+    # TOAST_NOTIFICATION member existed until 2026-08 for exactly that
+    # "generic notification" job and was retired — it had no subscriber
+    # in either process, and its three emitters (circuit breaker,
+    # launcher error, shortcut write refusal) were silent for their whole
+    # lifetime. Do not reintroduce a second toast channel: this one is
+    # the only name wired on both delivery legs.
+    #
+    # Two legs reach the UI, one per process:
+    #   * plugin backend → replay buffer → subscribe_replay →
+    #     src/services/boot-event-listener.tsx;
+    #   * launcher subprocess → frontend_bridge.install_bus_forwarder →
+    #     launcher_events.jsonl → get_launcher_toasts →
+    #     src/services/launcherToasts.tsx.
+    # The forwarder mirrors THIS event and no other, which is why an
+    # event emitted in the launcher on any other name cannot be seen.
+    #
     # Payload fields: i18n_key (str), i18n_title_key? (str — bold
     # toast title rendered above i18n_key's message), severity
     # ("info"|"warning"|"error"), i18n_params (dict),
-    # duration_ms (int), action? ({i18n_label_key, target_url,
+    # duration_ms? (int — overrides the frontend's per-severity
+    # default), action? ({i18n_label_key, target_url,
     # fallback_url?}), store?, game_id?, phase?.
     LAUNCHER_STAGE = "launcher_stage"
 
     # Per-game circuit breaker state transitions. Emitted by
-    # LaunchHistoryService whenever the breaker opens, closes,
-    # is bypassed, or is manually reset. The frontend's
-    # useCircuitState hook subscribes to this channel filtered
-    # by game_key to drive the PlayButtonOverride badge +
-    # buttons in real-time (no polling). Replacing the 30s
-    # poll with push means the badge appears/disappears
-    # instantly on user actions (Reset, Force launch) and on
-    # launch-level state changes (crash → open, success → close).
+    # LaunchHistoryService._emit_state whenever a failure is recorded, a
+    # success wipes the history, failures are cleared, or a bypass is armed.
     #
-    # Payload fields:
-    #   game_key (str)  — "<store>:<game_id>"
-    #   state (str)     — "open" | "closed" | "bypassed"
-    #   recent_count (int) — failures in window
-    #   failure_kinds (list[str]) — e.g. ["fast_boot", "fast_boot"]
-    #   trigger (str)   — what caused the transition:
-    #     "record_failure", "record_success", "clear_failures",
-    #     "arm_bypass", "consume_bypass", "window_expired"
+    # Consumed since 2026-08-26 by ``src/hooks/useCircuitState.ts``, which
+    # renders the badge and the two reset controls in PlayMeta (register item
+    # 4a). Before that it was polled — it has always been in WATCHED_EVENTS —
+    # and dropped, so a user whose game tripped the breaker got a refusal
+    # toast, no badge, and no way to reset short of waiting out the window.
+    #
+    # Payload fields — this is the REAL contract, read off the emit site.
+    # Until 2026-08 this block documented `game_key`, `state`, `recent_count`
+    # and `failure_kinds`, none of which has ever been sent; CANONICAL_SCHEMA
+    # carried the real set, so the gate stayed green while the prose lied. A
+    # subscriber written from the old text would read `undefined` for four of
+    # five keys and silently render nothing — the same failure as the
+    # app_id/game_id split in audit §1.1.1. Verify against the emit site, not
+    # against this comment, before adding one:
+    #   store (str)          — e.g. "gog"
+    #   game_id (str)        — store-scoped id; the emitter splits
+    #                          "<store>:<game_id>" itself
+    #   is_open (bool)       — whether the breaker is currently refusing
+    #   failure_count (int)  — failures inside the window
+    #   trigger (str)        — "record_failure_<kind>" (e.g.
+    #                          "record_failure_fast_boot"), "clear_failures",
+    #                          "arm_bypass", or "closed" after a success
     CIRCUIT_STATE_CHANGED = "circuit_state_changed"
 
     # Download lifecycle
@@ -151,9 +257,25 @@ class Events(StrEnum):
     BATTLENET_INSTALL_LAUNCH_REQUESTED = "battlenet_install_launch_requested"
     UBISOFT_INSTALL_LAUNCH_REQUESTED = "ubisoft_install_launch_requested"
 
-    # Generic store error
-    STORE_ERROR = "store_error"
+    # STORE_ERROR lived here and was retired 2026-08 (audit §1.3). It was a
+    # generic store-failure toast channel that NEVER had a backend emitter —
+    # ``git log -S store_error -- py_modules/`` reaches back to the initial
+    # commit and finds none. It was not a regression; the emitting half was
+    # never built, while the frontend half (a handler in boot-event-listener
+    # rendering ``toasts.storeError``, translated in all 16 locales) sat there
+    # looking wired. Every failure it could have carried is already covered:
+    # a per-store sync failure logs, emits SYNC_FAILED and toasts via
+    # LAUNCHER_STAGE (core/sync_run_mixin.py); an auth failure logs, emits
+    # STORE_AUTH_FAILED and flips the store's status in the frontend
+    # (stores/shared/store_registry.py).
 
+    # Frontend CEF capability probes, reported back for ProbeReactionService
+    # and FeatureFlagService to react to. Payload: probes (dict).
+    # unwired: emitter deferred to remediation register 4i. There is no probe
+    # suite in src/, so the event has never fired, so both subscribers have
+    # never run and feature flags have never left their defaults. 4i decides
+    # the pipeline as one unit — build the suite and the reporting route, or
+    # delete both services and their maps. Do not wire only this half.
     RUNTIME_PROBES_REPORTED = "runtime_probes_reported"
 
     # security audit events. Emitted by the
@@ -208,29 +330,29 @@ class Events(StrEnum):
     CONFIG_VALIDATION_COMPLETED = "config_validation_completed"
     CONFIG_VALIDATION_FAILED = "config_validation_failed"
 
-    # Sprint 18e — subscription lifecycle.
-    # Emitted by MicrosoftSubscriptionService whenever the detected
-    # tier changes for the active Microsoft account. Subscribers are
-    # the frontend toast listener (informational notifications) and
-    # MetricsCollector (counter of state transitions per tier).
-    # Payload fields:
-    #   SUBSCRIPTION_DETECTED: store (str), tier (str: "ultimate",
-    #     "premium", "essential", "active_unknown")
-    #   SUBSCRIPTION_EXPIRED:  store (str)
-    #   SUBSCRIPTION_CHECK_FAILED: store (str), reason (str:
-    #     "network", "timeout", "http_error", "bad_response",
-    #     "gssv_chain_failed", "unknown")
-    SUBSCRIPTION_DETECTED = "subscription_detected"
-    SUBSCRIPTION_EXPIRED = "subscription_expired"
-    SUBSCRIPTION_CHECK_FAILED = "subscription_check_failed"
+    # SUBSCRIPTION_DETECTED / _EXPIRED / _CHECK_FAILED lived here and were
+    # retired 2026-08 (audit §1.3). MicrosoftSubscriptionService emitted them
+    # on every tier transition and this docstring claimed "Subscribers are the
+    # frontend toast listener and MetricsCollector" — neither existed. They
+    # were missing THREE legs, not one: no Python subscriber, absent from
+    # src/types/events.ts, and absent from WATCHED_EVENTS, so the frontend
+    # never even polled for them. SYNC_SKIPPED below carries the same news on
+    # a channel that is actually rendered; do not add a second one.
 
-    # Sprint 18e — generic "store chose not to sync" event.
+    # Generic "store chose not to sync" event.
     # Distinct from SYNC_FAILED (which implies an error): SYNC_SKIPPED
     # is an intentional no-op with a user-facing explanation. Today
     # emitted only by MicrosoftStore when the Game Pass subscription
     # check returns NONE, ACTIVE_UNKNOWN, or an error. Future
     # subscription-based stores (EA Play, Ubisoft+) would emit the
     # same event with their own reason string.
+    #
+    # Consumed by src/services/boot-event-listener.tsx, which maps ``reason``
+    # to an explanatory toast through its SYNC_SKIPPED_KEYS table and ignores
+    # reasons it does not know. Adding a reason here means adding a row there,
+    # or the skip is silent again — which is exactly how a failed Game Pass
+    # check used to drop the whole xCloud library with no message while the
+    # sync bar reported success for the other five stores.
     # Payload fields: store (str), reason (str)
     SYNC_SKIPPED = "sync_skipped"
 
@@ -241,8 +363,11 @@ class Events(StrEnum):
     # the previous account so library/subscription/token state does
     # not leak across Steam profiles.
     # Payload fields:
-    #   previous_user_id (str | None)  — the id that was active
-    #   active_user_id (str)           — the new MostRecent id
+    #   active_user_id (str)  — the new MostRecent id
+    #   new_user (str)        — the same value, kept for backward compat;
+    #                           UserPathsCoordinator accepts either key
+    # There is no `previous_user_id`: this block documented one until 2026-08
+    # and AccountService has never sent it (audit §1.3).
     ACCOUNT_SWITCHED = "account_switched"
 
     # ShortcutService lifecycle. Emitted whenever a shortcut is added
@@ -288,21 +413,14 @@ class Events(StrEnum):
     SHORTCUT_RECONCILE_COMPLETE = "shortcut_reconcile_complete"
 
     # ── UI toast notification ────────────────────────────────────
-    # Generic frontend toast trigger. Emitted by any service that
-    # needs to surface a user-facing message asynchronously
-    # (launcher error, circuit breaker tripped, sync failed, etc.).
-    # The frontend subscribes via the bus bridge and displays the
-    # toast styled per ``severity``.
-    # Added 2026-05-15 (lot 12c): the emit sites in
-    # services/launcher/{circuit_breaker,error_toasts}.py have
-    # always referenced ``Events.TOAST_NOTIFICATION`` but the enum
-    # member was never declared — both call sites were silent
-    # no-ops, so launcher errors and circuit-breaker trips never
-    # actually reached the UI.
-    # Payload fields: severity ("info" | "warning" | "error"),
-    #   duration_ms (int), i18n_key (str), params (dict[str, Any]),
-    #   actions (list[dict[str, Any]], opt).
-    TOAST_NOTIFICATION = "toast_notification"
+    # TOAST_NOTIFICATION lived here and was retired 2026-08. Declaring
+    # the member in 2026-05 fixed only the AttributeError its three emit
+    # sites were raising — it never made them reach the UI, because the
+    # name was absent from src/types/events.ts and WATCHED_EVENTS, had no
+    # Python subscriber, and was not mirrored by the launcher's bus
+    # forwarder (which carries LAUNCHER_STAGE alone). All three emitters
+    # now use LAUNCHER_STAGE; see its comment above. Generic toasts have
+    # one channel on purpose.
 
     # On-demand artwork fetch request. Any caller may emit this to
     # ask ArtworkService to pull covers for a given title from
@@ -310,6 +428,12 @@ class Events(StrEnum):
     # fetch if artwork already present unless force=True).
     # Payload fields: app_id (int), title (str), store (str, opt),
     #   game_id (str, opt), force (bool, opt, default False)
+    # unwired: no emitter yet. Audit §1.3 confirmed there has never been one.
+    # The handler is retained on purpose as the entry point for a force-refetch
+    # trigger (the `force=True` arm exists for the account-switch case, where
+    # existing art is stale) — it just needs a caller. The two artwork paths
+    # that DO run reach ArtworkService by other routes: the bulk post-sync
+    # phase (POST_SYNC_PHASE_CHANGED) and auth tiles (SHORTCUT_CREATED).
     ARTWORK_REQUEST = "artwork_request"
     # ── Cloud-save sync lifecycle ────────────────────────────────
     # Emitted by ``CloudSaveService`` to surface per-game save

@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from unifideck.launcher.proton.infrastructure.core import ProtonLaunchPlan
     from unifideck.launcher.types.context import LaunchContext, RuntimeState
 
     from .service import LauncherService
@@ -116,7 +117,7 @@ def build_native_argv(
     wrapped with the Steam Runtime when present (matches the retired
     bash launcher's behaviour), else exec'd directly.
     """
-    argv: list[str] = list(state.wrappers)
+    argv: list[str] = []
     if _is_gog_dosbox_wrapper(ctx):
         logger.info("[Helpers] using GOG DOSBox wrapper module for %s", exe_path)
         # ``sys.executable`` — the interpreter already running this code
@@ -279,7 +280,7 @@ async def prepare_windows_plan(
     state: RuntimeState,
     *,
     tool_id: str | None = None,
-) -> tuple[Any, Any]:
+) -> ProtonLaunchPlan:
     """Prepare the Proton launch plan for a Windows game.
 
     Resolves the three things ``proton_prepare`` needs — a
@@ -312,7 +313,7 @@ async def prepare_windows_plan(
         # ``proton_prepare`` is synchronous (prefix mkdir + umu-id
         # lookup); call it directly — the launcher subprocess has
         # nothing else on its event loop.
-        plan = proton_prepare(
+        return proton_prepare(
             ctx,
             state,
             python_bin=python_bin,
@@ -320,8 +321,6 @@ async def prepare_windows_plan(
             proton_tool_id=proton_tool_id,
             on_process_start=_on_process_start,
         )
-        # parsed_options reserved for LSFG/wrapper parsing.
-        return plan, None
     except Exception:
         logger.exception("[Helpers] prepare_windows_plan failed")
         raise
@@ -371,7 +370,40 @@ async def cloud_sync_phase(
         elif direction == "up":
             await svc._cloud_svc.sync_up(store, game_id)
     except Exception as e:
-        logger.warning("[Helpers] Cloud sync %s failed, ignoring: %s", direction, e)
+        # Surface it. This used to be a bare ``logger.warning(... ignoring ...)``,
+        # so a failed upload was **completely silent**: the user quit the game
+        # believing their progress had gone to the cloud, and nothing said
+        # otherwise until they lost it on another device.
+        #
+        # ``cloud_failure`` was written for exactly this and had no caller —
+        # its whole module was unimported (audit register item 37). Audit §1.2
+        # then read its config lookup as live and, on that basis, deleted the
+        # two RPCs that would have let a user silence the toast, reasoning
+        # that "current behaviour is acceptable". There was no behaviour: the
+        # toast never fired. Surfacing it is the 2026-08-26 product decision.
+        #
+        # Best-effort by design — a toast must never turn a survivable sync
+        # failure into a failed launch, which is why the whole thing is
+        # wrapped again here.
+        logger.warning("[Helpers] Cloud sync %s failed: %s", direction, e)
+        try:
+            from unifideck.launcher.cloud.cloud_failure import (
+                handle_cloud_sync_failure,
+            )
+
+            await handle_cloud_sync_failure(
+                svc._bus,
+                getattr(svc, "_config", None),
+                phase=f"sync_{direction}",
+                store=store,
+                game_id=game_id,
+                error=e,
+            )
+        except Exception:
+            logger.exception(
+                "[Helpers] cloud-failure reporting itself failed for %s",
+                direction,
+            )
 
 
 async def run_game_subprocess(

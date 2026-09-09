@@ -40,7 +40,9 @@ import logging
 from enum import Enum
 from pathlib import Path
 
-from .battlenet_client import resolve_drive_c
+from unifideck.launcher.proton.infrastructure.prefix_layout import (
+    resolve_drive_c,
+)
 
 logger = logging.getLogger(__name__)
 

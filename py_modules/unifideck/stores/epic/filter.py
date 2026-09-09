@@ -1,7 +1,5 @@
 """Epic Games library filters — exclude non-game assets.
 
-OP-48f | py_modules/unifideck/stores/epic/filter.py
-
 Epic's owned-products list includes many things that aren't games :
 Unreal Engine asset-pack purchases (marketplace), mods, plugins,
 free promotional add-ons. Module-level functions exclude these from

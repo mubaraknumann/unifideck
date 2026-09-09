@@ -4,6 +4,14 @@ Unifideck runs Windows games through Proton/umu in a per-game Wine prefix. By de
 uses the **latest GE-Proton**, auto-downloaded from GitHub on first use and cached.
 **Proton Experimental** is the offline fallback if GE-Proton can't be fetched or installed.
 
+If you already manage GE-Proton with an external tool (ProtonPlus, ProtonUp-Qt, or a distro
+package), Unifideck will use that copy instead of downloading a second one — but only when it
+is **at least as new** as the build Unifideck has. If yours is older, or its version can't be
+read, Unifideck keeps using its own. It also keeps one GE-Proton of its own on disk as a
+recovery Proton when your external copy falls a long way behind, and tells you once per
+release when it does. Set `compat.external_ge` to `"off"` in `config.json` to ignore external
+tools entirely.
+
 You normally don't need to do anything — the default works for most games. When a game needs
 a specific Proton, set it through **Steam's native compatibility tool** (below).
 
@@ -36,8 +44,11 @@ When launching, Unifideck picks the Proton tool in this order:
    (`proton_settings.json`).
 2. **Steam's own compat override** for that shortcut (`localconfig.vdf`).
 3. **Unifideck global default**, if set (`config.json` → `compat.proton_tool`).
-4. **Latest GE-Proton** — auto-downloaded and cached (the default).
-5. **Proton Experimental** — offline fallback only.
+4. **Externally managed GE-Proton** — a tool such as ProtonPlus's `Proton-GE Latest`, used
+   only when it is provably at least as new as Unifideck's own copy
+   (`config.json` → `compat.external_ge`, `"auto"` by default, `"off"` to ignore).
+5. **Latest GE-Proton** — auto-downloaded and cached (the default).
+6. **Proton Experimental** — offline fallback only.
 
 ---
 

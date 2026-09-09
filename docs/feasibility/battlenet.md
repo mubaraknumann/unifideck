@@ -1,5 +1,7 @@
 # Feasibility Study: Battle.net (Blizzard) store
 
+> **Status: implemented.** Battle.net shipped as the sixth store (see `stores/battlenet/` and the architecture skill `stores.md`). This document is retained as the historical feasibility record; its implementation caveats are superseded by the shipped code.
+
 **Verdict: FEASIBLE WITH CAVEATS — launcher-wrapper archetype (Ubisoft template).** All four MVP
 steps have a working path, but Battle.net is the finickiest of the three: the client self-updates
 aggressively and its login window needs TWO specific Proton env workarounds. On this Steam Deck

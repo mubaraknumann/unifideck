@@ -1,6 +1,6 @@
 {
   "name": "Unifideck",
-  "version": "0.7.4",
+  "version": "0.7.5",
   "main": "dist/index.js",
   "author": "numan",
   "flags": [],
@@ -14,9 +14,10 @@
       "amazon",
       "ubisoft",
       "battlenet",
+      "gamevault",
       "multi-store"
     ],
-    "description": "Unified game library for Steam Deck — browse, install and launch games from Epic Games, GOG, Amazon, Ubisoft and Battle.net directly inside Steam's interface.",
+    "description": "Unified game library for Steam Deck and Steam Machine — browse, install and launch games from Epic Games, GOG, Amazon, Ubisoft, Battle.net and GameVault directly inside Steam's interface.",
     "image": "https://github.com/user-attachments/assets/58aafad6-5c54-475d-a309-c44f77895b72"
   }
 }

@@ -1,11 +1,15 @@
 /**
- * GameInfoDetailsModal — Steam Deck compatibility detail view.
+ * GameInfoDetailsModal — per-device compatibility detail view.
  *
  * Opened by the "Details" button in {@link GameInfoCompatRow}.
  * Shows the same colour-coded badge as the row, lists every
- * Steam Deck verification test result (or a "no results" message
- * when none are cached), and offers a "View on ProtonDB" button
- * for games with a real Steam App ID.
+ * verification test result Valve published for THIS device (or a
+ * "no results" message when none are cached), and offers a "View on
+ * ProtonDB" button for games with a real Steam App ID.
+ *
+ * The title and the test results both follow the device: a Steam
+ * Machine owner is shown Machine criteria, not the Deck's panel
+ * legibility and APU performance checks.
  */
 import { FC } from "react";
 import { ConfirmModal, DialogButton } from "@decky/ui";
@@ -16,38 +20,33 @@ import {
   FaExternalLinkAlt,
 } from "react-icons/fa";
 import type { GameMetadata } from "../../types/api";
+import {
+  COMPAT_COLORS,
+  asCategory,
+  compatLabelKey,
+  compatTitleKey,
+} from "./CompatBadge";
+import { renderTestResults } from "../../lib/compat-tokens";
 
 interface Props {
   meta: GameMetadata;
   closeModal: () => void;
 }
 
-const COMPAT_COLORS: Record<0 | 1 | 2 | 3, { bg: string; fg: string }> = {
-  3: { bg: "#59bf40", fg: "#ffffff" },
-  2: { bg: "#ffc82c", fg: "#000000" },
-  1: { bg: "#ff4444", fg: "#ffffff" },
-  0: { bg: "#666666", fg: "#ffffff" },
-};
-
-const COMPAT_LABEL: Record<0 | 1 | 2 | 3, string> = {
-  3: "verified",
-  2: "playable",
-  1: "unsupported",
-  0: "unknown",
-};
-
 export const GameInfoDetailsModal: FC<Props> = ({ meta, closeModal }) => {
   const { t } = useTranslation();
-  const colors = COMPAT_COLORS[meta.deck_compatibility];
-  const labelKey = `gameInfoPanel.compatibility.${
-    COMPAT_LABEL[meta.deck_compatibility]
-  }`;
+  const track = meta.compat_device;
+  const info = meta.compat?.[track];
+  const category = asCategory(info?.category);
+  const colors = COMPAT_COLORS[category];
+  const labelKey = compatLabelKey(category, track);
+  const results = renderTestResults(info?.test_results);
   const protonDbUrl = meta.steam_app_id
     ? `https://www.protondb.com/app/${meta.steam_app_id}`
     : null;
   return (
     <ConfirmModal
-      strTitle={t("gameInfoPanel.compatibility.modalTitle")}
+      strTitle={t(compatTitleKey(track))}
       strDescription=""
       bHideCloseIcon={false}
       onOK={closeModal}
@@ -83,9 +82,9 @@ export const GameInfoDetailsModal: FC<Props> = ({ meta, closeModal }) => {
             </span>
           )}
         </div>
-        {meta.deck_test_results.length > 0 ? (
+        {results.length > 0 ? (
           <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-            {meta.deck_test_results.map((r, i) => (
+            {results.map((r, i) => (
               <li
                 key={i}
                 style={{

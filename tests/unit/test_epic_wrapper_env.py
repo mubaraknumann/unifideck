@@ -32,7 +32,10 @@ from unifideck.launcher.proton.handlers.epic import _build_legendary_argv
 from unifideck.launcher.proton.infrastructure.core import ProtonLaunchPlan
 
 
-def _plan(wrappers: list[str] | None = None) -> ProtonLaunchPlan:
+def _plan(_wrappers: list[str] | None = None) -> ProtonLaunchPlan:
+    """``_wrappers`` is accepted and ignored: ``RuntimeState.wrappers``
+    was deleted in audit register item 23b (Steam applies wrapper words
+    pre-exec, so the field could only ever be empty)."""
     return ProtonLaunchPlan(
         context=types.SimpleNamespace(
             game_id="abc123", store="epic",
@@ -40,7 +43,7 @@ def _plan(wrappers: list[str] | None = None) -> ProtonLaunchPlan:
             work_dir=Path("/install"),
         ),
         state=types.SimpleNamespace(
-            wrappers=list(wrappers or []), game_args=[], umu_id=None,
+            game_args=[], umu_id=None,
         ),
         python_bin=Path("/usr/bin/python3"),
         umu_wrapper=Path("/plugin/bin/umu/umu/umu-run"),
@@ -80,11 +83,19 @@ def test_json_mode_asks_for_the_recipe_without_user_wrappers(monkeypatch):
     assert "--wrapper" in argv
 
 
-def test_launch_mode_keeps_user_wrappers_in_front(monkeypatch):
-    """The non-json argv is unchanged from before UD-126."""
+def test_launch_mode_argv_starts_with_legendary(monkeypatch):
+    """The non-json argv leads with the binary, not a user wrapper.
+
+    It asserted ``argv[0] == "gamemoderun"`` from ``RuntimeState.wrappers``,
+    deleted in register item 23b — Steam applies wrapper words pre-exec, so
+    the field could only ever be empty here. The UD-126 distinction this
+    file exists for is unaffected: the umu ``--wrapper`` still belongs on the
+    launch argv and not on the ``--json`` metadata query, which its sibling
+    test pins.
+    """
     monkeypatch.setattr(compat_epic, "detect_offline", lambda: False)
 
-    argv = _build_legendary_argv(_plan(["gamemoderun"]), "/plugin/bin/legendary")
+    argv = _build_legendary_argv(_plan(), "/plugin/bin/legendary")
 
-    assert argv[0] == "gamemoderun"
+    assert argv[0] == "/plugin/bin/legendary"
     assert "--json" not in argv

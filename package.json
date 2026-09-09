@@ -1,7 +1,7 @@
 {
   "name": "unifideck-decky",
-  "version": "0.7.4",
-  "description": "Unified game library for Steam Deck — browse, install and launch games from Epic Games, GOG, Amazon, Ubisoft, Battle.net and Microsoft xCloud directly inside Steam's interface. Built on a 5-layer architecture with EventBus, service DI, and 90%+ test coverage.",
+  "version": "0.7.5",
+  "description": "Unified game library for Steam Deck and Steam Machine — browse, install and launch games from Epic Games, GOG, Amazon, Ubisoft, Battle.net, GameVault and Microsoft xCloud directly inside Steam's interface. Built on a 5-layer architecture with EventBus, service DI, and 90%+ test coverage.",
   "type": "module",
   "scripts": {
     "build": "rollup -c rollup.config.mjs",
@@ -28,10 +28,13 @@
     "decky",
     "plugin",
     "steamdeck",
+    "steammachine",
     "epic",
     "gog",
     "amazon",
     "ubisoft",
+    "battlenet",
+    "gamevault",
     "microsoft",
     "xcloud",
     "library",
@@ -106,8 +109,8 @@
       "name": "legendary"
     },
     {
-      "sha256hash": "d1f9f9a730ff442409bc11b14ae9ec410e5e45492f32899076481e58dd451117",
-      "url": "https://github.com/Heroic-Games-Launcher/heroic-gogdl/releases/download/v1.2.2/gogdl_linux_x86_64",
+      "sha256hash": "cba013d42767c808237c437335ab1d56f58405d07e8f37b3324d264ea5c49655",
+      "url": "https://github.com/Heroic-Games-Launcher/heroic-gogdl/releases/download/v1.3.0/gogdl_linux_x86_64",
       "name": "gogdl"
     },
     {

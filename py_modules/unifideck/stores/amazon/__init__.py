@@ -1,10 +1,8 @@
 """Amazon Games store sub-package — public entry point.
 
-OP-49 | py_modules/unifideck/stores/amazon/__init__.py
-
 Re-exports ``AmazonStore`` so callers can write
 ``from unifideck.stores.amazon import AmazonStore``. The class itself
-lives in ``amazon_store.py`` (OP-49a) and is the only public surface
+lives in ``amazon_store.py`` and is the only public surface
 of the entire sub-package — everything else is internal.
 
 Unlike Epic / GOG / Ubisoft, the Amazon sub-package is **flat** (no

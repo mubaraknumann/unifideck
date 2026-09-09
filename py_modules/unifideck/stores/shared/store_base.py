@@ -1,11 +1,9 @@
-import asyncio
 import logging
-import subprocess
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
-from unifideck.core.binaries import binary_resolver, clean_cli_env
+from unifideck.core.binaries import binary_resolver
 from unifideck.core.exe_finder import exe_finder
 from unifideck.core.types import (
     AuthResult,
@@ -14,7 +12,6 @@ from unifideck.core.types import (
     Game,
     InstallResult,
     Result,
-    StoreError,
     StoreInfo,
 )
 
@@ -143,8 +140,6 @@ class StoreBase(ABC):
             tool = CLITool(
                 name=tool.name,
                 search_paths=absolutised,
-                version_flag=tool.version_flag,
-                min_version=tool.min_version,
             )
         return binary_resolver.resolve(tool)
     def _find_exe(
@@ -158,54 +153,11 @@ class StoreBase(ABC):
         """Emit a bus event with arbitrary kwargs payload."""
         await self._bus.emit(event, **kwargs)
 
-    async def _run_cli(
-        self,
-        args: list[str],
-        binary_path: str | None = None,
-        timeout: int = 300,  # noqa: ASYNC109 — timeout is API value passed to underlying lib (urllib/aiohttp/subprocess), not an asyncio.timeout() wrapper
-        env: dict[str, str] | None = None,
-    ) -> str:
-
-        """Run cli."""
-        bin_path = binary_path or getattr(self, "cli_path", None)
-        if not bin_path:
-            raise StoreError(
-                "CLI binary not found",
-                store=self.store_name,
-            )
-        cmd = [bin_path, *args]
-        # Start from a scrubbed env, not raw os.environ: the frozen Decky
-        # loader leaks LD_LIBRARY_PATH=/tmp/_MEIxxxx into every child, which
-        # a zipapp CLI (legendary/gogdl) obeys and a PyInstaller ELF ignored.
-        process_env = clean_cli_env(env)
-        def _run() -> str:
-            """Run the subprocess synchronously, return stdout."""
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                env=process_env,
-                check=False,  # rc read manually below to raise StoreError
-            )
-            if result.returncode != 0:
-                raise StoreError(
-                    f"CLI error (rc={result.returncode}): "
-                    f"{result.stderr[:500]}",
-                    store=self.store_name,
-                )
-            return result.stdout
-        try:
-            return await asyncio.to_thread(_run)
-        except subprocess.TimeoutExpired as e:
-            raise StoreError(
-                f"CLI timeout after {timeout}s: {' '.join(cmd[:3])}",
-                store=self.store_name,
-            ) from e
-        except StoreError:
-            raise
-        except Exception as e:
-            raise StoreError(
-                f"CLI execution failed: {e}",
-                store=self.store_name,
-            ) from e
+    # NOTE: there is deliberately no ``_run_cli`` here. One existed and was
+    # never called by anything — every CLI store spawns
+    # ``asyncio.create_subprocess_exec`` directly, because they all need to
+    # stream stdout for progress rather than collect it at the end. Deleted
+    # rather than adopted (audit §3.2, register item 10). If you add a
+    # shared subprocess entry point, make it streaming; the scrubbed
+    # environment it used to provide is available on its own as
+    # ``core.binaries.clean_cli_env``, which every CLI store already calls.

@@ -1,0 +1,124 @@
+name: Static Gates
+
+# The three stdlib-only invariant checkers, each as its own named check.
+#
+# Why this workflow exists separately from Tests:
+#
+#   1. VISIBILITY. These run as *steps* inside the Tests job as well, and
+#      GitHub's check list shows jobs, not steps — so a reviewer looking at a
+#      PR could not see that an architecture or event-contract gate had run at
+#      all. One job per checker gives one check row per checker, and a failure
+#      names itself in the PR summary instead of hiding inside "Tests".
+#
+#   2. COVERAGE. Tests, Quality, Complexity and Security are all filtered by
+#      `on.pull_request.paths`, and none of those lists includes `docs/**`,
+#      `scripts/**` or `.claude/**`. That left real holes:
+#        * a docs-only PR reintroducing a hardcoded mixin count ran no gate,
+#          which is precisely what validate_architecture.py check 5 exists to
+#          catch (audit §2.1);
+#        * a src/-only PR deleting the last frontend caller of an RPC method
+#          ran neither the dead-RPC check nor the event-wiring gate, even
+#          though removing a caller is exactly what makes a method dead;
+#        * a PR editing one of these scripts did not run the script.
+#      This workflow is deliberately NOT path-filtered. It is the one gate set
+#      that runs on every pull request.
+#
+# The duplication with Tests is intentional, not an oversight: the copies
+# there run BEFORE the pytest matrix so a contract drift fails in seconds
+# rather than as a confusing downstream test failure. Do not "de-duplicate"
+# by deleting either copy without re-reading both rationales.
+#
+# No dependency install: all three are stdlib-only by design (they must run
+# before `pip install`, and validate_architecture.py's docstring says so).
+# Verified 2026-08-25 against a bare interpreter with no site-packages.
+
+on:
+  pull_request:
+  push:
+    branches: [new_architecture, staging, main]
+  workflow_dispatch:
+
+# A superseded run tells you nothing; cancel it. Mirrors quality.yml.
+concurrency:
+  group: static-gates-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Architecture invariants ────────────────────────────────
+  # main.py mixin set vs rpc/mixins/__init__.py __all__; _STORE_CACHES vs
+  # store directories on disk; each store's StoreInfo.name vs its directory;
+  # RPC methods with no frontend caller; a mixin count written into prose;
+  # and the frontend's CLIENT_STOREFRONTS vs WRAPPER_STORES.
+  # Every check is hard. See the unifideck-drift-guard skill.
+  architecture:
+    name: architecture invariants
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate architecture invariants
+        run: python3 scripts/validate_architecture.py
+
+  # ── Event payload contracts ────────────────────────────────
+  # Emit-side: every emitted event matches CANONICAL_SCHEMA, with no
+  # phantom schema keys or unexpected kwargs.
+  event-schemas:
+    name: event schemas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate event schemas
+        run: python3 scripts/validate_event_schemas.py
+
+  # ── Event wiring ───────────────────────────────────────────
+  # The sibling of the above, and the half it cannot see: an event with a
+  # subscriber and no emitter, or the reverse. Audit §1.3 found eleven, two
+  # of which cost users real behaviour for a release. Needs src/ as well as
+  # py_modules/, which is the other reason this workflow is unfiltered.
+  event-wiring:
+    name: event wiring
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate event wiring
+        run: python3 scripts/validate_event_wiring.py
+
+  # Translation-key coverage, in BOTH directions. Checks 1 and 2 (used but
+  # undeclared, declared but untranslated) already ran inside the big
+  # build-plugin job; check 3 is the reverse direction — a key translated
+  # into all 16 locales that nothing anywhere reaches — and it belongs here
+  # for the same reason as the three above: a failure buried in a job that
+  # also runs pnpm install and rollup is a failure nobody reads. The reverse
+  # direction is the audit's most repeated defect (§1.1.2, SYNC_SKIPPED, four
+  # errors.download.* codes), and it needs py_modules/ in the haystack
+  # because the backend sends i18n_key strings.
+  i18n-keys:
+    name: translation keys
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate translation-key coverage
+        run: python3 scripts/check_orphan_keys.py

@@ -1,7 +1,5 @@
 """Bus supervision sub-package — public exports.
 
-OP-10 | py_modules/unifideck/event_bus/supervision/__init__.py
-
 Re-exports the two supervision components that wrap the bus at
 runtime : ``HandlerLatencyCollector`` (per-handler latency
 histograms) and ``HandlerWatchdog`` (per-handler timeout quarantine).

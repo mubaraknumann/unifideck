@@ -1,37 +1,24 @@
-"""cdp — Chrome DevTools Protocol client and Steam-CSS injector.
+"""cdp — Chrome DevTools Protocol clients for the Steam/Edge CEF endpoints.
 
-Re-exports the public API:
+Three independent modules, each imported by full path rather than through
+this package (so there are deliberately no re-exports here):
 
-* :class:`SteamCSSInjector` for pushing CSS into the Steam client.
-* :func:`get_cdp_client` / :func:`shutdown_cdp_client` for the
-  shared async websocket client.
-* :func:`create_cef_debugging_flag` — best-effort optional helper
-  that may not be available on all environments; the try/except
-  swallows the ImportError so the package still loads.
+* ``cdp_client``          — :class:`CDPClient`, the shared async websocket
+  client. Built by ``services/bootstrap`` and used by ``auth/browser``.
+* ``page_inject``         — target listing + script injection primitives,
+  consumed by ``launcher/cdp``.
+* ``xcloud_browser_shims`` — the xCloud gamepad/WSI shim JS, consumed by
+  ``launcher/cdp/xcloud_cdp``.
+
+``cdp_inject`` (``SteamCSSInjector``, ``get_cdp_client``,
+``shutdown_cdp_client``, ``build_marker_id``) was deleted in the audit
+§1.2 pass: its only reachable caller was the ``inject_hide_css`` RPC,
+which had no frontend caller — the frontend hides Steam UI with its own
+scoped-CSS marker instead. The ``create_cef_debugging_flag`` re-export
+went with it; its ``cdp_utils`` module has never existed on disk, so the
+guarded import resolved to ``None`` on every run.
 """
 
 from __future__ import annotations
 
-from .cdp_inject import (
-    SteamCSSInjector,
-    get_cdp_client,
-    shutdown_cdp_client,
-)
-
-try:
-    # ``cdp_utils`` is an optional helper module that may not be
-    # present on every environment — the try/except below is the
-    # runtime guard. ``# type: ignore[import-not-found]`` tells
-    # mypy strict that the missing module is intentional, not a
-    # bug.
-    from .cdp_utils import create_cef_debugging_flag  # type: ignore[import-not-found]
-except ImportError:
-    create_cef_debugging_flag = None
-
-
-__all__ = [
-    "SteamCSSInjector",
-    "create_cef_debugging_flag",
-    "get_cdp_client",
-    "shutdown_cdp_client",
-]
+__all__: list[str] = []

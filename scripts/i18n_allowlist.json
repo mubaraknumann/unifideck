@@ -4,10 +4,18 @@
     "shape": "\"<flat.key>\": { \"locales\": [\"de-DE\", \"fr-FR\"] | \"*\", \"reason\": \"why identical is correct\" }",
     "rule": "Prefer translating over allowlisting. Use \"*\" only when the value is identical in every supported language; otherwise list the specific tags, because a key translated in 12 locales proves the other 3 are real misses."
   },
+  "gamevault.downloadDirPlaceholder": {
+    "locales": "*",
+    "reason": "A filesystem path and nothing else. The label that used to precede it (\"Default: \") was removed at the user's request, leaving no words to translate."
+  },
 
   "deckTabs.microsoft": {
     "locales": "*",
     "reason": "Company name. Unchanged in every supported language."
+  },
+  "deckTabs.gamevault": {
+    "locales": "*",
+    "reason": "Product name of the self-hosted GameVault server. It is not a descriptive phrase, and the project ships no localised name, so every locale keeps the Latin-script original — including ar-SA, which transliterates no other store name either."
   },
   "storeConnections.microsoftStore": {
     "locales": "*",
@@ -163,5 +171,13 @@
   "ubisoftAuth.passwordLabel": {
     "locales": ["it-IT"],
     "reason": "'Password' is the standard Italian term."
+  },
+  "gameInfoPanel.compatibility.compatible": {
+    "locales": ["es-ES", "fr-FR"],
+    "reason": "Valve's own word for the SteamOS 'Compatible' rating is literally 'Compatible' in Spanish and 'compatible' in French (SteamOSCompatibility_Category_Compatible in the Steam client's shared_spanish / shared_french bundles). Matching Valve matters more than differing from en-US: the user sees this same word in Steam's own compatibility section. The other 13 locales do differ, which is what makes these two deliberate rather than missed."
+  },
+  "gamevault.password": {
+    "locales": ["it-IT"],
+    "reason": "Same word as ubisoftAuth.passwordLabel, kept consistent. The other 14 locales translated this key, which is why only it-IT is listed."
   }
 }

@@ -22,7 +22,6 @@ overlay; this is read-only display.
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import json
 import logging
 import os
@@ -31,11 +30,16 @@ import subprocess
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from unifideck.core.net import ssl_ctx_permissive
+from unifideck.stores.shared.achievements_error import (
+    StoreAchievementsError,
+)
+from unifideck.stores.shared.timestamps import parse_timestamp
+
+from .launcher_auth import LegendaryLauncherAuth
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +47,6 @@ _GRAPHQL_URL = "https://store.epicgames.com/graphql"
 # A launcher UA — the storefront GraphQL is the launcher's own backend.
 _UA = "EpicGamesLauncher/15.17.1-35104619+++Portal+Release-Live"
 _CACHE_TTL_SECONDS = 60.0
-# Refresh the launcher token this many seconds before it actually expires.
-_TOKEN_SKEW_SECONDS = 120
 
 # Achievement DEFINITIONS for a sandbox (display names, descriptions, icons).
 _DEFS_QUERY = """query Achievement($sandboxId: String!, $locale: String!) {
@@ -83,29 +85,14 @@ _STATE_QUERY = """query PlayerAchievement($epicAccountId: String!, $sandboxId: S
 }"""
 
 
-class EpicAchievementsError(Exception):
+class EpicAchievementsError(StoreAchievementsError):
     """Typed Epic achievements failure the RPC layer maps to an ``RpcError``."""
 
-    def __init__(self, code: str, **context: Any) -> None:
-        super().__init__(code)
-        self.code = code
-        self.context = context
 
-
-def _parse_ts(value: Any) -> float | None:
-    """ISO-8601 (e.g. ``2024-09-09T17:25:39.535Z``) → epoch float, or None."""
-    if not value:
-        return None
-    if isinstance(value, (int, float)):
-        return float(value)
-    try:
-        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
-    except (ValueError, TypeError):
-        return None
-
-
-class EpicAchievements:
+class EpicAchievements(LegendaryLauncherAuth):
     """Fetch + normalize + cache an Epic game's achievements (display-only)."""
+
+    _LOG_TAG = "epic.achievements"
 
     def __init__(
         self,
@@ -160,58 +147,6 @@ class EpicAchievements:
         """Drop a game's cached achievements."""
         self._cache.pop(str(game_id), None)
 
-    # -- auth (legendary launcher token) -----------------------------------
-
-    async def _resolve_auth(
-        self, force_refresh: bool = False,
-    ) -> tuple[str | None, str | None]:
-        """(access_token, account_id), refreshing via legendary if stale.
-
-        ``force_refresh`` refreshes even when ``expires_at`` looks valid — used
-        to recover from a present-but-rejected token (clock skew / revocation).
-        """
-        data = self._read_user()
-        if (force_refresh or self._is_expired(data)) and self._cli_path:
-            await self._refresh_token()
-            data = self._read_user()
-        return data.get("access_token"), data.get("account_id")
-
-    def _read_user(self) -> dict[str, Any]:
-        """Read."""
-        try:
-            if self._user_file.is_file():
-                data = json.loads(self._user_file.read_text(encoding="utf-8"))
-                return data if isinstance(data, dict) else {}
-        except (OSError, ValueError):
-            logger.debug("[epic.achievements] user.json read failed", exc_info=True)
-        return {}
-
-    @staticmethod
-    def _is_expired(data: dict[str, Any]) -> bool:
-        """Expired."""
-        exp = _parse_ts(data.get("expires_at"))
-        if exp is None:
-            return True  # unknown → force a refresh attempt
-        return time.time() >= (exp - _TOKEN_SKEW_SECONDS)
-
-    async def _refresh_token(self) -> None:
-        """Best-effort token refresh: ``legendary status`` rewrites user.json."""
-        if not self._cli_path:
-            return
-        logger.info("[epic.achievements] refreshing Epic token via legendary")
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                self._cli_path, "status",
-                stdin=asyncio.subprocess.DEVNULL,
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
-            )
-            await asyncio.wait_for(proc.communicate(), timeout=self._info_timeout)
-            logger.info("[epic.achievements] token refresh done (rc=%s)", proc.returncode)
-        except (TimeoutError, OSError) as e:
-            logger.warning("[epic.achievements] token refresh failed: %s", e)
-            with contextlib.suppress(ProcessLookupError):
-                proc.kill()
 
     def _resolve_sandbox(self, game_id: str) -> str | None:
         """The game's sandboxId = legendary metadata ``namespace`` (cache file)."""
@@ -404,6 +339,6 @@ class EpicAchievements:
             "image_locked": str(defn.get("lockedIconLink") or unlocked_icon),
             "hidden": bool(defn.get("hidden")),
             "unlocked": unlocked,
-            "unlocked_at": _parse_ts(st.get("unlockDate")),
+            "unlocked_at": parse_timestamp(st.get("unlockDate")),
             "rarity": (defn.get("rarity") or {}).get("percent"),
         }

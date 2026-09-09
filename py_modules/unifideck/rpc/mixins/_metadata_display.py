@@ -18,10 +18,19 @@ import from here.
 from __future__ import annotations
 
 import logging
-import urllib.parse
 from typing import Any
 
+from unifideck.core.compat_bridge import appid_candidates
+from unifideck.core.store_urls import store_search_url
+
+from ._compat_payload import active_track, compat_block
+
 logger = logging.getLogger(__name__)
+
+# Re-exported for the existing importers of this module. The table
+# itself moved to ``core.store_urls`` so the launcher can reach it
+# without importing ``rpc`` (import-linter's ``rpc-is-leaf``).
+__all__ = ["store_search_url"]
 
 
 def build_game_from_info(info: dict[str, Any], app_id: int) -> Any:
@@ -114,22 +123,12 @@ def read_cache_store(cache: Any, namespace: str) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
-def appid_candidates(app_id: int) -> list[str]:
-    """Return the signed + unsigned 32-bit string forms of an AppID.
-
-    Sync stores ``Game.app_id`` as signed (matches Steam's on-disk
-    representation), but Steam's frontend hands plugins the
-    unsigned form via ``overview.appid``. Caches keyed off
-    ``str(game.app_id)`` are therefore reachable only via the
-    signed string. This helper returns both so callers don't have
-    to know which side wrote the cache.
-    """
-    forms: list[str] = [str(app_id)]
-    if app_id > 0x7FFFFFFF:
-        forms.append(str(app_id - 0x100000000))
-    elif app_id < 0:
-        forms.append(str(app_id + 0x100000000))
-    return forms
+# ``appid_candidates`` was defined here. It is now
+# ``core.compat_bridge.appid_candidates`` — the same six lines existed
+# three times under three different names (here, as
+# ``compatibility/library._appid_key_candidates``, and inlined in
+# ``core/sync_queries_mixin.get_game_info``), which is why check 11's
+# name-exact matching never saw them. Audit register item 20.
 
 
 def read_steam_real_appid(cache: Any, shortcut_app_id: int) -> int:
@@ -304,34 +303,6 @@ def pick_genres(
     return []
 
 
-def deck_compat_enum(compat_entry: dict[str, Any]) -> int:
-    """Map ``deck_status`` string → numeric compatibility enum (0..3)."""
-    status = str(compat_entry.get("deck_status", "")).lower()
-    return {"verified": 3, "playable": 2, "unsupported": 1}.get(status, 0)
-
-
-def deck_test_results(compat_entry: dict[str, Any]) -> list[dict[str, Any]]:
-    """Extract per-test ``{text, passed}`` rows from the compat cache.
-
-    Populated by ``CompatLibrary._fetch_deck_verified`` after parsing
-    Steam's saleaction ``resolved_items`` payload. Empty list when
-    the cache entry pre-dates the test-result wiring or the upstream
-    response omitted the items.
-    """
-    results = compat_entry.get("deck_test_results")
-    if not isinstance(results, list):
-        return []
-    out: list[dict[str, Any]] = []
-    for item in results:
-        if not isinstance(item, dict):
-            continue
-        text = item.get("text")
-        if not isinstance(text, str) or not text:
-            continue
-        out.append({"text": text, "passed": bool(item.get("passed"))})
-    return out
-
-
 def build_payload(
     game: Any,
     enriched: dict[str, Any],
@@ -356,8 +327,10 @@ def build_payload(
         "release_date": pick_release_date(steam_meta, enriched),
         "metacritic": pick_metacritic(steam_meta, enriched),
         "description": pick_description(steam_meta, enriched),
-        "deck_compatibility": deck_compat_enum(compat_entry),
-        "deck_test_results": deck_test_results(compat_entry),
+        # Every device's rating, plus which one this device is, so the
+        # panel can name the hardware it is describing.
+        "compat_device": active_track(),
+        "compat": compat_block(compat_entry),
         "genres": pick_genres(steam_meta, enriched),
         "homepage_url": homepage,
     }
@@ -398,23 +371,3 @@ def pick_cloud_saves(
     return resolve_cloud_support(store, game_id, enriched)
 
 
-def store_search_url(store: str, title: str) -> str:
-    """Build a fallback store landing URL for non-Steam stores.
-
-    Used by the "Store Page" button when the shortcut has no real
-    Steam store presence.
-    """
-    encoded = urllib.parse.quote(title or "")
-    if store == "epic":
-        return f"https://store.epicgames.com/en-US/browse?q={encoded}&sortBy=relevancy"
-    if store == "gog":
-        return f"https://www.gog.com/games?query={encoded}"
-    if store == "amazon":
-        return "https://gaming.amazon.com/home"
-    if store == "ubisoft":
-        return f"https://store.ubisoft.com/us/search?q={encoded}"
-    if store == "battlenet":
-        return f"https://us.shop.battle.net/en-us/search?q={encoded}"
-    if store == "microsoft":
-        return "https://www.xbox.com/en-US/games"
-    return ""

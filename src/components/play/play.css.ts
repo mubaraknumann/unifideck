@@ -370,6 +370,34 @@ export const PLAY_FOCUS_CSS = `
   z-index: 1;
 }
 
+/* Update REPLACES Play on a row with a pending update, and it was the only
+ * one of the three buttons whose class had no rules behind it — so it alone
+ * had no focus state, and gave the user nothing to see when the gamepad
+ * reached it. It was focusable the whole time (same DialogButton, same nav
+ * grid as Play and Uninstall), but with no visible change it reads as
+ * disabled, and the trackpad becomes the only way to press it.
+ *
+ * The fill stays where it is: the row sets it inline and that works. Only the
+ * focus treatment was missing, and it matches Play's so the two behave alike
+ * under the thumbstick. */
+.unifideck-download-update-btn {
+  transition: filter 0.15s ease, box-shadow 0.15s ease !important;
+}
+.unifideck-download-update-btn:hover,
+.unifideck-download-update-btn:focus,
+.unifideck-download-update-btn:focus-within,
+.unifideck-download-update-btn.gpfocus {
+  filter: brightness(1.25) !important;
+  box-shadow:
+    0 0 0 3px #ffffff,
+    0 0 0 6px rgba(0, 0, 0, 0.7) !important;
+  transform: scale(1.05);
+  /* position needed for z-index to apply, so the ring paints over the
+     neighbouring button instead of being clipped by it. */
+  position: relative;
+  z-index: 1;
+}
+
 /* Uninstall sits in the same nav grid, so it needs an equally clear focus
  * state — it had none at all, being a bare Secondary DialogButton. Steam's
  * own convention for a focused neutral button is an inverted fill, which

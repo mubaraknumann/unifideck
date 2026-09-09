@@ -99,13 +99,20 @@ def _installer() -> EpicInstaller:
     return inst
 
 
-def _emitted(bus: AsyncMock, event_value: str) -> list[dict[str, Any]]:
+def _download_events(bus: AsyncMock) -> list[str]:
+    """Names of every ``DOWNLOAD_*`` event the installer emitted.
+
+    Always empty: ``DownloadWorker`` is the sole emitter of the download
+    lifecycle, and the installer reports through its ``InstallResult``
+    only (audit item #4).
+    """
     out = []
     for call in bus.emit.await_args_list:
         args, kwargs = call
         name = args[0] if args else kwargs.get("event")
-        if getattr(name, "value", name) == event_value:
-            out.append(kwargs)
+        value = getattr(name, "value", name)
+        if isinstance(value, str) and value.startswith("download_"):
+            out.append(value)
     return out
 
 
@@ -149,9 +156,8 @@ async def test_lock_refusal_is_a_failure_not_an_instant_success(
     assert not result.success
     # The user saw "installed" with an empty game folder; now it fails loudly.
     assert result.error.startswith("legendary_install_lock_busy:")
-    failures = _emitted(inst._bus, "download_failed")
-    assert len(failures) == 1
-    assert "install lock" in failures[0]["error"]
+    assert "install lock" in result.error
+    assert _download_events(inst._bus) == []
 
 
 @pytest.mark.asyncio
@@ -188,7 +194,7 @@ async def test_a_real_install_still_succeeds(
     result = await inst.install_game("rcg2", base_path=str(tmp_path / "games"))
 
     assert result.success
-    assert not _emitted(inst._bus, "download_failed")
+    assert _download_events(inst._bus) == []
 
 
 def test_lock_refusal_gets_its_own_error_code() -> None:

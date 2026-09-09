@@ -1,8 +1,6 @@
 """
 Auth sub-package — public exports.
 
-OP-58 | py_modules/unifideck/stores/ubisoft/auth/__init__.py
-
 Re-exports the three top-level classes of the auth facade :
 
 * ``UbisoftAuth`` — orchestration class;

@@ -1,7 +1,7 @@
 """services.security.mixins.auth — OAuth flow observability handlers.
 
 Four @subscribe handlers that observe OAuth authentication
-flows across all 5 stores:
+flows across all 7 stores:
 
   - SECURITY_AUTH_FLOW_STARTED
   - SECURITY_AUTH_FLOW_COMPLETED

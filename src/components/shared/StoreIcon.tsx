@@ -14,10 +14,18 @@ import {
   SiUbisoft,
 } from "react-icons/si";
 import { FaGamepad, FaSteam, FaXbox } from "react-icons/fa";
-import type { IconType } from "react-icons";
+import { GameVaultIcon } from "./GameVaultIcon";
 import type { StoreId } from "../../types/api";
 
-const STORE_ICONS: Record<StoreId, IconType> = {
+/**
+ * The map holds two kinds of component: react-icons glyphs (`IconType`) and
+ * our own `GameVaultIcon`. Both accept the only two props StoreIcon passes,
+ * so the map is typed to that narrower shape rather than casting one of them
+ * through `unknown` to satisfy `IconType`.
+ */
+type StoreGlyph = FC<{ size?: number | string; color?: string }>;
+
+const STORE_ICONS: Record<StoreId, StoreGlyph> = {
   steam: FaSteam,
   epic: SiEpicgames,
   gog: SiGogdotcom,
@@ -25,6 +33,7 @@ const STORE_ICONS: Record<StoreId, IconType> = {
   microsoft: FaXbox,
   ubisoft: SiUbisoft,
   battlenet: SiBattledotnet,
+  gamevault: GameVaultIcon,
 };
 
 interface Props {

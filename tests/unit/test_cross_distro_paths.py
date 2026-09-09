@@ -261,8 +261,9 @@ def test_sdcard_base_detects_nested_udisks_mount(
 def test_proton_roots_include_steam_steam_dir() -> None:
     """Compat/library resolution must not depend solely on ~/.steam/root."""
     from unifideck.launcher.proton.infrastructure import selector
+    from unifideck.utils import vdf_compat
 
-    assert "~/.steam/steam/compatibilitytools.d" in selector.STEAM_COMPAT_ROOTS
+    assert "~/.steam/steam/compatibilitytools.d" in vdf_compat.STEAM_COMPAT_ROOTS
     assert "~/.steam/steam/steamapps/common" in selector.STEAM_LIBRARY_ROOTS
 
 

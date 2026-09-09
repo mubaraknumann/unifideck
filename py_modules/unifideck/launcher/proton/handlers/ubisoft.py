@@ -8,6 +8,12 @@ from pathlib import Path
 
 from unifideck.launcher.frontend_bridge import launcher_toast
 from unifideck.launcher.game_title import resolve_title
+from unifideck.launcher.proton.handlers import wrapper_clients
+from unifideck.launcher.proton.handlers.ubisoft_handoff import (
+    capture_after_exit,
+    seed_before_launch,
+    vault_fingerprint,
+)
 from unifideck.launcher.proton.handlers.ubisoft_recovery import (
     ID_MAP_FILE,
     clone_template_into,
@@ -51,17 +57,18 @@ async def _apply_epic_wrapper_fix(plan: ProtonLaunchPlan) -> None:
     """Apply EPIC wrapper fix."""
     from unifideck.launcher.proton.fixes.epic_prefix_fix import apply_epic_launcher_fix
     bundled_wrapper = (
-    plan.context.plugin_dir / "bin" / "EpicGamesLauncher.exe"
-   )
+        plan.context.plugin_dir / "bin" / "EpicGamesLauncher.exe"
+    )
     if not bundled_wrapper.is_file():
         logger.warning(
-        "[launcher.proton.ubisoft] EpicGamesLauncher.exe "
-        "wrapper missing at %s",
-        bundled_wrapper,
-       )
+            "[launcher.proton.ubisoft] EpicGamesLauncher.exe "
+            "wrapper missing at %s",
+            bundled_wrapper,
+        )
         return
     try:
         await apply_epic_launcher_fix(
+            plan=plan,
             prefix_path=plan.prefix_path,
             bundled_wrapper=bundled_wrapper,
         )
@@ -78,8 +85,8 @@ async def _inject_registry_keys(plan: ProtonLaunchPlan) -> bool:
     legendary_config = await asyncio.to_thread(lambda: Path("~/.config/legendary").expanduser())
     try:
         result = await setup_registry(
+            plan=plan,
             game_id=plan.context.game_id,
-            prefix_path=plan.prefix_path,
             legendary_config=legendary_config,
         )
         return result.success
@@ -99,6 +106,39 @@ def _find_upc_exe(plan: ProtonLaunchPlan) -> Path | None:
         if found is not None:
             return found
     return find_upc_in(plan.prefix_path)
+async def _run_upc_with_session_handoff(
+    plan: ProtonLaunchPlan,
+    argv: list[str],
+) -> int:
+    """Run UPC with the session baton passed in before and out after.
+
+    Ubisoft retires the previous refresh token whenever a UPC instance signs
+    in, so with a prefix per game only the prefix that ran last holds a live
+    token. Seeding first means the game runs on the live one instead of
+    whatever it kept from its own last run; capturing after means the *next*
+    game gets a live one. Without both, signing into one title signed the user
+    out of the others (GH #435).
+
+    The capture is in a ``finally`` because a crashed or non-zero run still
+    rotated the token — UPC signs in before the game starts — and leaving it
+    stranded in this prefix is the exact failure being prevented. It is gated
+    on the vault fingerprint taken here, *after* the seed and before UPC runs,
+    so a run that never wrote the vault captures nothing: without that gate a
+    failed launch fans the prefix's existing bytes out to every other prefix.
+
+    All three moves are best-effort and run off the event loop: they touch the
+    filesystem and wait for UPC to exit, and none may fail a launch.
+    """
+    await asyncio.to_thread(seed_before_launch, plan.prefix_path)
+    before = await asyncio.to_thread(vault_fingerprint, plan.prefix_path)
+    try:
+        return await run_umu_with_retry(
+            argv, env=plan.env, on_start=plan.on_process_start,
+        )
+    finally:
+        await asyncio.to_thread(capture_after_exit, plan.prefix_path, before)
+
+
 async def ubisoft_launch(plan: ProtonLaunchPlan) -> int:
     """Ubisoft launch."""
     logger.info(
@@ -162,10 +202,7 @@ async def ubisoft_launch(plan: ProtonLaunchPlan) -> int:
             game_title=resolve_title(plan.context.game_key),
             severity="warning",
         )
-    env = plan.env
-    rc = await run_umu_with_retry(
-        argv, env=env, on_start=plan.on_process_start,
-    )
+    rc = await _run_upc_with_session_handoff(plan, argv)
     plan.state.game_exit_code = rc
     if rc == 0:
         return 0
@@ -193,13 +230,10 @@ async def ubisoft_auth_launch(plan: ProtonLaunchPlan) -> int:
         "[launcher.proton.ubisoft] auth launch — opening UPC in %s",
         plan.prefix_path,
     )
-    # Sign-in is NOT a game launch — use a sign-in-specific toast instead of
-    # the generic "Launching Game", which confused users clicking sign-in.
-    launcher_toast(
-        "toasts.launcher.signingInUbisoftMessage",
-        i18n_title_key="toasts.launcher.signingInUbisoft",
-        game_title="Ubisoft Connect",
-    )
+    # NOT a game launch — the generic "Launching Game" confused users.
+    # Shared with Battle.net so the two clients say the same thing, and
+    # worded by action so a cart press doesn't say "sign in".
+    wrapper_clients.announce_client_open("ubisoft")
     upc_exe = _find_upc_exe(plan)
     if upc_exe is None:
         launcher_toast(

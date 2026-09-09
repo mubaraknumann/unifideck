@@ -18,4 +18,5 @@ export { CollectionsToggle } from "./CollectionsToggle";
 export { CleanupSection } from "./CleanupSection";
 export { CaptureLogsSection } from "./CaptureLogsSection";
 export { StoreAuthButton } from "./StoreAuthButton";
+export { StoreStorefrontButton } from "./StoreStorefrontButton";
 export { PluginUpdater } from "./PluginUpdater";

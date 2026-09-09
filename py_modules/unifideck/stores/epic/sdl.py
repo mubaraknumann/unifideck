@@ -1,7 +1,5 @@
 """Epic Selective Downloads (SDL) — resolve legendary install tags.
 
-OP-48j | py_modules/unifideck/stores/epic/sdl.py
-
 legendary supports *selective downloads* for a set of titles: the
 manifest tags optional files (language/voice packs, HD textures,
 Fortnite's Save the World) and the CLI asks which of them to include.
@@ -75,12 +73,10 @@ _FALLBACK_LANG = "en-US"
 _BASE_LANGUAGE_KEY = "en"
 _BASE_LANGUAGE_NAME = "English"
 
-
 def _cache_path(app_name: str) -> Path:
     """Return the on-disk cache path for one app's SDL config."""
     safe = "".join(c for c in app_name if c.isalnum() or c in "-_")
     return Path(_CACHE_DIR).expanduser() / f"{safe}.json"
-
 
 def read_cached_sdl_data(app_name: str) -> dict[str, Any] | None:
     """Return this app's cached SDL config, or None."""
@@ -91,7 +87,6 @@ def read_cached_sdl_data(app_name: str) -> dict[str, Any] | None:
         return None
     return data if isinstance(data, dict) and data else None
 
-
 def _write_cache(app_name: str, data: dict[str, Any]) -> None:
     """Persist one app's SDL config; a failed write is not fatal."""
     path = _cache_path(app_name)
@@ -101,7 +96,6 @@ def _write_cache(app_name: str, data: dict[str, Any]) -> None:
             json.dump(data, f)
     except OSError as e:
         logger.debug("[epic_sdl] cache write failed for %s: %s", app_name, e)
-
 
 def sdl_app_names() -> set[str]:
     """Return the app_names legendary treats as SDL titles.
@@ -125,7 +119,6 @@ def sdl_app_names() -> set[str]:
     config = overrides.get("sdl_config") if isinstance(overrides, dict) else None
     return set(config.keys()) if isinstance(config, dict) else set()
 
-
 def _sdl_key_for(app_name: str) -> str | None:
     """Return the SDL config key covering ``app_name``, if any.
 
@@ -140,7 +133,6 @@ def _sdl_key_for(app_name: str) -> str | None:
         if not key.endswith("_Mac") and app_name.startswith(key)
     ]
     return max(matches, key=len) if matches else None
-
 
 async def fetch_sdl_data(
     app_name: str, *, timeout: float = 10.0,  # noqa: ASYNC109 — timeout forwarded to aiohttp ClientTimeout, not an asyncio.timeout context
@@ -181,7 +173,6 @@ async def fetch_sdl_data(
         )
     return cached
 
-
 async def _get_sdl_json(
     key: str, *, timeout: float,  # noqa: ASYNC109 — timeout forwarded to aiohttp ClientTimeout, not an asyncio.timeout context
 ) -> dict[str, Any] | None:
@@ -215,7 +206,6 @@ async def _get_sdl_json(
         return None
     return data if isinstance(data, dict) and data else None
 
-
 def _strip_leading_parenthetical(name: str) -> str:
     """Drop a leading ``(...)`` qualifier from an SDL option name.
 
@@ -227,7 +217,6 @@ def _strip_leading_parenthetical(name: str) -> str:
     if text.startswith("(") and ")" in text:
         return text[text.index(")") + 1 :].strip()
     return text
-
 
 def _language_of(key: str, name: str) -> str | None:
     """Return the ISO base code an SDL option denotes, else None.
@@ -243,7 +232,6 @@ def _language_of(key: str, name: str) -> str | None:
             return hit
     return None
 
-
 def _options(sdl_data: dict[str, Any]) -> dict[str, dict[str, Any]]:
     """Return the selectable options, dropping the ``__required`` block."""
     return {
@@ -251,18 +239,15 @@ def _options(sdl_data: dict[str, Any]) -> dict[str, dict[str, Any]]:
         if key != _REQUIRED_KEY and isinstance(value, dict)
     }
 
-
 def _tags_of(option: dict[str, Any]) -> list[str]:
     """Return one option's install tags."""
     tags = option.get("tags")
     return [t for t in tags if isinstance(t, str)] if isinstance(tags, list) else []
 
-
 def _display_name(key: str, option: dict[str, Any]) -> str:
     """Return an option's display name, falling back to its key."""
     name = option.get("name")
     return name if isinstance(name, str) and name else key
-
 
 def language_options(sdl_data: dict[str, Any]) -> dict[str, str]:
     """Return ``{option_key: display_name}`` for the language packs only.
@@ -287,7 +272,6 @@ def language_options(sdl_data: dict[str, Any]) -> dict[str, str]:
     if any(_language_of(k, v) == _BASE_LANGUAGE_KEY for k, v in packs.items()):
         return packs
     return {_BASE_LANGUAGE_KEY: _BASE_LANGUAGE_NAME, **packs}
-
 
 def _pick_language_key(
     sdl_data: dict[str, Any], requested: str | None,
@@ -324,7 +308,6 @@ def _pick_language_key(
             return hit
     return None
 
-
 def _match_one(
     target: str, by_key: dict[str, str], codes: dict[str, str | None],
 ) -> str | None:
@@ -339,7 +322,6 @@ def _match_one(
             if code == wanted:
                 return key
     return None
-
 
 def select_install_tags(
     sdl_data: dict[str, Any], requested_lang: str | None,
@@ -371,7 +353,6 @@ def select_install_tags(
         )
     return list(dict.fromkeys(tags))
 
-
 async def resolve_install_tags(
     app_name: str, requested_lang: str | None, *, timeout: float = 10.0,  # noqa: ASYNC109 — timeout forwarded to aiohttp ClientTimeout, not an asyncio.timeout context
 ) -> list[str]:
@@ -383,7 +364,6 @@ async def resolve_install_tags(
     if not sdl_data:
         return []
     return select_install_tags(sdl_data, requested_lang)
-
 
 async def resolve_language_options(
     app_name: str, *, timeout: float = 10.0,  # noqa: ASYNC109 — timeout forwarded to aiohttp ClientTimeout, not an asyncio.timeout context

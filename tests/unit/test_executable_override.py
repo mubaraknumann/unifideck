@@ -104,13 +104,20 @@ class _FakeShortcutSvc:
     async def get_entry_for_game_key(self, store, game_id):
         return self._entry
 
-    async def set_executable(self, store, game_id, exe_abs):
+    async def set_executable(
+        self, store, game_id, exe_abs, *, work_dir="", app_id=None,
+    ):
+        # ``work_dir``/``app_id`` are what the real one builds a MISSING row
+        # from, so a game whose row never existed is still fixable from the
+        # picker. Recorded here so a test can assert they were supplied.
         self.set_calls.append((store, game_id, exe_abs))
+        self.last_row_args = (work_dir, app_id)
         if self._entry is not None:
             self._entry = GameMapEntry(
                 exe=exe_abs, work_dir=self._entry.work_dir, app_id=self._entry.app_id,
             )
-        return True
+            return True
+        return bool(work_dir and app_id is not None)
 
 
 class _FakeStore:
@@ -146,7 +153,13 @@ def _make_host(tmp_path, store="gog"):
     host.services = type("S", (), {"shortcut": shortcut})()
     host.registry = type("R", (), {"get_store": staticmethod(lambda n: _FakeStore(default_abs))})()
     # Bypass the games.map-file lookup; point at our tmp install dir.
-    host._install_dir = lambda s, g: str(inst)  # type: ignore[method-assign]
+    # Async since the resolver now awaits the store's ``get_installed_path``
+    # when games.map has no row (that fallback is what makes the picker
+    # usable on a game whose row is missing — see ``_install_dir``).
+    async def _install_dir(s: str, g: str) -> str:
+        return str(inst)
+
+    host._install_dir = _install_dir  # type: ignore[method-assign]
     return host, shortcut, str(inst)
 
 
@@ -229,3 +242,89 @@ def test_get_exe_override_none_without_override(tmp_path, monkeypatch):
     from unifideck.launcher.proton.fixes.game_fixes import get_exe_override
 
     assert get_exe_override("unknown-game-id") is None
+
+
+# ── The user's choice must outlive a sync ─────────────────────────────
+#
+# For the direct-launch stores the games.map exe column IS where "Change
+# executable" stores the choice, and reconcile rewrites that row from the
+# synced game. GOG carries an ``exe_path`` on every library read — a fresh
+# disk scan (``exe_key="executable"``) it needs in order to discover installs
+# Unifideck did not perform — so a GOG user's pick was silently reverted on
+# the next sync. Amazon and Epic were unaffected only because neither carries
+# an exe at all, which is what kept the bug invisible: the guard in
+# ``_update_games_map_row`` was written on the docstring's claim that *no*
+# library-sourced game carries one.
+from unifideck.services.shortcut.reconcile_phases import (
+    _ReconcilePhasesMixin as _Phases,
+)
+
+
+class _MapHost(_Phases):
+    """Just enough of ShortcutService for the row-maintenance phase.
+
+    Subclasses the mixin so ``_update_games_map_row`` can reach its sibling
+    ``_durable_exe`` the way the real service does.
+    """
+
+    def __init__(self, games_map):
+        self._games_map = games_map
+
+
+def _update_row(games_map, game, key, app_id):
+    host = _MapHost(dict(games_map))
+    host._update_games_map_row(game, key, app_id)
+    return host._games_map
+
+
+def _installed_game(store, gid, install_path, exe):
+    from unifideck.core.types import Game
+
+    return Game(
+        app_id=-1, store=store, store_game_id=gid, title="T",
+        installed=True, install_path=install_path, exe_path=exe,
+    )
+
+
+def test_a_sync_does_not_revert_the_users_choice(tmp_path):
+    """GOG offers its scanned exe; the user picked another that still exists."""
+    chosen = tmp_path / "Game.exe"
+    chosen.write_bytes(b"x")
+    scanned = tmp_path / "Launcher.exe"
+    scanned.write_bytes(b"x")
+
+    games_map = {"gog:1": GameMapEntry(
+        exe=str(chosen), work_dir=str(tmp_path), app_id=-7,
+    )}
+    game = _installed_game("gog", "1", str(tmp_path), str(scanned))
+
+    after = _update_row(games_map, game, "gog:1", -7)
+
+    assert after["gog:1"].exe == str(chosen)
+
+
+def test_a_recorded_exe_that_is_gone_yields_to_the_store(tmp_path):
+    """The escape hatch: a moved or replaced install must still refresh."""
+    scanned = tmp_path / "Game.exe"
+    scanned.write_bytes(b"x")
+
+    games_map = {"gog:1": GameMapEntry(
+        exe=str(tmp_path / "old" / "Gone.exe"), work_dir="/old", app_id=-7,
+    )}
+    game = _installed_game("gog", "1", str(tmp_path), str(scanned))
+
+    after = _update_row(games_map, game, "gog:1", -7)
+
+    assert after["gog:1"].exe == str(scanned)
+    assert after["gog:1"].work_dir == str(tmp_path)
+
+
+def test_a_game_with_no_row_takes_the_stores_exe(tmp_path):
+    """First establishment is unaffected — this is how rows are born."""
+    scanned = tmp_path / "Game.exe"
+    scanned.write_bytes(b"x")
+    game = _installed_game("gog", "1", str(tmp_path), str(scanned))
+
+    after = _update_row({}, game, "gog:1", -7)
+
+    assert after["gog:1"].exe == str(scanned)

@@ -1,7 +1,5 @@
 """Sync execution mixin for :class:`SyncService`.
 
-OP-08l-quater | core/sync_run_mixin.py
-
 Extracted from ``core/sync_service.py`` to keep that file under the
 550-LOC volumetry cap. Owns the per-run orchestration: setup,
 per-store fetch loop, cancellation handling, and the single-store path.
@@ -27,13 +25,13 @@ from .sync_availability import refresh_store_availability
 from .types import Events, Game, SyncResult
 
 if TYPE_CHECKING:
+    from unifideck.core.sync_generation import SyncGeneration
     from unifideck.core.sync_progress import SyncProgress
     from unifideck.event_bus import EventBus
     from unifideck.stores import StoreRegistry
     from unifideck.stores.shared.store_base import StoreBase
 
 logger = logging.getLogger(__name__)
-
 
 # Per-store ``get_library`` ceiling. The sync runs stores sequentially,
 # so a single store that hangs (a wedged Wine/UPC catalog parse, a
@@ -44,7 +42,6 @@ logger = logging.getLogger(__name__)
 # fast enough to finish the sync (the store reports a ``timeout`` error
 # and contributes zero games for this run; the next sync retries it).
 PER_STORE_FETCH_TIMEOUT_SECONDS = 120
-
 
 class _SyncRunMixin:
     """Per-run sync orchestration for :class:`SyncService`."""
@@ -61,6 +58,7 @@ class _SyncRunMixin:
     _progress: SyncProgress
     _post_sync_pending: set[str]
     _registered_phases: set[str]
+    _generation: SyncGeneration
     _watchdog_task: asyncio.Task[None] | None
     _current_store_task: asyncio.Task[tuple[list[Game], str | None]] | None
     _cache_snapshot: dict[str, dict[str, Any]] | None
@@ -224,6 +222,13 @@ class _SyncRunMixin:
         else:
             self._cache_snapshot = None
         started = time.monotonic()
+        # Open a new generation before anything is emitted, so every
+        # event this run produces — SYNC_STARTED here, SYNC_COMPLETE in
+        # ``_finalize_sync``, and each POST_SYNC_PHASE_CHANGED echoed by
+        # the post-sync modules — carries the same id. The drain sites
+        # compare against it to ignore a superseded run's late phase-done
+        # (``core/sync_generation.py`` has the measured case).
+        run_id = self._generation.begin()
         await refresh_store_availability(self._registry)
         available_stores = self._registry.available()
         store_names = [s.store_name for s in available_stores]
@@ -245,6 +250,16 @@ class _SyncRunMixin:
             )
         self._progress.start_fetching(len(available_stores))
         self._bus.set_sync_progress(self._progress)
+        await self._emit_sync_started(store_names, run_id)
+        logger.info(
+            "[SyncService] sync starting (%d stores)", len(available_stores),
+        )
+        return started, available_stores
+
+    async def _emit_sync_started(
+        self, store_names: list[str], run_id: int,
+    ) -> None:
+        """Announce the run on both the ephemeral and durable channels."""
         await self._bus.emit(
             Events.SYNC_STARTED,
             stores=store_names,
@@ -253,6 +268,11 @@ class _SyncRunMixin:
             # before prompting the Steam restart — hardcoding it there
             # over-counted and the modal never fired (UD-006).
             registered_phases=sorted(self._registered_phases),
+            # Generation this run's phase-done events will carry. The
+            # frontend latches it and drops phase events from any other
+            # run, so a superseded generation finishing late can no
+            # longer drain this run's set and pop the restart modal.
+            run_id=run_id,
         )
         # Durable activity event — ephemeral SYNC_STARTED above drives
         # UI; this one feeds the persistent log via ActivityLogService.
@@ -261,10 +281,6 @@ class _SyncRunMixin:
             stores=store_names,
             started_at_ms=int(time.time() * 1000),
         )
-        logger.info(
-            "[SyncService] sync starting (%d stores)", len(available_stores),
-        )
-        return started, available_stores
 
     def _restore_cache_snapshot(self) -> None:
         """Roll caches back to the pre-sync snapshot if one was taken.
@@ -376,11 +392,28 @@ class _SyncRunMixin:
         machinery) + LAUNCHER_STAGE (a user-facing retry toast carrying
         an ``unifideck://refresh-library/<store>`` deep link), and
         return an empty list with the error string.
+
+        ``get_library`` returning ``None`` is the ABC's "I could not read
+        my library" signal and is reported as the ``library_unreadable``
+        error rather than as an empty library. Collapsing the two was a
+        real defect: the shortcut reconcile treats an empty answer as
+        authoritative and deletes every shortcut the store owns, so a
+        store whose local state was temporarily unreadable lost the
+        user's whole library for that store (audit §3.5, finding B).
+        No SYNC_FAILED / toast here — unlike a raise, this is a normal
+        state (a vendor client that has never been opened), and a toast
+        on every sync would be noise.
         """
         try:
             games = await store.get_library(force=is_force)
             if games is None:
-                games = []
+                logger.warning(
+                    "[SyncService] %s could not read its library — keeping "
+                    "its existing shortcuts rather than treating this as an "
+                    "empty library",
+                    store.store_name,
+                )
+                return [], "library_unreadable"
             logger.info(
                 "[SyncService] %s: %d games", store.store_name, len(games),
             )

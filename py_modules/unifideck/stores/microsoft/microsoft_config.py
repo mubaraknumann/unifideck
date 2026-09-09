@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from unifideck.utils.config_helpers import get_cfg
+from unifideck.stores.shared.config_reader import StoreConfigReader
 
 if TYPE_CHECKING:
     from unifideck.config import ConfigManager
@@ -37,55 +37,39 @@ class MicrosoftConfig:
     @classmethod
     def from_config_manager(cls, config: ConfigManager | None) -> MicrosoftConfig:
         """From config manager."""
-        def _s(key: str, default: str = "") -> str:
-            """S."""
-            val = get_cfg(config, f"{_MS_CONFIG_PREFIX}.{key}", default)
-            return str(val).strip() if val is not None else default
-        def _i(key: str, default: int) -> int:
-            """I."""
-            val = get_cfg(config, f"{_MS_CONFIG_PREFIX}.{key}", default)
-            try:
-                return int(val)
-            except (TypeError, ValueError):
-                return default
-        def _list(key: str) -> list[str]:
-            """List."""
-            val = get_cfg(config, f"{_MS_CONFIG_PREFIX}.{key}", None)
-            if not isinstance(val, list):
-                return []
-            return [str(x) for x in val if isinstance(x, str) and x]
-        primary_redirect = _s("redirect_uri")
-        allowed = _list("allowed_redirect_uris")
+        cfg = StoreConfigReader(config, _MS_CONFIG_PREFIX)
+        primary_redirect = cfg.text("redirect_uri")
+        allowed = cfg.text_list("allowed_redirect_uris")
         if not allowed and primary_redirect:
             allowed = [primary_redirect]
         return cls(
-            client_id=_s("client_id"),
-            scope=_s("scope"),
-            auth_url=_s("auth_url"),
-            token_url=_s("token_url"),
+            client_id=cfg.text("client_id"),
+            scope=cfg.text("scope"),
+            auth_url=cfg.text("auth_url"),
+            token_url=cfg.text("token_url"),
             redirect_uri=primary_redirect,
             allowed_redirect_uris=allowed,
-            xbl_auth_url=_s("xbl_auth_url"),
-            xsts_url=_s("xsts_url"),
-            xcloud_catalog_url=_s("xcloud_catalog_url"),
-            xcloud_titles_url=_s("xcloud_titles_url"),
-            xcloud_launch_url=_s("xcloud_launch_url"),
-            gssv_relying_party=_s(
+            xbl_auth_url=cfg.text("xbl_auth_url"),
+            xsts_url=cfg.text("xsts_url"),
+            xcloud_catalog_url=cfg.text("xcloud_catalog_url"),
+            xcloud_titles_url=cfg.text("xcloud_titles_url"),
+            xcloud_launch_url=cfg.text("xcloud_launch_url"),
+            gssv_relying_party=cfg.text(
                 "gssv_relying_party", "http://gssv.xboxlive.com/",
             ),
-            subscription_check_url=_s(
+            subscription_check_url=cfg.text(
                 "subscription_check_url",
                 "https://xgpuweb.gssv-play-prod.xboxlive.com/v2/login/user",
             ),
-            token_file=_s("token_file", _DEFAULT_TOKEN_FILE),
-            token_refresh_threshold_seconds=_i(
+            token_file=cfg.text("token_file", _DEFAULT_TOKEN_FILE),
+            token_refresh_threshold_seconds=cfg.number(
                 "token_refresh_threshold_seconds", 2400,
             ),
-            xbl_user_agent=_s(
+            xbl_user_agent=cfg.text(
                 "xbl_user_agent",
                 "XboxReplay; XboxLiveAuth/3.0",
             ),
-            catalog_user_agent=_s(
+            catalog_user_agent=cfg.text(
                 "catalog_user_agent", "Unifideck/1.0",
             ),
         )
