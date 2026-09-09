@@ -4,12 +4,15 @@ Called from the Decky lifecycle hook ``Plugin._unload`` when the
 plugin is being deactivated (reload, uninstall, or Steam Deck
 shutdown). Ordering matters:
 
-  1. Stop every Layer-5 service — they may still be emitting
+  1. Stop the plugin-owned background loops — they poll on their
+     own timers and hold bus subscriptions, so a reload that
+     leaves them running strands a task against a dead bus.
+  2. Stop every Layer-5 service — they may still be emitting
      events on the bus; letting them run past this point would
      cause writes to dead collaborators.
-  2. Stop the PriorityDispatcher — drains the pending queue
+  3. Stop the PriorityDispatcher — drains the pending queue
      so in-flight events complete before teardown continues.
-  3. Clear the EventBus — releases all subscriptions; anything
+  4. Clear the EventBus — releases all subscriptions; anything
      that still holds a reference to the bus after this point
      becomes a no-op emitter.
 
@@ -27,6 +30,46 @@ from unifideck.services.bootstrap import stop_all_services
 
 logger = logging.getLogger(__name__)
 
+#: The plugin-owned background loops, as
+#: ``(attribute on Plugin, stop method, label for the log line)``.
+#:
+#: Each one polls on its own timer and holds a bus subscription, so every
+#: one of them outlived a reload before they were stopped here:
+#:
+#: * ``_updater_service`` — release polling; lightweight, so it goes first.
+#: * ``_update_sweep_service`` — can have a store scan in flight.
+#: * ``_post_sync_reconcile_service`` — sleeps out a boot delay and may then
+#:   have a repair pass running, which would fetch artwork against a
+#:   torn-down bus.
+#:
+#: A table rather than four near-identical blocks: the blocks differed only
+#: in these three strings, and the repetition is what pushed
+#: ``unload_plugin`` over the cognitive-complexity gate.
+_PLUGIN_BACKGROUND_LOOPS: tuple[tuple[str, str, str], ...] = (
+    ("_updater_service", "stop_polling", "updater"),
+    ("_update_sweep_service", "stop", "update sweep"),
+    ("_post_sync_reconcile_service", "stop", "post-sync reconcile"),
+)
+
+
+async def _stop_quietly(target: Any, method: str, label: str) -> None:
+    """Await ``target.method()``, logging and swallowing any failure.
+
+    Teardown is best-effort, so one loop refusing to stop must not strand
+    the ones queued behind it. A ``None`` target, or one without the stop
+    method, is the ordinary case for something that never started and is
+    skipped rather than treated as an error.
+    """
+    if target is None:
+        return
+    stop = getattr(target, method, None)
+    if not callable(stop):
+        return
+    try:
+        await stop()
+    except Exception:
+        logger.warning("[Unifideck] %s stop failed", label)
+
 
 async def unload_plugin(plugin: Any) -> None:
     """Execute the full teardown sequence for ``plugin``.
@@ -41,44 +84,22 @@ async def unload_plugin(plugin: Any) -> None:
     hook) would log it and still proceed; we preserve that
     contract by letting stop_all_services handle its own errors.
     """
-    # Stop updater background polling first — lightweight, fast.
-    updater = getattr(plugin, "_updater_service", None)
-    if updater is not None:
-        try:
-            await updater.stop_polling()
-        except Exception:
-            logger.warning("[Unifideck] updater stop_polling failed")
-    # Same for the game-update sweep: it holds a bus subscription and can
-    # have a store scan in flight, both of which must not outlive a reload.
-    sweep = getattr(plugin, "_update_sweep_service", None)
-    if sweep is not None:
-        try:
-            await sweep.stop()
-        except Exception:
-            logger.warning("[Unifideck] update sweep stop failed")
-    # The post-sync reconcile sleeps out a boot delay and may then have a
-    # repair pass in flight; both must be cancelled here, or a reload
-    # leaves a task fetching artwork against a torn-down bus.
-    reconcile = getattr(plugin, "_post_sync_reconcile_service", None)
-    if reconcile is not None:
-        try:
-            await reconcile.stop()
-        except Exception:
-            logger.warning("[Unifideck] post-sync reconcile stop failed")
+    for attr, method, label in _PLUGIN_BACKGROUND_LOOPS:
+        await _stop_quietly(getattr(plugin, attr, None), method, label)
+
     # ``_start_store_background_tasks`` starts the Microsoft token-refresh
     # loop unconditionally at boot, but nothing ever called its stop until
     # now, so every reload left the previous 30-minute poll running against
-    # a torn-down bus.
+    # a torn-down bus. It hangs off the registry rather than the plugin, so
+    # it cannot join the table above.
     registry = getattr(plugin, "registry", None)
     if registry is not None:
-        stopper: Any = getattr(
-            registry.get("microsoft"), "stop_token_refresh_polling", None,
+        await _stop_quietly(
+            registry.get("microsoft"),
+            "stop_token_refresh_polling",
+            "Microsoft token poll",
         )
-        if callable(stopper):
-            try:
-                await stopper()
-            except Exception:
-                logger.warning("[Unifideck] Microsoft token poll stop failed")
+
     services = getattr(plugin, "services", None)
     if services is not None:
         await stop_all_services(services)

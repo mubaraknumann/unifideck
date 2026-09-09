@@ -184,7 +184,7 @@ This project builds on a lot of open source work and community help.
 - **Platform and UI** - [Decky Loader](https://github.com/SteamDeckHomebrew/decky-loader), `@decky/api`, `@decky/ui`, and the SteamDeckHomebrew community
 - **Store and runtime tooling** - [legendary](https://github.com/derrod/legendary), gogdl, [nile](https://github.com/imLinguin/nile), [comet](https://github.com/imLinguin/comet), [winetricks](https://github.com/Winetricks/winetricks), [umu-launcher](https://github.com/Open-Wine-Components/umu-launcher), and [SteamGridDB](https://www.steamgriddb.com/)
 - **Reference projects and patterns** - [TabMaster](https://github.com/Tormak9970/TabMaster), [SteamGridDB Decky](https://github.com/SteamGridDB/decky-steamgriddb), [ProtonDB Decky](https://github.com/OMGDuke/protondb-decky), [Heroic Games Launcher](https://github.com/Heroic-Games-Launcher/HeroicGamesLauncher), and [Junk-Store](https://github.com/ebenbruyns/junkstore)
-- **Special thanks** - @src893, @xXJSONDeruloXx, @moi952, @Lazer-zx5, @buddax2, @Grails125, @clach04, @kevbenjam, @kmturley, @FreudsCAT, @frank460699, @matheussilva421, @SteffenStMueller, @EricwanAR, @HSNEM, DeckWizard, sufi0511, \_badbug, lutianxing, u/EnTei7K, u/IN50MNIAC, derrod, and the Discord testers for invaluable feedback.
+- **Special thanks** - @src893, @xXJSONDeruloXx, @moi952, @Lazer-zx5, @buddax2, @Grails125, @clach04, @kevbenjam, @kmturley, @FreudsCAT, @frank460699, @matheussilva421, @stm85, @EricwanAR, @HSNEM, @uglierwan, DeckWizard, sufi0511, \_badbug, lutianxing, mmmtimmah, u/EnTei7K, u/IN50MNIAC, derrod, and the Discord testers for invaluable feedback.
 
 ## Support
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from unifideck.rpc.errors import RpcError
@@ -200,39 +201,63 @@ class ObservabilityRPCMixin:
         extra: dict[str, Any] = {}
         flags = getattr(self.services, "feature_flags", None)
         if flags is not None:
-            try:
-                extra["feature_flags"] = flags.get_flags()
-            except Exception:
-                logger.debug("[Observability] flag snapshot failed", exc_info=True)
+            self._collect(extra, "feature_flags", flags.get_flags, "flag")
         metrics = getattr(self.services, "metrics", None)
         if metrics is not None:
-            try:
-                extra["plugin_metrics"] = metrics.get_plugin_metrics()
-            except Exception:
-                logger.debug("[Observability] metrics snapshot failed", exc_info=True)
-        try:
-            extra["bus_health"] = self._bus_health()
-        except Exception:
-            logger.debug("[Observability] bus health snapshot failed", exc_info=True)
+            self._collect(
+                extra, "plugin_metrics", metrics.get_plugin_metrics, "metrics",
+            )
+        self._collect(extra, "bus_health", self._bus_health, "bus health")
         security = getattr(self.services, "security", None)
         if security is not None:
-            try:
-                extra["security"] = {
-                    "counters": security.get_counters(),
-                    "bruteforce": security.get_bruteforce_status(),
-                    "audit_log": security.get_audit_log(limit=_AUDIT_TAIL),
-                }
-            except Exception:
-                logger.debug("[Observability] security snapshot failed", exc_info=True)
-        try:
-            extra["config_validation"] = self._config_validation_block()
-        except Exception:
-            logger.debug("[Observability] config validation block failed", exc_info=True)
-        try:
-            extra["memory"] = self._memory_block()
-        except Exception:
-            logger.debug("[Observability] memory block failed", exc_info=True)
+            self._collect(
+                extra, "security", lambda: self._security_block(security), "security",
+            )
+        self._collect(
+            extra,
+            "config_validation",
+            self._config_validation_block,
+            "config validation",
+        )
+        self._collect(extra, "memory", self._memory_block, "memory")
         return extra
+
+    @staticmethod
+    def _collect(
+        extra: dict[str, Any],
+        key: str,
+        producer: Callable[[], Any],
+        label: str,
+    ) -> None:
+        """Run ``producer`` and file it under ``key``, or log and skip.
+
+        Every block above is individually guarded for the same reason: one
+        missing or throwing service must not cost the reporter the whole
+        bundle. Six copies of that try/except is what pushed
+        :meth:`_support_bundle_extra` over the cognitive-complexity gate, so
+        the guard lives here once and the caller reads as a list of blocks.
+
+        A failure is ``debug``, not ``warning``: an absent optional service
+        is the ordinary case, and this runs on a path the user already knows
+        is diagnostic.
+        """
+        try:
+            extra[key] = producer()
+        except Exception:
+            logger.debug("[Observability] %s snapshot failed", label, exc_info=True)
+
+    @staticmethod
+    def _security_block(security: Any) -> dict[str, Any]:
+        """Counters, brute-force state and the audit tail.
+
+        Split out so the security entry is a named producer like the other
+        blocks rather than a dict literal built inside the guard.
+        """
+        return {
+            "counters": security.get_counters(),
+            "bruteforce": security.get_bruteforce_status(),
+            "audit_log": security.get_audit_log(limit=_AUDIT_TAIL),
+        }
 
     def _memory_block(self) -> dict[str, Any]:
         """Growth series plus capture-time heap analysis.
