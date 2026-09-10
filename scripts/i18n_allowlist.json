@@ -179,5 +179,17 @@
   "gamevault.password": {
     "locales": ["it-IT"],
     "reason": "Same word as ubisoftAuth.passwordLabel, kept consistent. The other 14 locales translated this key, which is why only it-IT is listed."
+  },
+  "play.optiscaler.menuItem": {
+    "locales": "*",
+    "reason": "'Frame Generation (OptiScaler)' is the feature's product name (OptiScaler + the English term the mod itself uses); kept verbatim in every locale, like other brand/tech names."
+  },
+  "play.optiscaler.title": {
+    "locales": "*",
+    "reason": "Same product name as play.optiscaler.menuItem, followed only by the {{game}} interpolation — nothing translatable."
+  },
+  "play.gameEnv.keyLabel": {
+    "locales": ["de-DE"],
+    "reason": "'Name' is the identical correct word in German."
   }
 }

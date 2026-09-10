@@ -1,17 +1,24 @@
 /**
- * app-context-menu-patch — inject "Change executable…" into the native game
- * context menu (the gear / right-click menu with Add to Favorites, Manage,
+ * app-context-menu-patch — inject "Change executable…", "Frame Generation
+ * (OptiScaler)…", and "Environment variables…" into the native game context
+ * menu (the gear / right-click menu with Add to Favorites, Manage,
  * Properties…).
  *
  * Technique ported from decky-steamgriddb's `contextMenuPatch.tsx`: resolve the
  * `LibraryContextMenu` component, `afterPatch` its `render` (+ the inner
- * `type.render` / `shouldComponentUpdate`), and splice a `MenuItem` in just
+ * `type.render` / `shouldComponentUpdate`), and splice `MenuItem`s in just
  * before the "Properties…" entry. Proven robust across Steam client versions.
  *
- * GATING: the item is added only for an INSTALLED Unifideck shortcut whose
- * store supports an executable override (gog / amazon / epic). Regular Steam
- * games — and unsupported stores (Microsoft xCloud) — are left untouched. The
- * patch only ADDS a menu item; it never mutates the overview or launch routing.
+ * GATING:
+ * - "Change executable…" is added only for an INSTALLED Unifideck shortcut
+ *   whose store supports an executable override (gog / amazon / epic /
+ *   gamevault — see `SUPPORTED_STORES`).
+ * - "Frame Generation (OptiScaler)…" and "Environment variables…" are added
+ *   for ANY installed Unifideck shortcut (neither touches a store's
+ *   games.map exe column — see `optiscalerEligible`/`gameEnvEligible`).
+ * Regular (non-Unifideck) Steam games are left untouched either way. The
+ * patch only ADDS menu items; it never mutates the overview or launch
+ * routing.
  */
 import {
   afterPatch,
@@ -27,12 +34,18 @@ import { createElement } from "react";
 import i18n from "i18next";
 import { getUnifideckGame } from "../library-filters";
 import { ChangeExecutableModal } from "../../components/modals/ChangeExecutableModal";
+import { OptiscalerModal } from "../../components/modals/OptiscalerModal";
+import { GameEnvModal } from "../../components/modals/GameEnvModal";
 
 /** Stores whose launch target the user can override (see ExecutableRPCMixin). */
 const SUPPORTED_STORES = new Set(["gog", "amazon", "epic", "gamevault"]);
 
 /** Stable key so re-renders can dedupe our injected item. */
 const MENU_ITEM_KEY = "unifideck-change-exe";
+/** Stable key for the "Frame Generation (OptiScaler)…" item (see OptiScalerRPCMixin). */
+const OPTISCALER_MENU_ITEM_KEY = "unifideck-optiscaler";
+/** Stable key for the "Environment variables…" item (see GameEnvRPCMixin). */
+const GAME_ENV_MENU_ITEM_KEY = "unifideck-game-env";
 
 export interface AppContextMenuPatchHandle {
   unpatch: () => void;
@@ -55,9 +68,8 @@ function eligible(appId: number): {
   return { store: game.store, gameId: game.storeGameId };
 }
 
-function openModal(appId: number): void {
-  const g = eligible(appId);
-  if (!g) return;
+/** Resolve the current game's display title from Steam's overview cache. */
+function resolveTitle(appId: number, fallback: string): string {
   const overview = (
     window as unknown as {
       appStore?: {
@@ -67,18 +79,73 @@ function openModal(appId: number): void {
       };
     }
   ).appStore?.GetAppOverviewByAppID?.(appId);
-  const title = overview?.display_name ?? g.gameId;
+  return String(overview?.display_name ?? fallback);
+}
+
+function openModal(appId: number): void {
+  const g = eligible(appId);
+  if (!g) return;
+  const title = resolveTitle(appId, g.gameId);
   showModal(
     createElement(ChangeExecutableModal, {
       store: g.store,
       gameId: g.gameId,
-      gameTitle: String(title),
+      gameTitle: title,
       closeModal: () => {},
     }),
   );
 }
 
-/** Insert our item before "Properties…" (matched by its onSelected source). */
+/** Every store may attach an OptiScaler patch — unlike "Change executable…"
+ *  this isn't gated by ``SUPPORTED_STORES`` since patching just copies files
+ *  into the resolved install dir (games.map ``work_dir``) rather than
+ *  touching the exe column, so xCloud/Microsoft games are eligible too,
+ *  provided they're an installed Unifideck shortcut. */
+function optiscalerEligible(
+  appId: number,
+): { store: string; gameId: string } | null {
+  const game = getUnifideckGame(appId);
+  if (!game || !game.storeGameId || !game.isInstalled) return null;
+  return { store: game.store, gameId: game.storeGameId };
+}
+
+function openOptiscalerModal(appId: number): void {
+  const g = optiscalerEligible(appId);
+  if (!g) return;
+  const title = resolveTitle(appId, g.gameId);
+  showModal(
+    createElement(OptiscalerModal, {
+      store: g.store,
+      gameId: g.gameId,
+      gameTitle: title,
+      closeModal: () => {},
+    }),
+  );
+}
+
+/** Same eligibility as OptiScaler — env overrides are just a config key, no
+ *  store-specific mechanism involved. */
+function gameEnvEligible(
+  appId: number,
+): { store: string; gameId: string } | null {
+  return optiscalerEligible(appId);
+}
+
+function openGameEnvModal(appId: number): void {
+  const g = gameEnvEligible(appId);
+  if (!g) return;
+  const title = resolveTitle(appId, g.gameId);
+  showModal(
+    createElement(GameEnvModal, {
+      store: g.store,
+      gameId: g.gameId,
+      gameTitle: title,
+      closeModal: () => {},
+    }),
+  );
+}
+
+/** Insert our items before "Properties…" (matched by its onSelected source). */
 function spliceItem(children: unknown[], appId: number): void {
   const propsIdx = children.findIndex((item) =>
     findInReactTree(
@@ -87,21 +154,56 @@ function spliceItem(children: unknown[], appId: number): void {
         !!x?.onSelected && x.onSelected.toString().includes("AppProperties"),
     ),
   );
-  const node = createElement(
-    MenuItem,
-    { key: MENU_ITEM_KEY, onSelected: () => openModal(appId) },
-    i18n.t("play.exe.menuItem"),
-  );
-  if (propsIdx >= 0) children.splice(propsIdx, 0, node);
-  else children.push(node);
+  const nodes: unknown[] = [];
+  if (eligible(appId)) {
+    nodes.push(
+      createElement(
+        MenuItem,
+        { key: MENU_ITEM_KEY, onSelected: () => openModal(appId) },
+        i18n.t("play.exe.menuItem"),
+      ),
+    );
+  }
+  if (optiscalerEligible(appId)) {
+    nodes.push(
+      createElement(
+        MenuItem,
+        {
+          key: OPTISCALER_MENU_ITEM_KEY,
+          onSelected: () => openOptiscalerModal(appId),
+        },
+        i18n.t("play.optiscaler.menuItem"),
+      ),
+    );
+  }
+  if (gameEnvEligible(appId)) {
+    nodes.push(
+      createElement(
+        MenuItem,
+        {
+          key: GAME_ENV_MENU_ITEM_KEY,
+          onSelected: () => openGameEnvModal(appId),
+        },
+        i18n.t("play.gameEnv.menuItem"),
+      ),
+    );
+  }
+  if (propsIdx >= 0) children.splice(propsIdx, 0, ...nodes);
+  else children.push(...nodes);
 }
 
-/** Drop a previously-injected item so a re-render can't duplicate it. */
+/** Drop previously-injected items so a re-render can't duplicate them. */
 function dedupe(children: unknown[]): void {
-  const idx = children.findIndex(
-    (x) => (x as { key?: string } | null)?.key === MENU_ITEM_KEY,
-  );
-  if (idx !== -1) children.splice(idx, 1);
+  for (const key of [
+    MENU_ITEM_KEY,
+    OPTISCALER_MENU_ITEM_KEY,
+    GAME_ENV_MENU_ITEM_KEY,
+  ]) {
+    const idx = children.findIndex(
+      (x) => (x as { key?: string } | null)?.key === key,
+    );
+    if (idx !== -1) children.splice(idx, 1);
+  }
 }
 
 /** Re-resolve the appid from the menu's OWN React tree (not a stale closure).
@@ -141,7 +243,13 @@ function resolveItemsAppId(
 function patchMenuItems(menuItems: unknown[], fallbackAppId: number): void {
   dedupe(menuItems);
   const appId = resolveItemsAppId(menuItems, fallbackAppId);
-  if (!eligible(appId)) return;
+  if (
+    !eligible(appId) &&
+    !optiscalerEligible(appId) &&
+    !gameEnvEligible(appId)
+  ) {
+    return;
+  }
   spliceItem(menuItems, appId);
 }
 
