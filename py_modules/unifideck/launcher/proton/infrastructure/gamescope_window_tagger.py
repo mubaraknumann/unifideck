@@ -31,13 +31,25 @@ _MAX_RUNTIME = 300
 
 
 def _find_umu_zipapp() -> Path | None:
-    """Return path to the umu zipapp bundled with this plugin."""
+    """Return path to the umu zipapp bundled with this plugin.
+
+    The zipapp is the Python executable umu ships — it carries Xlib, which
+    :func:`_import_xlib` loads off it. umu renamed that file from
+    ``umu_run.py`` to ``umu-run`` (current bundles ship ``umu-run``, e.g.
+    umu 1.4.4). Both are the same shebang+zip archive, so try the current
+    name first and keep the old one as a fallback rather than pinning either.
+    Missing it is not fatal — the tagger just logs and skips — but it means
+    game windows never get ``STEAM_GAME`` set and gamescope never brings them
+    to the foreground (audible game, no picture in Gaming Mode).
+    """
     # infrastructure/ → proton/ → launcher/ → unifideck/ → py_modules/ → plugin_root/
     here = Path(__file__).resolve().parent
     plugin_root = here.parents[4]
-    candidate = plugin_root / "bin" / "umu" / "umu" / "umu_run.py"
-    if candidate.is_file():
-        return candidate
+    umu_dir = plugin_root / "bin" / "umu" / "umu"
+    for name in ("umu-run", "umu_run.py"):
+        candidate = umu_dir / name
+        if candidate.is_file():
+            return candidate
     return None
 
 
