@@ -362,6 +362,8 @@
       "errorCircuitBreakerOpen": "{{game_key}} failed to launch {{count}} times recently. Automatic retries paused.",
       "launcherError": "Couldn't launch {{game_key}} ({{error_code}}). Check the logs for details.",
       "startingBattlenetGame": "Starting {{gameTitle}} through Battle.net…",
+      "wc3ProtonUnsupported": "Warcraft III Needs a Newer Proton",
+      "wc3ProtonUnsupportedMessage": "{{gameTitle}} can't sign in to Battle.net on this Proton version, because of a Wine bug that makes the game report a VPN error. Open its Properties in Steam, then Compatibility, and pick GE-Proton11-7 or newer.",
       "battlenetStartingClient": "Opening Battle.net",
       "battlenetStartingClientMessage": "Waiting for the Battle.net client to be ready…",
       "battlenetInstallingClient": "Installing Battle.net",

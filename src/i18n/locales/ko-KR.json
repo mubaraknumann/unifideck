@@ -353,6 +353,8 @@
       "ubisoftLaunchIdMissing": "Ubisoft Connect를 여는 중",
       "ubisoftLaunchIdMissingMessage": "이 게임의 실행 ID를 확인할 수 없습니다. 라이브러리에서 시작할 수 있도록 Ubisoft Connect를 여는 중입니다. 직접 실행을 수정하려면 라이브러리 동기화를 다시 실행하세요.",
       "startingBattlenetGame": "Battle.net을 통해 {{gameTitle}} 시작 중…",
+      "wc3ProtonUnsupported": "Warcraft III에는 더 새로운 Proton이 필요합니다",
+      "wc3ProtonUnsupportedMessage": "게임이 VPN 오류를 표시하게 만드는 Wine 버그 때문에 {{gameTitle}}은(는) 이 Proton 버전에서 Battle.net에 로그인할 수 없습니다. Steam에서 속성 → 호환성을 열고 GE-Proton11-7 이상을 선택하세요.",
       "battlenetStartingClient": "Battle.net 여는 중",
       "battlenetStartingClientMessage": "Battle.net 클라이언트가 준비되기를 기다리는 중…",
       "battlenetInstallingClient": "Battle.net 설치 중",

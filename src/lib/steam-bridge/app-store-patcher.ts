@@ -12,14 +12,22 @@
  *   - `get_real_steam_appid_mappings` → `{shortcut_id: real_id}`
  *   - `get_steam_metadata_cache`      → `{real_id: appdetails}`
  *
- * **Borrow content, never identity.** These getters must always answer
- * with the shortcut's OWN `appid` / `GameID()` / `unAppID`. They used to
- * return the matched Steam app's overview and details objects outright,
- * which made Steam resolve the shortcut to that app and launch it under
- * that app's id — see the comment on `GetAppOverviewByAppID` below for the
- * bundle evidence. Metadata now reaches the UI via
- * `injectMetadataIntoOverview` / `borrowDetails`, which copy fields onto
- * our own objects.
+ * **Borrow content, never identity or shortcut config.** These getters
+ * must always answer with the shortcut's OWN `appid` / `GameID()` /
+ * `unAppID`. They used to return the matched Steam app's overview and
+ * details objects outright, which made Steam resolve the shortcut to that
+ * app and launch it under that app's id — see the comment on
+ * `GetAppOverviewByAppID` below for the bundle evidence. Metadata now
+ * reaches the UI via `injectMetadataIntoOverview` / `borrowDetails`, which
+ * copy an allowlist of store-content fields onto our own objects. The
+ * shortcut's own `AppDetails` keeps everything else: `strShortcutExe` /
+ * `strShortcutLaunchOptions` (read by `shortcut-ownership.ts` and by
+ * Steam's Properties dialog), cloud flags, achievements, DLC, controller
+ * mask — none of which belong to a non-Steam shortcut.
+ *
+ * Both RPCs come back in the `{success, error, data}` envelope; readers
+ * that assumed the pre-envelope shape loaded nothing for months (the
+ * `Store Patch] active — 0 mappings` boot line), so unwrap first.
  *
  * Net effect: Epic / GOG / Amazon / Ubisoft shortcuts in Steam's
  * library show real cover art, store descriptions, Metacritic
@@ -29,6 +37,7 @@
  */
 import { call } from "@decky/api";
 import { rpcRoutes } from "../../api/rpc-routes";
+import { unwrapRpcEnvelope } from "../../api/useRPC";
 import { toSignedAppId, toUnsignedAppId } from "./appid";
 
 let steamAppIdMappings: Record<number, number> = {};
@@ -42,14 +51,14 @@ const patchedOverviews = new Set<number>();
  *  is ready. */
 let _backendLoadPromise: Promise<void> | null = null;
 
+/** `data` payload of `get_real_steam_appid_mappings` (post-envelope). */
 interface BackendMappingsResponse {
-  success: boolean;
-  mappings: Record<string, number>;
+  mappings?: Record<string, number>;
 }
 
+/** `data` payload of `get_steam_metadata_cache` (post-envelope). */
 interface BackendMetadataResponse {
-  success: boolean;
-  metadata: Record<string, AppDetailsRaw>;
+  metadata?: Record<string, AppDetailsRaw>;
 }
 
 interface AppDetailsRaw {
@@ -127,21 +136,6 @@ function lookupRealId(shortcutAppId: number): number {
   );
 }
 
-function extractIds(
-  data: AppDetailsRaw["categories"] | AppDetailsRaw["genres"],
-): number[] {
-  if (!data) return [];
-  if (Array.isArray(data)) {
-    return data
-      .map((x) => x.id)
-      .filter((id): id is number => typeof id === "number");
-  }
-  return Object.keys(data)
-    .filter((k) => k.startsWith("category_") || k.startsWith("genre_"))
-    .map((k) => Number(k.split("_")[1]))
-    .filter((n) => !Number.isNaN(n));
-}
-
 function extractLanguages(
   data: AppDetailsRaw["supported_languages"],
 ): Array<{ strLanguageName: string }> {
@@ -165,13 +159,30 @@ function extractLanguages(
 // library-facing fields it supplied are set by `overview-enrichment.ts`,
 // which writes them onto the shortcut's own overview.
 
+/** The only `AppDetails` fields ever copied from the matched Steam app
+ *  onto a shortcut. Everything else on a details object is either identity
+ *  (`unAppID`, `strDisplayName`), shortcut config (`strShortcutExe`,
+ *  `strShortcutLaunchOptions`, `strShortcutStartDir`) or per-app state
+ *  (cloud flags, achievements, DLC, controller mask, disk size, Deck
+ *  compat results) that must stay the shortcut's own. */
+const BORROWED_CONTENT_FIELDS = [
+  "strDescription",
+  "strFullDescription",
+  "strDeveloperName",
+  "strHomepageURL",
+  "associations",
+  "rtReleaseDate",
+  "vecPlatforms",
+  "vecLanguages",
+  "nScreenshots",
+] as const;
+
 function buildDetails(steamAppId: number, raw: AppDetailsRaw): AppDetails {
   const developers = raw.developers ?? [];
   const publishers = raw.publishers ?? [];
   const rtRelease = raw.release_date?.date
     ? Math.floor(new Date(raw.release_date.date).getTime() / 1000)
     : 0;
-  const cloud = extractIds(raw.categories).includes(23);
   return {
     unAppID: steamAppId,
     strDisplayName: raw.name ?? "",
@@ -191,50 +202,36 @@ function buildDetails(steamAppId: number, raw: AppDetailsRaw): AppDetails {
       raw.platforms?.linux && "linux",
     ].filter((p): p is string => Boolean(p)),
     vecLanguages: extractLanguages(raw.supported_languages),
-    bCloudAvailable: cloud,
-    bCloudEnabledForApp: cloud,
-    achievements: {
-      nAchieved: 0,
-      nTotal: raw.achievements?.total ?? 0,
-      vecAchievedHidden: [],
-      vecHighlight: [],
-      vecUnachieved: [],
-    },
-    eSteamInputControllerMask:
-      raw.controller_support === "full"
-        ? 2
-        : raw.controller_support === "partial"
-        ? 1
-        : 0,
-    vecDLC: (raw.dlc ?? []).map((id) => ({
-      appid: id,
-      strName: "",
-      bInstalled: false,
-    })),
     nScreenshots: raw.screenshots?.length ?? 0,
-    lDiskSpaceRequiredBytes: 0,
-    vecDeckCompatTestResults: [],
-    __from_web_api: true,
   };
 }
 
-/** Rich store details for the matched Steam app, re-stamped with the
- *  SHORTCUT's identity.
+/** The shortcut's OWN details, with the matched Steam app's store content
+ *  copied on top.
  *
  *  The AppDetails page genuinely wants the real store copy (description,
- *  developer, languages, DLC…), but handing Steam the matched app's object
+ *  developer, languages…), but handing Steam the matched app's object
  *  wholesale leaks its `unAppID` into every surface that reads details —
- *  the same class of bug as returning its `AppOverview`. Copy the content,
- *  keep our own id and display name. */
+ *  the same class of bug as returning its `AppOverview` — and drops the
+ *  shortcut's `strShortcutExe` / launch options, which
+ *  `shortcut-ownership.ts` and Steam's Properties dialog read. So the base
+ *  is `own`; only `BORROWED_CONTENT_FIELDS` come from `borrowed`. */
 function borrowDetails(
   borrowed: AppDetails | null,
   shortcutAppId: number,
   own: AppDetails | null,
 ): AppDetails | null {
   if (!borrowed) return own;
-  const merged: AppDetails = { ...borrowed, unAppID: shortcutAppId };
-  const ownName = own?.strDisplayName;
-  if (typeof ownName === "string" && ownName) merged.strDisplayName = ownName;
+  const merged: AppDetails = own
+    ? { ...own }
+    : { unAppID: shortcutAppId, strDisplayName: "" };
+  for (const field of BORROWED_CONTENT_FIELDS) {
+    if (borrowed[field] !== undefined) merged[field] = borrowed[field];
+  }
+  merged.unAppID = shortcutAppId;
+  if (!merged.strDisplayName && typeof borrowed.strDisplayName === "string") {
+    merged.strDisplayName = borrowed.strDisplayName;
+  }
   return merged;
 }
 
@@ -291,10 +288,14 @@ function injectMetadataIntoOverview(overview: OverviewMutable): boolean {
 
 async function loadFromBackend(): Promise<void> {
   try {
-    const mappingsResp = await call<[], BackendMappingsResponse>(
-      rpcRoutes.getRealSteamAppidMappings,
+    // Both RPCs answer in the `{success, error, data}` envelope; the
+    // `{mappings}` / `{metadata}` payloads live under `data`.
+    const raw = await call<[], unknown>(rpcRoutes.getRealSteamAppidMappings);
+    const mappingsResp = unwrapRpcEnvelope<BackendMappingsResponse | null>(
+      raw,
+      { route: rpcRoutes.getRealSteamAppidMappings, throwing: false },
     );
-    if (mappingsResp?.success && mappingsResp.mappings) {
+    if (mappingsResp?.mappings) {
       const out: Record<number, number> = {};
       for (const [k, v] of Object.entries(mappingsResp.mappings)) {
         const key = Number(k);
@@ -307,10 +308,15 @@ async function loadFromBackend(): Promise<void> {
   }
   if (Object.keys(steamAppIdMappings).length === 0) return;
   try {
-    const metaResp = await call<[], BackendMetadataResponse>(
-      rpcRoutes.getSteamMetadataCache,
+    const metaRaw = await call<[], unknown>(rpcRoutes.getSteamMetadataCache);
+    const metaResp = unwrapRpcEnvelope<BackendMetadataResponse | null>(
+      metaRaw,
+      {
+        route: rpcRoutes.getSteamMetadataCache,
+        throwing: false,
+      },
     );
-    if (metaResp?.success && metaResp.metadata) {
+    if (metaResp?.metadata) {
       for (const [k, raw] of Object.entries(metaResp.metadata)) {
         const steamId = Number(k);
         if (Number.isNaN(steamId)) continue;

@@ -353,6 +353,8 @@
       "ubisoftLaunchIdMissing": "Abrindo o Ubisoft Connect",
       "ubisoftLaunchIdMissingMessage": "Não foi possível resolver o ID de inicialização deste jogo. Abrindo o Ubisoft Connect para que você possa iniciá-lo pela sua biblioteca. Execute uma nova sincronização da biblioteca para corrigir a inicialização direta.",
       "startingBattlenetGame": "Iniciando {{gameTitle}} pelo Battle.net…",
+      "wc3ProtonUnsupported": "Warcraft III precisa de um Proton mais novo",
+      "wc3ProtonUnsupportedMessage": "{{gameTitle}} não consegue entrar na Battle.net nesta versão do Proton, por causa de um bug do Wine que faz o jogo exibir um erro de VPN. Abra as Propriedades dele na Steam, depois Compatibilidade, e escolha o GE-Proton11-7 ou mais recente.",
       "battlenetStartingClient": "Abrindo o Battle.net",
       "battlenetStartingClientMessage": "Aguardando o cliente Battle.net ficar pronto…",
       "battlenetInstallingClient": "Instalando o Battle.net",

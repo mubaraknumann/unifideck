@@ -362,6 +362,8 @@
       "errorCircuitBreakerOpen": "{{game_key}} 最近啟動失敗了 {{count}} 次。已暫停自動執行。",
       "launcherError": "無法啟動 {{game_key}}（{{error_code}}）。詳細資訊請查看紀錄檔。",
       "startingBattlenetGame": "正在透過 Battle.net 啟動 {{gameTitle}}…",
+      "wc3ProtonUnsupported": "魔獸爭霸 III 需要更新的 Proton",
+      "wc3ProtonUnsupportedMessage": "由於 Wine 的一個問題會讓遊戲回報 VPN 錯誤，{{gameTitle}} 無法在此 Proton 版本上登入戰網。請在 Steam 中開啟該遊戲的屬性，進入相容性，選擇 GE-Proton11-7 或更新版本。",
       "battlenetStartingClient": "正在開啟 Battle.net",
       "battlenetStartingClientMessage": "正在等待 Battle.net 用戶端就緒…",
       "battlenetInstallingClient": "正在安裝 Battle.net",

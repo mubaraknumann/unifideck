@@ -48,7 +48,7 @@ from unifideck.launcher.proton.handlers import battlenet_bootstrap as bootstrap
 from unifideck.launcher.proton.handlers import battlenet_login_state as login_state
 from unifideck.launcher.proton.handlers import battlenet_session as session
 from unifideck.launcher.proton.handlers import battlenet_watch as watch
-from unifideck.launcher.proton.handlers import battlenet_wsi, wrapper_clients
+from unifideck.launcher.proton.handlers import battlenet_wc3, battlenet_wsi, wrapper_clients
 from unifideck.launcher.proton.handlers.battlenet_client import (
     find_client_exe,
     find_launcher_exe,
@@ -365,6 +365,7 @@ async def battlenet_launch(plan: ProtonLaunchPlan) -> int:
         i18n_title_key="toasts.launcher.launchingGame",
         game_title=resolve_title(plan.context.game_key),
     )
+    battlenet_wc3.apply_wc3_crypt32_fix(plan, family)
     client_exe = await _bring_up_client(plan)
     await _require_signed_in(plan)
     pid, before = await _issue_and_confirm(plan, client_exe, uid, family)

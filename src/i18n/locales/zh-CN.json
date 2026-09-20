@@ -353,6 +353,8 @@
       "ubisoftLaunchIdMissing": "正在打开 Ubisoft Connect",
       "ubisoftLaunchIdMissingMessage": "无法解析此游戏的启动 ID。正在打开 Ubisoft Connect，以便您从库中启动它。请重新运行库同步以修复直接启动。",
       "startingBattlenetGame": "正在通过 Battle.net 启动 {{gameTitle}}…",
+      "wc3ProtonUnsupported": "魔兽争霸 III 需要更新的 Proton",
+      "wc3ProtonUnsupportedMessage": "由于 Wine 的一个缺陷会让游戏报告 VPN 错误，{{gameTitle}} 无法在此 Proton 版本上登录战网。请在 Steam 中打开该游戏的属性，进入兼容性，选择 GE-Proton11-7 或更新版本。",
       "battlenetStartingClient": "正在打开 Battle.net",
       "battlenetStartingClientMessage": "正在等待 Battle.net 客户端就绪…",
       "battlenetInstallingClient": "正在安装 Battle.net",

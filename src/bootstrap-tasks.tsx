@@ -123,7 +123,14 @@ export async function applyDeviceType(): Promise<void> {
 
 export async function checkAccountSwitch(): Promise<void> {
   try {
-    const r = await call<[], AccountSwitchInfo>(rpcRoutes.checkAccountSwitch);
+    // `{show_modal, has_registry, has_auth_tokens}` is the `data` of the
+    // `{success, error, data}` envelope — reading `show_modal` off the
+    // envelope itself meant this modal could never open.
+    const raw = await call<[], unknown>(rpcRoutes.checkAccountSwitch);
+    const r = unwrapRpcEnvelope<AccountSwitchInfo | null>(raw, {
+      route: rpcRoutes.checkAccountSwitch,
+      throwing: false,
+    });
     if (!r?.show_modal) return;
     showModal(
       <AccountSwitchModal

@@ -432,6 +432,21 @@ safe because `applyAppStorePatch` re-spoofs on every plugin load.
 | DV-S2 | Open App Details for one game per store | Metadata present, no blank fields | ( ) | |
 | DV-S3 | Scroll the library while tailing the log | **No** `inject_game_to_appinfo` traffic. One call per overview read is what this removed | ( ) | |
 
+Found 2026-09-12: none of the above could have exercised the patch. Since
+2026-05 `loadFromBackend` read the `{success, error, data}` envelope as the
+bare payload, so every boot logged `Store Patch] active — 0 mappings, 0
+metadata entries` and the getters were pass-through. The reader now unwraps,
+and `borrowDetails` copies only store-content fields onto the shortcut's own
+details (keeps `strShortcutExe` / launch options / cloud / achievements /
+DLC). Re-validate with these before closing item 35:
+
+| ID | Step | Expected | Status | Evidence |
+|---|---|---|---|---|
+| **DV-S4** | Boot, read the frontend console | `Store Patch] active — N mappings, M metadata entries` with N, M > 0; `Loaded 0 title + K appId compat entries` with K > 0 | ( ) | |
+| **DV-S5** | CDP: `appDetailsStore.GetAppDetails(<mapped shortcut>)` after opening its App Details | `unAppID` = shortcut, `strShortcutExe` contains `unifideck-launcher`, `strShortcutLaunchOptions` intact, `bCloudAvailable` false, `vecDLC` empty, `strDescription` = the Steam store copy | ( ) | |
+| **DV-S6** | Gear → Properties on that shortcut | Shortcut target and launch options shown, not the Steam app's | ( ) | |
+| **DV-S7** | Launch a mapped title the account ALSO owns on Steam (e.g. BioShock GOG ↔ 7670) | Steam console: `Adding process … for gameID <shortcut 64-bit id>`, never the Steam appid; game in front of the loading screen | ( ) | |
+
 ## DV-T — item 36, a `%command%`-leading shortcut heals
 
 §2.9 measured this launching 0 of 2 attempts, and item 24a's preservation fix

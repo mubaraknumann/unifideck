@@ -353,6 +353,8 @@
       "ubisoftLaunchIdMissing": "جارٍ فتح Ubisoft Connect",
       "ubisoftLaunchIdMissingMessage": "تعذّر تحديد معرّف تشغيل هذه اللعبة. جارٍ فتح Ubisoft Connect لتتمكن من تشغيلها من مكتبتك. أعد تشغيل مزامنة المكتبة لإصلاح التشغيل المباشر.",
       "startingBattlenetGame": "جارٍ تشغيل {{gameTitle}} عبر Battle.net…",
+      "wc3ProtonUnsupported": "يحتاج Warcraft III إلى إصدار أحدث من Proton",
+      "wc3ProtonUnsupportedMessage": "لا يمكن لـ {{gameTitle}} تسجيل الدخول إلى Battle.net على إصدار Proton هذا، بسبب مشكلة في Wine تجعل اللعبة تبلغ عن خطأ في VPN. افتح خصائص اللعبة في Steam، ثم التوافق، واختر GE-Proton11-7 أو أحدث.",
       "battlenetStartingClient": "جارٍ فتح Battle.net",
       "battlenetStartingClientMessage": "في انتظار جاهزية عميل Battle.net…",
       "battlenetInstallingClient": "جارٍ تثبيت Battle.net",

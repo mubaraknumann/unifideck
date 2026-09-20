@@ -353,6 +353,8 @@
       "ubisoftLaunchIdMissing": "Ubisoft Connect openen",
       "ubisoftLaunchIdMissingMessage": "Kon de start-ID van deze game niet herleiden. Ubisoft Connect openen zodat je de game vanuit je bibliotheek kunt starten. Voer opnieuw een bibliotheeksynchronisatie uit om rechtstreeks starten te herstellen.",
       "startingBattlenetGame": "{{gameTitle}} wordt gestart via Battle.net…",
+      "wc3ProtonUnsupported": "Warcraft III vereist een nieuwere Proton",
+      "wc3ProtonUnsupportedMessage": "{{gameTitle}} kan met deze Proton-versie niet bij Battle.net inloggen, door een Wine-bug waardoor het spel een VPN-fout meldt. Open de Eigenschappen in Steam, dan Compatibiliteit, en kies GE-Proton11-7 of nieuwer.",
       "battlenetStartingClient": "Battle.net wordt geopend",
       "battlenetStartingClientMessage": "Wachten tot de Battle.net-client gereed is…",
       "battlenetInstallingClient": "Battle.net installeren",
