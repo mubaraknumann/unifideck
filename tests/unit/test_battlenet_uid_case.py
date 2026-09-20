@@ -35,6 +35,7 @@ from typing import Any
 
 import pytest
 
+from unifideck.stores.battlenet import install_state as ist
 from unifideck.stores.battlenet import library as lib
 from unifideck.stores.battlenet.install_watch import BattlenetInstallProbe
 from unifideck.stores.battlenet.ownership import InstalledGame
@@ -61,24 +62,24 @@ def _installed(**over: Any) -> InstalledGame:
 
 def test_the_index_is_keyed_case_insensitively() -> None:
     """``product.db`` says ``d1``; the index must be askable as ``D1``."""
-    index = lib._index_by_uid({"drtl": _installed()})
+    index = ist.index_by_uid({"drtl": _installed()})
 
-    assert lib.install_row_for(index, CATALOG_UID) is not None
-    assert lib.install_row_for(index, CLIENT_UID) is not None
+    assert ist.install_row_for(index, CATALOG_UID) is not None
+    assert ist.install_row_for(index, CLIENT_UID) is not None
 
 
 def test_lookup_normalizes_both_directions() -> None:
     """A catalog that went the other way must work too."""
-    index = lib._index_by_uid({"drtl": _installed(uid="HS_BETA")})
+    index = ist.index_by_uid({"drtl": _installed(uid="HS_BETA")})
 
-    assert lib.install_row_for(index, "hs_beta") is not None
+    assert ist.install_row_for(index, "hs_beta") is not None
 
 
 def test_a_missing_uid_is_still_missing() -> None:
     """Normalizing must not turn an absent row into a present one."""
-    index = lib._index_by_uid({"drtl": _installed()})
+    index = ist.index_by_uid({"drtl": _installed()})
 
-    assert lib.install_row_for(index, "w2") is None
+    assert ist.install_row_for(index, "w2") is None
 
 
 def test_the_probe_detects_an_uppercase_uid(
@@ -91,7 +92,7 @@ def test_the_probe_detects_an_uppercase_uid(
     """
     probe = BattlenetInstallProbe(CATALOG_UID, tmp_path)
     monkeypatch.setattr(
-        lib, "install_state_by_uid", lambda *_: {CLIENT_UID: _installed()},
+        ist, "install_state_by_uid", lambda *_: {CLIENT_UID: _installed()},
     )
     monkeypatch.setattr(
         "unifideck.stores.battlenet.paths.drive_c", lambda p: tmp_path,
@@ -109,7 +110,7 @@ def test_an_uppercase_uid_does_not_produce_a_duplicate_tile() -> None:
     in ``{"D1"}``, giving two Steam shortcuts for one game — the second with
     ``family="drtl"``, which the client silently refuses to launch.
     """
-    seen = {lib.normalize_uid(CATALOG_UID)}
+    seen = {ist.normalize_uid(CATALOG_UID)}
 
     orphans = lib._orphan_installed(
         {"drtl": _installed()}, _EmptyCatalog(), seen, "/launcher",
@@ -120,7 +121,7 @@ def test_an_uppercase_uid_does_not_produce_a_duplicate_tile() -> None:
 
 def test_an_unrelated_installed_orphan_is_still_kept() -> None:
     """The dedup must not swallow a genuinely ungranted install."""
-    seen = {lib.normalize_uid(CATALOG_UID)}
+    seen = {ist.normalize_uid(CATALOG_UID)}
 
     orphans = lib._orphan_installed(
         {"w2": _installed(code="w2", uid="w2", name="Warcraft II")},

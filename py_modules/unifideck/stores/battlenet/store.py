@@ -45,6 +45,7 @@ from unifideck.stores.shared.wrapper_auth_monitor import WrapperAuthMonitor
 from unifideck.stores.shared.wrapper_session_hooks import WrapperSessionHooks
 
 from . import config as store_config
+from . import install_state as install_state_mod
 from . import library as library_mod
 from . import paths
 from .id_map import BattlenetIdMap
@@ -385,7 +386,7 @@ class BattlenetStore(WrapperSessionHooks, StoreBase):
             drive_c = paths.drive_c(prefix)
             if drive_c is None:
                 continue
-            merged.update(library_mod.read_install_state(drive_c, prefix))
+            merged.update(install_state_mod.read_install_state(drive_c, prefix))
         return merged
 
     async def install_game(
@@ -514,6 +515,6 @@ class BattlenetStore(WrapperSessionHooks, StoreBase):
 
     async def _install_row(self, game_id: str) -> Any | None:
         """This game's row in the client's install records, or ``None``."""
-        return await library_mod.install_row(
+        return await install_state_mod.install_row(
             game_id, self.id_map.resolve_prefix(game_id),
         )

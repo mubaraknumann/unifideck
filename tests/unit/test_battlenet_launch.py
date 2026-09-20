@@ -25,16 +25,17 @@ import pytest
 
 from unifideck.launcher.proton.handlers import battlenet as handler
 from unifideck.launcher.proton.handlers import battlenet_client as client
-from unifideck.stores.battlenet import paths as store_paths
+from unifideck.launcher.proton.handlers import battlenet_exec as bnet_exec
 from unifideck.launcher.proton.handlers import battlenet_watch as watch
 from unifideck.launcher.proton.handlers import battlenet_wsi as wsi
 from unifideck.launcher.proton.handlers import wrapper_clients as wc
 from unifideck.launcher.types.errors import GameFailedError
+from unifideck.stores.battlenet import paths as store_paths
 
 
 async def _noop(*_a: Any, **_k: Any) -> None:
     """Stand in for a coroutine whose effect this test does not exercise."""
-    return None
+    return
 
 
 class _Ctx:
@@ -173,6 +174,29 @@ def test_a_proven_family_wins_over_a_stale_one(
     assert client.resolve_family("fenris") == "Fen"
 
 
+def test_a_version_the_client_only_selects_is_read_from_the_id_map(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Measured on the client, and the reason this flag exists:
+
+    ``launch WoWC`` sets the active product to ``WoW_wow_classic_era`` and
+    stops there, where ``launch W3`` continues to ``LaunchBinary``. So for
+    any version that is not the program's retail product, no game process
+    is evidence of nothing — the user has still to press Play.
+    """
+    import json
+
+    path = tmp_path / "map.json"
+    path.write_text(json.dumps({
+        "wow": {"family": "WoWC", "client_selects": True},
+        "w3": {"family": "W3"},
+    }))
+    monkeypatch.setattr(client, "id_map_path", lambda p=path: p)
+    assert client.client_selects_version("wow") is True
+    assert client.client_selects_version("w3") is False
+    assert client.client_selects_version("unknown") is False
+
+
 def test_missing_family_is_a_hard_failure_not_a_bare_client_open(
     plan: _Plan, stub: dict, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -215,7 +239,7 @@ def test_phase_c_uses_proton_verb_run(
 ) -> None:
     """The single most load-bearing line: waitforexitandrun deadlocks."""
     monkeypatch.setattr(handler, "resolve_family", lambda uid: "Fen")
-    monkeypatch.setattr(handler, "_issue_exec", _record_exec(stub))
+    monkeypatch.setattr(bnet_exec, "issue_exec", _record_exec(stub))
     _arm(monkeypatch, ready=True, game="4242")
     assert asyncio.run(handler.battlenet_launch(plan)) == 0
     command, env = stub["exec"][0]
@@ -241,7 +265,7 @@ def test_only_one_argument_is_passed(
 ) -> None:
     """NSL #957: a conflicting battlenet:// arg opens the launcher instead."""
     monkeypatch.setattr(handler, "resolve_family", lambda uid: "Fen")
-    monkeypatch.setattr(handler, "_issue_exec", _record_exec(stub))
+    monkeypatch.setattr(bnet_exec, "issue_exec", _record_exec(stub))
     _arm(monkeypatch, ready=True, game="1")
     asyncio.run(handler.battlenet_launch(plan))
     command, _ = stub["exec"][0]
@@ -254,7 +278,7 @@ def test_silent_failure_is_detected(
 ) -> None:
     """The D4 -> Fen case: command accepted, nothing launched, rc says 0."""
     monkeypatch.setattr(handler, "resolve_family", lambda uid: "D4")
-    monkeypatch.setattr(handler, "_issue_exec", _record_exec(stub))
+    monkeypatch.setattr(bnet_exec, "issue_exec", _record_exec(stub))
     _arm(monkeypatch, ready=True, game=None)
     with pytest.raises(GameFailedError) as excinfo:
         asyncio.run(handler.battlenet_launch(plan))
@@ -285,7 +309,7 @@ def test_a_running_client_is_not_started_twice(
     plan: _Plan, stub: dict, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(handler, "resolve_family", lambda uid: "Fen")
-    monkeypatch.setattr(handler, "_issue_exec", _record_exec(stub))
+    monkeypatch.setattr(bnet_exec, "issue_exec", _record_exec(stub))
     _arm(monkeypatch, ready=True, game="7")
     asyncio.run(handler.battlenet_launch(plan))
     assert stub["spawned"] == 0
@@ -317,7 +341,7 @@ def test_the_prefix_is_prepared_before_the_client_starts(
     live client's prefix is discarded without an error.
     """
     monkeypatch.setattr(handler, "resolve_family", lambda uid: "Fen")
-    monkeypatch.setattr(handler, "_issue_exec", _record_exec(stub))
+    monkeypatch.setattr(bnet_exec, "issue_exec", _record_exec(stub))
     order = _record_startup(monkeypatch)
     _arm(monkeypatch, ready=True, game="7")
     # Ready only *after* we start it: this is the cold-client path.
@@ -341,7 +365,7 @@ def test_the_tweaks_never_run_before_the_injection(
     settings merge exists to fix, reintroduced by a swapped pair of lines.
     """
     monkeypatch.setattr(handler, "resolve_family", lambda uid: "Fen")
-    monkeypatch.setattr(handler, "_issue_exec", _record_exec(stub))
+    monkeypatch.setattr(bnet_exec, "issue_exec", _record_exec(stub))
     order = _record_startup(monkeypatch)
     _arm(monkeypatch, ready=True, game="7")
     monkeypatch.setattr(handler.watch, "client_ready", lambda p: False)
@@ -360,7 +384,7 @@ def test_a_client_already_up_is_never_written_underneath(
     change that never reached disk.
     """
     monkeypatch.setattr(handler, "resolve_family", lambda uid: "Fen")
-    monkeypatch.setattr(handler, "_issue_exec", _record_exec(stub))
+    monkeypatch.setattr(bnet_exec, "issue_exec", _record_exec(stub))
     order = _record_startup(monkeypatch)
     _arm(monkeypatch, ready=True, game="7")
 
@@ -725,8 +749,8 @@ def test_phase_c_opts_out_of_the_wineserver_reap(
         seen.update(kwargs)
         return 0
 
-    monkeypatch.setattr(handler, "run_umu_with_retry", fake_run)
-    asyncio.run(handler._issue_exec(plan, Path("/c/Battle.net.exe"), "launch Fen"))
+    monkeypatch.setattr(bnet_exec, "run_umu_with_retry", fake_run)
+    asyncio.run(bnet_exec.issue_exec(plan, Path("/c/Battle.net.exe"), "launch Fen"))
 
     assert seen["reap_wineserver"] is False
     assert seen["max_attempts"] == 1

@@ -51,7 +51,23 @@ def _game(uid: str, family: str | None) -> Game:
 
 def test_family_updates_extracts_uid_to_family() -> None:
     updates = family_updates([_game("fenris", "Fen"), _game("s1", "S1")])
-    assert updates == {"fenris": {"family": "Fen"}, "s1": {"family": "S1"}}
+    assert updates == {
+        "fenris": {"family": "Fen", "client_selects": False},
+        "s1": {"family": "S1", "client_selects": False},
+    }
+
+
+def test_a_version_the_client_only_selects_is_recorded_as_such() -> None:
+    """The launcher reads the id map and nothing else.
+
+    Without this it treats "the client is showing Classic, waiting for
+    Play" as a failed launch.
+    """
+    game = _game("wow", "WoWC")
+    game.metadata["client_selects"] = True
+    assert family_updates([game]) == {
+        "wow": {"family": "WoWC", "client_selects": True},
+    }
 
 
 def test_a_game_without_a_family_is_skipped_not_written_as_none() -> None:

@@ -40,17 +40,16 @@ from typing import Any
 
 from unifideck.core.types.domain import Game
 
+from .install_state import index_by_uid, normalize_uid, variant_install_rows
 from .ownership import (
     AccountFacts,
     InstalledGame,
     MergedCatalog,
     evaluate_catalog,
     read_catalog,
-    read_installed,
     read_licences,
 )
 from .ownership.pub_catalog import CatalogEntry
-from .product_db import read_product_db
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +76,7 @@ def _game_from(
     launcher_path: str,
     uid: str | None = None,
     presumed: bool = False,
+    versions_installed: int = 0,
 ) -> Game | None:
     # An explicit uid wins: an installed game the catalog does not describe
     # still has one, and deriving it from a missing entry would drop the
@@ -89,6 +89,15 @@ def _game_from(
         return None
 
     name = catalog.display_name(program) or (installed.name if installed else None) or program
+    # A version other than the program's own needs its own family code, and
+    # the client will not auto-launch it: measured, 'launch WoW' sets the
+    # client to WoW_retail (Install, over a finished Classic install) while
+    # 'launch WoWC' selects WoW_wow_classic_era and waits for the user's
+    # Play. Retail keeps the proven auto-launching path.
+    version_family = entry.launch_family_for(installed.uid) if entry and installed else None
+    # Several versions on disk is the other case the user must resolve: the
+    # client shows the version picker, so we select and let them press Play.
+    client_selects = bool(version_family) or versions_installed > 1
     from unifideck.services.shortcut.games_map import generate_app_id
 
     return Game(
@@ -104,10 +113,17 @@ def _game_from(
         icon_url=installed.logo_art_url if installed else None,
         hero_url=installed.box_art_url if installed else None,
         metadata={
-            "family": program,
+            "family": version_family or program,
+            # True when the client will only *select* this version and the
+            # user presses Play there, so the launcher must not report a
+            # failure when no game process appears.
+            "client_selects": client_selects,
             # Diagnostic only, deliberately not a tag: tags render as pills
             # in the UI, and "presumed" is our bookkeeping, not the user's.
             "ownership": "presumed" if presumed else "granted",
+            # Which version of this title is on disk, when it is not the
+            # tile's own uid — Classic Era under the World of Warcraft tile.
+            "installed_uid": installed.uid if installed else None,
             "title_id": entry.title_id if entry else None,
             "version": installed.version if installed else None,
             "last_played_ms": installed.last_played_ms if installed else None,
@@ -116,7 +132,7 @@ def _game_from(
 
 
 def family_updates(games: list[Game]) -> dict[str, dict[str, Any]]:
-    """``uid -> {"family": …}`` for every game whose family the catalog knew.
+    """``uid -> {"family": …, "client_selects": …}`` per game the catalog knew.
 
     The family code is the ``--exec`` argument the client needs and it lives
     only here, in the catalog join — the launcher runs out-of-process and
@@ -128,7 +144,13 @@ def family_updates(games: list[Game]) -> dict[str, dict[str, Any]]:
     for game in games:
         family = game.metadata.get("family") if game.metadata else None
         if isinstance(family, str) and family and game.store_game_id:
-            updates[game.store_game_id] = {"family": family}
+            updates[game.store_game_id] = {
+                "family": family,
+                # Recorded alongside, because the launcher reads only the id
+                # map: which family is right and whether it auto-launches are
+                # the same fact about the installed version.
+                "client_selects": bool(game.metadata.get("client_selects")),
+            }
     return updates
 
 
@@ -159,97 +181,6 @@ def family_from_catalog(catalog: MergedCatalog, uid: str) -> str | None:
         if candidate and normalize_uid(candidate) == wanted:
             return entry.program_id
     return None
-
-
-def normalize_uid(uid: str) -> str:
-    """The join key for a Battle.net uid, case-folded.
-
-    Blizzard's own catalog is internally inconsistent about uid case. The PUB
-    fragments spell Diablo's retail uid ``D1``, Warcraft I's ``W1`` and
-    Warcraft II's ``W2``, while everything the *client* writes — ``product.db``,
-    ``aggregate.json``, the Agent logs — is lowercase throughout. Joining the
-    two case-sensitively reports exactly those titles as never installed: a
-    real Diablo install finished on disk at 13:04, ``detect()`` never fired
-    because ``product.db`` says ``d1`` and we asked for ``D1``, and five
-    minutes later the watchdog failed it with "The install was never finished
-    in Battle.net".
-
-    **Only the join is normalized.** The uid we emit as ``store_game_id`` keeps
-    its original case, because that string is what every released user's Steam
-    shortcut is keyed on (see :mod:`unifideck.services.shortcut.games_map`) —
-    re-keying it would strand their playtime, categories and artwork. The id
-    map keeps its case for the same reason and needs no change: it is looked up
-    with the same catalog uid it was written with, so it is already
-    self-consistent, and the out-of-process launcher reads it the same way.
-    """
-    return uid.lower()
-
-
-def install_row_for(
-    state: dict[str, InstalledGame], uid: str,
-) -> InstalledGame | None:
-    """Look one uid up in an :func:`install_state_by_uid` mapping.
-
-    Exists so the lookup side of the join can only be spelled once. Both
-    callers — the library's ``install_row`` and the install watcher's ``row``
-    — must normalize identically, and a second hand-written ``state.get(...)``
-    is how that silently stops being true.
-    """
-    return state.get(normalize_uid(uid))
-
-
-def _index_by_uid(installed: dict[str, InstalledGame]) -> dict[str, InstalledGame]:
-    """Re-key install state on uid.
-
-    ``aggregate.json`` and ``product.db`` are keyed on the product CODE
-    (``hsb``) while the catalog addresses titles by uid (``hs_beta``). The
-    uid is the only field common to both, so the join has to go through it —
-    matching on code silently reports every installed game as not installed.
-
-    Keys are normalized through :func:`normalize_uid`; look them up with
-    :func:`install_row_for`, never with a bare ``.get``.
-    """
-    by_uid: dict[str, InstalledGame] = {}
-    for game in installed.values():
-        if game.uid:
-            by_uid[normalize_uid(game.uid)] = game
-    return by_uid
-
-
-async def install_row(
-    game_id: str, prefix: Path | None,
-) -> InstalledGame | None:
-    """This game's row in the client's install records, or ``None``.
-
-    Keyed on the uid asked for. The earlier form returned the *first* game
-    in the prefix, which is only ever right by accident — a prefix that
-    picked up a second Blizzard title reported that one's path and size
-    under this game's id.
-
-    Moved off the store (2026-08-26) for its LOC cap; it reads the same
-    client state as everything else here. The caller resolves the prefix,
-    since only it holds the id map.
-    """
-    from . import paths
-
-    if prefix is None:
-        return None
-    drive_c = paths.drive_c(prefix)
-    if drive_c is None:
-        return None
-    state = await asyncio.to_thread(install_state_by_uid, drive_c, prefix)
-    return install_row_for(state, game_id)
-
-
-def install_state_by_uid(drive_c: Path, prefix: Path) -> dict[str, InstalledGame]:
-    """Install state for one prefix, keyed the way the rest of the code asks.
-
-    The install watcher needs to ask about *one* uid — "is the title the user
-    pressed Install on ready yet" — and must not re-derive the code→uid join
-    to do it. Getting that join wrong reports every installed game as not
-    installed, which is the regression ``_index_by_uid`` exists to prevent.
-    """
-    return _index_by_uid(read_install_state(drive_c, prefix))
 
 
 def _presumed_facts(catalog: MergedCatalog, facts: AccountFacts) -> AccountFacts:
@@ -347,9 +278,15 @@ def build_library(
     """Join ownership, catalog metadata and install state into Games."""
     granted, presumed = grant_ownership(catalog, facts)
     _log_ownership_inputs(catalog, facts, granted, presumed)
-    by_uid = _index_by_uid(installed)
+    by_uid = index_by_uid(installed)
     games = _granted_games(granted, catalog, by_uid, launcher_path, presumed=presumed)
     seen = {normalize_uid(g.store_game_id) for g in games}
+    # A tile that matched a variant has consumed that install; without this
+    # the orphan sweep re-adds Classic Era as a second World of Warcraft.
+    seen |= {
+        normalize_uid(str(g.metadata["installed_uid"]))
+        for g in games if g.metadata and g.metadata.get("installed_uid")
+    }
     games.extend(_orphan_installed(installed, catalog, seen, launcher_path))
     return games
 
@@ -370,11 +307,14 @@ def _granted_game(
         logger.info("[Battlenet] skipping %s — catalog lists no Windows build", program)
         return None
     uid = entry.uid_for() if entry else None
+    candidates = entry.known_uids() if entry else ((uid,) if uid else ())
+    rows = variant_install_rows(by_uid, candidates)
     return _game_from(
         program,
         entry,
         catalog,
-        install_row_for(by_uid, uid) if uid else None,
+        max(rows, key=lambda r: (r.is_ready, r.last_played_ms or 0)) if rows else None,
+        versions_installed=sum(1 for row in rows if row.is_ready),
         free_to_play=any(p.is_free_to_play for p in products),
         launcher_path=launcher_path,
         presumed=presumed,
@@ -490,8 +430,3 @@ async def read_library(
     return build_library(
         catalog, facts, installed, launcher_path=launcher_path,
     )
-
-
-def read_install_state(drive_c: Path, prefix: Path) -> dict[str, InstalledGame]:
-    """Installed state for one prefix, with host paths resolved."""
-    return read_installed(drive_c, read_product_db(drive_c), prefix=prefix)

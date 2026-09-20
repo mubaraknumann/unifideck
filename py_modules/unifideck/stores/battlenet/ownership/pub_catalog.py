@@ -73,6 +73,12 @@ class CatalogEntry:
     default_product_type: str = "retail"
     # product type -> uid, e.g. {"retail": "hs_beta", "alpha": "hs_alpha"}
     type_uids: dict[str, str] = field(default_factory=dict)
+    # product type -> the family code that selects it, where it differs from
+    # the program id: {"wow_classic_era": "WoWC"}. Blizzard calls it
+    # ``override_product_id``; it is the only way to reach a version other
+    # than retail, because ``--exec=launch WoW`` resets the client to
+    # ``WoW_retail`` whatever the user had selected.
+    type_launch_families: dict[str, str] = field(default_factory=dict)
     genre_key: str | None = None
     handheld_status: tuple[str, ...] = ()
     # Platforms the client will install this title on, e.g. ('win',). The
@@ -91,6 +97,39 @@ class CatalogEntry:
         must not cost the user a game they own.
         """
         return not self.supported_platforms or "win" in self.supported_platforms
+
+    def launch_family_for(self, uid: str | None) -> str | None:
+        """The family code that selects the version installed as ``uid``.
+
+        ``None`` when that version is the program's own (retail) one, for
+        which the program id is the family. Measured: the client answers
+        ``launch WoWC`` with ``Active product set to: WoW_wow_classic_era``
+        and ``launch WoW`` with ``WoW_retail`` — so an installed Classic
+        launched through the program id lands the user on a retail page
+        offering Install.
+        """
+        if not uid:
+            return None
+        target = uid.casefold()
+        for product_type, type_uid in self.type_uids.items():
+            if type_uid.casefold() == target:
+                return self.type_launch_families.get(product_type)
+        return None
+
+    def known_uids(self) -> tuple[str, ...]:
+        """Every uid this title can be installed as, the tile's own first.
+
+        One program ships many versions, and the client records whichever
+        the user actually installed: World of Warcraft lists 45 uids, and a
+        measured Classic install wrote ``wow_classic_era`` where the tile
+        addresses ``wow``. A join that knows only the retail uid reports
+        that install as *not installed* and offers Install again.
+        """
+        ordered: list[str] = []
+        for uid in (self.uid_for(), *self.type_uids.values(), *self.install_uids):
+            if uid and uid not in ordered:
+                ordered.append(uid)
+        return tuple(ordered)
 
     def uid_for(self, product_type: str | None = None) -> str | None:
         """The uid to install/launch for a product type, defaulting to retail."""
@@ -134,6 +173,19 @@ class MergedCatalog:
         for candidate in self.entries.values():
             if candidate.program_id == product_id:
                 return candidate
+        return None
+
+    def entry_for_uid(self, uid: str) -> CatalogEntry | None:
+        """The title that installs as this uid, in any of its versions.
+
+        The reverse of :meth:`CatalogEntry.known_uids`, for callers holding
+        an install uid rather than a product id — ``wow_classic_era`` is
+        World of Warcraft, though no product is named that.
+        """
+        target = uid.casefold()
+        for entry in self.entries.values():
+            if any(known.casefold() == target for known in entry.known_uids()):
+                return entry
         return None
 
     def text(self, key: str | None, locale: str = DEFAULT_LOCALE) -> str | None:
@@ -189,6 +241,19 @@ def _type_uids(base: dict[str, object]) -> dict[str, str]:
     return out
 
 
+def _type_launch_families(base: dict[str, object]) -> dict[str, str]:
+    types = base.get("types")
+    if not isinstance(types, dict):
+        return {}
+    out: dict[str, str] = {}
+    for product_type, cfg in types.items():
+        if isinstance(product_type, str) and isinstance(cfg, dict):
+            override = cfg.get("override_product_id")
+            if isinstance(override, str) and override:
+                out[product_type] = override
+    return out
+
+
 def _install_uids(fragment: dict[str, object]) -> tuple[str, ...]:
     installs = fragment.get("installs")
     if not isinstance(installs, dict):
@@ -218,6 +283,7 @@ def _entry_from_product(product: object) -> CatalogEntry | None:
         title_id=title_id if isinstance(title_id, int) else None,
         default_product_type=str(base.get("default_product_type") or "retail"),
         type_uids=_type_uids(base),
+        type_launch_families=_type_launch_families(base),
         genre_key=base.get("genre") if isinstance(base.get("genre"), str) else None,
         handheld_status=tuple(h for h in (handheld or []) if isinstance(h, str)),
         supported_platforms=tuple(p for p in (platforms or []) if isinstance(p, str)),
@@ -238,6 +304,7 @@ def _absorb_entry(catalog: MergedCatalog, entry: CatalogEntry) -> None:
         catalog.entries[entry.product_id] = entry
         return
     merged_types = {**entry.type_uids, **existing.type_uids}
+    merged_families = {**entry.type_launch_families, **existing.type_launch_families}
     catalog.entries[entry.product_id] = CatalogEntry(
         product_id=existing.product_id,
         program_id=existing.program_id or entry.program_id,
@@ -245,6 +312,7 @@ def _absorb_entry(catalog: MergedCatalog, entry: CatalogEntry) -> None:
         title_id=existing.title_id if existing.title_id is not None else entry.title_id,
         default_product_type=existing.default_product_type or entry.default_product_type,
         type_uids=merged_types,
+        type_launch_families=merged_families,
         genre_key=existing.genre_key or entry.genre_key,
         handheld_status=existing.handheld_status or entry.handheld_status,
         supported_platforms=existing.supported_platforms or entry.supported_platforms,
