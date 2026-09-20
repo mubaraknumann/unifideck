@@ -75,10 +75,22 @@ class CatalogEntry:
     type_uids: dict[str, str] = field(default_factory=dict)
     genre_key: str | None = None
     handheld_status: tuple[str, ...] = ()
+    # Platforms the client will install this title on, e.g. ('win',). The
+    # catalog pairs it with 'unsupported_platform_behavior': 'disabled_install',
+    # so Blizzard itself gates installs on this field.
+    supported_platforms: tuple[str, ...] = ()
     # Every uid the client can install for this title. Fallback only: WoW
     # lists 45 of these (including 'wow_ne_vendor11'), so `types` is
     # authoritative wherever it answers.
     install_uids: tuple[str, ...] = ()
+
+    def runs_on_windows(self) -> bool:
+        """True unless the catalog says this is a non-Windows title.
+
+        Absent data answers True: a fragment that never carried platforms
+        must not cost the user a game they own.
+        """
+        return not self.supported_platforms or "win" in self.supported_platforms
 
     def uid_for(self, product_type: str | None = None) -> str | None:
         """The uid to install/launch for a product type, defaulting to retail."""
@@ -197,6 +209,7 @@ def _entry_from_product(product: object) -> CatalogEntry | None:
     if not isinstance(product_id, str) or not product_id:
         product_id = program_id
     handheld = base.get("handheld_status")
+    platforms = base.get("supported_platforms")
     title_id = base.get("title_id")
     return CatalogEntry(
         product_id=product_id,
@@ -207,6 +220,7 @@ def _entry_from_product(product: object) -> CatalogEntry | None:
         type_uids=_type_uids(base),
         genre_key=base.get("genre") if isinstance(base.get("genre"), str) else None,
         handheld_status=tuple(h for h in (handheld or []) if isinstance(h, str)),
+        supported_platforms=tuple(p for p in (platforms or []) if isinstance(p, str)),
     )
 
 
@@ -233,6 +247,7 @@ def _absorb_entry(catalog: MergedCatalog, entry: CatalogEntry) -> None:
         type_uids=merged_types,
         genre_key=existing.genre_key or entry.genre_key,
         handheld_status=existing.handheld_status or entry.handheld_status,
+        supported_platforms=existing.supported_platforms or entry.supported_platforms,
         install_uids=existing.install_uids
         + tuple(u for u in entry.install_uids if u not in existing.install_uids),
     )

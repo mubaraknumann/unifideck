@@ -10,10 +10,10 @@ store, and none of the NGDP projects ship a downloader.
 Ownership is read from the **client's own local state**, not from the web:
 ``CachedData.db`` holds the account's licence ids, and the cached PUB
 catalog turns them into playable titles by evaluating a small rule
-language. Those rules also need ``game_account`` facts for free-to-play and
-subscription titles, which would come from ``games-and-subs``. **Nothing
-fetches them**, so those titles are missing — see
-:meth:`_game_account_programs` and audit §3.5 finding A.
+language. Those rules gate free-to-play and subscription titles on
+``game_account`` facts that no local file carries and no shippable endpoint
+returns, so ``library.grant_ownership`` presumes one for every catalog
+program: that set is exactly the titles any Battle.net account can play.
 
 Consequence: the library is unknown until the user has signed into the
 client once. That is not a new constraint — install and launch already
@@ -157,26 +157,6 @@ class BattlenetStore(WrapperSessionHooks, StoreBase):
     def _launcher_path(self) -> str:
         base = Path(self._plugin_dir) if self._plugin_dir else Path()
         return str(base / "bin" / "unifideck-launcher")
-
-    def _game_account_programs(self) -> frozenset[str]:
-        """Programs the account has a game account for.
-
-        **Always empty today: a gap, not a safe default.** Nothing writes
-        the ``game_accounts`` cache this reads — the consumer shipped, the
-        producer never did (§3.5 A) — so every free-to-play and
-        subscription title is dropped. ``library.py``'s header measures 17
-        programs from licences against 22 with game accounts;
-        ``count_game_account_gated`` logs the loss each sync.
-        """
-        cached = self._cached_game_accounts()
-        return frozenset(cached)
-
-    def _cached_game_accounts(self) -> set[str]:
-        try:
-            raw = self._cache.get("battlenet", "game_accounts")
-        except Exception:  # cache miss must never break a library read
-            return set()
-        return set(raw) if isinstance(raw, (list, set, tuple)) else set()
 
     # -- StoreBase ---------------------------------------------------------
 
@@ -370,7 +350,6 @@ class BattlenetStore(WrapperSessionHooks, StoreBase):
 
         games = await library_mod.read_library(
             drive_c,
-            game_account_programs=self._game_account_programs(),
             collect_installed=self._collect_installed,
             launcher_path=self._launcher_path(),
         )

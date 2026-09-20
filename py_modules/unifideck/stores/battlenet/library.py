@@ -2,19 +2,26 @@
 
 py_modules/unifideck/stores/battlenet/library.py
 
-Joins the three sources the Phase 0 spike identified::
+Joins what the client leaves on disk::
 
     licences (CachedData.db)  ─┐
                                ├─> PUB catalog rules ─> playable programs
-    game accounts (web/opt)   ─┘
+    presumed game accounts    ─┘
                                         │
     aggregate.json + product.db ────────┴─> installed overlay
 
-Both fact sources are required. Licences alone miss every free-to-play and
-subscription title, because those match on ``game_account`` rather than
-``license_id``; the web endpoint alone misses everything purchased.
-Measured on one real account: licences gave 17 programs, licences plus game
-accounts gave 22, and every one resolved to a name and an install uid.
+Licences alone miss every free-to-play and subscription title, because those
+match on ``game_account`` rather than ``license_id``. **Game accounts are not
+knowable here**: ``CachedData.db`` holds licences and a battle tag and nothing
+else, and the web endpoint that carries them needs an OAuth token we cannot
+ship. Measured on one real account, that gap cost 7 of 24 titles — WoW,
+Hearthstone, Overwatch, Heroes of the Storm, Diablo Immortal and two more.
+
+So :func:`grant_ownership` presumes a game account for every catalog program:
+the gated set is exactly the titles any Battle.net account can install and
+play. Two guards keep the presumption from inventing dead tiles — a program
+with no install uid is skipped, and so is one the catalog gives no Windows
+build.
 
 The library is keyed on the **uid**, not the family code. A uid is stable
 (``fenris`` has never changed) while Blizzard renames families — Diablo IV
@@ -69,6 +76,7 @@ def _game_from(
     free_to_play: bool,
     launcher_path: str,
     uid: str | None = None,
+    presumed: bool = False,
 ) -> Game | None:
     # An explicit uid wins: an installed game the catalog does not describe
     # still has one, and deriving it from a missing entry would drop the
@@ -97,6 +105,9 @@ def _game_from(
         hero_url=installed.box_art_url if installed else None,
         metadata={
             "family": program,
+            # Diagnostic only, deliberately not a tag: tags render as pills
+            # in the UI, and "presumed" is our bookkeeping, not the user's.
+            "ownership": "presumed" if presumed else "granted",
             "title_id": entry.title_id if entry else None,
             "version": installed.version if installed else None,
             "last_played_ms": installed.last_played_ms if installed else None,
@@ -241,40 +252,55 @@ def install_state_by_uid(drive_c: Path, prefix: Path) -> dict[str, InstalledGame
     return _index_by_uid(read_install_state(drive_c, prefix))
 
 
-def count_game_account_gated(
-    catalog: MergedCatalog, facts: AccountFacts,
-) -> int:
-    """How many extra programs would be granted if game-account facts existed.
-
-    A lower bound on the titles this account is losing to
-    :attr:`AccountFacts.game_account_programs` being empty. Measured by
-    re-evaluating the same catalog with every program in it assumed to have
-    a game account, and diffing the granted set — a lower bound rather than
-    an exact figure because a ``game_account`` rule may name a program id
-    that is not itself a catalog key.
-
-    This exists because the gap is otherwise **completely silent**: nothing
-    in the tree ever writes the ``game_accounts`` cache the store reads, so
-    ``game_account_programs`` is always empty, every free-to-play and
-    subscription title is dropped, and the library simply looks smaller
-    than the account. See audit §3.5 finding A.
-    """
-    if facts.game_account_programs:
-        return 0
-    probe = AccountFacts(
+def _presumed_facts(catalog: MergedCatalog, facts: AccountFacts) -> AccountFacts:
+    """``facts`` with a game account assumed for every program in the catalog."""
+    return AccountFacts(
         licence_ids=facts.licence_ids,
         game_account_programs=frozenset(catalog.program_configurations),
         flags=facts.flags,
     )
-    with_accounts = evaluate_catalog(catalog.program_configurations, probe)
-    without = evaluate_catalog(catalog.program_configurations, facts)
-    return max(0, len(with_accounts) - len(without))
+
+
+def grant_ownership(
+    catalog: MergedCatalog, facts: AccountFacts,
+) -> tuple[dict[str, frozenset[Any]], frozenset[str]]:
+    """Programs the rules grant, plus the subset granted presumptively.
+
+    Free-to-play and subscription titles match on ``game_account`` rather
+    than ``license_id``, and there is no way to learn which game accounts
+    this user holds: the client's ``CachedData.db`` carries licences but no
+    game accounts, and the web endpoint needs an OAuth token we cannot ship.
+    On one real account that cost 7 of 24 titles — WoW, Hearthstone,
+    Overwatch, Heroes of the Storm, Diablo Immortal and two more.
+
+    So a game account is *presumed* for every catalog program: any
+    Battle.net account can install and play the gated set. Only program
+    **keys** absent from the base result are added, never merged into one
+    already granted, which is what makes this structurally unable to shrink
+    the library: a ``not{game_account: …}`` branch or a ``run_first_rule``
+    alternative can never be re-litigated for a title the licences already
+    won, and a presumed ``play_for_free`` tag can never land on a title the
+    user actually bought.
+
+    Returns ``(granted, presumed)``; ``presumed`` is a subset of the keys of
+    ``granted``.
+    """
+    base = evaluate_catalog(catalog.program_configurations, facts)
+    if facts.game_account_programs:
+        # Real facts beat a presumption; a future producer needs no change here.
+        return base, frozenset()
+    probe = evaluate_catalog(catalog.program_configurations, _presumed_facts(catalog, facts))
+    presumed = frozenset(program for program in probe if program not in base)
+    granted = dict(base)
+    granted.update({program: probe[program] for program in presumed})
+    return granted, presumed
 
 
 def _log_ownership_inputs(
     catalog: MergedCatalog,
     facts: AccountFacts,
     granted: dict[str, frozenset[Any]],
+    presumed: frozenset[str],
 ) -> None:
     """Log every input the library size is a function of, once per sync.
 
@@ -282,9 +308,9 @@ def _log_ownership_inputs(
     no way to say *which* of the three inputs was short, and neither did we:
     the catalog read, the account facts and the granted set were all silent.
     Each of these is a plain count, so this is cheap enough to run every sync
-    and is the only thing that distinguishes the known always-empty facts
-    (register item 29, and ``flags``, which has no producer either) from a PUB
-    cache the client had not finished writing when the first sync ran.
+    and is the only thing that distinguishes an always-empty fact source
+    (``flags`` has no producer) from a PUB cache the client had not finished
+    writing when the first sync ran.
 
     A real prefix measures ~254 fragments, 38 of them carrying program rules;
     a first sync racing the client sees far fewer. Print both so the two are
@@ -301,6 +327,14 @@ def _log_ownership_inputs(
         catalog.fragment_count, len(catalog.program_configurations),
         len(catalog.entries), len(granted),
     )
+    if presumed:
+        # Name them: a report of "a game I don't own appeared" is otherwise
+        # a second round trip to find out which presumption produced it.
+        logger.info(
+            "[Battlenet] %d program(s) granted presumptively (game-account "
+            "gated; any Battle.net account can play these): %s",
+            len(presumed), ", ".join(sorted(presumed)),
+        )
 
 
 def build_library(
@@ -311,21 +345,40 @@ def build_library(
     launcher_path: str,
 ) -> list[Game]:
     """Join ownership, catalog metadata and install state into Games."""
-    granted = evaluate_catalog(catalog.program_configurations, facts)
-    _log_ownership_inputs(catalog, facts, granted)
-    gated = count_game_account_gated(catalog, facts)
-    if gated:
-        logger.warning(
-            "[Battlenet] %d program(s) need game-account facts we do not "
-            "have — free-to-play and subscription titles are missing from "
-            "this library (no writer for the game_accounts cache)",
-            gated,
-        )
+    granted, presumed = grant_ownership(catalog, facts)
+    _log_ownership_inputs(catalog, facts, granted, presumed)
     by_uid = _index_by_uid(installed)
-    games = _granted_games(granted, catalog, by_uid, launcher_path)
+    games = _granted_games(granted, catalog, by_uid, launcher_path, presumed=presumed)
     seen = {normalize_uid(g.store_game_id) for g in games}
     games.extend(_orphan_installed(installed, catalog, seen, launcher_path))
     return games
+
+
+def _granted_game(
+    program: str,
+    products: frozenset[Any],
+    catalog: MergedCatalog,
+    by_uid: dict[str, InstalledGame],
+    launcher_path: str,
+    *,
+    presumed: bool,
+) -> Game | None:
+    entry = catalog.entry_for(program)
+    if presumed and entry is not None and not entry.runs_on_windows():
+        # A presumption must not invent a tile for a title the client will
+        # not even install here (mobile- and macOS-only records exist).
+        logger.info("[Battlenet] skipping %s — catalog lists no Windows build", program)
+        return None
+    uid = entry.uid_for() if entry else None
+    return _game_from(
+        program,
+        entry,
+        catalog,
+        install_row_for(by_uid, uid) if uid else None,
+        free_to_play=any(p.is_free_to_play for p in products),
+        launcher_path=launcher_path,
+        presumed=presumed,
+    )
 
 
 def _granted_games(
@@ -333,21 +386,27 @@ def _granted_games(
     catalog: MergedCatalog,
     by_uid: dict[str, InstalledGame],
     launcher_path: str,
+    *,
+    presumed: frozenset[str] = frozenset(),
 ) -> list[Game]:
+    """One Game per granted program, deduped by install uid.
+
+    Owned programs are processed before presumed ones, and a uid already
+    claimed is skipped: two program keys can resolve to the same entry (a
+    variant resolves to its parent), and two Games sharing a ``store_game_id``
+    derive the same Steam app id — one shortcut fighting itself.
+    """
     games: list[Game] = []
-    for program, products in granted.items():
-        entry = catalog.entry_for(program)
-        uid = entry.uid_for() if entry else None
-        game = _game_from(
-            program,
-            entry,
-            catalog,
-            install_row_for(by_uid, uid) if uid else None,
-            free_to_play=any(p.is_free_to_play for p in products),
-            launcher_path=launcher_path,
+    seen: set[str] = set()
+    for program in sorted(granted, key=lambda p: (p in presumed, p)):
+        game = _granted_game(
+            program, granted[program], catalog, by_uid, launcher_path,
+            presumed=program in presumed,
         )
-        if game is not None:
-            games.append(game)
+        if game is None or normalize_uid(game.store_game_id) in seen:
+            continue
+        seen.add(normalize_uid(game.store_game_id))
+        games.append(game)
     return games
 
 
@@ -388,19 +447,19 @@ def _orphan_installed(
     return games
 
 
-def read_account_facts(drive_c: Path, game_account_programs: frozenset[str]) -> AccountFacts:
-    """Assemble the account facts the catalog rules are evaluated against."""
+def read_account_facts(drive_c: Path) -> AccountFacts:
+    """Assemble the account facts the catalog rules are evaluated against.
+
+    Licences are the only fact the client stores locally; game accounts are
+    supplied by :func:`grant_ownership`'s presumption instead of read here.
+    """
     licences = read_licences(drive_c)
-    return AccountFacts(
-        licence_ids=licences.licence_ids,
-        game_account_programs=game_account_programs,
-    )
+    return AccountFacts(licence_ids=licences.licence_ids)
 
 
 async def read_library(
     drive_c: Path,
     *,
-    game_account_programs: frozenset[str],
     collect_installed: Callable[[], dict[str, Any]],
     launcher_path: str,
 ) -> list[Game] | None:
@@ -426,9 +485,7 @@ async def read_library(
             "once so it populates; library reported unknown, not empty",
         )
         return None
-    facts = await asyncio.to_thread(
-        read_account_facts, drive_c, game_account_programs,
-    )
+    facts = await asyncio.to_thread(read_account_facts, drive_c)
     installed = await asyncio.to_thread(collect_installed)
     return build_library(
         catalog, facts, installed, launcher_path=launcher_path,

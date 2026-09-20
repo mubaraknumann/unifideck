@@ -304,7 +304,7 @@ Run after **any** change in this programme. These replace the near-identical
 | **DV-J1** | **Make one store fail to answer during a sync** (sign out, or block its network) | Its shortcuts **survive**. The most serious defect in Part 3. | ( ) | |
 | DV-J2 | Move `bin/gogdl` aside, sync | GOG shortcuts survive — the regression path the §3.2 fix opened | ( ) | |
 | DV-J3 | A genuinely **empty** store | Still swept — the phantom-cleanup case that must not be lost | ( ) | |
-| **DV-J4** | **Battle.net library baseline** — record the title count and name the missing F2P/subscription titles | This is a **measurement, not a test**, and it is the precondition for item 29 | ( ) | |
+| **DV-J4** | **Battle.net F2P/subscription titles appear** — force a sync, then compare the tab against the client | Count goes 17 → 24 on the reference account; **none of the original 17 missing** (compare `battlenet_id_map.json`); the log names the presumed programs and no longer warns about game-account facts; one presumed title (WoW or Hearthstone) installs and launches | ( ) | |
 | DV-J5 | Open App Details for an xCloud game | No Install button mounts | ( ) | |
 | DV-J6 | Force the Microsoft install path | Refuses with a **translated** message, and the queue row reaches "failed" | ( ) | |
 | DV-J7 | Install one Ubisoft and one Battle.net game end to end | Works | ( ) | |
@@ -529,8 +529,7 @@ is a step whose **failure would mean a change was wrong**, not merely
 unconfirmed. Record the result in the group table above, not here.
 
 ⚠ **DV-H11 is the only one that can regress an existing install** — read it
-before running it. **DV-J4 is a measurement, not a test**: it produces the
-baseline item 29 needs, so there is no pass/fail, only a recorded number.
+before running it.
 
 | # | Step | What must be true |
 |---|---|---|
@@ -543,7 +542,7 @@ baseline item 29 needs, so there is no pass/fail, only a recorded number.
 | 7. **DV-H11** | **Legacy markers still read as installed** — check a prefix created before this build | Ubisoft games installed on the old plaintext marker are still detected. **The only step that can regress an existing install, and the precondition for item 43.** |
 | 8. **DV-I4** | **GOG token round trip survives the `EncryptedTokenFile` extraction** | Still signed in after a restart. Flagged highest risk of that pass. |
 | 9. **DV-J1** | **Make one store fail to answer during a sync** (sign out, or block its network) | Its shortcuts **survive**. The most serious defect in Part 3. |
-| 10. **DV-J4** | **Battle.net library baseline** — record the title count and name the missing F2P/subscription titles | This is a **measurement, not a test**, and it is the precondition for item 29 |
+| 10. **DV-J4** | **Battle.net F2P/subscription titles appear** — force a sync, compare against the client | 17 → 24, none of the original 17 lost, one presumed title installs and launches. Closes item 29. |
 | 11. **DV-K4** | **Launch a game with NO launch options** | Launches exactly as before. **The regression guard — the one that matters.** |
 | 12. **DV-R1** | Open App Details for a **GOG** and an **Epic** game | Cloud-save UI present on both. This is the regression the old field caused: only Battle.net ever declared it, as `False`, so the two stores that *have* cloud saves both advertised none |
 | 13. **DV-S1** | `systemctl restart plugin_loader`, then open the library | Non-Steam tiles still carry store artwork and metadata — the re-spoof on load is what replaces the deleted persistence |

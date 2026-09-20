@@ -377,6 +377,112 @@ def test_free_to_play_and_handheld_status_become_tags() -> None:
     assert games[0].title == "Hearthstone"
 
 
+def _hearthstone_fragment(**base_extra: Any) -> dict[str, Any]:
+    """A game-account-gated title, the shape the presumption exists for."""
+    return {
+        "fragment_id": "hs",
+        "program_configuration": {"WTCG": {"run_each_rule": [{
+            "match": {"game_account": {"program_id": "WTCG"}},
+            "actions": [
+                {"add_product": {"product_id": {"id": "WTCG", "type": "retail"}}},
+                {"add_tag": {"name": "play_for_free"}},
+            ],
+        }]}},
+        "products": [{"id": "WTCG", "base": {
+            "program_id": "WTCG", "name": "hs#N",
+            "types": {"retail": {"uid": "hs_beta"}}, **base_extra}}],
+        "strings": {"default": {"hs#N": "Hearthstone"}},
+    }
+
+
+def test_a_free_to_play_title_reaches_the_library_without_game_account_facts() -> None:
+    """The shipped bug: no facts existed, so this title never appeared."""
+    catalog = merge_fragments(iter([_hearthstone_fragment()]))
+    games = build_library(catalog, AccountFacts(), {}, launcher_path=LAUNCHER)
+    assert [g.title for g in games] == ["Hearthstone"]
+    assert "free_to_play" in games[0].tags
+    assert games[0].metadata["ownership"] == "presumed"
+
+
+def test_an_owned_title_is_not_labelled_presumed() -> None:
+    games = build_library(
+        _catalog(), AccountFacts(licence_ids=frozenset({1105059})), {},
+        launcher_path=LAUNCHER,
+    )
+    ark = next(g for g in games if g.store_game_id == "ark")
+    assert ark.metadata["ownership"] == "granted"
+
+
+def test_two_programs_resolving_to_one_uid_yield_one_game() -> None:
+    """Same uid twice derives the same app id: one shortcut fighting itself."""
+    fragment = _hearthstone_fragment()
+    fragment["program_configuration"]["WTCG_Variant"] = {"run_each_rule": [{
+        "match": {"game_account": {"program_id": "WTCG_Variant"}},
+        "actions": [{"add_product": {"product_id": {"id": "WTCG", "type": "retail"}}}],
+    }]}
+    fragment["products"].append({"id": "WTCG_Variant", "base": {
+        "program_id": "WTCG_Variant", "name": "hs#N",
+        "types": {"retail": {"uid": "hs_beta"}}}})
+    games = build_library(
+        merge_fragments(iter([fragment])), AccountFacts(), {}, launcher_path=LAUNCHER,
+    )
+    assert [g.store_game_id for g in games] == ["hs_beta"]
+
+
+def test_a_non_windows_program_is_not_granted_presumptively() -> None:
+    """A presumption must not invent a tile the client cannot install."""
+    catalog = merge_fragments(iter([_hearthstone_fragment(supported_platforms=["mac"])]))
+    assert build_library(catalog, AccountFacts(), {}, launcher_path=LAUNCHER) == []
+
+
+def test_a_non_windows_licence_granted_program_keeps_its_tile() -> None:
+    """The platform guard applies to the presumption only, never to ownership."""
+    fragment = _hearthstone_fragment(supported_platforms=["mac"])
+    fragment["program_configuration"]["WTCG"]["run_each_rule"][0]["match"] = {
+        "license_id": 7,
+    }
+    games = build_library(
+        merge_fragments(iter([fragment])),
+        AccountFacts(licence_ids=frozenset({7})), {}, launcher_path=LAUNCHER,
+    )
+    assert [g.store_game_id for g in games] == ["hs_beta"]
+
+
+def test_read_library_grants_a_free_to_play_title_from_a_real_prefix(tmp_path: Path) -> None:
+    """End to end off disk, which is the only way this bug was visible.
+
+    Every other test hand-builds ``AccountFacts``; production never had the
+    game-account facts they supplied, so the library shipped 7 titles short
+    while the suite stayed green.
+    """
+    from unifideck.stores.battlenet.library import read_library
+    from unifideck.stores.battlenet.ownership.licenses import CACHED_DATA_RELATIVE
+    from unifideck.stores.battlenet.ownership.pub_catalog import CACHE_RELATIVE
+
+    drive_c = tmp_path / "drive_c"
+    fragment = drive_c / CACHE_RELATIVE / "ab" / "cdef"
+    fragment.parent.mkdir(parents=True)
+    fragment.write_text(json.dumps(_hearthstone_fragment()), encoding="utf-8")
+
+    cached = drive_c / CACHED_DATA_RELATIVE
+    cached.parent.mkdir(parents=True, exist_ok=True)
+    con = sqlite3.connect(cached)
+    con.execute("CREATE TABLE key_value_store (key TEXT, value TEXT)")
+    con.execute("CREATE TABLE login_cache (name TEXT, environment TEXT, battle_tag TEXT)")
+    con.execute(
+        "INSERT INTO key_value_store VALUES (?, ?)",
+        ("features_cached_data_points", json.dumps({"licenses": [1105059]})),
+    )
+    con.commit()
+    con.close()
+
+    games = asyncio.run(read_library(
+        drive_c, collect_installed=dict, launcher_path=LAUNCHER,
+    ))
+    assert games is not None
+    assert [g.title for g in games] == ["Hearthstone"]
+
+
 def test_titles_without_an_install_uid_are_skipped() -> None:
     """A tile that cannot be installed or launched is a dead tile."""
     catalog = merge_fragments(iter([{

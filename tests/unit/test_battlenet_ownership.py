@@ -263,6 +263,35 @@ def test_type_uids_union_across_partial_fragments() -> None:
     assert cat.entry_for("WoW").uid_for() == "wow"
 
 
+def test_supported_platforms_is_parsed_and_unioned(real_fragment: dict) -> None:
+    """Blizzard gates installs on this field; the presumption follows it."""
+    cat = merge_fragments(iter([real_fragment]))
+    assert cat.entry_for("ARK").supported_platforms == ("win",)
+
+    def frag(base: dict) -> dict:
+        return {
+            "fragment_id": "x",
+            "program_configuration": {"X": {}},
+            "products": [{"id": "X", "base": {"program_id": "X", **base}}],
+        }
+
+    # A later fragment carrying the field must not be lost to an earlier
+    # one that omitted it — the same partial-repeat shape as type uids.
+    cat = merge_fragments(iter([frag({}), frag({"supported_platforms": ["mac"]})]))
+    assert cat.entry_for("X").supported_platforms == ("mac",)
+    assert cat.entry_for("X").runs_on_windows() is False
+
+
+def test_a_title_with_no_platform_data_is_treated_as_windows() -> None:
+    """Absent data must never cost a user a game they own."""
+    cat = merge_fragments(iter([{
+        "fragment_id": "x",
+        "program_configuration": {"X": {}},
+        "products": [{"id": "X", "base": {"program_id": "X"}}],
+    }]))
+    assert cat.entry_for("X").runs_on_windows() is True
+
+
 def test_uid_falls_back_to_installs_when_types_lack_retail() -> None:
     """Real case: no cached WoW fragment carries a retail type."""
     cat = merge_fragments(iter([{
