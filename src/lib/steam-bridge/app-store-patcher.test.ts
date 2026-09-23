@@ -262,6 +262,27 @@ describe("GetAppDetails", () => {
     handle.remove();
   });
 
+  it("answers null, not a made-up object, before Steam has loaded the shortcut's details", async () => {
+    // A partial `{unAppID, strDisplayName, …borrowed}` object made Steam
+    // render App Details early and crash in `BUserHasContentToClaim` with
+    // `vecChildConfigApps is not iterable`.
+    for (const owned of [true, false]) {
+      const win = installStores(owned);
+      const store = win.appDetailsStore as {
+        GetAppDetails: (i: number) => Record<string, unknown> | null;
+      };
+      const steamGetDetails = store.GetAppDetails;
+      store.GetAppDetails = function detailsNotYetLoaded(id) {
+        return id === SHORTCUT ? null : steamGetDetails(id);
+      };
+      const handle = await applyPatch();
+
+      expect(store.GetAppDetails(SHORTCUT)).toBeNull();
+      handle.remove();
+      vi.resetModules();
+    }
+  });
+
   it("still lets shortcut-ownership recognise a mapped shortcut as ours", async () => {
     installStores(true);
     const handle = await applyPatch();

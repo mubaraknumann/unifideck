@@ -108,7 +108,6 @@ interface AppStoreLike {
 
 interface AppDetailsStoreLike {
   GetAppDetails: (id: number) => AppDetails | null;
-  GetAppData?: (id: number) => unknown;
 }
 
 function getAppStore(): AppStoreLike | null {
@@ -215,16 +214,20 @@ function buildDetails(steamAppId: number, raw: AppDetailsRaw): AppDetails {
  *  the same class of bug as returning its `AppOverview` — and drops the
  *  shortcut's `strShortcutExe` / launch options, which
  *  `shortcut-ownership.ts` and Steam's Properties dialog read. So the base
- *  is `own`; only `BORROWED_CONTENT_FIELDS` come from `borrowed`. */
+ *  is `own`; only `BORROWED_CONTENT_FIELDS` come from `borrowed`.
+ *
+ *  No `own` means Steam has not loaded the shortcut's details yet, so the
+ *  answer is null and Steam keeps its loading state. Never make up a details
+ *  object: Steam reads fields we do not know about, and a partial object
+ *  crashed the App Details page with `vecChildConfigApps is not iterable`
+ *  (`BUserHasContentToClaim`). */
 function borrowDetails(
   borrowed: AppDetails | null,
   shortcutAppId: number,
   own: AppDetails | null,
 ): AppDetails | null {
-  if (!borrowed) return own;
-  const merged: AppDetails = own
-    ? { ...own }
-    : { unAppID: shortcutAppId, strDisplayName: "" };
+  if (!borrowed || !own) return own;
+  const merged: AppDetails = { ...own };
   for (const field of BORROWED_CONTENT_FIELDS) {
     if (borrowed[field] !== undefined) merged[field] = borrowed[field];
   }
@@ -385,7 +388,6 @@ export async function applyAppStorePatch(): Promise<PatchHandle> {
   }
   const origGetOverview = appStore.GetAppOverviewByAppID.bind(appStore);
   const origGetDetails = appDetailsStore.GetAppDetails.bind(appDetailsStore);
-  const origGetData = appDetailsStore.GetAppData?.bind(appDetailsStore);
 
   appStore.GetAppOverviewByAppID = (id: number) => {
     const own = origGetOverview(id);
@@ -416,20 +418,9 @@ export async function applyAppStorePatch(): Promise<PatchHandle> {
     const borrowed = origGetDetails(realId) ?? appDetailsCache[realId] ?? null;
     return borrowDetails(borrowed, id, own);
   };
-  if (origGetData) {
-    appDetailsStore.GetAppData = (id: number) => {
-      const realId = lookupRealId(id);
-      if (!realId) return origGetData(id);
-      const own = origGetData(id);
-      if (own) return own;
-      const borrowed =
-        origGetDetails(realId) ?? appDetailsCache[realId] ?? null;
-      const details = borrowDetails(borrowed, id, null);
-      const overview = origGetOverview(id);
-      if (overview || details) return { overview, details };
-      return own;
-    };
-  }
+  // `GetAppData` is deliberately NOT patched. The old patch returned Steam's
+  // own data when present and, only when it was missing, a made-up
+  // `{overview, details}` pair — the same partial-details crash as above.
 
   console.log(
     `[Unifideck Store Patch] active — ${
@@ -441,7 +432,6 @@ export async function applyAppStorePatch(): Promise<PatchHandle> {
     remove: () => {
       appStore.GetAppOverviewByAppID = origGetOverview;
       appDetailsStore.GetAppDetails = origGetDetails;
-      if (origGetData) appDetailsStore.GetAppData = origGetData;
       steamAppIdMappings = {};
       appDetailsCache = {};
       patchedOverviews.clear();
