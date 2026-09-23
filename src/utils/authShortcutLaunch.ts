@@ -129,8 +129,7 @@ const MICROSOFT_AUTH_CONFIG: AuthShortcutConfig = {
 };
 
 /** itch.io signs in on its own site in Edge; butler takes the captured
- *  API key. No storefront action is wired for it this release, so the two
- *  storefront fields exist only to satisfy the shared config shape. */
+ *  API key. Its storefront opens itch.io in the same Edge profile. */
 const ITCH_AUTH_CONFIG: AuthShortcutConfig = {
   store: "itch",
   storeId: "itch:itch-auth",
@@ -332,6 +331,11 @@ export const launchGogStorefrontViaShortcut =
 export const launchAmazonStorefrontViaShortcut =
   (): Promise<AuthShortcutLaunchResult> =>
     launchAuthViaShortcut(AMAZON_AUTH_CONFIG, "storefront");
+
+/** itch.io, signed in by the same Edge profile the sign-in used. */
+export const launchItchStorefrontViaShortcut =
+  (): Promise<AuthShortcutLaunchResult> =>
+    launchAuthViaShortcut(ITCH_AUTH_CONFIG, "storefront");
 
 /** Xbox / Game Pass. See {@link launchEpicStorefrontViaShortcut}. */
 export const launchMicrosoftStorefrontViaShortcut =

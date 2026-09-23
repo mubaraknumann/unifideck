@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import inspect
 
+from unifideck.bootstrap.cache_registry import _STORE_CACHES
 from unifideck.core.store_capabilities import (
     ACHIEVEMENT_STORES,
     BROWSER_STOREFRONT_STORES,
@@ -30,9 +31,10 @@ from unifideck.core.store_capabilities import (
     capability_flags,
 )
 
-ALL_STORES = frozenset(
-    {"epic", "gog", "amazon", "ubisoft", "battlenet", "microsoft"},
-)
+# The real store set (validate_architecture check 2 keeps it equal to the
+# ``stores/*`` directories). It was a hand-written copy that had drifted:
+# GameVault and itch.io were missing.
+ALL_STORES = frozenset(_STORE_CACHES)
 
 
 def test_every_capability_set_names_only_real_stores() -> None:

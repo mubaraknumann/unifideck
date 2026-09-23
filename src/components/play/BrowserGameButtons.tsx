@@ -16,8 +16,11 @@
 import { FC, useCallback } from "react";
 import { DialogButton } from "@decky/ui";
 import { useTranslation } from "react-i18next";
-import { FaCloud, FaGlobe } from "react-icons/fa";
+import { FaCloud, FaGlobe, FaPlay, FaTimes } from "react-icons/fa";
 import { SteamControllerIcon, SteamGearIcon } from "../shared";
+import { useAppRunning } from "../../hooks/useAppRunning";
+import { useGameActions } from "../../hooks/useGameActions";
+import { SteamBridge } from "../../lib/steam-bridge";
 import { launchAppWithControllerLayout } from "../../utils/controllerConfig";
 import { openNativeAppManageMenu } from "../../utils/nativeAppMenu";
 import {
@@ -37,6 +40,8 @@ interface Props {
   /** Where the game opens; used for the openurl fallback. */
   url: string;
 }
+
+const defaultBridge = new SteamBridge();
 
 function openControllerConfig(appId: number): void {
   (
@@ -61,6 +66,11 @@ function openAppSettings(appId: number): void {
 export const BrowserGameButtons: FC<Props> = ({ appId, variant, url }) => {
   const { t } = useTranslation();
   const stream = variant === "stream";
+  // While the Edge window is up the game is running: offer Resume (bring it
+  // back to the front) and Stop, like an installed game, instead of a Play
+  // button that would launch it a second time.
+  const isRunning = useAppRunning(appId);
+  const actions = useGameActions(defaultBridge);
 
   const onPlay = useCallback(async () => {
     const launched = await launchAppWithControllerLayout(
@@ -77,14 +87,34 @@ export const BrowserGameButtons: FC<Props> = ({ appId, variant, url }) => {
     // autoFocus is intentional: claims gamepad focus for the primary action
     // eslint-disable-next-line jsx-a11y/no-autofocus
     <PlayShell autoFocus>
-      <DialogButton
-        className={actionBtnClass("unifideck-play-btn")}
-        onClick={onPlay}
-        style={actionBtnStyle}
-      >
-        {stream ? <FaCloud /> : <FaGlobe />}{" "}
-        {stream ? t("play.playOnCloud") : t("play.playInBrowser")}
-      </DialogButton>
+      {isRunning ? (
+        <>
+          <DialogButton
+            className={actionBtnClass("unifideck-resume-btn")}
+            onClick={() => actions.launch(appId)}
+            style={actionBtnStyle}
+          >
+            <FaPlay /> {t("play.resume")}
+          </DialogButton>
+          <DialogButton
+            className={iconBtnClass("unifideck-stop-btn")}
+            onClick={() => actions.terminate(appId)}
+            style={iconBtnStyle}
+            aria-label={t("play.stop")}
+          >
+            <FaTimes />
+          </DialogButton>
+        </>
+      ) : (
+        <DialogButton
+          className={actionBtnClass("unifideck-play-btn")}
+          onClick={onPlay}
+          style={actionBtnStyle}
+        >
+          {stream ? <FaCloud /> : <FaGlobe />}{" "}
+          {stream ? t("play.playOnCloud") : t("play.playInBrowser")}
+        </DialogButton>
+      )}
 
       <MetaInline showLastPlayed appId={appId} />
 
