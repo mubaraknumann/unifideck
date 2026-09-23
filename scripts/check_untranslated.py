@@ -72,7 +72,7 @@ ALLOWLIST_PATH = Path(__file__).resolve().parent / "i18n_allowlist.json"
 BRAND_PHRASES = frozenset({
     "amazon", "amazon games", "battle net", "blizzard", "comet", "decky",
     "decky loader", "discord", "epic", "epic games", "ge proton", "gog",
-    "gogdl", "legendary", "nile", "proton", "proton ge", "steam",
+    "gogdl", "itch io", "legendary", "nile", "proton", "proton ge", "steam",
     "steam deck", "steamgriddb", "ubisoft", "ubisoft connect", "umu",
     "unifideck", "wine", "winetricks", "xbox", "xbox cloud gaming", "xcloud",
 })

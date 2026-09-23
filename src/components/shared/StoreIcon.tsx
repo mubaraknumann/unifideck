@@ -11,6 +11,7 @@ import {
   SiEpicgames,
   SiGogdotcom,
   SiBattledotnet,
+  SiItchdotio,
   SiUbisoft,
 } from "react-icons/si";
 import { FaGamepad, FaSteam, FaXbox } from "react-icons/fa";
@@ -34,6 +35,7 @@ const STORE_ICONS: Record<StoreId, StoreGlyph> = {
   ubisoft: SiUbisoft,
   battlenet: SiBattledotnet,
   gamevault: GameVaultIcon,
+  itch: SiItchdotio,
 };
 
 interface Props {

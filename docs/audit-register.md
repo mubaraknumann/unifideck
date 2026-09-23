@@ -4,11 +4,12 @@
 > `docs/architecture-audit.md` (historical, do not edit). The device-validation
 > steps every `VALIDATING` row depends on are in `docs/device-validation.md`.
 >
-> Last updated: 2026-09-07 · Source review: 2026-08-24 against v0.7.5
+> Last updated: 2026-09-23 · Source review: 2026-08-24 against v0.7.5
 >
-> **Progress:** 20 CLOSED · 37 VALIDATING (fixed, awaiting the Deck) · 11 OPEN
-> · 1 DECLINED, over 69 rows. Counted from the status column on 2026-09-07;
-> the previous line read 22/41/7 and no longer matched the table.
+> **Progress:** 20 CLOSED · 38 VALIDATING (fixed, awaiting the Deck) · 17 OPEN
+> · 1 DECLINED, over 76 rows. Rows 70-76 were added on 2026-09-23 by the
+> itch.io store work; the rest was counted from the status column on
+> 2026-09-07, when the previous line read 22/41/7 and no longer matched.
 > Seven gate blind spots were the durable half; see the gate
 > table. The check-13 convergence backlog is drained (16 groups → 1, a
 > deliberate keep).
@@ -253,3 +254,19 @@ is the house rule and the reason the existing eleven checks survived.
 | 67 | `accounts.poll_interval_seconds` accepted `0`, and the loop had no floor | OPEN | `config/schema.json` typed it `$defs/positiveInt`, which is `{"type":"integer","minimum":0}` — **`0` passes validation despite the name**. `AccountService` read it with the untyped `config.get` and passed it straight to `asyncio.sleep`, so a `0` turns the 5s poll into a spin that re-reads the whole of `loginusers.vdf` and posts two `to_thread` jobs per iteration, while logging nothing. That is a rate-plausible, silent, idle-path allocation loop and it remains a live candidate for the ~22 GB idle-backend reports. Hardened 2026-09-09 (schema now `minimum: 1`, `get_int` plus a `MIN_POLL_INTERVAL` floor), but left `OPEN` because the **cause** of the user reports is still unconfirmed. `positiveInt` is misnamed for its other ~40 users too and should be audited separately. |
 | 68 | Self-memory diagnostics were absent from the support bundle | VALIDATING | Two users reported the backend at ~22 GB `VmData` while idle and no bundle could show it: `probe_device.memory_block` described the *machine*, never this process, and a capture-time reading alone cannot separate "always this size" from "growing 12 MB/s". Added 2026-09-09: `utils/proc_status.py` (one parser, shared), `probe_device.plugin_memory_block`, `services/memory_sampler.py` (60s ring, 12h, bounded), and a `memory` block in `_support_bundle_extra` carrying the series plus a `gc` type histogram, `sys.getallocatedblocks()` and optional `tracemalloc` top-N behind `diagnostics.tracemalloc` (default off). The histogram is what separates a live-object leak from allocator fragmentation. **Validate:** Capture Logs on a Deck and confirm the block and the curve are present. |
 | 69 | Two unbounded containers, both currently dormant — recorded so they are not rediscovered | OPEN | `PriorityDispatcher._coalesce_map` (`event_bus/priority_dispatcher.py:166`) is written at `:413` and has no `pop`, `del`, `clear` or cap anywhere; each entry pins a `_QueueItem` and its whole payload permanently. It is harmless **only** because `PriorityDispatcher.enqueue` has zero callers — every emitter calls `bus.emit` directly — so it arms the moment anyone wires the dispatcher. `services/installed_disk_info.py:57 _memo` has a 300s TTL enforced solely on the read path, so an entry written once and never re-read is pinned for the process lifetime, and a changed `install_path` orphans the old key rather than replacing it. Neither can reach GB scale (both are bounded by real key space) and neither explains the idle-backend reports; both were enumerated during that investigation and excluded on arithmetic. |
+
+## Found while adding itch.io (2026-09-23, branch 0.7.6)
+
+Rows 70-76 came out of the itch.io store work. Row 70 is the store itself;
+the others are defects that work found in shared code and did not fix,
+recorded here so they are not rediscovered.
+
+| # | Item | State | Notes |
+|---|---|---|---|
+| 70 | itch.io store (`stores/itch/`, butler daemon) | VALIDATING | New store. Library = owned keys plus free collection games; installs through butlerd; native builds run directly, Windows builds under umu; HTML-only games open in an Edge window. Every protocol fact it relies on was measured on butler 15.31.0 and is written into the module docstrings and `stores.md`. Steps: `DV-I1` to `DV-I9`. |
+| 71 | Non-wrapper Proton prefixes are keyed on the bare `game_id`, with no store part | OPEN | `launcher/proton/infrastructure/core.py:_resolve_prefix`, `services/prefix_bridge.resolve_prefix` and `download/prefix_warmup.py` all build `prefixes/<game_id>`. GOG, GameVault and itch.io ids are all plain integers, so two stores' games can share a prefix (saves, registry, installed redistributables). No collision has been reported. Fixing it needs a migration for every existing prefix, so it was not done inside the itch.io change. |
+| 72 | GameVault's native launch target never reaches `games.map` | OPEN | GameVault picks the right native target at install time and stores it in its marker and in `InstallResult.metadata["exe_path"]`, but it has no `find_installed_exe`, and `services/download/installed_game.py` never reads the metadata. The fallback is the `.exe`-only `core/exe_finder`, so a native GameVault install gets an empty or wrong games.map exe until the user runs Change Executable. itch.io implements the hook; GameVault should read its marker the same way. |
+| 73 | `src/views/UnifiedLibraryView.tsx` is dead | OPEN | Nothing imports it (only a comment in `CleanupSection.tsx` names it). Its store dropdown has no GameVault or itch.io option, which is how the gap was found. Delete it, or route it and derive the options from `get_store_infos`. |
+| 74 | `core/types/events.py` `StoreEnum` is dead, but `src/types/api.ts` told new stores to update it | OPEN | The enum has no reader and lacks GameVault and itch.io. The `api.ts` comment was corrected in the itch.io change to point at `_STORE_CACHES`; the enum itself still needs deleting. |
+| 75 | `AuthOrchestrator` documents an `AuthResult(pending=True)` that does not exist | OPEN | `auth/orchestrator.py` docstrings (lines ~19, ~132, ~136, ~380) describe a `pending` flag; `AuthResult` has no such field and background mode returns `success=True` with `url` set. A test written against the docstring fails with `TypeError`. |
+| 76 | The support bundle looks for `bin/umu-run`, which does not exist | OPEN | `support_bundle/probe_stack._BUNDLED_BINARIES` and `sources_audit.py` (`umu_run_bin`) both probe `bin/umu-run`; umu actually ships at `bin/umu/umu/umu-run`, so every bundle reports it missing. |

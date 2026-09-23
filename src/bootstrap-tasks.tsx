@@ -221,10 +221,11 @@ export function purgeLeftoverAuthShortcuts(): void {
       "gog:gog-auth",
       "amazon:amazon-auth",
       "microsoft:ms-auth",
+      "itch:itch-auth",
     ];
     // No ownership gate is possible here: `m_mapApps` entries carry no
     // Exe/target field, so unlike every backend sweep this one cannot
-    // prove a shortcut is ours. The four prefixes are specific enough
+    // prove a shortcut is ours. These prefixes are specific enough
     // that the residual risk is small, but log the name we are about to
     // remove so the action is auditable from a support bundle.
     const victims: { appId: number; name: unknown }[] = [];

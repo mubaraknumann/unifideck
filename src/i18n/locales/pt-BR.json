@@ -18,6 +18,9 @@
       "connected": "{{store}} conectado",
       "failed": "Falha no login em {{store}}"
     },
+    "hints": {
+      "itch": "O itch.io vai pedir sua senha novamente. Se nenhuma chave de API aparecer, toque em “Generate new API key”."
+    },
     "errors": {
       "networkTitle": "Sem conexão com a internet",
       "networkBody": "Conecte-se ao Wi-Fi e tente novamente."
@@ -479,6 +482,8 @@
       "stalled": "O download travou sem progresso. Tente novamente.",
       "directoryNotFound": "Não foi possível localizar os arquivos instalados",
       "lockConflict": "Outra operação está em progresso. Tente novamente",
+      "noCompatibleBuild": "Este jogo não tem uma versão para Linux ou Windows que possa ser instalada",
+      "folderInUse": "A pasta de instalação já contém um jogo de outra loja",
       "ubisoftClient": "Erro no cliente Ubisoft Connect. Tente reparar o prefixo",
       "ubisoftClientNotRunning": "O cliente Ubisoft Connect não está respondendo",
       "ubisoftBootstrap": "Falha ao configurar o prefixo do Ubisoft Connect",
@@ -544,7 +549,8 @@
     "ubisoft": "Ubisoft",
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
-    "gamevault": "GameVault"
+    "gamevault": "GameVault",
+    "itch": "itch.io"
   },
   "unifiedLibrary": {
     "error": "Erro do Unifideck",
@@ -729,6 +735,7 @@
     "cancelConfirmConfirm": "Cancelar download",
     "cancelConfirmCancel": "Continuar baixando",
     "playOnCloud": "Jogar na Nuvem",
+    "playInBrowser": "Jogar no navegador",
     "cloudSave": {
       "autoPullOn": "Os salvamentos na nuvem são baixados automaticamente na inicialização.",
       "close": "Fechar",

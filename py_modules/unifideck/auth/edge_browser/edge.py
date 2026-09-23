@@ -91,7 +91,7 @@ _MS_COOKIE_DOMAINS = (
 # URL to the running instance over SingletonSocket and exits), and all
 # three flavours share one profile by design — so the port is what tells
 # a caller WHICH window is currently alive before it tries to spawn.
-_XCLOUD_CDP_OFFSET = 1
+_BROWSER_GAME_CDP_OFFSET = 1
 _STOREFRONT_CDP_OFFSET = 2
 
 # Edge flags shared between auth and game launch
@@ -195,15 +195,15 @@ class EdgeBrowser:
         """Delegate to EdgeCDPClient."""
         return self._cdp.get_browser_ws_url()
 
-    def _list_cdp_targets(self) -> list[dict[str, Any]]:
-        """Delegate to EdgeCDPClient."""
+    def list_targets(self) -> list[dict[str, Any]]:
+        """The auth window's CDP targets (delegates to EdgeCDPClient)."""
         return self._cdp.list_targets()
 
     # ── Per-flavour CDP ports ────────────────────────────────────────
 
-    def xcloud_cdp_port(self) -> int:
-        """The CDP port an xCloud kiosk window listens on."""
-        return self.cdp_port + _XCLOUD_CDP_OFFSET
+    def browser_game_cdp_port(self) -> int:
+        """The CDP port a browser-game kiosk window (xCloud, HTML5) listens on."""
+        return self.cdp_port + _BROWSER_GAME_CDP_OFFSET
 
     def storefront_cdp_port(self) -> int:
         """The CDP port a storefront window listens on."""
@@ -319,9 +319,9 @@ class EdgeBrowser:
         """Launch a browsable store window — delegate to launch module."""
         return _launch.launch_storefront(self, url)
 
-    def launch_xcloud(self, xcloud_url: str) -> bool:
-        """Launch Edge in kiosk mode — delegate to launch module."""
-        return _launch.launch_xcloud(self, xcloud_url)
+    def launch_browser_game(self, url: str) -> bool:
+        """Launch Edge in kiosk mode on a browser game: delegate to launch module."""
+        return _launch.launch_browser_game(self, url)
 
     def kill(self) -> None:
         """Gracefully terminate the auth browser process.

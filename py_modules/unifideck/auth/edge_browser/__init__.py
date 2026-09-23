@@ -8,7 +8,7 @@ Previously a flat 753 LOC module ``auth/edge_browser.py`` plus
 
   - ``edge``       : EdgeBrowser façade class
   - ``env``        : session env detection pipeline
-  - ``launch``     : launch_auth / launch_xcloud helpers
+  - ``launch``     : launch_auth / launch_browser_game helpers
   - ``cdp_client`` : CDP traffic (HTTP + WebSocket)
   - ``installer``  : flatpak install + udev override
   - ``detection``  : install detection helpers (pure functions)

@@ -35,7 +35,7 @@ from .browser_content import (
     try_content_fallback,
     try_epic_content_capture,
 )
-from .browser_types import AuthCaptureResult
+from .browser_types import AuthCaptureResult, ContentCapture
 from .browser_url_parsing import (
     build_network_unreachable_result,
     build_redirect_capture,
@@ -204,8 +204,7 @@ class OAuthBrowserMonitor:
         allowed_uris: list[str],
         timeout: float | None = None,  # noqa: ASYNC109 — timeout is API value passed to underlying lib (urllib/aiohttp/subprocess), not an asyncio.timeout() wrapper
         *,
-        content_trigger_url: str | None = None,
-        content_regex: str | None = None,
+        content: ContentCapture | None = None,
     ) -> AuthCaptureResult:
         """Block until a browser tab navigates to an allowed URI.
 
@@ -214,10 +213,10 @@ class OAuthBrowserMonitor:
         ``allowed_uris``. If the timeout elapses first, returns
         a failure result.
 
-        When ``content_trigger_url`` and ``content_regex`` are
-        both set, *also* scans page content for a matching
-        group: connects via CDP, evaluates
-        ``document.body.innerText``, and applies the regex.
+        When ``content`` is set, *also* scans page content for a
+        matching group: connects via CDP, evaluates
+        ``content.expression`` (``innerText`` by default), and
+        applies ``content.regex``.
         Used for stores (e.g. Epic) that embed the code in a
         JSON blob inside the page rather than a query parameter.
         """
@@ -242,7 +241,7 @@ class OAuthBrowserMonitor:
                     return result
 
             fallback = await try_content_fallback(
-                all_targets, content_trigger_url, content_regex, start,
+                all_targets, content, start,
             )
             if fallback is not None:
                 return fallback

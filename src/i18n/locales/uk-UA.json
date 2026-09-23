@@ -18,6 +18,9 @@
       "connected": "{{store}} підключено",
       "failed": "Не вдалося увійти в {{store}}"
     },
+    "hints": {
+      "itch": "itch.io знову попросить пароль. Якщо ключа API немає, натисніть «Generate new API key»."
+    },
     "errors": {
       "networkTitle": "Немає підключення до інтернету",
       "networkBody": "Підключіться до Wi-Fi і повторіть спробу."
@@ -479,6 +482,8 @@
       "stalled": "Завантаження зупинилося без прогресу. Спробуйте ще раз.",
       "directoryNotFound": "Не вдалося знайти встановлені файли гри",
       "lockConflict": "Виконується інша операція. Спробуйте пізніше",
+      "noCompatibleBuild": "Ця гра не має збірки для Linux або Windows, яку можна встановити",
+      "folderInUse": "Тека встановлення вже містить гру з іншого магазину",
       "ubisoftClient": "Помилка клієнта Ubisoft Connect. Спробуйте виправити префікс",
       "ubisoftClientNotRunning": "Клієнт Ubisoft Connect не відповідає",
       "ubisoftBootstrap": "Не вдалося налаштувати префікс Ubisoft Connect",
@@ -544,7 +549,8 @@
     "ubisoft": "Ubisoft",
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
-    "gamevault": "GameVault"
+    "gamevault": "GameVault",
+    "itch": "itch.io"
   },
   "unifiedLibrary": {
     "error": "Помилка Unifideck",
@@ -729,6 +735,7 @@
     "cancelConfirmConfirm": "Скасувати завантаження",
     "cancelConfirmCancel": "Продовжити завантаження",
     "playOnCloud": "Грати в хмарі",
+    "playInBrowser": "Грати в браузері",
     "cloudSave": {
       "autoPullOn": "Хмарні збереження завантажуються автоматично при запуску.",
       "close": "Закрити",

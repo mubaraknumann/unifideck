@@ -334,7 +334,7 @@ class _WorkerMixin:
         result_install_path = getattr(result, "install_path", None)
         if result_install_path:
             item.install_path = result_install_path
-        if not self._warmup_applies(item):
+        if not self._warmup_applies(item, result):
             self._mark_item_complete(item)
             await self._finalise_install(item, result, store, key)
             return
@@ -411,14 +411,14 @@ class _WorkerMixin:
 
         await self._bus.emit(Events.DOWNLOAD_STARTED, item=item.to_dict())
 
-    def _warmup_applies(self, item: DownloadItem) -> bool:
+    def _warmup_applies(self, item: DownloadItem, result: Any = None) -> bool:
         """Whether this install gets an install-time prefix warmup.
 
         Store and depot eligibility lives in ``worker_helpers``. The rest is
         whether the host actually wired both hooks — the launcher-subset
         bootstrap wires neither.
         """
-        if not prefix_warmup_supported(item):
+        if not prefix_warmup_supported(item, result):
             return False
         has_hook = callable(getattr(self, "_prefix_warmup", None))
         return has_hook and getattr(self, "_warmup_runner", None) is not None

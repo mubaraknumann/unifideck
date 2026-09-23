@@ -9,6 +9,7 @@
  *     GOG     : UNIFIDECK_GOG_ACTION=auth       → gogdl
  *     Amazon  : UNIFIDECK_AMAZON_ACTION=auth    → Nile
  *     Microsoft: UNIFIDECK_MICROSOFT_ACTION=auth → Chromium + OAuth URL
+ *     itch.io : UNIFIDECK_ITCH_ACTION=auth      → Edge + itch.io login
  *
  * The frontend behaviour is identical for all four : the
  * differences (CLI invocation, browser launch with OAuth URL)
@@ -125,6 +126,20 @@ const MICROSOFT_AUTH_CONFIG: AuthShortcutConfig = {
   contextRpcMethod: rpcRoutes.getMicrosoftAuthShortcutContext,
   storeAppName: "Xbox Store",
   storefrontStoreIdPrefix: "microsoft:ms-store",
+};
+
+/** itch.io signs in on its own site in Edge; butler takes the captured
+ *  API key. No storefront action is wired for it this release, so the two
+ *  storefront fields exist only to satisfy the shared config shape. */
+const ITCH_AUTH_CONFIG: AuthShortcutConfig = {
+  store: "itch",
+  storeId: "itch:itch-auth",
+  tempStoreIdPrefix: "itch:itch-auth-temp",
+  appName: "itch.io Sign-In",
+  actionEnvVar: "UNIFIDECK_ITCH_ACTION",
+  contextRpcMethod: rpcRoutes.getItchAuthShortcutContext,
+  storeAppName: "itch.io",
+  storefrontStoreIdPrefix: "itch:itch-store",
 };
 
 /** Log tag. */
@@ -285,6 +300,14 @@ export const launchAmazonAuthViaShortcut =
 export const launchMicrosoftAuthViaShortcut =
   (): Promise<AuthShortcutLaunchResult> =>
     launchAuthViaShortcut(MICROSOFT_AUTH_CONFIG);
+/**
+ * itch.io specialisation of {@link launchAuthViaShortcut}: opens the
+ * itch.io login page in Edge; the backend reads the API key off the
+ * API-keys page once the user is signed in.
+ */
+export const launchItchAuthViaShortcut =
+  (): Promise<AuthShortcutLaunchResult> =>
+    launchAuthViaShortcut(ITCH_AUTH_CONFIG);
 
 // ─── Storefront launchers ────────────────────────────────────
 /**

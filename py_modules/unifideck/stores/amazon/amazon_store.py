@@ -195,7 +195,7 @@ class AmazonStore(BrowserAuthRebuildMixin, StoreBase):
             EdgeBrowser.cdp_alive(port)
             for port in (
                 edge.cdp_port,
-                edge.xcloud_cdp_port(),
+                edge.browser_game_cdp_port(),
                 edge.storefront_cdp_port(),
             )
         ):

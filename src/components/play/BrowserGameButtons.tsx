@@ -1,19 +1,24 @@
 /**
- * XCloudButtons — Play section variant for Xbox Cloud Gaming titles.
+ * BrowserGameButtons: Play section for browser games.
  *
- * Xbox Game Pass cloud games aren't installed locally; they stream in
- * an Edge kiosk. The Play button goes through the same Steam ``RunGame``
- * path as native games (→ ``unifideck-launcher`` → the ``exe="xcloud"``
- * games.map sentinel → ``_launch_xcloud``), so controller config and
- * Steam input work. If Steam's Apps surface is unavailable we fall back
- * to ``steam://openurl`` on the xCloud launch URL.
+ * A browser game installs nothing and opens in an Edge kiosk window: an Xbox
+ * Cloud Gaming stream (`variant="stream"`) or an itch.io HTML5 game
+ * (`variant="web"`). Play goes through the same Steam `RunGame` path as an
+ * installed game (`unifideck-launcher`, then the backend's
+ * `launcher/browser_games` and `services/launcher/browser_game`), so Steam
+ * Input and the Gaming Mode session work. If Steam's Apps surface is
+ * unavailable we fall back to `steam://openurl` on the game's URL.
+ *
+ * This was `XCloudButtons` until the second kind arrived. The variant picks
+ * the label, the icon and the default controller layout (a gamepad for a
+ * stream, a trackpad mouse for a web page).
  */
 import { FC, useCallback } from "react";
 import { DialogButton } from "@decky/ui";
 import { useTranslation } from "react-i18next";
-import { FaCloud } from "react-icons/fa";
+import { FaCloud, FaGlobe } from "react-icons/fa";
 import { SteamControllerIcon, SteamGearIcon } from "../shared";
-import { launchAppWithConfiguredGamepad } from "../../utils/controllerConfig";
+import { launchAppWithControllerLayout } from "../../utils/controllerConfig";
 import { openNativeAppManageMenu } from "../../utils/nativeAppMenu";
 import {
   PlayShell,
@@ -28,8 +33,9 @@ import {
 
 interface Props {
   appId: number;
-  /** Store game id (Microsoft productId) — used for the openurl fallback. */
-  gameId: string;
+  variant: "stream" | "web";
+  /** Where the game opens; used for the openurl fallback. */
+  url: string;
 }
 
 function openControllerConfig(appId: number): void {
@@ -52,19 +58,20 @@ function openAppSettings(appId: number): void {
   ).SteamClient?.Apps?.OpenAppSettingsDialog?.(appId, "general");
 }
 
-export const XCloudButtons: FC<Props> = ({ appId, gameId }) => {
+export const BrowserGameButtons: FC<Props> = ({ appId, variant, url }) => {
   const { t } = useTranslation();
+  const stream = variant === "stream";
 
   const onPlay = useCallback(async () => {
-    const launched = await launchAppWithConfiguredGamepad(appId);
-    if (!launched) {
-      // Steam Apps surface unavailable — open the stream directly.
-      window.open(
-        `steam://openurl/https://www.xbox.com/play/launch/${gameId}`,
-        "_blank",
-      );
+    const launched = await launchAppWithControllerLayout(
+      appId,
+      stream ? "gamepad" : "web-browser",
+    );
+    if (!launched && url) {
+      // Steam's Apps surface is unavailable: open the game directly.
+      window.open(`steam://openurl/${url}`, "_blank");
     }
-  }, [appId, gameId]);
+  }, [appId, stream, url]);
 
   return (
     // autoFocus is intentional: claims gamepad focus for the primary action
@@ -75,7 +82,8 @@ export const XCloudButtons: FC<Props> = ({ appId, gameId }) => {
         onClick={onPlay}
         style={actionBtnStyle}
       >
-        <FaCloud /> {t("play.playOnCloud", "Play on Cloud")}
+        {stream ? <FaCloud /> : <FaGlobe />}{" "}
+        {stream ? t("play.playOnCloud") : t("play.playInBrowser")}
       </DialogButton>
 
       <MetaInline showLastPlayed appId={appId} />

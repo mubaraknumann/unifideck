@@ -77,6 +77,12 @@ _SECRETS: tuple[SourceSpec, ...] = (
         policy="presence_only", expect="amazon", writer="nile",
     ),
     SourceSpec(
+        key="butler_db", what="butler's itch.io profile and API key database",
+        root="data", pattern="butler/butler.db",
+        policy="presence_only", expect="itch", writer="butler",
+        note="Holds the itch.io API key: statted, never opened.",
+    ),
+    SourceSpec(
         key="ubisoft_upc_session", what="Ubisoft Connect session token",
         root="data", pattern="ubisoft_upc_session.txt",
         policy="presence_only", expect="ubisoft", writer="stores/ubisoft",
@@ -215,6 +221,18 @@ _BINARIES: tuple[SourceSpec, ...] = (
         key="comet_bin", what="Bundled comet (GOG Galaxy features)",
         root="plugin", pattern="bin/comet", policy="presence_only",
         expect="always", writer="shipped in bin/",
+    ),
+    SourceSpec(
+        key="butler_bin", what="Bundled butler CLI (itch.io)",
+        root="plugin", pattern="bin/butler/butler", policy="presence_only",
+        expect="always", writer="shipped in bin/butler/",
+    ),
+    SourceSpec(
+        key="butler_7z_lib", what="butler's bundled 7-zip library",
+        root="plugin", pattern="bin/butler/7z.so", policy="presence_only",
+        expect="always", writer="shipped in bin/butler/",
+        note="Missing means butler downloads it at runtime on the first 7z "
+             "install, which fails offline.",
     ),
     SourceSpec(
         key="umu_run_bin", what="Bundled umu-run launcher shim",

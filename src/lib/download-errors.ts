@@ -49,7 +49,7 @@ const CODE_KEYS: ReadonlyArray<readonly [RegExp, string]> = [
   // `install_path_not_found`, which is a missing game directory, not a
   // missing CLI. Caught by this file's own test, not by review.
   [
-    /^(gogdl|legendary|nile)_not_found$|_spawn_failed$/,
+    /^(gogdl|legendary|nile|butler)_not_found$|_spawn_failed$/,
     "errors.download.toolMissing",
   ],
   [
@@ -76,6 +76,12 @@ const CODE_KEYS: ReadonlyArray<readonly [RegExp, string]> = [
   // which is exactly the defect the §3.2 pass fixed for GOG. Give it a
   // precise string of its own the day something can actually reach it.
   [/^not_supported$/, "errors.download.generic"],
+  // itch.io: a game whose uploads are all soundtracks, HTML5, external
+  // links or installer formats butler 15.31 no longer runs.
+  [/^itch_no_installable_upload$/, "errors.download.noCompatibleBuild"],
+  // butler installs to <root>/<game-url-slug>; another store's game already
+  // lives there, so the install was refused rather than mixed into it.
+  [/^itch_folder_in_use$/, "errors.download.folderInUse"],
 ];
 
 export function friendlyDownloadError(

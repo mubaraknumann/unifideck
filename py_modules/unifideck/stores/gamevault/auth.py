@@ -237,7 +237,7 @@ class GameVaultAuth:
 
         One folder, not two. The install location is asked per install by the
         shared storage picker, which already handles SD cards and USB drives
-        for all seven stores; a GameVault-only copy of that setting would be
+        for every store; a GameVault-only copy of that setting would be
         a second answer to a question already answered. Uninstall cannot eat
         the archive wherever the user sends a given game: it removes only
         ``<install root>/<game dir>``, the directory the extraction created,

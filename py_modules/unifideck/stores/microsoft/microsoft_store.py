@@ -137,6 +137,10 @@ class MicrosoftStore(BrowserAuthRebuildMixin, StoreBase):
                 pass
             self._poll_task = None
 
+    async def shutdown(self) -> None:
+        """Plugin unload: stop the token-refresh loop started at boot."""
+        await self.stop_token_refresh_polling()
+
     async def _token_poll_loop(self) -> None:
         """Internal loop: refresh (if stale) every poll interval."""
         while True:

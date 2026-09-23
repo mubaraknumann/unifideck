@@ -167,7 +167,7 @@ Run after **any** change in this programme. These replace the near-identical
 
 | ID | Step | Expected | Status | Evidence |
 |---|---|---|---|---|
-| SW1 | Full library sync across all seven stores | Reconcile tally line: no unexpected `removed=`; game count unchanged | ( ) | |
+| SW1 | Full library sync across every store | Reconcile tally line: no unexpected `removed=`; game count unchanged | ( ) | |
 | SW2 | Open App Details for one game per store | Panel renders; no missing metadata, size or artwork | ( ) | |
 | SW3 | Launch one already-installed game | Launches; correct per-game prefix in `game.log` | ( ) | |
 | SW4 | QAM → Store Connections after `systemctl restart plugin_loader` | All six rows, correct connected/disconnected state | ( ) | |
@@ -729,3 +729,22 @@ pin.
 
 **Still not covered end to end:** DV-PX16 (three `plugin_loader` restarts; no
 passwordless sudo) and DV-PX12/DV-PX17.
+
+## DV-I: register 70, the itch.io store
+
+Needs an itch.io account that owns or has claimed at least one free
+native-Linux game and one Windows-only game, plus a collection holding a free
+game and an HTML-only game. Run against the **built** plugin
+(`./build-plugin.sh dev install`), never the checkout (CLAUDE.md rule 7).
+
+| ID | Step | Expected | Status | Evidence |
+|---|---|---|---|---|
+| DV-I1 | Inspect `~/homebrew/plugins/Unifideck/bin/butler/`, then install a game packaged as 7z | `butler` is executable; `7z.so` and `libc7zip.so` present; after the install the folder still holds exactly those three files (butler prints "Ensuring dependencies" either way; a download shows as new files there) | ( ) | Pre-check on the built zip, 2026-09-23: extracting a 7z from the unpacked `bin/butler/` made no network connection and added no files |
+| DV-I2 | Desktop Mode: QAM → Store Connections → itch.io → Connect | Edge opens on itch.io/login; after sign-in (and the `/sudo` password re-check) the API-keys page opens by itself; pressing "Generate new API key" if none exists is enough, "View" is never needed; the window closes and the row reads Connected | ( ) | |
+| DV-I3 | Sync | itch tab lists owned games plus free collection games with artwork; asset packs and paid-but-unbought collection games are absent; an untagged game with a PC build (DELTARUNE-style) is present | ( ) | |
+| DV-I4 | Install a native Linux game | Queue shows preparing, then percentage, speed and ETA; `games.map` exe is the real binary (e.g. `linux64/nw`, not `nacl_helper`); no `prefixes/<id>` is created; the game launches from its own folder | ( ) | |
+| DV-I5 | Install a Windows-only game | exe is the `.exe` (or a game-named native launcher shipped in the zip); launches under umu with a per-game prefix | ( ) | |
+| DV-I6 | Cancel an install during "preparing" and again during download | Row reads Cancelled each time; no `<root>/downloads/` folder and no half-installed game folder remain; a retry succeeds | ( ) | |
+| DV-I7 | Uninstall both; `sudo systemctl restart plugin_loader` | Folders gone; after restart `pgrep -a butler` shows only the new daemon (none if itch.io is unused); `butler.db`, `-wal`, `-shm` are all mode 0600 | ( ) | |
+| DV-I8 | Play an HTML-only game (Gaming Mode) | Shortcut shows Play without an install; an Edge window opens on the game's page and comes to the foreground (`docs/gaming-mode-foreground.md`); closing it ends the session | ( ) | |
+| DV-I9 | Gaming Mode sign-in, then Disconnect, then Sync | Sign-in works through the auth shortcut; after Disconnect the next sync removes itch.io shortcuts; the user revokes the test key on itch.io | ( ) | |

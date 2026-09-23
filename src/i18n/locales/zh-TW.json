@@ -18,6 +18,9 @@
       "connected": "已連線 {{store}}",
       "failed": "{{store}} 登入失敗"
     },
+    "hints": {
+      "itch": "itch.io 會再次要求輸入密碼。如果沒有列出 API 金鑰，請點按「Generate new API key」。"
+    },
     "errors": {
       "networkTitle": "無網路連線",
       "networkBody": "請連上 Wi-Fi 後重試。"
@@ -479,6 +482,8 @@
       "stalled": "下載停滯，沒有任何進度。請重試。",
       "directoryNotFound": "無法找到已安裝的檔案",
       "lockConflict": "另一項操作正在進行中。請重試",
+      "noCompatibleBuild": "此遊戲沒有可安裝的 Linux 或 Windows 版本",
+      "folderInUse": "安裝資料夾中已有來自其他商店的遊戲",
       "ubisoftClient": "Ubisoft Connect 用戶端發生錯誤。請嘗試修復 Wine Prefix",
       "ubisoftClientNotRunning": "Ubisoft Connect 用戶端無回應",
       "ubisoftBootstrap": "無法設定 Ubisoft Connect 的 Wine Prefix",
@@ -544,7 +549,8 @@
     "ubisoft": "Ubisoft",
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
-    "gamevault": "GameVault"
+    "gamevault": "GameVault",
+    "itch": "itch.io"
   },
   "unifiedLibrary": {
     "error": "Unifideck 錯誤",
@@ -752,6 +758,7 @@
     "cancelConfirmConfirm": "取消下載",
     "cancelConfirmCancel": "繼續下載",
     "playOnCloud": "雲端遊玩",
+    "playInBrowser": "在瀏覽器中遊玩",
     "cloudSave": {
       "label": "雲端存檔",
       "menuTitle": "雲端存檔。{{game}}",

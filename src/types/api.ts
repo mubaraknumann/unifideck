@@ -98,6 +98,10 @@ export interface Game {
   ownership_type?: OwnershipType;
   store_tags?: GameTag[];
   size_bytes?: number;
+  /** Where a browser game opens (``GameTag`` ``browser``): an xCloud play
+   *  URL or an itch.io game page. From the backend's
+   *  ``metadata.browser_url``; absent for every installable game. */
+  browser_url?: string;
 }
 
 /** One achievement (definition + this user's unlock status). */
@@ -215,9 +219,12 @@ export type StoreCapability =
  *
  * The set is closed on purpose : every backend route
  * accepting a store argument validates against this
- * union and rejects anything else. Adding a 6th store
- * therefore requires a coordinated change in both
- * `core/types/events.py` (StoreEnum) and this file.
+ * union and rejects anything else. Adding a store
+ * therefore requires a coordinated change in the backend's
+ * store set (`bootstrap/cache_registry._STORE_CACHES`, which
+ * `scripts/validate_architecture.py` checks against the
+ * `stores/*` directories) and this file. See the
+ * `unifideck-drift-guard` lockstep table for the rest.
  */
 export type StoreId =
   | "steam"
@@ -227,7 +234,8 @@ export type StoreId =
   | "microsoft"
   | "ubisoft"
   | "battlenet"
-  | "gamevault";
+  | "gamevault"
+  | "itch";
 
 /**
  * Per-store availability + auth state, returned by
@@ -262,6 +270,9 @@ export type GameTag =
   | "dlc"
   | "preorder"
   | "early_access"
-  // Xbox Cloud Gaming title — streamed in a browser, never installed.
-  // Drives the "Play on Cloud" play-section variant.
-  | "xcloud";
+  // Xbox Cloud Gaming title: a cloud stream. Selects the "Play on Cloud"
+  // variant of the browser-game play section.
+  | "xcloud"
+  // Played in an Edge window at `browser_url`, never installed: xCloud
+  // streams and itch.io HTML5 games (backend `launcher/browser_games`).
+  | "browser";

@@ -18,6 +18,9 @@
       "connected": "{{store}} verbonden",
       "failed": "Aanmelden bij {{store}} mislukt"
     },
+    "hints": {
+      "itch": "itch.io vraagt opnieuw om je wachtwoord. Staat er geen API-sleutel, druk dan op ‘Generate new API key’."
+    },
     "errors": {
       "networkTitle": "Geen internetverbinding",
       "networkBody": "Maak verbinding met wifi en probeer het opnieuw."
@@ -479,6 +482,8 @@
       "stalled": "Download loopt vast zonder voortgang. Probeer het opnieuw.",
       "directoryNotFound": "Kan geïnstalleerde bestanden niet vinden",
       "lockConflict": "Een andere actie is bezig. Probeer opnieuw",
+      "noCompatibleBuild": "Deze game heeft geen installeerbare Linux- of Windows-build",
+      "folderInUse": "De installatiemap bevat al een game van een andere winkel",
       "ubisoftClient": "Fout in Ubisoft Connect. Probeer de prefix te repareren",
       "ubisoftClientNotRunning": "Ubisoft Connect reageert niet",
       "ubisoftBootstrap": "Kan Ubisoft Connect-prefix niet configureren",
@@ -544,7 +549,8 @@
     "ubisoft": "Ubisoft",
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
-    "gamevault": "GameVault"
+    "gamevault": "GameVault",
+    "itch": "itch.io"
   },
   "unifiedLibrary": {
     "error": "Unifideck-fout",
@@ -729,6 +735,7 @@
     "cancelConfirmConfirm": "Download annuleren",
     "cancelConfirmCancel": "Doorgaan met downloaden",
     "playOnCloud": "In de cloud spelen",
+    "playInBrowser": "Spelen in browser",
     "cloudSave": {
       "autoPullOn": "Cloudopslag wordt automatisch gedownload bij het opstarten.",
       "close": "Sluiten",

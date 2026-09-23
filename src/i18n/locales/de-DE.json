@@ -18,6 +18,9 @@
       "connected": "{{store}} verbunden",
       "failed": "{{store}}-Anmeldung fehlgeschlagen"
     },
+    "hints": {
+      "itch": "itch.io fragt erneut nach deinem Passwort. Falls kein API-Schlüssel angezeigt wird, tippe auf „Generate new API key“."
+    },
     "errors": {
       "networkTitle": "Keine Internetverbindung",
       "networkBody": "Stellen Sie eine WLAN-Verbindung her und versuchen Sie es erneut."
@@ -479,6 +482,8 @@
       "stalled": "Download ohne Fortschritt unterbrochen. Bitte erneut versuchen.",
       "directoryNotFound": "Installierte Dateien konnten nicht gefunden werden",
       "lockConflict": "Ein anderer Vorgang wird ausgeführt. Versuche es erneut",
+      "noCompatibleBuild": "Dieses Spiel hat keinen installierbaren Linux- oder Windows-Build",
+      "folderInUse": "Der Installationsordner enthält bereits ein Spiel aus einem anderen Store",
       "ubisoftClient": "Ubisoft Connect-Client-Fehler. Versuche das Präfix zu reparieren",
       "ubisoftClientNotRunning": "Ubisoft Connect-Client antwortet nicht",
       "ubisoftBootstrap": "Ubisoft Connect-Präfix konnte nicht eingerichtet werden",
@@ -544,7 +549,8 @@
     "ubisoft": "Ubisoft",
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
-    "gamevault": "GameVault"
+    "gamevault": "GameVault",
+    "itch": "itch.io"
   },
   "unifiedLibrary": {
     "error": "Unifideck-Fehler",
@@ -729,6 +735,7 @@
     "cancelConfirmConfirm": "Download abbrechen",
     "cancelConfirmCancel": "Download fortsetzen",
     "playOnCloud": "In der Cloud spielen",
+    "playInBrowser": "Im Browser spielen",
     "cloudSave": {
       "autoPullOn": "Cloud-Spielstände werden beim Start automatisch heruntergeladen.",
       "close": "Schließen",

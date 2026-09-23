@@ -18,6 +18,9 @@
       "connected": "已连接 {{store}}",
       "failed": "{{store}} 登录失败"
     },
+    "hints": {
+      "itch": "itch.io 会再次要求输入密码。如果没有列出 API 密钥，请点按“Generate new API key”。"
+    },
     "errors": {
       "networkTitle": "无网络连接",
       "networkBody": "请连接 Wi-Fi 后重试。"
@@ -479,6 +482,8 @@
       "stalled": "下载停滞，没有任何进度。请重试。",
       "directoryNotFound": "无法找到已安装的文件",
       "lockConflict": "另一项操作正在进行中。请重试",
+      "noCompatibleBuild": "此游戏没有可安装的 Linux 或 Windows 版本",
+      "folderInUse": "安装文件夹中已有来自其他商店的游戏",
       "ubisoftClient": "Ubisoft Connect 客户端错误。请尝试修复环境",
       "ubisoftClientNotRunning": "Ubisoft Connect 客户端无响应",
       "ubisoftBootstrap": "无法配置 Ubisoft Connect 运行环境",
@@ -544,7 +549,8 @@
     "ubisoft": "Ubisoft",
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
-    "gamevault": "GameVault"
+    "gamevault": "GameVault",
+    "itch": "itch.io"
   },
   "unifiedLibrary": {
     "error": "Unifideck 错误",
@@ -729,6 +735,7 @@
     "cancelConfirmConfirm": "取消下载",
     "cancelConfirmCancel": "继续下载",
     "playOnCloud": "云端游玩",
+    "playInBrowser": "在浏览器中游玩",
     "cloudSave": {
       "autoPullOn": "启动时自动下载云端存档。",
       "close": "关闭",

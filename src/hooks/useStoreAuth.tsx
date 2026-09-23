@@ -43,6 +43,16 @@ const NETWORK_ERROR_CODES = new Set([
 ]);
 
 /**
+ * Extra line under the "Starting sign-in" toast for stores whose sign-in has
+ * a step the user would not expect. itch.io asks for the password a second
+ * time before it shows the API-keys page, and a new account has to press
+ * "Generate new API key" there once.
+ */
+const SIGN_IN_HINT_KEYS: Partial<Record<StoreId, string>> = {
+  itch: "auth.hints.itch",
+};
+
+/**
  * Shape returned by {@link useStoreAuth}. Bundles the
  * reactive `status` field with the action callbacks so
  * components destructure once instead of subscribing to
@@ -121,7 +131,11 @@ export function useStoreAuth(store: StoreId): UseStoreAuthResult {
 
     setBusy(true);
     try {
-      toast.info(t("auth.toasts.signingIn", { store: storeName }));
+      const hintKey = SIGN_IN_HINT_KEYS[store];
+      toast.info(
+        t("auth.toasts.signingIn", { store: storeName }),
+        hintKey ? t(hintKey) : undefined,
+      );
       const result = await AuthDispatcher.start(store);
       // Browser-based OAuth needs Microsoft Edge. When the
       // backend reports the prereq is missing, surface a

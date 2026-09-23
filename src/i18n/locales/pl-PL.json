@@ -18,6 +18,9 @@
       "connected": "Połączono z {{store}}",
       "failed": "Logowanie do {{store}} nie powiodło się"
     },
+    "hints": {
+      "itch": "itch.io ponownie poprosi o hasło. Jeśli nie widać klucza API, naciśnij „Generate new API key”."
+    },
     "errors": {
       "networkTitle": "Brak połączenia z internetem",
       "networkBody": "Połącz się z siecią Wi-Fi i spróbuj ponownie."
@@ -479,6 +482,8 @@
       "stalled": "Pobieranie zatrzymało się bez postępu. Spróbuj ponownie.",
       "directoryNotFound": "Nie można zlokalizować zainstalowanych plików",
       "lockConflict": "Inna operacja jest w toku. Spróbuj ponownie",
+      "noCompatibleBuild": "Ta gra nie ma wersji dla Linuksa ani Windows, którą można zainstalować",
+      "folderInUse": "Folder instalacji zawiera już grę z innego sklepu",
       "ubisoftClient": "Błąd Ubisoft Connect. Spróbuj naprawić prefiks",
       "ubisoftClientNotRunning": "Klient Ubisoft Connect nie odpowiada",
       "ubisoftBootstrap": "Nie udało się skonfigurować prefiksu Ubisoft Connect",
@@ -544,7 +549,8 @@
     "ubisoft": "Ubisoft",
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
-    "gamevault": "GameVault"
+    "gamevault": "GameVault",
+    "itch": "itch.io"
   },
   "unifiedLibrary": {
     "error": "Błąd Unifideck",
@@ -729,6 +735,7 @@
     "cancelConfirmConfirm": "Anuluj pobieranie",
     "cancelConfirmCancel": "Kontynuuj pobieranie",
     "playOnCloud": "Graj w chmurze",
+    "playInBrowser": "Graj w przeglądarce",
     "cloudSave": {
       "autoPullOn": "Zapisy w chmurze są pobierane automatycznie przy uruchomieniu.",
       "close": "Zamknij",
