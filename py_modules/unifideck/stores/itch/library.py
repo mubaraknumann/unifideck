@@ -82,6 +82,9 @@ def to_game(game: dict[str, Any], *, owned: bool = True, web: bool = False) -> G
     metadata: dict[str, Any] = {
         "url": game.get("url") or "",
         "short_text": game.get("shortText") or "",
+        # Last-resort grid art (``services/artwork`` phase 4).
+        "cover_url": game.get("coverUrl") or "",
+        "still_cover_url": game.get("stillCoverUrl") or "",
         # "owned" = an owned key (bought or claimed); "collection" = a
         # free game the user bookmarked in one of their collections.
         "source": "owned" if owned else "collection",

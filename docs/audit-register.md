@@ -6,8 +6,8 @@
 >
 > Last updated: 2026-09-23 · Source review: 2026-08-24 against v0.7.5
 >
-> **Progress:** 20 CLOSED · 38 VALIDATING (fixed, awaiting the Deck) · 17 OPEN
-> · 1 DECLINED, over 76 rows. Rows 70-76 were added on 2026-09-23 by the
+> **Progress:** 20 CLOSED · 39 VALIDATING (fixed, awaiting the Deck) · 18 OPEN
+> · 1 DECLINED, over 78 rows (78 is split, counted once in each). Rows 70-78 were added on 2026-09-23 by the
 > itch.io store work; the rest was counted from the status column on
 > 2026-09-07, when the previous line read 22/41/7 and no longer matched.
 > Seven gate blind spots were the durable half; see the gate
@@ -257,7 +257,7 @@ is the house rule and the reason the existing eleven checks survived.
 
 ## Found while adding itch.io (2026-09-23, branch 0.7.6)
 
-Rows 70-76 came out of the itch.io store work. Row 70 is the store itself;
+Rows 70-78 came out of the itch.io store work. Row 70 is the store itself;
 the others are defects that work found in shared code and did not fix,
 recorded here so they are not rediscovered.
 
@@ -270,3 +270,5 @@ recorded here so they are not rediscovered.
 | 74 | `core/types/events.py` `StoreEnum` is dead, but `src/types/api.ts` told new stores to update it | OPEN | The enum has no reader and lacks GameVault and itch.io. The `api.ts` comment was corrected in the itch.io change to point at `_STORE_CACHES`; the enum itself still needs deleting. |
 | 75 | `AuthOrchestrator` documents an `AuthResult(pending=True)` that does not exist | OPEN | `auth/orchestrator.py` docstrings (lines ~19, ~132, ~136, ~380) describe a `pending` flag; `AuthResult` has no such field and background mode returns `success=True` with `url` set. A test written against the docstring fails with `TypeError`. |
 | 76 | The support bundle looks for `bin/umu-run`, which does not exist | OPEN | `support_bundle/probe_stack._BUNDLED_BINARIES` and `sources_audit.py` (`umu_run_bin`) both probe `bin/umu-run`; umu actually ships at `bin/umu/umu/umu-run`, so every bundle reports it missing. |
+| 77 | The pre-0.7.6 xCloud CDP cluster was never on the live launch path | OPEN | `launcher/flows/xcloud.launch_xcloud` has no caller, and it is the only thing that reaches `launcher/cdp/xcloud_cdp.py`, `cdp/xcloud_browser_shims.py` (Edge/Windows user agent, "Xbox 360 Controller" gamepad id) and `launcher/cdp/steam_controller_popup*`. The live path was `LauncherService._launch_xcloud`, now the shared `services/launcher/browser_game.run_browser_game`. `flows/xcloud.py` is marked `# unimported:` pending deletion of the whole cluster. It also read the URL from `work_dir` (the plugin directory), so it could not have worked. |
+| 78 | Controller-layout apply never worked on the current Steam build | VALIDATING (registration) · OPEN (templates) | `src/utils/controllerConfig.ts` called `SteamClient.Input.RegisterForControllerConfigInfoMessages(appId, cb)`; Steam's bundle calls it with the callback only, and the backend rejected ours (`RaiseJSException: … invalid argument (arg 0): uint_value: <appid>`). No message arrived, so every apply (the Web Browser layout on every store's sign-in window, the xCloud gamepad layout, the itch.io web-game layout) timed out and kept Steam's default. Fixed 2026-09-23 to the one-argument form, filtered by `appID`. **Still open:** the per-app stream carries only community workshop layouts; Steam's official templates are read from its own store (`GetTemplateConfigsForApp`, which adds `GetConfigsForApp(0)`), and that cache was empty until the configurator's layout browser runs. **Do not** probe with `QueryControllerConfigsForApp(0, …)`: it crashed the Steam client on 2026-09-23. |

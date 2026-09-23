@@ -137,6 +137,8 @@ async def test_install_success_reports_native_exe_and_writes_manifest(tmp_path: 
     assert result.install_path == str(folder)
     assert result.metadata["exe_path"] == str(folder / "linux64" / "nw")
     assert result.metadata["platform"] == "linux"
+    # butler leaves an empty <root>/downloads after a successful install.
+    assert not (tmp_path / "downloads").exists()
     manifest = json.loads((folder / ".unifideck_manifest.json").read_text())
     assert manifest["store"] == "itch" and manifest["executable_relative"] == "linux64/nw"
     phases = [p.get("phase") for p in progress]

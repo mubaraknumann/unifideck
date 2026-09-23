@@ -97,3 +97,32 @@ async def test_shutdown_stops_the_daemon(tmp_path: Path) -> None:
     store._daemon.shutdown = AsyncMock()  # type: ignore[method-assign]
     await store.shutdown()
     store._daemon.shutdown.assert_awaited_once()
+
+
+async def test_uninstall_announces_it_and_honours_delete_prefix(
+    tmp_path: Path, monkeypatch: Any,
+) -> None:
+    # The first device run: files gone, but the shortcut still said Play and
+    # the games.map row and Proton prefix stayed, because nothing emitted
+    # GAME_UNINSTALLED (the event ShortcutService acts on).
+    from unifideck.core.types import Events, Result
+    from unifideck.stores.itch import store as store_mod
+
+    store = _store(tmp_path)
+    store._installer.uninstall = AsyncMock(return_value=Result(success=True, store="itch"))  # type: ignore[method-assign]
+    removed: list[Path] = []
+    monkeypatch.setattr(store_mod, "canonical_prefix", lambda gid: tmp_path / "prefixes" / gid)
+    monkeypatch.setattr(store_mod, "safe_rmtree", lambda p: removed.append(Path(p)) or True)
+    result = await store.uninstall_game("1193828", delete_prefix=True)
+    assert result.success
+    assert removed == [tmp_path / "prefixes" / "1193828"]
+    store._bus.emit.assert_awaited_with(Events.GAME_UNINSTALLED, store="itch", game_id="1193828")
+
+
+async def test_failed_uninstall_announces_nothing(tmp_path: Path) -> None:
+    from unifideck.core.types import Result
+
+    store = _store(tmp_path)
+    store._installer.uninstall = AsyncMock(return_value=Result(success=False, store="itch", error="x"))  # type: ignore[method-assign]
+    assert not (await store.uninstall_game("1", delete_prefix=True)).success
+    store._bus.emit.assert_not_awaited()

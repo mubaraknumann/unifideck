@@ -240,6 +240,9 @@ class ItchInstaller:
         if isinstance(outcome, str):
             await self._abandon(queued, folder, existed)
             return _fail(job.game_id, outcome)
+        # butler removes its staging folder on success but leaves the empty
+        # ``<root>/downloads`` behind in the user's Games folder.
+        await asyncio.to_thread(sweep_staging, job.root)
         return await self._finish(job, folder)
 
     async def _finish(self, job: _Job, folder: str) -> InstallResult:

@@ -85,10 +85,12 @@ async def run_browser_game(svc: LauncherService, ctx: LaunchContext) -> Result:
             _read_config_int("launcher.browser_game_max_seconds", _MAX_SESSION_SECONDS),
             log_tag="launcher.browser_game",
         )
+        logger.info("[LauncherService] browser game %s ended (window closed)", ctx.game_key)
         return Result(success=True, store=ctx.store)
     except Exception as e:
         logger.exception("[LauncherService] browser game launch failed")
         return Result(success=False, error=str(e))
     finally:
         svc._active_subprocess = None
+        logger.info("[LauncherService] browser game %s stopped", ctx.game_key)
         await svc._bus.emit(Events.GAME_STOPPED, store=ctx.store, game_id=ctx.game_id)

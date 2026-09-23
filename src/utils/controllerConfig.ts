@@ -222,26 +222,32 @@ function applySelectedTemplate(
         resolve(ok);
       };
 
-      state.reg = input.RegisterForControllerConfigInfoMessages(
-        appId,
-        (messages) => {
-          if (state.settled || !Array.isArray(messages)) return;
-          const tpl = messages.filter(isTemplateEntry).find(matches);
-          if (!tpl) return;
-          state.settled = true;
-          try {
-            input.SetSelectedConfigForApp(appId, idx, tpl.URL, false, true);
-            console.log(
-              `${LOG_PREFIX} applied ${label} to ` +
-                `appId=${appId} (${tpl.URL})`,
-            );
-            finish(true);
-          } catch (e) {
-            console.warn(`${LOG_PREFIX} SetSelectedConfigForApp failed:`, e);
-            finish(false);
-          }
-        },
-      );
+      // ONE argument, the callback: Steam's own bundle calls
+      // `RegisterForControllerConfigInfoMessages(this.onControllerConfigInfo)`.
+      // Passing `(appId, cb)` made the backend reject arg 0 ("invalid
+      // argument (arg 0): uint_value: <appid>", measured 2026-09-23), so no
+      // message ever arrived and every layout apply timed out. The stream
+      // carries every app's configs, hence the appID filter.
+      state.reg = input.RegisterForControllerConfigInfoMessages((messages) => {
+        if (state.settled || !Array.isArray(messages)) return;
+        const tpl = messages
+          .filter(isTemplateEntry)
+          .filter((m) => m.appID === appId || m.appID === 0)
+          .find(matches);
+        if (!tpl) return;
+        state.settled = true;
+        try {
+          input.SetSelectedConfigForApp(appId, idx, tpl.URL, false, true);
+          console.log(
+            `${LOG_PREFIX} applied ${label} to ` +
+              `appId=${appId} (${tpl.URL})`,
+          );
+          finish(true);
+        } catch (e) {
+          console.warn(`${LOG_PREFIX} SetSelectedConfigForApp failed:`, e);
+          finish(false);
+        }
+      });
       input.QueryControllerConfigsForApp(appId, idx, false);
       state.timer = setTimeout(() => {
         if (!state.settled) {

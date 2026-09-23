@@ -451,9 +451,40 @@ async def fetch_store_urls(
     return {}
 
 
+def itch_fallback_urls(extras: dict[str, Any]) -> dict[str, str]:
+    """itch.io's cover, for whichever capsule kinds nothing better filled.
+
+    Every itch.io game has a cover (``coverUrl``, ~630x500), and most of the
+    long-tail indie titles have no SteamGridDB or Steam art at all (9 of 17
+    on the first test account showed Steam's grey title placeholder). An
+    animated ``.gif`` cover is swapped for itch.io's still version.
+    """
+    cover = extras.get("cover_url")
+    still = extras.get("still_cover_url")
+    if isinstance(cover, str) and cover.lower().endswith(".gif") and isinstance(still, str):
+        cover = still
+    if not isinstance(cover, str) or not cover:
+        return {}
+    return {"grid": cover, "grid_l": cover}
+
+
+def fetch_store_fallback_urls(store: str, extras: dict[str, Any] | None) -> dict[str, str]:
+    """Last-resort ``{kind: url}`` from the store, used after SGDB and the Steam CDN.
+
+    For art that is worse than a match elsewhere but better than nothing,
+    such as a landscape cover in a portrait slot. Unlike
+    :func:`fetch_store_urls` it never overrides another source, because the
+    artwork service only asks it for kinds that are still missing.
+    """
+    if store == "itch":
+        return itch_fallback_urls(extras or {})
+    return {}
+
+
 __all__ = [
     "amazon_metadata",
     "epic_metadata",
+    "fetch_store_fallback_urls",
     "fetch_store_urls",
     "gog_metadata",
     "microsoft_metadata",
