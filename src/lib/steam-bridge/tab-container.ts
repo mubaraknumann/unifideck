@@ -407,6 +407,7 @@ class TabManager {
     gamevault: 0,
     itch: 0,
   };
+  private signedOut = new Set<string>();
   private version = 0;
   private listeners: (() => void)[] = [];
 
@@ -446,10 +447,24 @@ class TabManager {
     this.storeCounts = { ...this.storeCounts, ...counts };
   }
 
-  // A per-store tab is shown only when that store has at least one
-  // game. Connection/login state is deliberately ignored — an empty
-  // store (even one the user is logged into) hides its tab until
-  // games sync in, and reappears once they do.
+  /** Stores the backend has confirmed are signed out. Rebuilds the tabs
+   *  only when the set changes, so auth-store updates stay cheap. */
+  setSignedOutStores(stores: Iterable<string>): void {
+    const next = new Set(stores);
+    const same =
+      next.size === this.signedOut.size &&
+      [...next].every((s) => this.signedOut.has(s));
+    if (same) return;
+    this.signedOut = next;
+    if (this.initialized) this.rebuildTabs();
+  }
+
+  // A per-store tab is shown when that store has at least one game and
+  // is not confirmed signed out. A sync never sweeps a signed-out store's
+  // shortcuts (``_sweepable_stores`` in the backend), so its count stays
+  // above zero and the count alone kept the tab after a sign-out. Only a
+  // confirmed "disconnected" hides it: an unknown status (boot, before
+  // the first check) keeps the tab, so tabs do not flicker at startup.
   private shouldShowTab(id: string): boolean {
     const m: Record<string, ConnectableStore> = {
       "unifideck-epic": "epic",
@@ -463,7 +478,7 @@ class TabManager {
     };
     const store = m[id];
     if (!store) return true;
-    return this.storeCounts[store] > 0;
+    return this.storeCounts[store] > 0 && !this.signedOut.has(store);
   }
 
   isInitialized(): boolean {

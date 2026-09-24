@@ -747,7 +747,7 @@ game and an HTML-only game. Run against the **built** plugin
 | DV-X6 | Cancel an install during "preparing" and again during download | Row reads Cancelled each time; no `<root>/downloads/` folder and no half-installed game folder remain; a retry succeeds | ( ) | |
 | DV-X7 | Uninstall both; `sudo systemctl restart plugin_loader` | Folders gone; after restart `pgrep -a butler` shows only the new daemon (none if itch.io is unused); `butler.db`, `-wal`, `-shm` are all mode 0600 | ( ) | |
 | DV-X8 | Play an HTML-only game (Gaming Mode) | Shortcut shows Play without an install; an Edge window opens on the game's page and comes to the foreground (`docs/gaming-mode-foreground.md`); closing it ends the session | ( ) | |
-| DV-X9 | Gaming Mode sign-in, then Disconnect, then Sync | Sign-in works through the auth shortcut; after Disconnect the next sync removes itch.io shortcuts; the user revokes the test key on itch.io | ( ) | |
+| DV-X9 | Gaming Mode sign-in, then Disconnect, then restart Steam | Sign-in works through the auth shortcut; after Disconnect the itch.io tab disappears at once and stays gone after a restart (the store reads signed out). The shortcuts themselves are kept on purpose, as for every store: a sync never sweeps a store that did not answer. The user revokes the test key on itch.io | ( ) | 2026-09-24: Disconnect logged `logout success=True`, `check_store_status` reports itch `available: false` after a Steam restart. The tab stayed (ITCH.IO 23) on that build, which is what the tab-visibility fix addresses |
 
 ## DV-Y: register 79 and 80, Stop (✕) ends the game
 

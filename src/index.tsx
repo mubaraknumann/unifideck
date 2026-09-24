@@ -26,6 +26,7 @@ import { definePlugin } from "@decky/api";
 import { FC } from "react";
 import { initI18n } from "./i18n";
 import { SteamBridge } from "./lib/steam-bridge";
+import { tabManager } from "./lib/steam-bridge/tab-container";
 import { RootProvider } from "./contexts/RootProvider";
 import { QuickAccessPanel } from "./views/QuickAccessPanel";
 import { applyAppDetailsPatch } from "./views/AppDetailsPatch";
@@ -126,6 +127,15 @@ export default definePlugin(() => {
   // even when the QAM panel is closed. Each store subscribes
   // to EventBus events and/or fetches initial data.
   authStore.start();
+  // A signed-out store hides its library tab (tab-container.shouldShowTab).
+  const syncSignedOutTabs = () =>
+    tabManager.setSignedOutStores(
+      Object.entries(authStore.getSnapshot().statuses)
+        .filter(([, status]) => status === "disconnected")
+        .map(([store]) => store),
+    );
+  handles.signedOutTabs = authStore.subscribe(syncSignedOutTabs);
+  syncSignedOutTabs();
   storeInfoStore.start();
   downloadStore.start();
   syncStore.start();
