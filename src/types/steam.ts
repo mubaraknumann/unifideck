@@ -164,13 +164,15 @@ declare global {
           ) => void,
         ): Unregisterable;
         CancelGameAction(gameActionId: number): void;
+        /** Takes the 64-bit gameID, never the appid (getShortcutRunGameId). */
         RunGame(
-          appId: string,
+          gameId: string,
           launchOptions: string,
           a: number,
           b: number,
         ): void;
-        TerminateApp(appId: string, force: boolean): void;
+        /** Takes the 64-bit gameID, never the appid (getShortcutRunGameId). */
+        TerminateApp(gameId: string, force: boolean): void;
         ShowControllerConfigurator(appId: number): void;
         OpenAppSettingsDialog(appId: number, section: string): void;
         AddShortcut(

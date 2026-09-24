@@ -730,7 +730,7 @@ pin.
 **Still not covered end to end:** DV-PX16 (three `plugin_loader` restarts; no
 passwordless sudo) and DV-PX12/DV-PX17.
 
-## DV-I: register 70, the itch.io store
+## DV-X: register 70, the itch.io store
 
 Needs an itch.io account that owns or has claimed at least one free
 native-Linux game and one Windows-only game, plus a collection holding a free
@@ -739,12 +739,25 @@ game and an HTML-only game. Run against the **built** plugin
 
 | ID | Step | Expected | Status | Evidence |
 |---|---|---|---|---|
-| DV-I1 | Inspect `~/homebrew/plugins/Unifideck/bin/butler/`, then install a game packaged as 7z | `butler` is executable; `7z.so` and `libc7zip.so` present; after the install the folder still holds exactly those three files (butler prints "Ensuring dependencies" either way; a download shows as new files there) | ( ) | Pre-check on the built zip, 2026-09-23: extracting a 7z from the unpacked `bin/butler/` made no network connection and added no files |
-| DV-I2 | Desktop Mode: QAM → Store Connections → itch.io → Connect | Edge opens on itch.io/login; after sign-in (and the `/sudo` password re-check) the API-keys page opens by itself; pressing "Generate new API key" if none exists is enough, "View" is never needed; the window closes and the row reads Connected | ( ) | |
-| DV-I3 | Sync | itch tab lists owned games plus free collection games with artwork; asset packs and paid-but-unbought collection games are absent; an untagged game with a PC build (DELTARUNE-style) is present | ( ) | |
-| DV-I4 | Install a native Linux game | Queue shows preparing, then percentage, speed and ETA; `games.map` exe is the real binary (e.g. `linux64/nw`, not `nacl_helper`); no `prefixes/<id>` is created; the game launches from its own folder | ( ) | |
-| DV-I5 | Install a Windows-only game | exe is the `.exe` (or a game-named native launcher shipped in the zip); launches under umu with a per-game prefix | ( ) | |
-| DV-I6 | Cancel an install during "preparing" and again during download | Row reads Cancelled each time; no `<root>/downloads/` folder and no half-installed game folder remain; a retry succeeds | ( ) | |
-| DV-I7 | Uninstall both; `sudo systemctl restart plugin_loader` | Folders gone; after restart `pgrep -a butler` shows only the new daemon (none if itch.io is unused); `butler.db`, `-wal`, `-shm` are all mode 0600 | ( ) | |
-| DV-I8 | Play an HTML-only game (Gaming Mode) | Shortcut shows Play without an install; an Edge window opens on the game's page and comes to the foreground (`docs/gaming-mode-foreground.md`); closing it ends the session | ( ) | |
-| DV-I9 | Gaming Mode sign-in, then Disconnect, then Sync | Sign-in works through the auth shortcut; after Disconnect the next sync removes itch.io shortcuts; the user revokes the test key on itch.io | ( ) | |
+| DV-X1 | Inspect `~/homebrew/plugins/Unifideck/bin/butler/`, then install a game packaged as 7z | `butler` is executable; `7z.so` and `libc7zip.so` present; after the install the folder still holds exactly those three files (butler prints "Ensuring dependencies" either way; a download shows as new files there) | ( ) | Pre-check on the built zip, 2026-09-23: extracting a 7z from the unpacked `bin/butler/` made no network connection and added no files |
+| DV-X2 | Desktop Mode: QAM → Store Connections → itch.io → Connect | Edge opens on itch.io/login; after sign-in (and the `/sudo` password re-check) the API-keys page opens by itself; pressing "Generate new API key" if none exists is enough, "View" is never needed; the window closes and the row reads Connected | ( ) | |
+| DV-X3 | Sync | itch tab lists owned games plus free collection games with artwork; asset packs and paid-but-unbought collection games are absent; an untagged game with a PC build (DELTARUNE-style) is present | ( ) | |
+| DV-X4 | Install a native Linux game | Queue shows preparing, then percentage, speed and ETA; `games.map` exe is the real binary (e.g. `linux64/nw`, not `nacl_helper`); no `prefixes/<id>` is created; the game launches from its own folder | ( ) | |
+| DV-X5 | Install a Windows-only game | exe is the `.exe` (or a game-named native launcher shipped in the zip); launches under umu with a per-game prefix | ( ) | |
+| DV-X6 | Cancel an install during "preparing" and again during download | Row reads Cancelled each time; no `<root>/downloads/` folder and no half-installed game folder remain; a retry succeeds | ( ) | |
+| DV-X7 | Uninstall both; `sudo systemctl restart plugin_loader` | Folders gone; after restart `pgrep -a butler` shows only the new daemon (none if itch.io is unused); `butler.db`, `-wal`, `-shm` are all mode 0600 | ( ) | |
+| DV-X8 | Play an HTML-only game (Gaming Mode) | Shortcut shows Play without an install; an Edge window opens on the game's page and comes to the foreground (`docs/gaming-mode-foreground.md`); closing it ends the session | ( ) | |
+| DV-X9 | Gaming Mode sign-in, then Disconnect, then Sync | Sign-in works through the auth shortcut; after Disconnect the next sync removes itch.io shortcuts; the user revokes the test key on itch.io | ( ) | |
+
+## DV-Y: register 79 and 80, Stop (✕) ends the game
+
+Run against the **built** plugin. Count a game's processes with
+`grep -l "SteamAppId=<appid>" /proc/*/environ` (unsigned appid), before and
+about 15 s after pressing ✕ next to Resume.
+
+| ID | Step | Expected | Status | Evidence |
+|---|---|---|---|---|
+| DV-Y1 | Play a native game (GOG or itch.io), press ✕ | Every process carrying the appid is gone; the Play section returns to Play | (x) | Built plugin, real ✕, 2026-09-24: Ice Age Baby (itch.io) 3 to 0. Via the same `TerminateApp` call: Bastion (GOG) 4 to 0. The old appid call left all of them running |
+| DV-Y2 | Play a Windows game under umu (GOG, Epic or itch.io), press ✕ | Nothing left on the game's prefix, wineserver included | (x) | Built plugin, real ✕, 2026-09-24: Madness Inside (itch.io) 18 to 0, nothing left on the prefix |
+| DV-Y3 | Play a Battle.net game, press ✕ once it is in game | The game closes, then the client; the launcher log shows `stopping 1 game process(es)` before `stopping N client process(es)`; within about 30 s nothing carries the appid | (x) | Built plugin, real ✕ in game, 2026-09-24: 33 processes, then 19 at 10 s and 0 at 20 s; log shows the game stopped, then 7 client processes. A ✕ during launch setup also left 0. Before the fix `Warcraft III.exe` was still running 40 s after the stop |
+

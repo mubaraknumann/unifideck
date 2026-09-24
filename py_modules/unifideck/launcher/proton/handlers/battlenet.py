@@ -361,10 +361,17 @@ async def _await_session_end(
     mid-choice.
     """
     async with _client_teardown(plan):
-        if pid is None:
-            await watch.wait_while_client_running(plan.prefix_path)
-        else:
-            await watch.wait_for_exit(plan.prefix_path, pid, before=before)
+        try:
+            if pid is None:
+                await watch.wait_while_client_running(plan.prefix_path)
+            else:
+                await watch.wait_for_exit(plan.prefix_path, pid, before=before)
+        except asyncio.CancelledError:
+            # A stop from Steam. The client teardown below never touches the
+            # game, so end it first (see ``battlenet_watch.stop_game``).
+            with contextlib.suppress(Exception):
+                await asyncio.to_thread(watch.stop_game, plan.prefix_path, pid, before)
+            raise
 
 
 @contextlib.asynccontextmanager
