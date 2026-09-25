@@ -42,6 +42,11 @@ class GameRecord:
     prefix_path: str | None = None
     install_path: str | None = None
     exe_path: str | None = None
+    # True when ``family`` selects a version the client will not auto-launch
+    # (anything but the program's own retail product), so the user presses
+    # Play in the client. Measured: 'launch WoWC' selects Classic Era and
+    # stops there, while 'launch W3' goes straight to LaunchBinary.
+    client_selects: bool = False
     last_launch_family: str | None = None
     launch_ok_at: float | None = None
     total_bytes: int | None = None

@@ -64,6 +64,12 @@ _KNOWN_HASHES: dict[str, str] = {
     "gogdl": (
         "cba013d42767c808237c437335ab1d56f58405d07e8f37b3324d264ea5c49655"
     ),
+    # butler 15.31.0: the EXTRACTED executable, not the zip. butler has no
+    # remote_binary entry (it ships as an archive; see build-plugin.sh
+    # BUTLER_SHA256, which pins the zip it comes out of).
+    "butler": (
+        "578e1ebe8548ddf2a1b8374d5a85c0308668df3c06a2a1b9edb6ad1112c606eb"
+    ),
 }
 
 

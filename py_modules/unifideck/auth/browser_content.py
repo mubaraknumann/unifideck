@@ -7,9 +7,10 @@ holds everything related to reading the auth code from page body
 * **Epic** — the ``/id/api/redirect`` intermediate page contains
   the code inside a JSON blob (``authorizationCode``) rather
   than the redirect URL itself.
-* **Generic stores** — callers pass ``content_trigger_url`` +
-  ``content_regex`` to ``wait_for_redirect`` when they know
-  their provider embeds the code in HTML.
+* **Generic stores**: callers pass a ``ContentCapture`` to
+  ``wait_for_redirect`` when they know their provider embeds the
+  code in the page (itch.io also overrides the JS ``expression``,
+  because its key is hidden from ``innerText``).
 
 All functions here are module-scope (not methods) so this layer
 is straightforward to test with mock targets: pass a dict, get
@@ -23,7 +24,7 @@ import re
 import time
 from typing import Any
 
-from .browser_types import AuthCaptureResult
+from .browser_types import INNER_TEXT_EXPRESSION, AuthCaptureResult, ContentCapture
 
 logger = logging.getLogger(__name__)
 
@@ -69,8 +70,9 @@ async def cdp_eval_inner_text(
     ws_url: str,
     url_snippet: str,
     first_attempt: bool,
+    expression: str = INNER_TEXT_EXPRESSION,
 ) -> str | None:
-    """Send ``Runtime.evaluate(document.body.innerText)`` and parse.
+    """Send ``Runtime.evaluate(expression)`` and parse; default = innerText.
 
     Returns the evaluated string on success. Returns
     ``None`` (and logs at the appropriate level) when:
@@ -91,7 +93,7 @@ async def cdp_eval_inner_text(
             "id": 1,
             "method": "Runtime.evaluate",
             "params": {
-                "expression": "document.body?.innerText || ''",
+                "expression": expression,
                 "returnByValue": True,
             },
         }))
@@ -127,6 +129,7 @@ async def extract_code_from_page(
     pattern: str,
     *,
     first_attempt: bool = False,
+    expression: str = INNER_TEXT_EXPRESSION,
 ) -> str | None:
     """Connect to a CDP target and regex page body for an auth code.
 
@@ -155,7 +158,9 @@ async def extract_code_from_page(
         )
         return None
     try:
-        text = await cdp_eval_inner_text(ws_url, url_snippet, first_attempt)
+        text = await cdp_eval_inner_text(
+            ws_url, url_snippet, first_attempt, expression,
+        )
     except Exception as exc:
         log_extract(
             first_attempt,
@@ -209,25 +214,25 @@ async def try_epic_content_capture(
 
 async def try_content_fallback(
     targets: list[dict[str, Any]],
-    content_trigger_url: str | None,
-    content_regex: str | None,
+    content: ContentCapture | None,
     start: float,
 ) -> AuthCaptureResult | None:
-    """Apply the optional caller-supplied content-extraction pattern.
+    """Apply the optional caller-supplied content capture.
 
     Distinct from ``try_epic_content_capture`` which is
     hardcoded for Epic's URL + regex. This one is the
     generic mechanism — used by stores that pass their
-    own ``content_trigger_url`` + ``content_regex`` as
-    kwargs to ``wait_for_redirect``.
+    own ``ContentCapture`` to ``wait_for_redirect``.
     """
-    if not (content_trigger_url and content_regex):
+    if content is None:
         return None
     for target in targets:
-        if content_trigger_url not in target.get("url", ""):
+        if content.trigger_url not in target.get("url", ""):
             continue
         try:
-            code = await extract_code_from_page(target, content_regex)
+            code = await extract_code_from_page(
+                target, content.regex, expression=content.expression,
+            )
         except Exception as e:
             logger.debug(
                 "[auth/browser] content extract failed for %s: %s",

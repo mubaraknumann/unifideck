@@ -87,18 +87,15 @@ async def unload_plugin(plugin: Any) -> None:
     for attr, method, label in _PLUGIN_BACKGROUND_LOOPS:
         await _stop_quietly(getattr(plugin, attr, None), method, label)
 
-    # ``_start_store_background_tasks`` starts the Microsoft token-refresh
-    # loop unconditionally at boot, but nothing ever called its stop until
-    # now, so every reload left the previous 30-minute poll running against
-    # a torn-down bus. It hangs off the registry rather than the plugin, so
-    # it cannot join the table above.
+    # Stores can own plugin-lifetime resources: Microsoft's token-refresh
+    # loop (started unconditionally at boot, and once left running against a
+    # torn-down bus on every reload) and itch.io's butlerd daemon. Each store
+    # releases its own in ``StoreBase.shutdown``, so this needs no per-store
+    # branch. A store that holds nothing inherits the no-op.
     registry = getattr(plugin, "registry", None)
     if registry is not None:
-        await _stop_quietly(
-            registry.get("microsoft"),
-            "stop_token_refresh_polling",
-            "Microsoft token poll",
-        )
+        for store in registry.all():
+            await _stop_quietly(store, "shutdown", f"{store.store_name} store")
 
     services = getattr(plugin, "services", None)
     if services is not None:

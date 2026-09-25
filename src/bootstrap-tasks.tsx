@@ -123,7 +123,14 @@ export async function applyDeviceType(): Promise<void> {
 
 export async function checkAccountSwitch(): Promise<void> {
   try {
-    const r = await call<[], AccountSwitchInfo>(rpcRoutes.checkAccountSwitch);
+    // `{show_modal, has_registry, has_auth_tokens}` is the `data` of the
+    // `{success, error, data}` envelope — reading `show_modal` off the
+    // envelope itself meant this modal could never open.
+    const raw = await call<[], unknown>(rpcRoutes.checkAccountSwitch);
+    const r = unwrapRpcEnvelope<AccountSwitchInfo | null>(raw, {
+      route: rpcRoutes.checkAccountSwitch,
+      throwing: false,
+    });
     if (!r?.show_modal) return;
     showModal(
       <AccountSwitchModal
@@ -214,10 +221,11 @@ export function purgeLeftoverAuthShortcuts(): void {
       "gog:gog-auth",
       "amazon:amazon-auth",
       "microsoft:ms-auth",
+      "itch:itch-auth",
     ];
     // No ownership gate is possible here: `m_mapApps` entries carry no
     // Exe/target field, so unlike every backend sweep this one cannot
-    // prove a shortcut is ours. The four prefixes are specific enough
+    // prove a shortcut is ours. These prefixes are specific enough
     // that the residual risk is small, but log the name we are about to
     // remove so the action is auditable from a support bundle.
     const victims: { appId: number; name: unknown }[] = [];

@@ -134,9 +134,19 @@ export class SteamBridge {
     window.SteamClient?.Apps?.RunGame(getShortcutRunGameId(appId), "", -1, 100);
   }
 
-  /** Force-terminate a running app — used by "Stop game". */
+  /** Force-terminate a running shortcut: the Play section's Stop (✕).
+   *
+   *  Same rule as ``runGame`` above: Steam's ``TerminateApp`` takes the
+   *  64-bit shortcut *gameID* (Steam's own bundle passes ``GetGameID()``).
+   *  Passing the 32-bit appid was a silent no-op, measured 2026-09-24: Steam
+   *  logged ``TerminateGame`` and stopped nothing, so Stop never closed any
+   *  Unifideck game. ``terminateShortcutApp`` in ``wrapper-shortcut-launch``
+   *  already converted; this path did not. */
   terminateApp(appId: string, force: boolean = false): void {
-    window.SteamClient?.Apps?.TerminateApp(appId, force);
+    window.SteamClient?.Apps?.TerminateApp(
+      getShortcutRunGameId(Number(appId)),
+      force,
+    );
   }
 
   /** Patch a router route to mount our React content at the

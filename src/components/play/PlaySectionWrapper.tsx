@@ -24,7 +24,7 @@ import { usePlaySection } from "../../hooks/usePlaySection";
 import { NotInstalledButtons } from "./NotInstalledButtons";
 import { DownloadingButtons } from "./DownloadingButtons";
 import { InstalledButtons } from "./InstalledButtons";
-import { XCloudButtons } from "./XCloudButtons";
+import { BrowserGameButtons } from "./BrowserGameButtons";
 import { PlayLoadingSkeleton } from "./PlayMeta";
 import {
   injectPlayFocusStyles,
@@ -44,7 +44,7 @@ export interface PlaySectionWrapperProps {
 /**
  * Top-level wrapper rendered in place of Steam's own Play section
  * for Unifideck games. Picks the right variant (Not-installed /
- * Downloading / Installed / XCloud) based on `usePlaySection`, or a
+ * Downloading / Installed / browser game) based on `usePlaySection`, or a
  * loading skeleton while the game info resolves.
  */
 export const PlaySectionWrapper: FC<PlaySectionWrapperProps> = ({ appId }) => {
@@ -69,8 +69,14 @@ export const PlaySectionWrapper: FC<PlaySectionWrapperProps> = ({ appId }) => {
       case "installed":
         body = <InstalledButtons appId={state.appId} />;
         break;
-      case "xcloud":
-        body = <XCloudButtons appId={state.appId} gameId={state.gameId} />;
+      case "browser":
+        body = (
+          <BrowserGameButtons
+            appId={state.appId}
+            variant={state.variant}
+            url={state.url}
+          />
+        );
         break;
       default:
         body = <PlayLoadingSkeleton />;

@@ -52,6 +52,7 @@ function buildHandles() {
       launcherToastPoll: fn("launcherToastPoll"),
       pluginUpdateNotice: fn("pluginUpdateNotice"),
       bootEventListener: fn("bootEventListener"),
+      signedOutTabs: fn("signedOutTabs"),
     },
   };
 }

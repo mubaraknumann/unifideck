@@ -23,9 +23,12 @@ vi.mock("../library-filters", () => ({
 // the real module pulls in @decky/api. Device-aware titling has its
 // own tests in tab-title-device.test.ts; this file is about the
 // count-path crash guard.
-vi.mock("../device-type", () => ({ getDeviceType: () => "deck" }));
+vi.mock("../device-type", () => ({
+  getDeviceType: () => "deck",
+  compatTabTitleKey: () => "deckTabs.deck",
+}));
 
-import { UnifideckTabContainer, type SteamAppFilter } from "./tab-container";
+import { UnifideckTabContainer, tabManager, type SteamAppFilter } from "./tab-container";
 import type { SteamAppOverview } from "../../types/steam";
 
 function makeContainer(appids: number[] = []): UnifideckTabContainer {
@@ -112,5 +115,38 @@ describe("buildCollection type-games hydration race (UD-071)", () => {
     const c = makeContainer();
     c.buildCollection();
     expect(c.collection.allApps.map((a) => a.appid)).toEqual([42]);
+  });
+});
+
+// Signing out never sweeps a store's shortcuts, so the game count alone
+// kept the tab. Measured 2026-09-24: after an itch.io Disconnect and a
+// Steam restart, the ITCH.IO 23 tab was still there.
+describe("per-store tab visibility", () => {
+  const itchVisible = () => tabManager.getTabs().some((t) => t.id === "unifideck-itch");
+
+  afterEach(() => {
+    tabManager.setSignedOutStores([]);
+    tabManager.setStoreCounts({ itch: 0 });
+  });
+
+  it("hides a signed-out store's tab even when it still has games", () => {
+    tabManager.initialize();
+    tabManager.setStoreCounts({ itch: 23 });
+    expect(itchVisible()).toBe(true);
+    tabManager.setSignedOutStores(["itch"]);
+    expect(itchVisible()).toBe(false);
+  });
+
+  it("shows it again once the store is signed back in", () => {
+    tabManager.initialize();
+    tabManager.setStoreCounts({ itch: 23 });
+    tabManager.setSignedOutStores(["itch"]);
+    tabManager.setSignedOutStores([]);
+    expect(itchVisible()).toBe(true);
+  });
+
+  it("still hides a signed-in store with no games", () => {
+    tabManager.initialize();
+    expect(itchVisible()).toBe(false);
   });
 });

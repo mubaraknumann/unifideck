@@ -135,7 +135,7 @@ class StoreRPCMixin:
 
         There is deliberately **no install-location argument**. Every install
         already goes through the shared storage picker, which knows about SD
-        cards and USB drives and applies to all seven stores; a per-store
+        cards and USB drives and applies to every store; a per-store
         copy of that setting would be a second answer to a question already
         answered, and the two would disagree the first time one was changed.
 

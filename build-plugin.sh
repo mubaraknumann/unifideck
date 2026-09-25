@@ -246,6 +246,21 @@ NILE_URL="https://github.com/imLinguin/nile/releases/download/v1.1.2/nile_linux_
 COMET_URL="https://github.com/imLinguin/comet/releases/download/v0.3.2/comet-x86_64-unknown-linux-gnu"
 WINETRICKS_URL="https://raw.githubusercontent.com/Winetricks/winetricks/20260125/src/winetricks"
 
+# butler (itch.io) is the one bundled binary that ships as an ARCHIVE: the
+# broth zip holds `butler` plus the `7z.so` and `libc7zip.so` it dlopen()s
+# from its own directory. It cannot be a package.json `remote_binary` entry,
+# because Decky writes a remote_binary download to bin/<name> byte for byte
+# and never unzips it. BUTLER_SHA256 pins the zip; the extracted executable is
+# pinned separately in core/binaries/binary_signatures.py. The URL must name a
+# version, never LATEST (broth's LATEST changes under a fixed URL).
+#
+# Shipping the two .so files is not optional. Measured on 15.31.0: with them
+# missing, butler silently downloads them next to itself on first 7z use,
+# which fails offline and on a read-only dir. (It prints "Ensuring
+# dependencies..." either way; only a real download adds files.)
+BUTLER_URL="https://broth.itch.zone/butler/linux-amd64/15.31.0/archive/default"
+BUTLER_SHA256="4f2a3f22b12f870923504d4b6935535cad377b45859f5fe9419e3adc0611a48c"
+
 # ── Pre-build: download/verify bundled binaries ───────────────
 # Decky Loader expects all dependencies to be included in the zip file.
 # This function pulls down the large third-party store clients.
@@ -332,7 +347,47 @@ prebuild_binaries() {
         log_warn "winetricks: download failed, keeping existing"
     fi
 
+    _prebuild_butler
+
     echo ""
+}
+
+# butler: download the pinned zip, check its sha256, unpack into bin/butler/.
+# The stamp lives at bin/butler.url (not inside bin/butler/) so the staging
+# step's `rm -f bin/*.url` strips it from the shipped plugin like the others.
+_prebuild_butler() {
+    local dest="$SCRIPT_DIR/bin/butler" stamp="$SCRIPT_DIR/bin/butler.url"
+    log_info "Checking butler..."
+    if [ -x "$dest/butler" ] && [ -f "$dest/7z.so" ] && [ -f "$dest/libc7zip.so" ] \
+            && [ "$(cat "$stamp" 2>/dev/null)" = "$BUTLER_URL" ]; then
+        log_success "butler up to date (cached)"
+        return 0
+    fi
+    local tmp; tmp=$(mktemp -d)
+    if ! curl -fsSL "$BUTLER_URL" -o "$tmp/butler.zip"; then
+        log_warn "butler: download failed, keeping existing"
+        rm -rf "$tmp"; return 0
+    fi
+    if [ "$(sha256sum "$tmp/butler.zip" | cut -d' ' -f1)" != "$BUTLER_SHA256" ]; then
+        log_warn "butler: zip checksum mismatch, keeping existing"
+        rm -rf "$tmp"; return 0
+    fi
+    mkdir -p "$tmp/out"
+    if ! python3 -c 'import sys, zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])' \
+            "$tmp/butler.zip" "$tmp/out"; then
+        log_warn "butler: unzip failed, keeping existing"
+        rm -rf "$tmp"; return 0
+    fi
+    chmod +x "$tmp/out/butler"
+    if ! "$tmp/out/butler" -V > /dev/null 2>&1; then
+        log_warn "butler: extracted binary failed validation, keeping existing"
+        rm -rf "$tmp"; return 0
+    fi
+    rm -rf "$dest"
+    mv "$tmp/out" "$dest"
+    printf '%s\n' "$BUTLER_URL" > "$stamp"
+    rm -rf "$tmp"
+    log_success "butler downloaded/verified"
 }
 
 # ── Pre-build: requirements check ────────────────────────────
@@ -1049,6 +1104,9 @@ build_local() {
         "bin/EpicGamesLauncher.exe"
         "bin/stubs/GalaxyCommunication.exe"
         "bin/umu/umu/umu-run"
+        "bin/butler/butler"
+        "bin/butler/7z.so"
+        "bin/butler/libc7zip.so"
 
         # Defaults
         "defaults/config.json"

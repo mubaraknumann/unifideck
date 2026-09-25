@@ -55,7 +55,7 @@ LANGUAGE_PICKER_STORES = frozenset({"gog", "epic"})
 #: ``WRAPPER_STORES`` among the stores that have a storefront at all; kept as
 #: its own set because "has a browser storefront" and "is not a wrapper
 #: store" are not the same claim and a future store could be neither.
-BROWSER_STOREFRONT_STORES = frozenset({"epic", "gog", "amazon", "microsoft"})
+BROWSER_STOREFRONT_STORES = frozenset({"epic", "gog", "amazon", "microsoft", "itch"})
 
 
 def capability_flags(store: str) -> dict[str, bool]:

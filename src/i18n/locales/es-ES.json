@@ -18,6 +18,9 @@
       "connected": "{{store}} conectado",
       "failed": "Error al iniciar sesión en {{store}}"
     },
+    "hints": {
+      "itch": "itch.io te pedirá la contraseña de nuevo. Si no aparece ninguna clave de API, pulsa «Generate new API key»."
+    },
     "errors": {
       "networkTitle": "Sin conexión a internet",
       "networkBody": "Conéctate al Wi-Fi e inténtalo de nuevo."
@@ -353,6 +356,8 @@
       "ubisoftLaunchIdMissing": "Abriendo Ubisoft Connect",
       "ubisoftLaunchIdMissingMessage": "No se pudo resolver el ID de inicio de este juego: se abrirá Ubisoft Connect para que puedas iniciarlo desde tu biblioteca. Vuelve a ejecutar una sincronización de la biblioteca para corregir el inicio directo.",
       "startingBattlenetGame": "Iniciando {{gameTitle}} a través de Battle.net…",
+      "wc3ProtonUnsupported": "Warcraft III necesita un Proton más reciente",
+      "wc3ProtonUnsupportedMessage": "{{gameTitle}} no puede iniciar sesión en Battle.net con esta versión de Proton, por un fallo de Wine que hace que el juego muestre un error de VPN. Abre sus Propiedades en Steam, luego Compatibilidad, y elige GE-Proton11-7 o posterior.",
       "battlenetStartingClient": "Abriendo Battle.net",
       "battlenetStartingClientMessage": "Esperando a que el cliente de Battle.net esté listo…",
       "battlenetInstallingClient": "Instalando Battle.net",
@@ -477,6 +482,8 @@
       "stalled": "La descarga se ha detenido sin progreso. Inténtalo de nuevo.",
       "directoryNotFound": "No se pudieron localizar los archivos instalados",
       "lockConflict": "Otra operación está en curso. Inténtalo de nuevo",
+      "noCompatibleBuild": "Este juego no tiene una versión para Linux o Windows que se pueda instalar",
+      "folderInUse": "La carpeta de instalación ya contiene un juego de otra tienda",
       "ubisoftClient": "Error del cliente Ubisoft Connect. Intenta reparar el prefijo",
       "ubisoftClientNotRunning": "El cliente Ubisoft Connect no responde",
       "ubisoftBootstrap": "Error al configurar el prefijo de Ubisoft Connect",
@@ -542,7 +549,8 @@
     "ubisoft": "Ubisoft",
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
-    "gamevault": "GameVault"
+    "gamevault": "GameVault",
+    "itch": "itch.io"
   },
   "unifiedLibrary": {
     "error": "Error de Unifideck",
@@ -727,6 +735,7 @@
     "cancelConfirmConfirm": "Cancelar descarga",
     "cancelConfirmCancel": "Seguir descargando",
     "playOnCloud": "Jugar en la nube",
+    "playInBrowser": "Jugar en el navegador",
     "cloudSave": {
       "autoPullOn": "Los guardados en la nube se descargan automáticamente al iniciar.",
       "close": "Cerrar",

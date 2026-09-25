@@ -55,6 +55,7 @@ from unifideck.stores.shared.wrapper_install import watch_manual_install
 from unifideck.stores.shared.wrapper_install.watch import install_alive
 
 from . import agent_status, paths
+from . import install_state as install_state_mod
 from . import library as library_mod
 from .install_watch import BattlenetInstallProbe
 from .ownership import read_catalog
@@ -95,7 +96,7 @@ def holds_ready_install(prefix: Path) -> bool:
     drive_c = paths.drive_c(prefix)
     if drive_c is None:
         return False
-    state = library_mod.read_install_state(drive_c, prefix)
+    state = install_state_mod.read_install_state(drive_c, prefix)
     return any(game.is_ready for game in state.values())
 
 

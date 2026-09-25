@@ -91,7 +91,7 @@ _NAMED_CACHES: tuple[tuple[str, int], ...] = (
 
 _STORE_CACHES: tuple[str, ...] = (
     "epic", "gog", "amazon", "microsoft", "ubisoft", "battlenet",
-    "gamevault",
+    "gamevault", "itch",
 )
 
 

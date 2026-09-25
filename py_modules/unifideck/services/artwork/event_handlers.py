@@ -154,10 +154,9 @@ def _on_artwork_batch_done(
     total = len(_batch_results(future) or [])
     _emit_artwork_phase_done(bus, total, sync_kwargs)
 
-# Store id → SteamGridDB title for auth shortcuts. SGDB has art
-# for "Amazon Games", not for "amazon" or "Amazon Games Sign-In".
-# Reference data — kept here so the auth-shortcut handler stays
-# short and the table is greppable from anywhere.
+# Store id → SteamGridDB title for auth shortcuts. SGDB has art for
+# "Amazon Games", not for "amazon" or "Amazon Games Sign-In". Kept as
+# data so the auth-shortcut handler stays short and the table greppable.
 _AUTH_TITLE_FOR_LOOKUP: dict[str, str] = {
     "amazon": "Amazon Games",
     "epic": "Epic Games",
@@ -165,6 +164,7 @@ _AUTH_TITLE_FOR_LOOKUP: dict[str, str] = {
     "microsoft": "Xbox",
     "ubisoft": "Ubisoft Connect",
     "battlenet": "Battle.net",
+    "itch": "itch.io",
 }
 
 

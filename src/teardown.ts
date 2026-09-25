@@ -37,6 +37,7 @@ export interface TeardownHandles {
   launcherToastPoll?: (() => void) | null;
   pluginUpdateNotice?: (() => void) | null;
   bootEventListener?: (() => void) | null;
+  signedOutTabs?: (() => void) | null;
 }
 /**
  * Run every disposer captured during bootstrap, in
@@ -64,6 +65,7 @@ const DISPOSERS: Record<keyof TeardownHandles, (h: TeardownHandles) => void> = {
   bootEventListener: (h) => h.bootEventListener?.(),
   launcherToastPoll: (h) => h.launcherToastPoll?.(),
   pluginUpdateNotice: (h) => h.pluginUpdateNotice?.(),
+  signedOutTabs: (h) => h.signedOutTabs?.(),
   tileStoreBadgePatch: (h) => h.tileStoreBadgePatch?.(),
   appContextMenuPatch: (h) => h.appContextMenuPatch?.unpatch(),
   lifetimeListener: (h) => h.lifetimeListener?.unregister(),

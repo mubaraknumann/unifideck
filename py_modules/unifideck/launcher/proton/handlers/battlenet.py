@@ -36,7 +36,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-import time
 from collections.abc import AsyncGenerator
 from pathlib import Path
 
@@ -45,14 +44,15 @@ from unifideck.launcher.frontend_bridge import launcher_toast
 from unifideck.launcher.game_title import resolve_title
 from unifideck.launcher.proton.handlers import battlenet_auth_wsi as auth_wsi
 from unifideck.launcher.proton.handlers import battlenet_bootstrap as bootstrap
+from unifideck.launcher.proton.handlers import battlenet_exec as bnet_exec
 from unifideck.launcher.proton.handlers import battlenet_login_state as login_state
 from unifideck.launcher.proton.handlers import battlenet_session as session
 from unifideck.launcher.proton.handlers import battlenet_watch as watch
-from unifideck.launcher.proton.handlers import battlenet_wsi, wrapper_clients
+from unifideck.launcher.proton.handlers import battlenet_wc3, battlenet_wsi, wrapper_clients
 from unifideck.launcher.proton.handlers.battlenet_client import (
+    client_selects_version,
     find_client_exe,
     find_launcher_exe,
-    record_launch_ok,
     resolve_family,
 )
 from unifideck.launcher.proton.infrastructure.container_escape import (
@@ -62,7 +62,6 @@ from unifideck.launcher.proton.infrastructure.core import ProtonLaunchPlan
 from unifideck.launcher.proton.infrastructure.game_log import (
     open_game_log,
 )
-from unifideck.launcher.proton.infrastructure.umu_runtime import run_umu_with_retry
 from unifideck.launcher.types.errors import GameFailedError
 
 logger = logging.getLogger(__name__)
@@ -70,11 +69,6 @@ logger = logging.getLogger(__name__)
 # Must outlast a cold start plus a forced client self-update — the client
 # updated itself within five minutes of first launch during the spike.
 CLIENT_READY_TIMEOUT = 300.0
-# Bounded on purpose: this is the silent-failure detector.
-GAME_APPEAR_TIMEOUT = 180.0
-# The exec invocation does not exit promptly even on success, so it is
-# fire-and-bounded-wait rather than awaited to completion.
-EXEC_TIMEOUT = 60.0
 # How long a client-less Wine session gets to produce a renderer before we
 # call it stale. Short: a healthy client never reaches this path.
 STALE_SESSION_GRACE = 20.0
@@ -159,29 +153,6 @@ async def _start_client_detached(
         with contextlib.suppress(Exception):
             plan.on_process_start(proc)
     return proc
-
-
-async def _issue_exec(plan: ProtonLaunchPlan, client_exe: Path, command: str) -> None:
-    """Phase C. PROTON_VERB=run, one argument, return code ignored.
-
-    ``reap_wineserver=False`` is load-bearing. This run shares its prefix
-    with the client phase A started and does not own that wineserver, so
-    the :data:`EXEC_TIMEOUT` cancellation must reap only its own process
-    group. It did not: the prefix-scoped reap SIGKILLed the live client
-    60 s into every launch, killing the Battle.net Agent mid-download.
-    Measured on-device — every Diablo II install stalled inside a minute,
-    frozen at 27%, with the Agent's log going silent at the reap's exact
-    timestamp. See ``infrastructure/wineserver_reap`` for the scope rule.
-    """
-    env = dict(plan.env)
-    env["PROTON_VERB"] = "run"
-    argv = [str(plan.python_bin), str(plan.umu_wrapper), str(client_exe), f"--exec={command}"]
-    logger.info("[battlenet] phase C: --exec=%s (PROTON_VERB=run)", command)
-    with contextlib.suppress(TimeoutError, asyncio.CancelledError):
-        await asyncio.wait_for(
-            run_umu_with_retry(argv, env=env, max_attempts=1, reap_wineserver=False),
-            timeout=EXEC_TIMEOUT,
-        )
 
 
 async def _clear_stale_session(plan: ProtonLaunchPlan) -> None:
@@ -365,14 +336,42 @@ async def battlenet_launch(plan: ProtonLaunchPlan) -> int:
         i18n_title_key="toasts.launcher.launchingGame",
         game_title=resolve_title(plan.context.game_key),
     )
+    battlenet_wc3.apply_wc3_crypt32_fix(plan, family)
     client_exe = await _bring_up_client(plan)
     await _require_signed_in(plan)
-    pid, before = await _issue_and_confirm(plan, client_exe, uid, family)
+    selects = client_selects_version(uid)
+    pid, before = await bnet_exec.issue_and_confirm(
+        plan, client_exe, uid, family, fail=_fail, client_selects=selects,
+    )
 
-    async with _client_teardown(plan):
-        await watch.wait_for_exit(plan.prefix_path, pid, before=before)
+    await _await_session_end(plan, pid, before)
     plan.state.game_exit_code = 0
     return 0
+
+
+async def _await_session_end(
+    plan: ProtonLaunchPlan, pid: str | None, before: set[str],
+) -> None:
+    """Phase E: stay alive until the play session is over.
+
+    ``pid is None`` means the client was left showing the game's version
+    picker, so there is no game process to follow yet. Waiting on the
+    client instead is what the install flow already does: Steam keeps the
+    shortcut running, and the window is not torn down under the user
+    mid-choice.
+    """
+    async with _client_teardown(plan):
+        try:
+            if pid is None:
+                await watch.wait_while_client_running(plan.prefix_path)
+            else:
+                await watch.wait_for_exit(plan.prefix_path, pid, before=before)
+        except asyncio.CancelledError:
+            # A stop from Steam. The client teardown below never touches the
+            # game, so end it first (see ``battlenet_watch.stop_game``).
+            with contextlib.suppress(Exception):
+                await asyncio.to_thread(watch.stop_game, plan.prefix_path, pid, before)
+            raise
 
 
 @contextlib.asynccontextmanager
@@ -398,39 +397,6 @@ async def _client_teardown(plan: ProtonLaunchPlan) -> AsyncGenerator[None]:
         with contextlib.suppress(Exception):
             await asyncio.to_thread(watch.stop_client, plan.prefix_path)
         await session.capture_from(plan.prefix_path)
-
-
-async def _issue_and_confirm(
-    plan: ProtonLaunchPlan, client_exe: Path, uid: str, family: str,
-) -> tuple[str, set[str]]:
-    """Phases C + D: send the launch, then prove a game process appeared.
-
-    Returns ``(pid, before)`` — the new pid, and the pre-launch snapshot
-    phase E needs to follow a launcher-to-game hand-off. Raises when
-    nothing started, because the client accepts an obsolete family code
-    and does nothing — no error, no dialog, no exit code — so only a new
-    process is evidence.
-    """
-    before = watch.game_pids(plan.prefix_path)
-    await _issue_exec(plan, client_exe, f"launch {family}")
-
-    pid = await watch.wait_for_game(plan.prefix_path, before, GAME_APPEAR_TIMEOUT)
-    if pid is None:
-        raise _fail(
-            plan,
-            "battlenetLaunchNotObserved",
-            f"Battle.net accepted 'launch {family}' but no game process appeared",
-            uid=uid,
-            family=family,
-        )
-
-    # This family is now proven for this uid. Record it before the
-    # (potentially hours-long) exit wait: a crash or a forced shutdown
-    # mid-session must not cost us the one fact that makes a later family
-    # rename detectable.
-    with contextlib.suppress(Exception):
-        record_launch_ok(uid, family, time.time())
-    return pid, before
 
 
 async def battlenet_auth_launch(plan: ProtonLaunchPlan) -> int:
@@ -520,7 +486,7 @@ async def battlenet_install_launch(plan: ProtonLaunchPlan) -> int:
     # shows the user nothing they can install from.
     await _require_signed_in(plan)
     # Navigate to the game's page; the user presses Install there.
-    await _issue_exec(plan, client_exe, f"launch {family}")
+    await bnet_exec.issue_exec(plan, client_exe, f"launch {family}")
     # Stay alive while the client is up so Steam keeps the shortcut running
     # and the install window is not torn down under the user.
     async with _client_teardown(plan):

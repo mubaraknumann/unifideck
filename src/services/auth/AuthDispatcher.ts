@@ -37,6 +37,7 @@ import {
   launchAmazonAuthViaShortcut,
   launchEpicAuthViaShortcut,
   launchGogAuthViaShortcut,
+  launchItchAuthViaShortcut,
   launchMicrosoftAuthViaShortcut,
 } from "../../utils/authShortcutLaunch";
 import { launchUbisoftAuthViaShortcut } from "../../utils/ubisoftShortcutLaunch";
@@ -384,6 +385,8 @@ class AuthDispatcherImpl {
         return launchUbisoftAuthViaShortcut();
       case "battlenet":
         return launchBattlenetAuthViaShortcut();
+      case "itch":
+        return launchItchAuthViaShortcut();
       default:
         return { success: false, error: `no launcher wired for ${store}` };
     }

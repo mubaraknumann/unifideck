@@ -488,6 +488,10 @@ class GameTag(StrEnum):
     PROTON = "proton"
     CLOUD = "cloud"
     XCLOUD = "xcloud"
+    # Played in an Edge window at ``metadata["browser_url"]``, never
+    # installed: xCloud streams and itch.io HTML5 games. The launcher and
+    # the Play section both key on it (``launcher/browser_games``).
+    BROWSER = "browser"
     DLC = "dlc"
     BETA = "beta"
     DEMO = "demo"

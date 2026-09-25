@@ -62,7 +62,18 @@ function adaptGame(raw: unknown): Game | null {
       : Array.isArray(r.tags)
       ? (r.tags as GameTag[])
       : undefined,
+    browser_url: browserUrlOf(r),
   };
+}
+
+/** ``metadata.browser_url`` off a raw game row, when it is a string. */
+function browserUrlOf(r: Record<string, unknown>): string | undefined {
+  const meta = r.metadata;
+  if (meta && typeof meta === "object") {
+    const url = (meta as Record<string, unknown>).browser_url;
+    if (typeof url === "string" && url) return url;
+  }
+  return undefined;
 }
 
 /** Cache entry. */

@@ -156,6 +156,9 @@
         },
         "gamevault": {
           "$ref": "#/$defs/gamevaultStore"
+        },
+        "itch": {
+          "$ref": "#/$defs/itchStore"
         }
       }
     },
@@ -934,6 +937,22 @@
         },
         "enable_web_enrichment": {
           "type": "boolean"
+        }
+      }
+    },
+    "itchStore": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "butler_db": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "default_install_root": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "stall_timeout_seconds": {
+          "type": "integer",
+          "minimum": 60
         }
       }
     },

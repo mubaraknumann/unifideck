@@ -49,7 +49,7 @@ The machine-enforced invariants are in §9 (`.importlinter`).
 ├─────────────────────────────────────────────────┤
 │  Layer 5 — Services (services/)                 │  ← Infrastructure services
 ├─────────────────────────────────────────────────┤
-│  Layer 4 — Stores (stores/)                     │  ← 7 store connectors
+│  Layer 4 — Stores (stores/)                     │  ← one connector per store
 ├─────────────────────────────────────────────────┤
 │  Layer 3 — StoreBase (stores/shared/)           │  ← Abstract store contract
 ├─────────────────────────────────────────────────┤
@@ -124,7 +124,7 @@ owned by `launcher/dispatcher.py`.
 
 ### Layer 4 — `stores/`
 
-Seven store connector sub-packages. Each is self-contained with its own auth, library, install, and update logic.
+A connector sub-package for each store (the set is `bootstrap/cache_registry._STORE_CACHES`). Each is self-contained with its own auth, library, install, and update logic.
 
 | Package             | Store                   | Backend                              |
 | ------------------- | ----------------------- | ------------------------------------ |
@@ -135,6 +135,7 @@ Seven store connector sub-packages. Each is self-contained with its own auth, li
 | `stores/battlenet/` | Battle.net              | Battle.net client in a Wine prefix   |
 | `stores/microsoft/` | PC Game Pass / xCloud   | Edge browser + CDP                   |
 | `stores/gamevault/` | GameVault (self-hosted) | The user's own server over HTTP, or a local folder of archives |
+| `stores/itch/`      | itch.io                 | `bin/butler/butler`, run as the butlerd JSON-RPC daemon |
 
 ### Layer 5 — `services/`
 
@@ -256,6 +257,7 @@ Contains **only** compiled binaries and shell wrappers. All old `bin/*.py` helpe
 | `vcruntime_fix.reg`             | 1 KB    | Windows registry patch for VC runtime in Wine prefix                                     |
 | `stubs/GalaxyCommunication.exe` | binary  | GOG Galaxy overlay stub (copied into Wine prefix by the GOG store)                       |
 | `umu/`                          | dir     | `umu-run` runtime bundle (upstream project)                                              |
+| `butler/`                       | dir     | itch.io's `butler` (~23 MB) plus the `7z.so` / `libc7zip.so` it loads from its own folder |
 
 ---
 
@@ -415,12 +417,15 @@ All remote binaries are declared in `package.json` under `"remote_binary"`. The 
 | Binary       | Version  | URL                                             |
 | ------------ | -------- | ----------------------------------------------- |
 | `legendary`  | 0.20.43  | `github.com/Heroic-Games-Launcher/legendary`    |
-| `gogdl`      | v1.2.2   | `github.com/Heroic-Games-Launcher/heroic-gogdl` |
+| `gogdl`      | v1.3.0   | `github.com/Heroic-Games-Launcher/heroic-gogdl` |
 | `nile`       | v1.1.2   | `github.com/imLinguin/nile`                     |
 | `comet`      | v0.3.2   | `github.com/imLinguin/comet`                    |
 | `winetricks` | 20260125 | `github.com/Winetricks/winetricks`              |
+| `butler`     | 15.31.0  | `broth.itch.zone/butler/linux-amd64` (archive; see below) |
 
 `umu` is the exception: it is committed to the repo (`bin/umu/umu/umu-run`) rather than downloaded, so it has no `remote_binary` entry. Its version is recorded in `bin/umu/VERSION` (currently **1.4.4**) and reported in support bundles. Do not ship umu &lt;= 1.4.1: those versions fetch the Steam Linux Runtime from `repo.steampowered.com/<variant>/images/latest-public-beta[/VERSION.txt]`, which the repo now answers with HTTP 403. umu's *update* path tolerates that and keeps an existing runtime working, but its *install* path fails, so any Deck without a cached runtime can never obtain one. 1.4.3+ reads `images/latest-public-beta.txt` and fetches from the numbered directory it names, which serves normally.
+
+`butler` is the second exception, and the only **archive**: the broth zip holds `butler`, `7z.so` and `libc7zip.so`. It cannot be a `remote_binary` entry, because Decky writes a `remote_binary` download to `bin/<name>` byte for byte and never unzips it. Instead `build-plugin.sh` pins the zip (`BUTLER_URL` naming a version, never broth's moving `LATEST`, plus `BUTLER_SHA256`) and unpacks it into `bin/butler/`; `binary_signatures._KNOWN_HASHES["butler"]` pins the extracted executable; `test_binary_manifest_sync.py` checks all three. The two libraries are not optional: measured on 15.31.0, a butler without them silently downloads them next to itself on the first 7z install, which fails offline and on a read-only directory. (It prints "Ensuring dependencies…" in both cases; only the download adds files.) Licences: butler is MIT; the 7-zip components are LGPL-2.1 / MPL-2.0.
 
 `nile` is deliberately held at v1.1.2. v1.2.0 migrates auth into an encrypted store and **deletes** `~/.config/nile/user.json` on first run — the file `AmazonStore._check_nile_authenticated` reads to decide the store is available. Bumping it without migrating that check silently empties the Amazon library for users who are still perfectly authenticated.
 

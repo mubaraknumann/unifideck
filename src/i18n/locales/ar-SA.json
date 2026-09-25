@@ -18,6 +18,9 @@
       "connected": "تم الاتصال بـ {{store}}",
       "failed": "فشل تسجيل الدخول إلى {{store}}"
     },
+    "hints": {
+      "itch": "سيطلب itch.io كلمة المرور مرة أخرى. إذا لم يظهر أي مفتاح API، فاضغط على “Generate new API key”."
+    },
     "errors": {
       "networkTitle": "لا يوجد اتصال بالإنترنت",
       "networkBody": "اتصل بشبكة Wi-Fi وحاول مرة أخرى."
@@ -353,6 +356,8 @@
       "ubisoftLaunchIdMissing": "جارٍ فتح Ubisoft Connect",
       "ubisoftLaunchIdMissingMessage": "تعذّر تحديد معرّف تشغيل هذه اللعبة. جارٍ فتح Ubisoft Connect لتتمكن من تشغيلها من مكتبتك. أعد تشغيل مزامنة المكتبة لإصلاح التشغيل المباشر.",
       "startingBattlenetGame": "جارٍ تشغيل {{gameTitle}} عبر Battle.net…",
+      "wc3ProtonUnsupported": "يحتاج Warcraft III إلى إصدار أحدث من Proton",
+      "wc3ProtonUnsupportedMessage": "لا يمكن لـ {{gameTitle}} تسجيل الدخول إلى Battle.net على إصدار Proton هذا، بسبب مشكلة في Wine تجعل اللعبة تبلغ عن خطأ في VPN. افتح خصائص اللعبة في Steam، ثم التوافق، واختر GE-Proton11-7 أو أحدث.",
       "battlenetStartingClient": "جارٍ فتح Battle.net",
       "battlenetStartingClientMessage": "في انتظار جاهزية عميل Battle.net…",
       "battlenetInstallingClient": "جارٍ تثبيت Battle.net",
@@ -477,6 +482,8 @@
       "stalled": "توقف التنزيل دون إحراز تقدم. يرجى المحاولة مرة أخرى.",
       "directoryNotFound": "تعذر العثور على ملفات اللعبة المثبتة",
       "lockConflict": "هناك عملية أخرى قيد التشغيل. يرجى المحاولة لاحقاً",
+      "noCompatibleBuild": "لا تحتوي هذه اللعبة على إصدار لنظام Linux أو Windows يمكن تثبيته",
+      "folderInUse": "مجلد التثبيت يحتوي بالفعل على لعبة من متجر آخر",
       "ubisoftClient": "خطأ في عميل Ubisoft Connect. يرجى محاولة إصلاح بيئة التشغيل",
       "ubisoftClientNotRunning": "عميل Ubisoft Connect لا يستجيب",
       "ubisoftBootstrap": "تعذر تهيئة بيئة تشغيل Ubisoft Connect",
@@ -542,7 +549,8 @@
     "ubisoft": "Ubisoft",
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
-    "gamevault": "GameVault"
+    "gamevault": "GameVault",
+    "itch": "itch.io"
   },
   "unifiedLibrary": {
     "error": "خطأ في Unifideck",
@@ -727,6 +735,7 @@
     "cancelConfirmConfirm": "إلغاء التنزيل",
     "cancelConfirmCancel": "مواصلة التنزيل",
     "playOnCloud": "اللعب عبر السحاب",
+    "playInBrowser": "العب في المتصفح",
     "cloudSave": {
       "autoPullOn": "يتم تنزيل الحفظ السحابي تلقائيًا عند التشغيل.",
       "close": "إغلاق",

@@ -167,7 +167,7 @@ Run after **any** change in this programme. These replace the near-identical
 
 | ID | Step | Expected | Status | Evidence |
 |---|---|---|---|---|
-| SW1 | Full library sync across all seven stores | Reconcile tally line: no unexpected `removed=`; game count unchanged | ( ) | |
+| SW1 | Full library sync across every store | Reconcile tally line: no unexpected `removed=`; game count unchanged | ( ) | |
 | SW2 | Open App Details for one game per store | Panel renders; no missing metadata, size or artwork | ( ) | |
 | SW3 | Launch one already-installed game | Launches; correct per-game prefix in `game.log` | ( ) | |
 | SW4 | QAM → Store Connections after `systemctl restart plugin_loader` | All six rows, correct connected/disconnected state | ( ) | |
@@ -304,7 +304,7 @@ Run after **any** change in this programme. These replace the near-identical
 | **DV-J1** | **Make one store fail to answer during a sync** (sign out, or block its network) | Its shortcuts **survive**. The most serious defect in Part 3. | ( ) | |
 | DV-J2 | Move `bin/gogdl` aside, sync | GOG shortcuts survive — the regression path the §3.2 fix opened | ( ) | |
 | DV-J3 | A genuinely **empty** store | Still swept — the phantom-cleanup case that must not be lost | ( ) | |
-| **DV-J4** | **Battle.net library baseline** — record the title count and name the missing F2P/subscription titles | This is a **measurement, not a test**, and it is the precondition for item 29 | ( ) | |
+| **DV-J4** | **Battle.net F2P/subscription titles appear** — force a sync, then compare the tab against the client | Count goes 17 → 24 on the reference account; **none of the original 17 missing** (compare `battlenet_id_map.json`); the log names the presumed programs and no longer warns about game-account facts; one presumed title (WoW or Hearthstone) installs and launches | ( ) | |
 | DV-J5 | Open App Details for an xCloud game | No Install button mounts | ( ) | |
 | DV-J6 | Force the Microsoft install path | Refuses with a **translated** message, and the queue row reaches "failed" | ( ) | |
 | DV-J7 | Install one Ubisoft and one Battle.net game end to end | Works | ( ) | |
@@ -432,6 +432,21 @@ safe because `applyAppStorePatch` re-spoofs on every plugin load.
 | DV-S2 | Open App Details for one game per store | Metadata present, no blank fields | ( ) | |
 | DV-S3 | Scroll the library while tailing the log | **No** `inject_game_to_appinfo` traffic. One call per overview read is what this removed | ( ) | |
 
+Found 2026-09-12: none of the above could have exercised the patch. Since
+2026-05 `loadFromBackend` read the `{success, error, data}` envelope as the
+bare payload, so every boot logged `Store Patch] active — 0 mappings, 0
+metadata entries` and the getters were pass-through. The reader now unwraps,
+and `borrowDetails` copies only store-content fields onto the shortcut's own
+details (keeps `strShortcutExe` / launch options / cloud / achievements /
+DLC). Re-validate with these before closing item 35:
+
+| ID | Step | Expected | Status | Evidence |
+|---|---|---|---|---|
+| **DV-S4** | Boot, read the frontend console | `Store Patch] active — N mappings, M metadata entries` with N, M > 0; `Loaded 0 title + K appId compat entries` with K > 0 | ( ) | |
+| **DV-S5** | CDP: `appDetailsStore.GetAppDetails(<mapped shortcut>)` after opening its App Details | `unAppID` = shortcut, `strShortcutExe` contains `unifideck-launcher`, `strShortcutLaunchOptions` intact, `bCloudAvailable` false, `vecDLC` empty, `strDescription` = the Steam store copy | ( ) | |
+| **DV-S6** | Gear → Properties on that shortcut | Shortcut target and launch options shown, not the Steam app's | ( ) | |
+| **DV-S7** | Launch a mapped title the account ALSO owns on Steam (e.g. BioShock GOG ↔ 7670) | Steam console: `Adding process … for gameID <shortcut 64-bit id>`, never the Steam appid; game in front of the loading screen | ( ) | |
+
 ## DV-T — item 36, a `%command%`-leading shortcut heals
 
 §2.9 measured this launching 0 of 2 attempts, and item 24a's preservation fix
@@ -514,8 +529,7 @@ is a step whose **failure would mean a change was wrong**, not merely
 unconfirmed. Record the result in the group table above, not here.
 
 ⚠ **DV-H11 is the only one that can regress an existing install** — read it
-before running it. **DV-J4 is a measurement, not a test**: it produces the
-baseline item 29 needs, so there is no pass/fail, only a recorded number.
+before running it.
 
 | # | Step | What must be true |
 |---|---|---|
@@ -528,7 +542,7 @@ baseline item 29 needs, so there is no pass/fail, only a recorded number.
 | 7. **DV-H11** | **Legacy markers still read as installed** — check a prefix created before this build | Ubisoft games installed on the old plaintext marker are still detected. **The only step that can regress an existing install, and the precondition for item 43.** |
 | 8. **DV-I4** | **GOG token round trip survives the `EncryptedTokenFile` extraction** | Still signed in after a restart. Flagged highest risk of that pass. |
 | 9. **DV-J1** | **Make one store fail to answer during a sync** (sign out, or block its network) | Its shortcuts **survive**. The most serious defect in Part 3. |
-| 10. **DV-J4** | **Battle.net library baseline** — record the title count and name the missing F2P/subscription titles | This is a **measurement, not a test**, and it is the precondition for item 29 |
+| 10. **DV-J4** | **Battle.net F2P/subscription titles appear** — force a sync, compare against the client | 17 → 24, none of the original 17 lost, one presumed title installs and launches. Closes item 29. |
 | 11. **DV-K4** | **Launch a game with NO launch options** | Launches exactly as before. **The regression guard — the one that matters.** |
 | 12. **DV-R1** | Open App Details for a **GOG** and an **Epic** game | Cloud-save UI present on both. This is the regression the old field caused: only Battle.net ever declared it, as `False`, so the two stores that *have* cloud saves both advertised none |
 | 13. **DV-S1** | `systemctl restart plugin_loader`, then open the library | Non-Steam tiles still carry store artwork and metadata — the re-spoof on load is what replaces the deleted persistence |
@@ -715,3 +729,35 @@ pin.
 
 **Still not covered end to end:** DV-PX16 (three `plugin_loader` restarts; no
 passwordless sudo) and DV-PX12/DV-PX17.
+
+## DV-X: register 70, the itch.io store
+
+Needs an itch.io account that owns or has claimed at least one free
+native-Linux game and one Windows-only game, plus a collection holding a free
+game and an HTML-only game. Run against the **built** plugin
+(`./build-plugin.sh dev install`), never the checkout (CLAUDE.md rule 7).
+
+| ID | Step | Expected | Status | Evidence |
+|---|---|---|---|---|
+| DV-X1 | Inspect `~/homebrew/plugins/Unifideck/bin/butler/`, then install a game packaged as 7z | `butler` is executable; `7z.so` and `libc7zip.so` present; after the install the folder still holds exactly those three files (butler prints "Ensuring dependencies" either way; a download shows as new files there) | ( ) | Pre-check on the built zip, 2026-09-23: extracting a 7z from the unpacked `bin/butler/` made no network connection and added no files |
+| DV-X2 | Desktop Mode: QAM → Store Connections → itch.io → Connect | Edge opens on itch.io/login; after sign-in (and the `/sudo` password re-check) the API-keys page opens by itself; pressing "Generate new API key" if none exists is enough, "View" is never needed; the window closes and the row reads Connected | ( ) | |
+| DV-X3 | Sync | itch tab lists owned games plus free collection games with artwork; asset packs and paid-but-unbought collection games are absent; an untagged game with a PC build (DELTARUNE-style) is present | ( ) | |
+| DV-X4 | Install a native Linux game | Queue shows preparing, then percentage, speed and ETA; `games.map` exe is the real binary (e.g. `linux64/nw`, not `nacl_helper`); no `prefixes/<id>` is created; the game launches from its own folder | ( ) | |
+| DV-X5 | Install a Windows-only game | exe is the `.exe` (or a game-named native launcher shipped in the zip); launches under umu with a per-game prefix | ( ) | |
+| DV-X6 | Cancel an install during "preparing" and again during download | Row reads Cancelled each time; no `<root>/downloads/` folder and no half-installed game folder remain; a retry succeeds | ( ) | |
+| DV-X7 | Uninstall both; `sudo systemctl restart plugin_loader` | Folders gone; after restart `pgrep -a butler` shows only the new daemon (none if itch.io is unused); `butler.db`, `-wal`, `-shm` are all mode 0600 | ( ) | |
+| DV-X8 | Play an HTML-only game (Gaming Mode) | Shortcut shows Play without an install; an Edge window opens on the game's page and comes to the foreground (`docs/gaming-mode-foreground.md`); closing it ends the session | ( ) | |
+| DV-X9 | Gaming Mode sign-in, then Disconnect, then restart Steam | Sign-in works through the auth shortcut; after Disconnect the itch.io tab disappears at once and stays gone after a restart (the store reads signed out). The shortcuts themselves are kept on purpose, as for every store: a sync never sweeps a store that did not answer. The user revokes the test key on itch.io | ( ) | 2026-09-24: Disconnect logged `logout success=True`, `check_store_status` reports itch `available: false` after a Steam restart. The tab stayed (ITCH.IO 23) on that build, which is what the tab-visibility fix addresses |
+
+## DV-Y: register 79 and 80, Stop (✕) ends the game
+
+Run against the **built** plugin. Count a game's processes with
+`grep -l "SteamAppId=<appid>" /proc/*/environ` (unsigned appid), before and
+about 15 s after pressing ✕ next to Resume.
+
+| ID | Step | Expected | Status | Evidence |
+|---|---|---|---|---|
+| DV-Y1 | Play a native game (GOG or itch.io), press ✕ | Every process carrying the appid is gone; the Play section returns to Play | (x) | Built plugin, real ✕, 2026-09-24: Ice Age Baby (itch.io) 3 to 0. Via the same `TerminateApp` call: Bastion (GOG) 4 to 0. The old appid call left all of them running |
+| DV-Y2 | Play a Windows game under umu (GOG, Epic or itch.io), press ✕ | Nothing left on the game's prefix, wineserver included | (x) | Built plugin, real ✕, 2026-09-24: Madness Inside (itch.io) 18 to 0, nothing left on the prefix |
+| DV-Y3 | Play a Battle.net game, press ✕ once it is in game | The game closes, then the client; the launcher log shows `stopping 1 game process(es)` before `stopping N client process(es)`; within about 30 s nothing carries the appid | (x) | Built plugin, real ✕ in game, 2026-09-24: 33 processes, then 19 at 10 s and 0 at 20 s; log shows the game stopped, then 7 client processes. A ✕ during launch setup also left 0. Before the fix `Warcraft III.exe` was still running 40 s after the stop |
+

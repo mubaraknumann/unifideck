@@ -43,6 +43,7 @@ if TYPE_CHECKING:
     from unifideck.event_bus.event_bus import EventBus
 
     from .browser import OAuthBrowserMonitor
+    from .browser_types import ContentCapture
     # Type aliases for the store-specific callbacks. Keeping them
     # explicit makes the contract between the orchestrator and its
     # callers obvious at the type level.
@@ -113,8 +114,7 @@ class AuthOrchestrator:
         timeout: float | None = None,  # noqa: ASYNC109 — timeout is API value passed to underlying lib (urllib/aiohttp/subprocess), not an asyncio.timeout() wrapper
         write_url_file: str | None = None,
         background: bool = False,
-        content_trigger_url: str | None = None,
-        content_regex: str | None = None,
+        content: ContentCapture | None = None,
     ) -> AuthResult:
         """Execute the CDP OAuth flow (blocking or background).
 
@@ -160,16 +160,14 @@ class AuthOrchestrator:
                 allowed_uris=allowed_uris,
                 exchange_code=exchange_code,
                 deadline=deadline,
-                content_trigger_url=content_trigger_url,
-                content_regex=content_regex,
+                content=content,
             )
         return await self._await_redirect_and_exchange(
             url=url,
             allowed_uris=allowed_uris,
             exchange_code=exchange_code,
             deadline=deadline,
-            content_trigger_url=content_trigger_url,
-            content_regex=content_regex,
+            content=content,
         )
 
     async def _acquire_auth_url(
@@ -253,8 +251,7 @@ class AuthOrchestrator:
         exchange_code: ExchangeCodeCallback,
         deadline: float,
         *,
-        content_trigger_url: str | None = None,
-        content_regex: str | None = None,
+        content: ContentCapture | None = None,
     ) -> AuthResult:
         """Wait for the CDP redirect and exchange the code.
 
@@ -277,8 +274,7 @@ class AuthOrchestrator:
             capture = await self._monitor.wait_for_redirect(
                 allowed_uris=allowed_uris,
                 timeout=deadline,
-                content_trigger_url=content_trigger_url,
-                content_regex=content_regex,
+                content=content,
             )
         except asyncio.CancelledError:
             logger.info(
@@ -376,8 +372,7 @@ class AuthOrchestrator:
         exchange_code: ExchangeCodeCallback,
         deadline: float,
         *,
-        content_trigger_url: str | None = None,
-        content_regex: str | None = None,
+        content: ContentCapture | None = None,
     ) -> AuthResult:
         """Create the asyncio task for background mode and return.
 
@@ -397,8 +392,7 @@ class AuthOrchestrator:
                     allowed_uris=allowed_uris,
                     exchange_code=exchange_code,
                     deadline=deadline,
-                    content_trigger_url=content_trigger_url,
-                    content_regex=content_regex,
+                    content=content,
                 )
             except asyncio.CancelledError:
                 # task cancelled mid-flight; swallow to let shutdown proceed
