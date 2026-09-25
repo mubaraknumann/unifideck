@@ -1092,5 +1092,8 @@
     "errorUsernameRequired": "Inserisci il tuo nome utente",
     "errorPasswordRequired": "Inserisci la tua password",
     "errorConnection": "Connessione al server GameVault non riuscita"
+  },
+  "gameStoreSwitcher": {
+    "defaultEdition": "Edizione standard"
   }
 }

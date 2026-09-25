@@ -1092,5 +1092,8 @@
     "errorUsernameRequired": "Lütfen kullanıcı adınızı girin",
     "errorPasswordRequired": "Lütfen şifrenizi girin",
     "errorConnection": "GameVault sunucusuna bağlanılamadı"
+  },
+  "gameStoreSwitcher": {
+    "defaultEdition": "Standart Sürüm"
   }
 }

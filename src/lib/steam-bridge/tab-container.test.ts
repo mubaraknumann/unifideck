@@ -150,3 +150,28 @@ describe("per-store tab visibility", () => {
     expect(itchVisible()).toBe(false);
   });
 });
+
+// C.13 — flipping "Group duplicates" (or any other rebuildTabs trigger)
+// used to leave every fresh UnifideckTabContainer's collection EMPTY
+// until Steam happened to render that tab, so the count badge stayed
+// stale until the user left and re-entered the library.
+describe("rebuildTabs eagerly hydrates tab collections (C.13)", () => {
+  const win = window as unknown as { collectionStore?: unknown };
+
+  afterEach(() => {
+    delete win.collectionStore;
+  });
+
+  it("populates visibleApps immediately, without a getActualTab() render", () => {
+    win.collectionStore = {
+      appTypeCollectionMap: new Map([
+        ["type-games", { allApps: [{ appid: 7 } as SteamAppOverview] }],
+      ]),
+      GetCollection: () => null,
+    };
+    tabManager.initialize();
+    tabManager.rebuildTabs();
+    const allGames = tabManager.getTabs().find((t) => t.id === "unifideck-all");
+    expect(allGames?.collection.visibleApps.map((a) => a.appid)).toEqual([7]);
+  });
+});

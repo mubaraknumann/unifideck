@@ -1092,5 +1092,8 @@
     "errorUsernameRequired": "请输入用户名",
     "errorPasswordRequired": "请输入密码",
     "errorConnection": "连接 GameVault 服务器失败"
+  },
+  "gameStoreSwitcher": {
+    "defaultEdition": "标准版"
   }
 }

@@ -7,6 +7,8 @@ group (sequels).
 """
 from __future__ import annotations
 
+import pytest
+
 from unifideck.core.game_grouping import annotate_duplicate_groups
 from unifideck.core.types import Game
 from unifideck.steam.owned_games import OwnedApp
@@ -189,3 +191,143 @@ def test_steam_owned_edition_label_independent_of_this_games_own_edition():
     )
     assert out[0].edition_label == "Definitive Edition"
     assert out[0].steam_owned_edition_label == "The Final Cut"
+
+
+# ── PR #461 review fixes ────────────────────────────────────────────
+# https://github.com/mubaraknumann/unifideck/pull/461#pullrequestreview-5307127830
+
+
+def test_steam_owned_match_survives_apostrophe_normalizer_mismatch():
+    """A.1 — steam_owned's dict keys come from unifidb's normaliser
+    (strips apostrophes: "assassins creed"), while everything else here
+    uses title_match's (keeps a space: "assassin s"). Matching against
+    the dict KEY silently dropped every apostrophe'd title's Steam
+    cross-reference; matching against OwnedApp.title (the original)
+    fixes it."""
+    games = [_g("epic", "Assassin's Creed")]
+    out = annotate_duplicate_groups(
+        games,
+        steam_owned={
+            "assassins creed": OwnedApp(appid=48190, title="Assassin's Creed"),
+        },
+    )
+    assert out[0].steam_owned_app_id == 48190
+
+
+def test_steam_owned_picks_exact_match_over_shorter_bucket_neighbour():
+    """A.2 — "BioShock Infinite" must match the owned "BioShock
+    Infinite" (8870), not whichever of the two bucket entries dict
+    iteration visits first (previously could return "BioShock", 7670)."""
+    games = [_g("epic", "BioShock Infinite")]
+    steam_owned = {
+        "bioshock": OwnedApp(appid=7670, title="BioShock"),
+        "bioshock infinite": OwnedApp(appid=8870, title="BioShock Infinite"),
+    }
+    out = annotate_duplicate_groups(games, steam_owned=steam_owned)
+    assert out[0].steam_owned_app_id == 8870
+
+
+def test_steam_owned_picks_thief_gold_not_base_thief():
+    """A.2 — "Thief Gold" must match owned "Thief Gold" (211600), not
+    the unrelated "Thief" (2014) also sharing the "thief" bucket."""
+    games = [_g("epic", "Thief Gold")]
+    steam_owned = {
+        "thief 2014": OwnedApp(appid=239160, title="Thief"),
+        "thief gold": OwnedApp(appid=211600, title="Thief Gold"),
+    }
+    out = annotate_duplicate_groups(games, steam_owned=steam_owned)
+    assert out[0].steam_owned_app_id == 211600
+
+
+def test_steam_owned_picks_skyrim_special_edition_not_base_skyrim():
+    """A.2 — "Skyrim Special Edition" must match the owned SE (489830),
+    not the base "Skyrim" (72850) sharing its bucket."""
+    games = [_g("epic", "The Elder Scrolls V: Skyrim Special Edition")]
+    steam_owned = {
+        "the elder scrolls v skyrim": OwnedApp(
+            appid=72850, title="The Elder Scrolls V: Skyrim",
+        ),
+        "the elder scrolls v skyrim special edition": OwnedApp(
+            appid=489830, title="The Elder Scrolls V: Skyrim Special Edition",
+        ),
+    }
+    out = annotate_duplicate_groups(games, steam_owned=steam_owned)
+    assert out[0].steam_owned_app_id == 489830
+
+
+@pytest.mark.parametrize(
+    ("title_a", "title_b"),
+    [
+        ("Fallout", "Fallout: New Vegas"),
+        ("Microsoft Flight Simulator 2020", "Microsoft Flight Simulator 2024"),
+        ("Dead Space", "Dead Space (2023)"),
+        ("Killer Instinct", "Killer Instinct Classic"),
+        ("Mass Effect Legendary Edition", "Mass Effect"),
+        (
+            "The Elder Scrolls IV: Oblivion Remastered",
+            "The Elder Scrolls IV: Oblivion Game of the Year Edition",
+        ),
+        ("Tomb Raider: Anniversary", "Tomb Raider (2013)"),
+        ("Far Cry 3: Blood Dragon", "Far Cry 3"),
+        ("Car Mechanic Simulator 2021", "Car Mechanic Simulator 2018"),
+        ("Star Wars Battlefront II (2017)", "Star Wars Battlefront 2 (2005)"),
+    ],
+)
+def test_sequels_remakes_and_years_are_never_grouped(title_a, title_b):
+    """A.3 — sequels, remakes/remasters, and differing yearly releases
+    must never share a card; `titles_match`'s fuzzy tolerance (built for
+    artwork lookup) is deliberately NOT reused here.
+
+    Each title also gets a same-store "twin" (identical title, a
+    different store) so a real group forms on both sides — proving
+    ``title_a`` and ``title_b`` don't merge into ONE group rather than
+    merely observing two singletons, which would trivially satisfy a
+    weaker "not equal" check since singletons are always ``None``."""
+    games = [
+        _g("epic", title_a),
+        _g("gog", title_a),
+        _g("amazon", title_b),
+        _g("ubisoft", title_b),
+    ]
+    out = annotate_duplicate_groups(games)
+    group_a = {out[0].dedupe_group_id, out[1].dedupe_group_id}
+    group_b = {out[2].dedupe_group_id, out[3].dedupe_group_id}
+    assert None not in group_a
+    assert None not in group_b
+    assert group_a.isdisjoint(group_b)
+
+
+def test_bioshock_chain_never_transitively_groups():
+    """A.4 — union-find used to chain BioShock ~ BioShock Infinite and
+    BioShock ~ BioShock Remastered into one group even though Infinite
+    and Remastered don't match each other. Canonical-key grouping can't
+    chain: none of the three share an exact canonical key, so none
+    group at all (each stays its own singleton, dedupe_group_id=None)."""
+    games = [
+        _g("epic", "BioShock"),
+        _g("gog", "BioShock Infinite"),
+        _g("amazon", "BioShock Remastered"),
+    ]
+    out = annotate_duplicate_groups(games)
+    non_singleton_ids = [g.dedupe_group_id for g in out if g.dedupe_group_id]
+    assert len(non_singleton_ids) == len(set(non_singleton_ids))
+
+
+def test_group_id_is_stable_regardless_of_input_order():
+    """A.5 — the group id is the canonical key itself, not a union-find
+    root, so it doesn't depend on which order the games were passed
+    in."""
+    forward = [
+        _g("epic", "Cyberpunk 2077"),
+        _g("gog", "Cyberpunk 2077: Ultimate Edition"),
+    ]
+    reversed_ = [
+        _g("gog", "Cyberpunk 2077: Ultimate Edition"),
+        _g("epic", "Cyberpunk 2077"),
+    ]
+    out_forward = annotate_duplicate_groups(forward)
+    out_reversed = annotate_duplicate_groups(reversed_)
+    assert (
+        sorted(g.dedupe_group_id for g in out_forward)
+        == sorted(g.dedupe_group_id for g in out_reversed)
+    )

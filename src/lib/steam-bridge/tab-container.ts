@@ -488,6 +488,15 @@ class TabManager {
 
   rebuildTabs(): void {
     this.tabs = getUnifideckTabs().map((tab) => new UnifideckTabContainer(tab));
+    // Eagerly build every fresh container's collection instead of leaving
+    // it to the lazy `getActualTab()` call. `buildCollection()` otherwise
+    // only runs when Steam actually renders that tab, so a brand-new
+    // container's `visibleApps` (and therefore its count badge) stayed
+    // empty until the user left and re-entered the library — the "Group
+    // duplicates" toggle looked like it needed a manual re-visit of the
+    // library to take effect on tab counts, even though the underlying
+    // filters (`hideAsDuplicate`) already read the setting live.
+    for (const tab of this.tabs) tab.buildCollection();
     this.notifyListeners();
   }
 }

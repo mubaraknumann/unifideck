@@ -109,6 +109,42 @@ function injectIntoTree(ret: unknown): void {
   if (!overview) return;
   const appId = overview.appid;
 
+  // Only override non-Steam shortcuts (appId > 2 billion) — the Play-row /
+  // GameInfoPanel overrides are Unifideck-shortcut only.
+  //
+  // Only override Unifideck-managed games — never the user's own non-Steam
+  // shortcuts (EmulationStationDE, Firefox, ...). This single gate covers
+  // the hide marker, the Play wrapper, and the GameInfo panel.
+  //
+  // Two signals, because neither is enough alone: the cache is authoritative
+  // but says nothing until an RPC lands (and retries with backoff on
+  // failure), while Steam's own shortcut Exe is synchronous but only present
+  // once app details are loaded. Staying optimistic on the cache ALONE meant
+  // that during that window every non-Steam shortcut got its native Play row
+  // and whole tabbed section hidden — a blanked App-Details page for someone
+  // else's shortcut, and worse the more shortcuts a user has (719 on the
+  // device that surfaced it, 27 of them not ours).
+  const shouldPatch =
+    appId > 2_000_000_000 &&
+    shouldPatchShortcut(appId, isUnifideckCacheLoaded(), isUnifideckGame(appId));
+
+  if (shouldPatch) {
+    // Trigger Steam-Store metadata spoofing for this shortcut so Steam's
+    // own UI (capsule image, tile, presence) renders the matched Steam
+    // game. Fire-and-forget — the patcher reads from its in-memory cache;
+    // the backend RPC is a no-op stub.
+    //
+    // Called here, before the `innerContainer` lookup below, and not gated
+    // on it being ready — this call needs only `appId`. It used to run
+    // unconditionally once past this same gate; a later refactor moved the
+    // `innerContainer`-not-ready early-return in front of it, so a render
+    // where the container isn't in the tree yet also skipped this call
+    // (the patcher fires again on the next render regardless, so that
+    // early-return is correct for the container-dependent injections below
+    // — just not for this one, which has no such dependency).
+    void reinjectMetadataWhenLoaded(appId);
+  }
+
   const innerContainer = findInReactTree<NodeWithChildren>(ret, (x) => {
     const n = x as NodeWithChildren | null;
     return (
@@ -128,7 +164,7 @@ function injectIntoTree(ret: unknown): void {
   )
     return;
 
-  // Store-switcher: independent of the non-Steam gate below, since a
+  // Store-switcher: independent of the `shouldPatch` gate above, since a
   // duplicate group could in principle include a real Steam entry (see
   // GameStoreSwitcher's docstring). No-op for the overwhelming majority
   // of games, which aren't part of any group.
@@ -138,38 +174,7 @@ function injectIntoTree(ret: unknown): void {
     getGameStateVersion(appId),
   );
 
-  // Only override non-Steam shortcuts (appId > 2 billion) beyond this
-  // point — the Play-row / GameInfoPanel overrides are Unifideck-shortcut
-  // only.
-  if (!(appId > 2_000_000_000)) return;
-
-  // Only override Unifideck-managed games — never the user's own
-  // non-Steam shortcuts (EmulationStationDE, Firefox, ...). This single gate
-  // covers the hide marker, the Play wrapper, and the GameInfo panel.
-  //
-  // Two signals, because neither is enough alone: the cache is authoritative
-  // but says nothing until an RPC lands (and retries with backoff on
-  // failure), while Steam's own shortcut Exe is synchronous but only present
-  // once app details are loaded. Staying optimistic on the cache ALONE meant
-  // that during that window every non-Steam shortcut got its native Play row
-  // and whole tabbed section hidden — a blanked App-Details page for someone
-  // else's shortcut, and worse the more shortcuts a user has (719 on the
-  // device that surfaced it, 27 of them not ours).
-  if (
-    !shouldPatchShortcut(
-      appId,
-      isUnifideckCacheLoaded(),
-      isUnifideckGame(appId),
-    )
-  ) {
-    return;
-  }
-
-  // Trigger Steam-Store metadata spoofing for this shortcut so
-  // Steam's own UI (capsule image, tile, presence) renders the
-  // matched Steam game. Fire-and-forget — the patcher reads from
-  // its in-memory cache; the backend RPC is a no-op stub.
-  void reinjectMetadataWhenLoaded(appId);
+  if (!shouldPatch) return;
 
   // Mark the inner container so our scoped CSS rule (nativePlayHideCss)
   // hides Steam's native Play row — which renders in a *separate* subtree
@@ -271,6 +276,7 @@ function injectStoreSwitcher(
   version: number,
 ): void {
   const baseKey = `unifideck-store-switcher-${appId}`;
+  const versionedKey = `${baseKey}-v${version}`;
   const existingIdx = children.findIndex((c) => keyOf(c).startsWith(baseKey));
   const siblings = getGroupSiblings(appId);
 
@@ -278,11 +284,25 @@ function injectStoreSwitcher(
     if (existingIdx !== -1) children.splice(existingIdx, 1);
     return;
   }
-  if (existingIdx !== -1) return;
+  // C.12: a switcher for this appId is already spliced in, but its key
+  // may be from a STALE version — a re-sync rebuilds `dedupeGroupSiblings`
+  // (new/changed groups, an install-state flip that changed which store's
+  // copy is primary, ...) without this route's own renderFunc knowing
+  // anything happened. Checking presence alone left the old sibling list
+  // permanently in place until the user navigated away and back — this
+  // also removes and reinserts whenever the version has moved on, so a
+  // still-mounted detail page picks up the fresh siblings on its next
+  // render (which `getGameStateVersion`'s bump on install-state change
+  // already forces; the same key now also invalidates on a group change).
+  if (existingIdx !== -1) {
+    const stale = keyOf(children[existingIdx]) !== versionedKey;
+    if (!stale) return;
+    children.splice(existingIdx, 1);
+  }
 
   children.unshift(
     <GameStoreSwitcher
-      key={`${baseKey}-v${version}`}
+      key={versionedKey}
       appId={appId}
       siblings={siblings}
     />,

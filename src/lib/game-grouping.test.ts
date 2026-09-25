@@ -1,6 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { groupGames } from "./game-grouping";
-import type { Game } from "../types/api";
+import { groupGames, storePriorityRank, STORE_PRIORITY } from "./game-grouping";
+import type { Game, StoreId } from "../types/api";
+
+// Every `StoreId` member, kept in sync by hand with `types/api.ts` —
+// there's no runtime array to derive this from (it's a type), so this
+// list is the regression guard for D.16: a `StoreId` added without a
+// matching `STORE_PRIORITY` entry used to sort FIRST, not last (see
+// `storePriorityRank`'s docstring).
+const ALL_STORE_IDS: StoreId[] = [
+  "steam",
+  "epic",
+  "gog",
+  "amazon",
+  "microsoft",
+  "ubisoft",
+  "battlenet",
+  "gamevault",
+  "itch",
+];
 
 let nextAppId = 1;
 
@@ -79,5 +96,31 @@ describe("groupGames", () => {
     ];
     const groups = groupGames(games);
     expect(groups.map((grp) => grp.key)).toEqual([String(first.app_id), "x"]);
+  });
+});
+
+describe("STORE_PRIORITY", () => {
+  it("covers every StoreId variant — D.16 regression", () => {
+    // itch was missing from this list, which made `indexOf` return -1
+    // for it — see `storePriorityRank`'s docstring for why that sorted
+    // itch FIRST rather than last.
+    for (const store of ALL_STORE_IDS) {
+      expect(STORE_PRIORITY).toContain(store);
+    }
+  });
+});
+
+describe("storePriorityRank", () => {
+  it("ranks known stores by their STORE_PRIORITY index", () => {
+    expect(storePriorityRank("steam")).toBe(0);
+    expect(storePriorityRank("itch")).toBe(STORE_PRIORITY.indexOf("itch"));
+  });
+
+  it("ranks an unknown store LAST, not first", () => {
+    const unknownRank = storePriorityRank("nonexistent-store" as StoreId);
+    expect(unknownRank).toBe(Number.POSITIVE_INFINITY);
+    for (const store of STORE_PRIORITY) {
+      expect(storePriorityRank(store)).toBeLessThan(unknownRank);
+    }
   });
 });

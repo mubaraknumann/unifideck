@@ -38,7 +38,13 @@ export function gameKey(game: Game): string {
 
 /** Fixed tie-break order when no copy in a group is installed. `"steam"`
  *  leads only for forward-compatibility — the backend never returns a
- *  native Steam entry today, so it's a no-op until/unless that changes. */
+ *  native Steam entry today, so it's a no-op until/unless that changes.
+ *
+ *  Every `StoreId` variant MUST appear here — see
+ *  {@link storePriorityRank}'s docstring for why an omission used to be
+ *  worse than a no-op (itch sorted FIRST, not last, until this list
+ *  caught up with `StoreId` gaining an `"itch"` member). A unit test
+ *  asserts this list stays exhaustive. */
 export const STORE_PRIORITY: StoreId[] = [
   "steam",
   "epic",
@@ -48,7 +54,26 @@ export const STORE_PRIORITY: StoreId[] = [
   "battlenet",
   "microsoft",
   "gamevault",
+  "itch",
 ];
+
+/** `STORE_PRIORITY`'s rank for `store`, or `+Infinity` when it's missing
+ *  from that list.
+ *
+ *  `Array.indexOf` returns `-1` for a miss, and `-1` sorts BEFORE every
+ *  real index in a plain `a - b` comparator — so a `StoreId` added
+ *  after `STORE_PRIORITY` was last updated (this happened with
+ *  `"itch"`) silently jumped to the FRONT of every sorted list instead
+ *  of falling to the back where an "unranked" store belongs. Centralised
+ *  here so every caller (this module's `pickPrimary`,
+ *  `GameStoreSwitcher`'s `sortByStorePriority`,
+ *  `library-filters`'s `pickGroupPrimary`) gets the fix at once and the
+ *  next added `StoreId` degrades gracefully even if `STORE_PRIORITY`
+ *  itself isn't updated in the same change. */
+export function storePriorityRank(store: StoreId): number {
+  const index = STORE_PRIORITY.indexOf(store);
+  return index === -1 ? Number.POSITIVE_INFINITY : index;
+}
 
 function pickPrimary(games: Game[]): Game {
   const installed = games.find((g) => g.installed ?? g.is_installed);

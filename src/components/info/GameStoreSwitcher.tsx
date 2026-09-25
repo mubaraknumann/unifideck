@@ -29,13 +29,21 @@
  * the viewport. `OVERLAY_LEFT_PX` matches `InnerContainer`'s own
  * measured left inset (~34px) so the control lines up with the rest of
  * the page's content instead of floating at a different indent.
+ *
+ * Each row shows the store's own NAME next to its icon (via `deckTabs.
+ * <store>`, the same i18n keys the library tabs use), not just the
+ * icon — three copies that all carry the same edition text (e.g. three
+ * "Standard Edition" rows for Among Us) used to be indistinguishable
+ * except for a 14px glyph.
  */
 import { FC, type ReactElement } from "react";
+import i18n from "i18next";
 import { Dropdown, type SingleDropdownOption } from "@decky/ui";
 import { StoreIcon } from "../shared/StoreIcon";
 import { navigateToApp } from "../../lib/steam-bridge";
 import { appIdsMatch, type GroupSibling } from "../../lib/library-filters";
-import { STORE_PRIORITY } from "../../lib/game-grouping";
+import { storePriorityRank } from "../../lib/game-grouping";
+import type { StoreId } from "../../types/api";
 
 /** SteamOS's global top bar (search field, notifications, battery, clock,
  *  avatar) is fixed and renders on top of the page — confirmed live via
@@ -48,10 +56,23 @@ const HEADER_OFFSET_PX = 40;
  *  the overlay up with the rest of the page's content. */
 const OVERLAY_LEFT_PX = 24;
 
+const t = (key: string): string => i18n.t(key);
+
+/** Store display name, reusing the exact `deckTabs.<store>` keys the
+ *  library tabs are titled with (`tab-container.ts`) — one translated
+ *  name per store, not a second copy of the same strings. */
+function storeName(store: StoreId): string {
+  return t(`deckTabs.${store}`);
+}
+
 /** Shown in place of an edition name when a sibling has none — the icon
- *  alone doesn't say what makes this copy distinct from the others, and
- *  the store name was redundant with the icon sitting right next to it. */
-const DEFAULT_EDITION_LABEL = "Standard Edition";
+ *  and store name alone don't say what makes this copy distinct from a
+ *  sibling with an actual edition tag. i18n-backed (not a hardcoded
+ *  English literal) like every other user-facing string in this panel's
+ *  siblings (see `GameInfoCompatRow`, `CompatBadge`). */
+function defaultEditionLabel(): string {
+  return t("gameStoreSwitcher.defaultEdition");
+}
 
 interface Props {
   appId: number;
@@ -62,7 +83,10 @@ function optionLabel(sibling: GroupSibling): ReactElement {
   return (
     <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
       <StoreIcon store={sibling.store} size={14} />
-      <span>{sibling.editionLabel ?? DEFAULT_EDITION_LABEL}</span>
+      <span>{storeName(sibling.store)}</span>
+      <span style={{ opacity: 0.7 }}>
+        {sibling.editionLabel ?? defaultEditionLabel()}
+      </span>
     </span>
   );
 }
@@ -70,10 +94,14 @@ function optionLabel(sibling: GroupSibling): ReactElement {
 /** Same `STORE_PRIORITY` order `game-grouping`/`library-filters` use to pick
  *  a duplicate group's default (primary) tile — keeps the dropdown's listed
  *  order consistent with "which copy is the default" elsewhere, and pins
- *  Steam first every time since it leads that list unconditionally. */
+ *  Steam first every time since it leads that list unconditionally.
+ *
+ *  Uses {@link storePriorityRank} rather than a raw `indexOf` comparator —
+ *  see its docstring: a store missing from `STORE_PRIORITY` must sort
+ *  LAST, not first. */
 function sortByStorePriority(siblings: GroupSibling[]): GroupSibling[] {
   return [...siblings].sort(
-    (a, b) => STORE_PRIORITY.indexOf(a.store) - STORE_PRIORITY.indexOf(b.store),
+    (a, b) => storePriorityRank(a.store) - storePriorityRank(b.store),
   );
 }
 

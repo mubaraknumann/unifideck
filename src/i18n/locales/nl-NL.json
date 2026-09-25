@@ -1092,5 +1092,8 @@
     "errorUsernameRequired": "Voer uw gebruikersnaam in",
     "errorPasswordRequired": "Voer uw wachtwoord in",
     "errorConnection": "Verbinding met GameVault-server mislukt"
+  },
+  "gameStoreSwitcher": {
+    "defaultEdition": "Standaardeditie"
   }
 }

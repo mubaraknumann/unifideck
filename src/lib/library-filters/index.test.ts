@@ -49,12 +49,14 @@ import {
   loadUnifideckCache,
   isUnifideckCacheLoaded,
   updateUnifideckCache,
+  updateSingleGameStatus,
   isHiddenDuplicate,
   getGroupSiblings,
   appIdsMatch,
   type UnifideckGameInput,
 } from "./index";
 import { isGroupDuplicatesEnabled, setGroupDuplicatesEnabled } from "../group-duplicates-setting";
+import { getGameStateVersion } from "../game-state-version";
 import type { SteamAppOverview } from "../../types/steam";
 
 const NON_STEAM_APP_TYPE = 1073741824;
@@ -224,6 +226,144 @@ describe('"all" filter hides non-primary cross-store duplicates', () => {
         .map((s) => s.appId)
         .sort(),
     ).toEqual([1, 2]);
+  });
+});
+
+// B.7 — the Installed tab must still show an installed copy even when
+// "Group duplicates" hides it from All Games in favour of a real Steam
+// copy that ISN'T confirmed installed. `steamOwnedAppId` only means "the
+// user owns this on Steam" (it can come from the frontend's full-library
+// push, which also covers owned-but-not-installed titles) — not "the
+// Steam copy is installed" — so a Unifideck copy the user actually
+// installed (the review's example: GOG Bastion) must not disappear from
+// Installed just because Steam's own (uninstalled) copy is the All-Games
+// representative.
+describe("installed tab shows an installed Steam-owned-redundant copy (B.7)", () => {
+  beforeEach(() => {
+    unifideckGameCache.clear();
+    validThirdPartyCache.clear();
+    setGroupDuplicatesEnabled(true);
+  });
+
+  function installedApp(appId: number): SteamAppOverview {
+    return {
+      appid: appId,
+      app_type: NON_STEAM_APP_TYPE,
+      installed: true,
+      display_name: "whatever",
+    } as unknown as SteamAppOverview;
+  }
+
+  it("keeps an installed, Steam-owned-redundant singleton visible on Installed", () => {
+    const games: UnifideckGameInput[] = [
+      { appId: 1, store: "gog", isInstalled: true, steamOwnedAppId: 420110 },
+    ];
+    updateUnifideckCache(games);
+
+    // Hidden from "All Games" — Steam's own tile is the representative.
+    expect(runFilter({ type: "all", params: {} }, installedApp(1))).toBe(false);
+    // Still shows on Installed: this copy genuinely is installed, and
+    // steamOwnedAppId alone says nothing about whether Steam's copy is.
+    expect(
+      runFilter({ type: "installed", params: { installed: true } }, installedApp(1)),
+    ).toBe(true);
+  });
+
+  it("keeps the exception per cross-store group too, not just singletons", () => {
+    const games: UnifideckGameInput[] = [
+      { appId: 1, store: "gog", isInstalled: true, dedupeGroupId: "g", steamOwnedAppId: 420110 },
+      { appId: 2, store: "epic", isInstalled: false, dedupeGroupId: "g" },
+    ];
+    updateUnifideckCache(games);
+
+    expect(runFilter({ type: "all", params: {} }, installedApp(1))).toBe(false);
+    expect(
+      runFilter({ type: "installed", params: { installed: true } }, installedApp(1)),
+    ).toBe(true);
+    // The other (uninstalled) sibling stays hidden from Installed too —
+    // it isn't installed, so there's nothing to exempt it for.
+    expect(
+      runFilter({ type: "installed", params: { installed: true } }, installedApp(2)),
+    ).toBe(false);
+  });
+
+  it("still hides a plain non-primary duplicate (no steamOwnedAppId) from Installed", () => {
+    // Two Unifideck copies, one installed, one not — the installed one
+    // wins the primary pick outright (pickGroupPrimary prefers installed
+    // first), so there's no "installed but hidden" case to exempt here;
+    // this just pins that the ordinary path is untouched.
+    const games: UnifideckGameInput[] = [
+      { appId: 1, store: "epic", isInstalled: false, dedupeGroupId: "g" },
+      { appId: 2, store: "amazon", isInstalled: true, dedupeGroupId: "g" },
+    ];
+    updateUnifideckCache(games);
+
+    expect(
+      runFilter({ type: "installed", params: { installed: true } }, installedApp(2)),
+    ).toBe(true);
+    expect(
+      runFilter({ type: "installed", params: { installed: true } }, installedApp(1)),
+    ).toBe(false);
+  });
+});
+
+// B.8 — SHORTCUT_INSTALL_STATE_CHANGED (routed through
+// `updateSingleGameStatus`) must recompute which group member is
+// "primary" instead of leaving the bulk-load snapshot stale. Before this
+// fix, installing a non-primary copy left it hidden until the next full
+// cache reload.
+describe("updateSingleGameStatus recomputes the group primary (B.8)", () => {
+  beforeEach(() => {
+    unifideckGameCache.clear();
+    validThirdPartyCache.clear();
+    setGroupDuplicatesEnabled(true);
+  });
+
+  function appFor(appId: number): SteamAppOverview {
+    return {
+      appid: appId,
+      app_type: NON_STEAM_APP_TYPE,
+      installed: false,
+      display_name: "whatever",
+    } as unknown as SteamAppOverview;
+  }
+
+  it("re-picks the primary once the previously-non-primary copy installs", () => {
+    const games: UnifideckGameInput[] = [
+      { appId: 1, store: "epic", isInstalled: false, dedupeGroupId: "g" },
+      { appId: 2, store: "amazon", isInstalled: false, dedupeGroupId: "g" },
+    ];
+    updateUnifideckCache(games);
+    // Neither installed: STORE_PRIORITY picks epic (appId 1) as primary.
+    expect(isHiddenDuplicate(1)).toBe(false);
+    expect(isHiddenDuplicate(2)).toBe(true);
+
+    // The user installs the amazon copy — SHORTCUT_INSTALL_STATE_CHANGED
+    // fires for appId 2 with isInstalled: true.
+    updateSingleGameStatus({ appId: 2, store: "amazon", isInstalled: true });
+
+    // amazon must now be the primary (installed beats store priority),
+    // and epic — no longer installed nor first-priority-among-installed —
+    // becomes the hidden one.
+    expect(isHiddenDuplicate(2)).toBe(false);
+    expect(isHiddenDuplicate(1)).toBe(true);
+    expect(runFilter({ type: "all", params: {} }, appFor(2))).toBe(true);
+    expect(runFilter({ type: "all", params: {} }, appFor(1))).toBe(false);
+  });
+
+  it("reverts the primary when that copy is uninstalled again", () => {
+    const games: UnifideckGameInput[] = [
+      { appId: 1, store: "epic", isInstalled: false, dedupeGroupId: "g" },
+      { appId: 2, store: "amazon", isInstalled: true, dedupeGroupId: "g" },
+    ];
+    updateUnifideckCache(games);
+    expect(isHiddenDuplicate(2)).toBe(false); // amazon installed, wins primary
+
+    updateSingleGameStatus({ appId: 2, store: "amazon", isInstalled: false });
+
+    // Nothing installed any more — falls back to STORE_PRIORITY (epic).
+    expect(isHiddenDuplicate(1)).toBe(false);
+    expect(isHiddenDuplicate(2)).toBe(true);
   });
 });
 
@@ -544,5 +684,54 @@ describe("loadUnifideckCache fail-open (UD-043 / UD-008)", () => {
     // this file may have bumped). The scheduled retry fires + resolves.
     await vi.advanceTimersByTimeAsync(10_000);
     expect(unifideckGameCache.has(1234)).toBe(true);
+  });
+});
+
+// C.12 — a re-sync must invalidate an already-mounted detail page's
+// store switcher. `injectStoreSwitcher` keys its element on
+// `getGameStateVersion` (from `lib/game-state-version`, NOT this
+// module's own internal `gameStateVersion` map), so `loadUnifideckCache`
+// bumping that shared counter is what lets a stale switcher be replaced
+// once Steam's route does re-render.
+describe("loadUnifideckCache bumps detail-page version on a group change (C.12)", () => {
+  const groupRow = (appId: number, dedupeGroupId: string | null) => ({
+    app_id: appId,
+    store: "epic",
+    installed: true,
+    store_game_id: String(appId),
+    dedupe_group_id: dedupeGroupId,
+  });
+
+  beforeEach(async () => {
+    mockCall.mockReset();
+    mockCall.mockResolvedValueOnce([]);
+    await loadUnifideckCache();
+    unifideckGameCache.clear();
+    mockCall.mockReset();
+  });
+
+  it("bumps the version when an appId's dedupe group changes", async () => {
+    mockCall.mockResolvedValueOnce([groupRow(555, null)]);
+    await loadUnifideckCache();
+    const before = getGameStateVersion(555);
+
+    // Same appId, now grouped — the switcher would go from "hidden
+    // (fewer than 2 siblings)" to "shown"; a mounted detail page must
+    // pick that up.
+    mockCall.mockResolvedValueOnce([groupRow(555, "some-group")]);
+    await loadUnifideckCache();
+
+    expect(getGameStateVersion(555)).toBeGreaterThan(before);
+  });
+
+  it("does not bump the version on an identical reload (no-op sync)", async () => {
+    mockCall.mockResolvedValueOnce([groupRow(555, "some-group")]);
+    await loadUnifideckCache();
+    const before = getGameStateVersion(555);
+
+    mockCall.mockResolvedValueOnce([groupRow(555, "some-group")]);
+    await loadUnifideckCache();
+
+    expect(getGameStateVersion(555)).toBe(before);
   });
 });

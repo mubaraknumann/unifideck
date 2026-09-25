@@ -90,19 +90,16 @@ class _SyncResultsMixin:
         card grouping and the detail-page store switcher. Gated by
         ``dedup.ui_grouping_enabled`` (default true) purely as an escape
         hatch, not because it's expected to need disabling.
-        """
-        config = getattr(self, "_config", None)
-        if not get_cfg(config, "dedup.ui_grouping_enabled", True):
-            return games
-        from unifideck.core.game_grouping import annotate_duplicate_groups
-        from unifideck.steam.owned_games import get_all_owned_app_ids
 
-        try:
-            steam_owned = get_all_owned_app_ids(config)
-        except Exception:
-            logger.exception(
-                "[SyncService] get_all_owned_app_ids failed — "
-                "continuing without Steam-owned cross-referencing",
-            )
-            steam_owned = {}
-        return annotate_duplicate_groups(games, steam_owned=steam_owned)
+        Thin wrapper around
+        :func:`~unifideck.core.game_grouping.annotate_duplicate_groups_if_enabled`
+        — the same gate + Steam-owned-lookup logic also runs on cache
+        load and on a frontend Steam-owned-titles push, so it lives
+        there rather than only here.
+        """
+        from unifideck.core.game_grouping import (
+            annotate_duplicate_groups_if_enabled,
+        )
+
+        config = getattr(self, "_config", None)
+        return annotate_duplicate_groups_if_enabled(games, config)

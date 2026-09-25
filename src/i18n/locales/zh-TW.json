@@ -1092,5 +1092,8 @@
     "errorUsernameRequired": "請輸入使用者名稱",
     "errorPasswordRequired": "請輸入密碼",
     "errorConnection": "連線至 GameVault 伺服器失敗"
+  },
+  "gameStoreSwitcher": {
+    "defaultEdition": "標準版"
   }
 }

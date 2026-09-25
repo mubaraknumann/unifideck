@@ -272,6 +272,70 @@ _STRIP_STRATEGIES = (
 )
 
 
+# Suffixes that ``titles_match`` (artwork/metadata resolution) tolerates
+# as "same game, different release", but which ``core.game_grouping``
+# must NOT dissolve — grouping "Dead Space" with "Dead Space
+# (2023)" would collapse a remake and its 2008 original into one card,
+# hiding a real game behind the other's tile. Everything else in
+# ``EDITION_SUFFIXES`` (platform tags, "Deluxe/Ultimate/GOTY Edition",
+# etc.) really is the same product re-skinned and stays safe to strip.
+GROUPING_UNSAFE_SUFFIXES: frozenset[str] = frozenset({
+    "remastered", "remake", "directors cut", "the final cut",
+    "classic edition", "legendary edition",
+})
+
+
+def _strip_known_suffix_for_grouping(s: str) -> str | None:
+    """Like :func:`_strip_known_suffix`, minus :data:`GROUPING_UNSAFE_SUFFIXES`."""
+    for suffix in EDITION_SUFFIXES:
+        if suffix in GROUPING_UNSAFE_SUFFIXES:
+            continue
+        if s.endswith(" " + suffix):
+            stripped = s[: -(len(suffix) + 1)].strip()
+            if stripped:
+                return stripped
+    return None
+
+
+# Grouping never strips a trailing year (a differing year names a
+# different release — "Flight Simulator 2020" vs "…2024", "Battlefront
+# 2005" vs "…2017") or an anniversary/celebration phrase (same
+# reasoning), unlike :func:`strip_edition_suffix`'s full strategy list.
+_GROUPING_STRIP_STRATEGIES = (
+    _strip_known_suffix_for_grouping,
+    _strip_edition_phrase,
+    _strip_chapters_episodes,
+)
+
+
+def strip_edition_suffix_for_grouping(normalized: str) -> str:
+    """Edition-suffix stripping for cross-store duplicate *grouping* only.
+
+    Deliberately more conservative than :func:`strip_edition_suffix`:
+    that function widens matching for artwork/metadata lookup, where
+    accepting "same game, different edition/remaster/year" is exactly
+    the point. Grouping two library entries onto one visible card is a
+    stronger claim — a remaster, remake, or differently-numbered yearly
+    release is a distinct product a player owns and plays separately,
+    so those must survive here even though they're deliberately folded
+    away for artwork purposes. See :data:`GROUPING_UNSAFE_SUFFIXES` and
+    the trailing-year/celebration omission above.
+
+    Pure function; same iterate-to-fixpoint shape as
+    :func:`strip_edition_suffix`.
+    """
+    changed = True
+    while changed:
+        changed = False
+        for strip in _GROUPING_STRIP_STRATEGIES:
+            stripped = strip(normalized)
+            if stripped and stripped != normalized:
+                normalized = stripped
+                changed = True
+                break
+    return normalized
+
+
 def extract_edition_label(title: str) -> str | None:
     """Human-readable edition/variant suffix, case preserved.
 
@@ -287,6 +351,21 @@ def extract_edition_label(title: str) -> str | None:
     (``"Cyberpunk 2077: Ultimate Edition"`` → ``"Ultimate Edition"``, not
     ``"ultimate edition"``).
 
+    The boundary is found by counting *normalised tokens*, not raw
+    words, on both sides. Counting raw words used to misalign the cut
+    whenever a word's normalised form doesn't map 1:1 — an apostrophe
+    adds a token (``"Baldur's"`` → ``"baldur s"``, 2 tokens from 1 word)
+    and a hyphenated compound merges two words into one normalised
+    token cluster or drops a bare separator entirely (``"Half-Life"`` →
+    ``"half life"`` from one word; a lone ``"-"`` normalises to zero
+    tokens). Walking the original words while tracking how many
+    normalised tokens each one contributes keeps the two token streams
+    in lockstep, so the split lands on the right *word*, not a
+    proportionally-wrong offset (``"Baldur's Gate II: Enhanced
+    Edition"`` used to slice at word 3 as if every word were one token,
+    yielding just ``"Edition"``; it now correctly yields ``"Enhanced
+    Edition"``).
+
     Returns ``None`` when the title carries no recognised edition suffix
     — most titles, including every sequel ("Beholder 2") since a bare
     version number is never in ``EDITION_SUFFIXES`` and doesn't match the
@@ -298,11 +377,16 @@ def extract_edition_label(title: str) -> str | None:
     base = strip_edition_suffix(normalized)
     if base == normalized:
         return None
+    base_token_count = len(base.split())
+
     words = title.split()
-    base_word_count = len(base.split())
-    if base_word_count >= len(words):
-        return None
-    return " ".join(words[base_word_count:]).strip(" :-–—")  # noqa: RUF001 — real en/em dashes appear in titles
+    consumed_tokens = 0
+    for index, word in enumerate(words):
+        if consumed_tokens >= base_token_count:
+            return " ".join(words[index:]).strip(" :-–—")  # noqa: RUF001 — real en/em dashes appear in titles
+        word_normalized = normalize_for_match(word)
+        consumed_tokens += len(word_normalized.split()) if word_normalized else 0
+    return None
 
 
 def score_match(query_norm: str, candidate_norm: str) -> float:
@@ -339,6 +423,24 @@ def score_match(query_norm: str, candidate_norm: str) -> float:
         prefix_score = max(0.50, len(ql) / len(cl))
         jaccard = max(jaccard, prefix_score)
     return jaccard
+
+
+def leftover_word_count(query_norm: str, candidate_norm: str) -> int:
+    """Words in ``candidate_norm`` that aren't also in ``query_norm``.
+
+    Tie-breaker for "which of several ``titles_match``-accepted
+    candidates is the best one" (see ``core.game_grouping``'s
+    Steam-owned resolver): given several real Steam titles that all
+    fuzzy-match a query, the one with the fewest extra words is the
+    closest fit. ``"Thief"`` vs candidates ``"Thief Gold"`` (1 leftover:
+    "gold") and ``"Thief"`` (0 leftover) picks the exact ``"Thief"``
+    over ``"Thief Gold"`` — the bug this exists to fix was the reverse:
+    dict-iteration order deciding which of several title-matching Steam
+    appids won, independent of fit quality.
+    """
+    qw = set(query_norm.split())
+    cw = set(candidate_norm.split())
+    return len(cw - qw)
 
 
 def clean_search_query(title: str) -> str:

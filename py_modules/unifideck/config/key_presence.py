@@ -89,12 +89,15 @@ RUNTIME_REQUIRED_KEYS: tuple[str, ...] = (
     # compat (ProtonDB + Deck Verified API timeouts)
     "compat.deck_verified_timeout_seconds",
     "compat.protondb_timeout_seconds",
-    # dedup — Microsoft Store is intentionally absent so xCloud /
-    # Game Pass entries are never filtered against Steam-native or
-    # cross-store duplicates. ``cross_store_enabled`` gates the opt-in
-    # "one shortcut per game" collapse (default false).
-    # ``ui_grouping_enabled`` gates the display-only multi-store card
-    # grouping / detail-page store switcher (default true).
+    # dedup — Microsoft Store is intentionally absent from
+    # ``tracked_stores`` so xCloud / Game Pass entries are never
+    # collapsed by the opt-in "one shortcut per game" merge
+    # (``cross_store_enabled``, default false). They ARE included in
+    # the always-on display grouping (``ui_grouping_enabled``, default
+    # true) — a user expects an Xbox Cloud copy of a game they also own
+    # on Steam/Epic/etc. to collapse onto one card same as any other
+    # store, only the destructive shortcut-collapse feature excludes
+    # Microsoft.
     "dedup.tracked_stores",
     "dedup.cross_store_enabled",
     "dedup.ui_grouping_enabled",

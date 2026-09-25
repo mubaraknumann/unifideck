@@ -1092,5 +1092,8 @@
     "errorUsernameRequired": "ユーザー名を入力してください",
     "errorPasswordRequired": "パスワードを入力してください",
     "errorConnection": "GameVaultサーバーへの接続に失敗しました"
+  },
+  "gameStoreSwitcher": {
+    "defaultEdition": "スタンダードエディション"
   }
 }
