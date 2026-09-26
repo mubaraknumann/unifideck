@@ -126,7 +126,11 @@ function injectIntoTree(ret: unknown): void {
   // device that surfaced it, 27 of them not ours).
   const shouldPatch =
     appId > 2_000_000_000 &&
-    shouldPatchShortcut(appId, isUnifideckCacheLoaded(), isUnifideckGame(appId));
+    shouldPatchShortcut(
+      appId,
+      isUnifideckCacheLoaded(),
+      isUnifideckGame(appId),
+    );
 
   if (shouldPatch) {
     // Trigger Steam-Store metadata spoofing for this shortcut so Steam's
@@ -301,11 +305,7 @@ function injectStoreSwitcher(
   }
 
   children.unshift(
-    <GameStoreSwitcher
-      key={versionedKey}
-      appId={appId}
-      siblings={siblings}
-    />,
+    <GameStoreSwitcher key={versionedKey} appId={appId} siblings={siblings} />,
   );
 }
 

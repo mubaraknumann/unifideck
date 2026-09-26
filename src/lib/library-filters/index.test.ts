@@ -264,9 +264,9 @@ describe("installed tab shows an installed Steam-owned-redundant copy (B.7)", ()
     expect(runFilter({ type: "all", params: {} }, installedApp(1))).toBe(false);
     // Still shows on Installed: this copy genuinely is installed, and
     // steamOwnedAppId alone says nothing about whether Steam's copy is.
-    expect(
-      runFilter({ type: "installed", params: { installed: true } }, installedApp(1)),
-    ).toBe(true);
+    expect(runFilter({ type: "installed", params: { installed: true } }, installedApp(1))).toBe(
+      true,
+    );
   });
 
   it("keeps the exception per cross-store group too, not just singletons", () => {
@@ -277,14 +277,14 @@ describe("installed tab shows an installed Steam-owned-redundant copy (B.7)", ()
     updateUnifideckCache(games);
 
     expect(runFilter({ type: "all", params: {} }, installedApp(1))).toBe(false);
-    expect(
-      runFilter({ type: "installed", params: { installed: true } }, installedApp(1)),
-    ).toBe(true);
+    expect(runFilter({ type: "installed", params: { installed: true } }, installedApp(1))).toBe(
+      true,
+    );
     // The other (uninstalled) sibling stays hidden from Installed too —
     // it isn't installed, so there's nothing to exempt it for.
-    expect(
-      runFilter({ type: "installed", params: { installed: true } }, installedApp(2)),
-    ).toBe(false);
+    expect(runFilter({ type: "installed", params: { installed: true } }, installedApp(2))).toBe(
+      false,
+    );
   });
 
   it("still hides a plain non-primary duplicate (no steamOwnedAppId) from Installed", () => {
@@ -298,12 +298,12 @@ describe("installed tab shows an installed Steam-owned-redundant copy (B.7)", ()
     ];
     updateUnifideckCache(games);
 
-    expect(
-      runFilter({ type: "installed", params: { installed: true } }, installedApp(2)),
-    ).toBe(true);
-    expect(
-      runFilter({ type: "installed", params: { installed: true } }, installedApp(1)),
-    ).toBe(false);
+    expect(runFilter({ type: "installed", params: { installed: true } }, installedApp(2))).toBe(
+      true,
+    );
+    expect(runFilter({ type: "installed", params: { installed: true } }, installedApp(1))).toBe(
+      false,
+    );
   });
 });
 

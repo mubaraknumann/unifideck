@@ -639,7 +639,7 @@
     "enabled": "Collections enabled",
     "disabled": "Collections disabled",
     "groupDuplicates": "Group duplicates",
-    "groupDuplicatesDescription": "Collapse a title's copies from different stores into one tile in All Games, Great on Deck, and Installed. Off by default — each store's copy shows separately."
+    "groupDuplicatesDescription": "Collapse multiple copies from different stores into one Library tile. Provides a dropdown on the title detail page to toggle between duplicates."
   },
   "installLanguageModal": {
     "title": "Select Language",

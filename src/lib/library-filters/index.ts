@@ -784,9 +784,7 @@ let lastSwitcherSignatures: Map<number, string> = new Map();
  *  whichever render does come next. Skips the appId churn entirely on a
  *  no-op sync (identical signatures), which is the common case per
  *  `_chain_is_redundant`'s reconcile-only fast path on the backend. */
-function _bumpDetailPageVersionsOnChange(
-  inputs: UnifideckGameInput[],
-): void {
+function _bumpDetailPageVersionsOnChange(inputs: UnifideckGameInput[]): void {
   const nextSignatures = new Map<number, string>();
   for (const g of inputs) {
     const signature = _switcherSignature(g);
