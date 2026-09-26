@@ -64,10 +64,15 @@ EDITION_SUFFIXES: tuple[str, ...] = (
     "legendary edition", "elite edition", "ea play edition",
     "remastered", "remake", "directors cut", "the final cut",
     "unofficial patch",
-    "revolution",
     "digital version",
-    # Short / standalone (word boundary ensured by space-prefix check)
-    "goty", "hd", "ce", "dlc", "windows", "console", "xs",
+    # Short / standalone (word boundary ensured by space-prefix check).
+    # Deliberately excludes bare "revolution" and "console": both are
+    # common LAST WORDS of real, unrelated game titles ("Cyber
+    # Revolution", "Duel Revolution", "Creative Console" all appeared in
+    # a live-library audit getting their real title word eaten as a
+    # fake "edition"), unlike "goty"/"hd"/"ce"/"dlc", which are genuine
+    # edition/release jargon with no similar false-positive found.
+    "goty", "hd", "ce", "dlc", "windows", "xs",
 )
 
 # Multi-character Roman numerals → Arabic, for version folding ("Thief II"
@@ -271,6 +276,39 @@ _STRIP_STRATEGIES = (
     _strip_trailing_year,
 )
 
+# Same as _STRIP_STRATEGIES, minus _strip_trailing_year — used only to
+# find extract_edition_label's split point. Matching (strip_edition_suffix)
+# treats a trailing year as disposable so "Flight Simulator 2020" fuzzy-
+# matches "...2024"; the label extractor must not inherit that, or a
+# year that's genuinely part of the title ends up glued onto the label
+# instead of the base ("Microsoft Flight Simulator 2024 - Standard
+# Edition" → base "microsoft flight simulator", label "2024 - Standard
+# Edition" — the "2024" leaks in because it strips before "Standard
+# Edition" does in the full iterate-to-fixpoint loop). Dropping the
+# year-stripper from this variant keeps a trailing year attached to the
+# base for splitting purposes, whatever else is stripped around it.
+_LABEL_SPLIT_STRIP_STRATEGIES = (
+    _strip_known_suffix,
+    _strip_edition_phrase,
+    _strip_chapters_episodes,
+    _strip_celebration,
+)
+
+
+def _strip_edition_suffix_for_label_split(normalized: str) -> str:
+    """Like :func:`strip_edition_suffix`, but never strips a trailing
+    year — see :data:`_LABEL_SPLIT_STRIP_STRATEGIES`."""
+    changed = True
+    while changed:
+        changed = False
+        for strip in _LABEL_SPLIT_STRIP_STRATEGIES:
+            stripped = strip(normalized)
+            if stripped and stripped != normalized:
+                normalized = stripped
+                changed = True
+                break
+    return normalized
+
 
 # Suffixes that ``titles_match`` (artwork/metadata resolution) tolerates
 # as "same game, different release", but which ``core.game_grouping``
@@ -279,9 +317,24 @@ _STRIP_STRATEGIES = (
 # hiding a real game behind the other's tile. Everything else in
 # ``EDITION_SUFFIXES`` (platform tags, "Deluxe/Ultimate/GOTY Edition",
 # etc.) really is the same product re-skinned and stays safe to strip.
+#
+# "Definitive Edition" belongs here too, alongside "Remastered"/"Remake":
+# publishers use it for both meanings, and grouping can't tell them apart
+# from the string alone —
+#   - a distinct remaster with its own store page and appid (Dishonored
+#     - Definitive Edition, THIEF: Definitive Edition, Tomb Raider:
+#     Definitive Edition, Ori and the Blind Forest: Definitive Edition —
+#     each sits next to an unsuffixed original in real libraries), vs.
+#   - a publisher's only current listing for an older game (Mafia:
+#     Definitive Edition, Gamedec - Definitive Edition), where there is
+#     no separate unsuffixed release to conflict with.
+# Refusing to strip it costs nothing in the second case (the title just
+# stays an ungrouped singleton, same as today) and fixes real over-
+# merging in the first — see the audit that found Dishonored, Thief and
+# Tomb Raider all wrongly sharing a card with their Definitive Edition.
 GROUPING_UNSAFE_SUFFIXES: frozenset[str] = frozenset({
     "remastered", "remake", "directors cut", "the final cut",
-    "classic edition", "legendary edition",
+    "classic edition", "legendary edition", "definitive edition",
 })
 
 
@@ -336,6 +389,35 @@ def strip_edition_suffix_for_grouping(normalized: str) -> str:
     return normalized
 
 
+def _strip_wrapping_brackets(label: str) -> str:
+    """Peel a balanced ``(...)``/``[...]`` pair that wraps all of
+    ``label``, and drop a lone unmatched leading/trailing bracket the
+    word-boundary slice in :func:`extract_edition_label` can leave
+    behind.
+
+    The slice cuts on whitespace, so a closing bracket glued to the
+    last word survives a plain ``.strip()`` of bracket characters fine
+    when its opener is also inside the label (``"(Xbox One)"`` →
+    ``"Xbox One)"`` after the space-based cut is wrong either way,
+    which is why this exists), but a bracket whose *partner* fell on
+    the base-title side of the cut has no partner left to balance
+    against — stripping just the character at the string's edge would
+    leave the other one stranded in the middle (``"Standard Edition
+    (Windows)"`` naively edge-stripped of ``)`` alone becomes
+    ``"Standard Edition (Windows"``, an unmatched opener). Dropping the
+    lone unmatched bracket instead of trying to re-pair it is the
+    simpler correct behaviour — the label reads fine without it either
+    way.
+    """
+    label = label.strip()
+    if len(label) >= 2 and label[0] in "([" and label[-1] in ")]":
+        return label[1:-1].strip()
+    opens, closes = label.count("("), label.count(")")
+    if opens != closes:
+        label = label.replace("(", "") if opens > closes else label.replace(")", "")
+    return label.strip()
+
+
 def extract_edition_label(title: str) -> str | None:
     """Human-readable edition/variant suffix, case preserved.
 
@@ -370,11 +452,36 @@ def extract_edition_label(title: str) -> str | None:
     — most titles, including every sequel ("Beholder 2") since a bare
     version number is never in ``EDITION_SUFFIXES`` and doesn't match the
     generic ``<words> edition`` pattern either.
+
+    A trailing release year is never included in the label, even as
+    part of a longer discarded suffix — "Car Mechanic Simulator 2018"
+    (bare year, nothing else) and "Microsoft Flight Simulator 2024 -
+    Standard Edition" (year immediately followed by a real edition
+    phrase) both keep their year attached to the base title rather than
+    the label: annualised-franchise titles carry their year as part of
+    the game's identity, not an edition. This uses a stripping pass
+    that never removes a trailing year (:func:`_strip_edition_suffix_for_label_split`)
+    to find the split point, unlike :func:`strip_edition_suffix`
+    (matching stays permissive about years — see
+    :data:`GROUPING_UNSAFE_SUFFIXES`'s docstring for why grouping is
+    the one place a year is never negotiable).
     """
     normalized = normalize_for_match(title)
     if not normalized:
         return None
-    base = strip_edition_suffix(normalized)
+    if strip_edition_suffix(normalized) == normalized:
+        # No suffix at all, year or otherwise — nothing to label.
+        return None
+    if re.search(r"\b(?:19|20)\d{2}\s+edition\b", normalized):
+        # "<year> Edition" is itself a self-contained branded suffix
+        # ("Sea of Thieves: 2025 Edition") rather than an annualised
+        # title's own version year with an unrelated edition phrase
+        # tacked on after it ("Flight Simulator 2024 - Standard
+        # Edition") — the year is adjacent to "edition" here, so it's
+        # part of the thing being named, not the base game's identity.
+        base = strip_edition_suffix(normalized)
+    else:
+        base = _strip_edition_suffix_for_label_split(normalized)
     if base == normalized:
         return None
     base_token_count = len(base.split())
@@ -383,7 +490,14 @@ def extract_edition_label(title: str) -> str | None:
     consumed_tokens = 0
     for index, word in enumerate(words):
         if consumed_tokens >= base_token_count:
-            return " ".join(words[index:]).strip(" :-–—")  # noqa: RUF001 — real en/em dashes appear in titles
+            label = " ".join(words[index:]).strip(" :-–—,")  # noqa: RUF001 — real en/em dashes appear in titles
+            label = _strip_wrapping_brackets(label)
+            # EDITION_SUFFIXES' "for pc"/"for windows"/"for xbox" entries
+            # exist to strip the whole phrase for matching purposes, but
+            # the leading preposition reads oddly as a label on its own
+            # ("for Xbox") — the platform name alone is the useful part.
+            label = re.sub(r"^for\s+", "", label, flags=re.IGNORECASE)
+            return label or None
         word_normalized = normalize_for_match(word)
         consumed_tokens += len(word_normalized.split()) if word_normalized else 0
     return None

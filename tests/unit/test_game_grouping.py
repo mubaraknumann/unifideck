@@ -271,6 +271,19 @@ def test_steam_owned_picks_skyrim_special_edition_not_base_skyrim():
         ("Far Cry 3: Blood Dragon", "Far Cry 3"),
         ("Car Mechanic Simulator 2021", "Car Mechanic Simulator 2018"),
         ("Star Wars Battlefront II (2017)", "Star Wars Battlefront 2 (2005)"),
+        # Found via a live-library audit: "Definitive Edition" is used
+        # both for a distinct remaster with its own store page
+        # (Dishonored, Thief, Tomb Raider, Ori and the Blind Forest all
+        # have one) and for a publisher's only current listing of an
+        # older game (Mafia, Gamedec — no separate unsuffixed release
+        # exists, so those stay correctly grouped; see
+        # test_definitive_edition_reissue_still_groups_with_itself
+        # below). Grouping must assume the first case, same as
+        # "Remastered"/"Remake".
+        ("Dishonored", "Dishonored - Definitive Edition"),
+        ("Thief", "THIEF: Definitive Edition"),
+        ("Tomb Raider", "Tomb Raider: Definitive Edition"),
+        ("Ori and the Blind Forest", "Ori and the Blind Forest: Definitive Edition"),
     ],
 )
 def test_sequels_remakes_and_years_are_never_grouped(title_a, title_b):
@@ -295,6 +308,23 @@ def test_sequels_remakes_and_years_are_never_grouped(title_a, title_b):
     assert None not in group_a
     assert None not in group_b
     assert group_a.isdisjoint(group_b)
+
+
+def test_definitive_edition_reissue_still_groups_with_itself():
+    """Refusing to strip "Definitive Edition" for grouping (see the
+    parametrized case above) must not stop two store copies of the SAME
+    Definitive Edition release from grouping with each other — only
+    cross-store copies of an unsuffixed sibling should be kept apart.
+    Mirrors "Mafia: Definitive Edition" / "Gamedec - Definitive Edition"
+    from the live-library audit, neither of which has a separate
+    unsuffixed release in the library to conflict with."""
+    games = [
+        _g("epic", "Mafia: Definitive Edition"),
+        _g("gog", "Mafia: Definitive Edition"),
+    ]
+    out = annotate_duplicate_groups(games)
+    assert out[0].dedupe_group_id is not None
+    assert out[0].dedupe_group_id == out[1].dedupe_group_id
 
 
 def test_bioshock_chain_never_transitively_groups():
