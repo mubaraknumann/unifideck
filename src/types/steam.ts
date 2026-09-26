@@ -164,13 +164,15 @@ declare global {
           ) => void,
         ): Unregisterable;
         CancelGameAction(gameActionId: number): void;
+        /** Takes the 64-bit gameID, never the appid (getShortcutRunGameId). */
         RunGame(
-          appId: string,
+          gameId: string,
           launchOptions: string,
           a: number,
           b: number,
         ): void;
-        TerminateApp(appId: string, force: boolean): void;
+        /** Takes the 64-bit gameID, never the appid (getShortcutRunGameId). */
+        TerminateApp(gameId: string, force: boolean): void;
         ShowControllerConfigurator(appId: number): void;
         OpenAppSettingsDialog(appId: number, section: string): void;
         AddShortcut(
@@ -211,12 +213,12 @@ declare global {
       // Steam client UI bundle (steamui/*.js). Used to apply the
       // official "Web Browser" template to the auth-window shortcut.
       Input?: {
-        // Streams the available controller-config templates/personal
-        // configs for ``appId`` as an array of ``List``/``Done``
-        // messages (see ControllerConfigInfoMessage). Populated after
-        // a ``QueryControllerConfigsForApp`` call.
+        // Streams controller-config messages for EVERY app as arrays of
+        // ``List``/``Done`` messages (see ControllerConfigInfoMessage);
+        // each carries its ``appID``. Takes the callback only: Steam's own
+        // bundle calls it with one argument, and ``(appId, cb)`` is rejected
+        // by the backend. Populated after ``QueryControllerConfigsForApp``.
         RegisterForControllerConfigInfoMessages(
-          appId: number,
           callback: (messages: ControllerConfigInfoMessage[]) => void,
         ): Unregisterable;
         // Triggers Steam to emit the config-info messages for the app.

@@ -1,3 +1,11 @@
+"""xCloud CDP injection flow. NOT on the live launch path.
+
+# unimported: nothing calls ``launch_xcloud``; the live path is
+# ``services/launcher/browser_game.run_browser_game``. This module and the CDP
+# cluster only it reaches (``launcher/cdp/xcloud_cdp``, ``cdp/xcloud_browser_shims``,
+# ``launcher/cdp/steam_controller_popup*``) are dead; deleting them is audit
+# register row 77.
+"""
 from __future__ import annotations
 
 import asyncio
@@ -10,11 +18,12 @@ from unifideck.launcher.cdp.xcloud_cdp import run_cdp_inject
 from unifideck.launcher.types.context import LaunchContext
 from unifideck.launcher.types.errors import DependencyMissingError
 
+from .browser_window import wait_for_browser_exit
+
 if TYPE_CHECKING:
     from unifideck.auth.edge_browser import EdgeBrowser
 logger = logging.getLogger(__name__)
 _MAX_SESSION_SECONDS = 14400
-_POLL_INTERVAL_SECONDS = 5.0
 _XCLOUD_CDP_PORT = 9223
 _CDP_INJECT_TIMEOUT = 60.0
 def _read_config_int(key: str, default: int) -> int:
@@ -28,7 +37,7 @@ async def launch_xcloud(
 ) -> Result:
 
     """Launch xcloud."""
-    target_url = str(ctx.work_dir)
+    target_url = str(ctx.browser_url or "")
     logger.info(
         "[launcher.xcloud] launching: %s", target_url[:80],
     )
@@ -41,7 +50,7 @@ async def launch_xcloud(
                 "url": target_url,
             },
         )
-    started = edge_browser.launch_xcloud(target_url)
+    started = edge_browser.launch_browser_game(target_url)
     if not started:
         return Result(
             success=False,
@@ -58,7 +67,11 @@ async def launch_xcloud(
         name=f"xcloud_cdp_inject:{ctx.game_key}",
     )
     try:
-        await _wait_for_session_end(edge_browser)
+        await wait_for_browser_exit(
+            edge_browser,
+            _read_config_int("launcher.browser_game_max_seconds", _MAX_SESSION_SECONDS),
+            log_tag="launcher.xcloud",
+        )
     finally:
         if not inject_task.done():
             inject_task.cancel()
@@ -68,34 +81,3 @@ async def launch_xcloud(
         "[launcher.xcloud] session ended: %s", ctx.game_key,
     )
     return Result(success=True, store=ctx.store)
-async def _wait_for_session_end(edge_browser: EdgeBrowser) -> None:
-    """Wait for session end."""
-    max_seconds = _read_config_int(
-        "launcher.xcloud_max_seconds", _MAX_SESSION_SECONDS,
-    )
-    proc = edge_browser.process
-    if proc is not None:
-        loop = asyncio.get_event_loop()
-        try:
-            await asyncio.wait_for(
-                loop.run_in_executor(None, proc.wait),
-                timeout=max_seconds,
-            )
-        except TimeoutError:
-            logger.warning(
-                "[launcher.xcloud] session reached max "
-                "duration (%ds), leaving Edge running",
-                max_seconds,
-            )
-        return
-    logger.info(
-        "[launcher.xcloud] no process handle, polling "
-        "fallback",
-    )
-    elapsed = 0.0
-    while elapsed < max_seconds:
-        await asyncio.sleep(_POLL_INTERVAL_SECONDS)
-        elapsed += _POLL_INTERVAL_SECONDS
-    logger.warning(
-        "[launcher.xcloud] polling fallback reached timeout",
-    )

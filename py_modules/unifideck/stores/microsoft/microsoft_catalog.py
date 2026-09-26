@@ -17,6 +17,8 @@ from .microsoft_config import MicrosoftConfig
 if TYPE_CHECKING:
     from .microsoft_subscription import SubscriptionProbeResult
 
+from unifideck.launcher.browser_games import BROWSER_URL_KEY, XCLOUD_PLAY_URL
+
 logger = logging.getLogger(__name__)
 
 # Batch size for displaycatalog.mp.microsoft.com GET. 50 productIds
@@ -148,7 +150,8 @@ class MicrosoftCatalogReader:
                 store_game_id=pid,
                 title=_title_for(title_map, pid, t.get("titleId", "")),
                 installed=False,
-                tags=[GameTag.XCLOUD],
+                tags=[GameTag.XCLOUD, GameTag.BROWSER],
+                metadata={BROWSER_URL_KEY: XCLOUD_PLAY_URL.format(game_id=pid)},
             ))
         return games
 

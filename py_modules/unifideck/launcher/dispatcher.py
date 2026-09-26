@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import os
 import sys
@@ -11,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 from unifideck.core.types.results import Result
 
 from .argv_options import env_overrides_from, parse_argv, promote_env_tokens
+from .browser_games import BrowserTarget, browser_target, cached_game
 from .types.context import LaunchContext
 from .types.errors import GameNotFoundError, LauncherError
 from .types.exit_codes import ExitCode
@@ -32,21 +32,8 @@ def _install_path_from_cache(store: str, game_id: str) -> str:
     installed by an older build that never wrote one). Returns ``""``
     when the cache is absent or the game isn't found.
     """
-    cache = Path(
-        "~/.local/share/unifideck/library_cache.json",
-    ).expanduser()
-    if not cache.is_file():
-        return ""
-    try:
-        data = json.loads(cache.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return ""
-    libraries = data.get("libraries") if isinstance(data, dict) else None
-    games = (libraries or {}).get(store) or []
-    for game in games:
-        if isinstance(game, dict) and game.get("store_game_id") == game_id:
-            return str(game.get("install_path") or "")
-    return ""
+    game = cached_game(store, game_id) or {}
+    return str(game.get("install_path") or "")
 
 
 def _resolve_exe_from_install(store: str, install_path: str) -> str | None:
@@ -112,55 +99,72 @@ async def _build_context(
         shortcut_svc, store, game_id, game_key,
     )
     if not exe:
-        # Microsoft titles are Xbox Cloud Gaming (browser-streamed) —
-        # no install and no games.map row. Synthesize the xCloud
-        # context so the matrix routes to ``_launch_xcloud``.
-        if store == "microsoft":
-            logger.info(
-                "[launcher.dispatcher] microsoft game not in games.map — "
-                "synthesizing xCloud context for %s", game_key,
-            )
-            return _xcloud_context(store, game_id, raw_options)
-        if is_wrapper_store(store):
-            # An *installed* wrapper-store title legitimately has no resolvable
-            # exe: its vendor client launches the game (Ubisoft via the
-            # ``uplay://launch/{id}/0`` deeplink, Battle.net via
-            # ``--exec="launch <FAMILY>"``) and neither handler reads
-            # ``exe_path``. A games.map row is the "installed" signal — route it
-            # to the play handler so Play launches the GAME, not the client.
-            # Opening UPC for an already-installed game was the regression
-            # where "Play" re-opened Ubisoft Connect.
-            if has_entry:
-                logger.info(
-                    "[launcher.dispatcher] %s game %s installed "
-                    "(games.map row, no exe) — launching via its client",
-                    store, game_key,
-                )
-                return _game_context(
-                    store, game_id, exe, work_dir, raw_options, app_id,
-                )
-            # Not installed (no row) but the prefix is bootstrapped: this is
-            # the install, and the client has to be opened into it. Two ways to
-            # arrive here — Steam dropped the ``UNIFIDECK_*_ACTION=install``
-            # token so it looks like a plain launch, or the install is simply
-            # still running and no row exists yet. The second is the normal
-            # case for every wrapper store: the row is only written once the
-            # game has actually downloaded.
-            if wrapper_prefix_is_populated(store, game_id):
-                logger.info(
-                    "[launcher.dispatcher] %s game %s not in games.map "
-                    "but has a populated prefix — treating as install action",
-                    store, game_key,
-                )
-                return _wrapper_install_context(
-                    store, game_id, raw_options, store,
-                )
-        raise GameNotFoundError(
-            f"game {game_key!r} not found in games.map",
-            context={"game_key": game_key},
+        return _context_without_exe(
+            store, game_id, game_key, raw_options, work_dir, has_entry, app_id,
         )
     return _game_context(
         store, game_id, exe, work_dir, raw_options, app_id,
+    )
+
+
+def _context_without_exe(
+    store: str, game_id: str, game_key: str, raw_options: str,
+    work_dir: str, has_entry: bool, app_id: int,
+) -> LaunchContext:
+    """The launch context for a game whose games.map row names no exe.
+
+    Three legitimate cases (a browser game, an installed wrapper-store title,
+    a wrapper-store install in progress); anything else is not found. Split
+    out of :func:`_build_context` to keep its fan-out under the gate.
+    """
+    exe = ""
+    # Browser games (xCloud streams, itch.io HTML5 games) install
+    # nothing and have no games.map row; the library cache says where
+    # they open. See ``launcher/browser_games``.
+    target = None if is_wrapper_store(store) else browser_target(store, game_id)
+    if target is not None:
+        logger.info(
+            "[launcher.dispatcher] %s is a browser game (%s), opening %s",
+            game_key, target.kind, target.url[:80],
+        )
+        return _browser_context(store, game_id, raw_options, target)
+    if is_wrapper_store(store):
+        # An *installed* wrapper-store title legitimately has no resolvable
+        # exe: its vendor client launches the game (Ubisoft via the
+        # ``uplay://launch/{id}/0`` deeplink, Battle.net via
+        # ``--exec="launch <FAMILY>"``) and neither handler reads
+        # ``exe_path``. A games.map row is the "installed" signal — route it
+        # to the play handler so Play launches the GAME, not the client.
+        # Opening UPC for an already-installed game was the regression
+        # where "Play" re-opened Ubisoft Connect.
+        if has_entry:
+            logger.info(
+                "[launcher.dispatcher] %s game %s installed "
+                "(games.map row, no exe) — launching via its client",
+                store, game_key,
+            )
+            return _game_context(
+                store, game_id, exe, work_dir, raw_options, app_id,
+            )
+        # Not installed (no row) but the prefix is bootstrapped: this is
+        # the install, and the client has to be opened into it. Two ways to
+        # arrive here — Steam dropped the ``UNIFIDECK_*_ACTION=install``
+        # token so it looks like a plain launch, or the install is simply
+        # still running and no row exists yet. The second is the normal
+        # case for every wrapper store: the row is only written once the
+        # game has actually downloaded.
+        if wrapper_prefix_is_populated(store, game_id):
+            logger.info(
+                "[launcher.dispatcher] %s game %s not in games.map "
+                "but has a populated prefix — treating as install action",
+                store, game_key,
+            )
+            return _wrapper_install_context(
+                store, game_id, raw_options, store,
+            )
+    raise GameNotFoundError(
+        f"game {game_key!r} not found in games.map",
+        context={"game_key": game_key},
     )
 
 
@@ -187,7 +191,7 @@ async def _resolve_game_exe(
     app_id = (entry.app_id if entry else 0) or 0
     exe = (entry.exe if entry else "") or ""
     work_dir = (entry.work_dir if entry else "") or ""
-    if not exe and store != "microsoft":
+    if not exe:
         if not work_dir:
             work_dir = _install_path_from_cache(store, game_id)
         resolved = (
@@ -282,15 +286,15 @@ def _wrapper_install_context(
     )
 
 
-def _xcloud_context(
-    store: str, game_id: str, raw_options: str,
+def _browser_context(
+    store: str, game_id: str, raw_options: str, target: BrowserTarget,
 ) -> LaunchContext:
-    """Synthesized xCloud context for a Microsoft title with no row."""
+    """Context for a browser game: no exe, the URL in its own field."""
     plugin_dir = _resolve_plugin_dir()
     return LaunchContext(
         store=store,
         game_id=game_id,
-        exe_path=Path("xcloud"),
+        exe_path=Path("browser"),
         work_dir=plugin_dir,
         plugin_dir=plugin_dir,
         raw_options=raw_options,
@@ -298,6 +302,8 @@ def _xcloud_context(
         is_launch_action=True,
         auth_store=None,
         bypass_circuit_breaker=False,
+        browser_url=target.url,
+        browser_kind=target.kind,
     )
 
 
@@ -355,6 +361,7 @@ def _detect_special_action() -> tuple[str | None, str | None, bool]:
         "microsoft": os.environ.get("UNIFIDECK_MICROSOFT_ACTION"),
         "ubisoft":   os.environ.get("UNIFIDECK_UBISOFT_ACTION"),
         "battlenet": os.environ.get("UNIFIDECK_BATTLENET_ACTION"),
+        "itch":      os.environ.get("UNIFIDECK_ITCH_ACTION"),
     }
     for candidate_store, action in action_env.items():
         if action == "auth":

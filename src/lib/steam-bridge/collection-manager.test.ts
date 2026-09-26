@@ -126,6 +126,34 @@ function makeStore(names: string[]) {
   return { map, store };
 }
 
+// This vitest/jsdom combination's `window.localStorage` doesn't implement
+// `getItem`/`setItem`/`clear` (a known limitation — see the same
+// workaround note in the sibling `library-filters/index.test.ts`). That
+// file's production code sits behind a mockable module boundary; this
+// suite calls `window.localStorage` directly, so it needs a real,
+// working store rather than a mocked-away import — a minimal in-memory
+// polyfill, installed once and reset in `beforeEach`.
+const memoryStorage = new Map<string, string>();
+Object.defineProperty(window, "localStorage", {
+  configurable: true,
+  value: {
+    getItem: (key: string) => memoryStorage.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      memoryStorage.set(key, String(value));
+    },
+    removeItem: (key: string) => {
+      memoryStorage.delete(key);
+    },
+    clear: () => {
+      memoryStorage.clear();
+    },
+    key: (index: number) => Array.from(memoryStorage.keys())[index] ?? null,
+    get length() {
+      return memoryStorage.size;
+    },
+  },
+});
+
 beforeEach(() => {
   window.localStorage.clear();
 });

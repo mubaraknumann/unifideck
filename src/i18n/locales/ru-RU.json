@@ -18,6 +18,9 @@
       "connected": "{{store}} подключён",
       "failed": "Не удалось войти в {{store}}"
     },
+    "hints": {
+      "itch": "itch.io снова запросит пароль. Если ключ API не показан, нажмите «Generate new API key»."
+    },
     "errors": {
       "networkTitle": "Нет подключения к интернету",
       "networkBody": "Подключитесь к Wi-Fi и повторите попытку."
@@ -353,6 +356,8 @@
       "ubisoftLaunchIdMissing": "Открытие Ubisoft Connect",
       "ubisoftLaunchIdMissingMessage": "Не удалось определить ID запуска этой игры. Открывается Ubisoft Connect, чтобы вы могли запустить её из своей библиотеки. Запустите синхронизацию библиотеки снова, чтобы исправить прямой запуск.",
       "startingBattlenetGame": "Запуск {{gameTitle}} через Battle.net…",
+      "wc3ProtonUnsupported": "Warcraft III требует более новый Proton",
+      "wc3ProtonUnsupportedMessage": "{{gameTitle}} не может войти в Battle.net на этой версии Proton из-за ошибки Wine, из-за которой игра сообщает об ошибке VPN. Откройте свойства игры в Steam, затем «Совместимость», и выберите GE-Proton11-7 или новее.",
       "battlenetStartingClient": "Открытие Battle.net",
       "battlenetStartingClientMessage": "Ожидание готовности клиента Battle.net…",
       "battlenetInstallingClient": "Установка Battle.net",
@@ -477,6 +482,8 @@
       "stalled": "Загрузка остановилась без прогресса. Попробуйте ещё раз.",
       "directoryNotFound": "Не удалось найти установленные файлы игры",
       "lockConflict": "Выполняется другая операция. Попробуйте позже",
+      "noCompatibleBuild": "У этой игры нет сборки для Linux или Windows, которую можно установить",
+      "folderInUse": "В папке установки уже есть игра из другого магазина",
       "ubisoftClient": "Ошибка клиента Ubisoft Connect. Попробуйте исправить префикс",
       "ubisoftClientNotRunning": "Клиент Ubisoft Connect не отвечает",
       "ubisoftBootstrap": "Не удалось настроить префикс Ubisoft Connect",
@@ -542,7 +549,8 @@
     "ubisoft": "Ubisoft",
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
-    "gamevault": "GameVault"
+    "gamevault": "GameVault",
+    "itch": "itch.io"
   },
   "unifiedLibrary": {
     "error": "Ошибка Unifideck",
@@ -727,6 +735,7 @@
     "cancelConfirmConfirm": "Отменить загрузку",
     "cancelConfirmCancel": "Продолжить загрузку",
     "playOnCloud": "Играть в облаке",
+    "playInBrowser": "Играть в браузере",
     "cloudSave": {
       "autoPullOn": "Облачные сохранения загружаются автоматически при запуске.",
       "close": "Закрыть",
@@ -1049,7 +1058,9 @@
   "collectionSettings": {
     "title": "КОЛЛЕКЦИИ STEAM",
     "enabled": "Коллекции включены",
-    "disabled": "Коллекции выключены"
+    "disabled": "Коллекции выключены",
+    "groupDuplicates": "Группировать дубликаты",
+    "groupDuplicatesDescription": "Объединяет копии игры из разных магазинов в один значок на вкладках «Все игры», «Отлично на Deck» и «Установленные». По умолчанию отключено — копия из каждого магазина отображается отдельно."
   },
   "reconcile": {
     "repairedTitle": "Данные библиотеки восстановлены",
@@ -1081,5 +1092,8 @@
     "errorUsernameRequired": "Пожалуйста, введите имя пользователя",
     "errorPasswordRequired": "Пожалуйста, введите пароль",
     "errorConnection": "Не удалось подключиться к серверу GameVault"
+  },
+  "gameStoreSwitcher": {
+    "defaultEdition": "Стандартное издание"
   }
 }

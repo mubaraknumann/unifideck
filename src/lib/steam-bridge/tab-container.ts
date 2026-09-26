@@ -16,6 +16,7 @@ import {
   setStoreCountSink,
   type TabFilter,
 } from "../library-filters";
+import { GROUP_DUPLICATES_EVENT } from "../group-duplicates-setting";
 import { compatTabTitleKey } from "../device-type";
 import type { SteamAppOverview } from "../../types/steam";
 
@@ -101,11 +102,17 @@ export function getUnifideckTabs(): UnifideckTab[] {
       filters: [{ type: "store", params: { store: "gamevault" } }],
     },
     {
+      id: "unifideck-itch",
+      title: t("deckTabs.itch"),
+      position: 11,
+      filters: [{ type: "store", params: { store: "itch" } }],
+    },
+    {
       // Stays last: "Non-Steam" is the catch-all, so a store tab inserted
       // before it takes its number and this one moves down.
       id: "unifideck-nonsteam",
       title: t("deckTabs.nonSteam"),
-      position: 11,
+      position: 12,
       filters: [{ type: "nonSteam", params: {} }],
     },
   ];
@@ -385,7 +392,8 @@ type ConnectableStore =
   | "ubisoft"
   | "battlenet"
   | "microsoft"
-  | "gamevault";
+  | "gamevault"
+  | "itch";
 
 class TabManager {
   private tabs: UnifideckTabContainer[] = [];
@@ -398,7 +406,9 @@ class TabManager {
     battlenet: 0,
     microsoft: 0,
     gamevault: 0,
+    itch: 0,
   };
+  private signedOut = new Set<string>();
   private version = 0;
   private listeners: (() => void)[] = [];
 
@@ -438,10 +448,24 @@ class TabManager {
     this.storeCounts = { ...this.storeCounts, ...counts };
   }
 
-  // A per-store tab is shown only when that store has at least one
-  // game. Connection/login state is deliberately ignored — an empty
-  // store (even one the user is logged into) hides its tab until
-  // games sync in, and reappears once they do.
+  /** Stores the backend has confirmed are signed out. Rebuilds the tabs
+   *  only when the set changes, so auth-store updates stay cheap. */
+  setSignedOutStores(stores: Iterable<string>): void {
+    const next = new Set(stores);
+    const same =
+      next.size === this.signedOut.size &&
+      [...next].every((s) => this.signedOut.has(s));
+    if (same) return;
+    this.signedOut = next;
+    if (this.initialized) this.rebuildTabs();
+  }
+
+  // A per-store tab is shown when that store has at least one game and
+  // is not confirmed signed out. A sync never sweeps a signed-out store's
+  // shortcuts (``_sweepable_stores`` in the backend), so its count stays
+  // above zero and the count alone kept the tab after a sign-out. Only a
+  // confirmed "disconnected" hides it: an unknown status (boot, before
+  // the first check) keeps the tab, so tabs do not flicker at startup.
   private shouldShowTab(id: string): boolean {
     const m: Record<string, ConnectableStore> = {
       "unifideck-epic": "epic",
@@ -451,10 +475,11 @@ class TabManager {
       "unifideck-battlenet": "battlenet",
       "unifideck-microsoft": "microsoft",
       "unifideck-gamevault": "gamevault",
+      "unifideck-itch": "itch",
     };
     const store = m[id];
     if (!store) return true;
-    return this.storeCounts[store] > 0;
+    return this.storeCounts[store] > 0 && !this.signedOut.has(store);
   }
 
   isInitialized(): boolean {
@@ -463,6 +488,15 @@ class TabManager {
 
   rebuildTabs(): void {
     this.tabs = getUnifideckTabs().map((tab) => new UnifideckTabContainer(tab));
+    // Eagerly build every fresh container's collection instead of leaving
+    // it to the lazy `getActualTab()` call. `buildCollection()` otherwise
+    // only runs when Steam actually renders that tab, so a brand-new
+    // container's `visibleApps` (and therefore its count badge) stayed
+    // empty until the user left and re-entered the library — the "Group
+    // duplicates" toggle looked like it needed a manual re-visit of the
+    // library to take effect on tab counts, even though the underlying
+    // filters (`hideAsDuplicate`) already read the setting live.
+    for (const tab of this.tabs) tab.buildCollection();
     this.notifyListeners();
   }
 }
@@ -475,5 +509,14 @@ export const tabManager = new TabManager();
 // future ``loadUnifideckCache`` invocation.
 setStoreCountSink((counts) => {
   tabManager.setStoreCounts(counts);
+  if (tabManager.isInitialized()) tabManager.rebuildTabs();
+});
+
+// Force every tab's ``buildCollection`` to re-run when the "Group
+// duplicates" setting flips, so grouping takes effect immediately
+// instead of waiting for the next unrelated re-render. The filter
+// functions themselves read the setting live either way (no caching),
+// so this is a live-refresh nicety, not a correctness requirement.
+window.addEventListener(GROUP_DUPLICATES_EVENT, () => {
   if (tabManager.isInitialized()) tabManager.rebuildTabs();
 });

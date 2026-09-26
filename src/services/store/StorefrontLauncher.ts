@@ -43,6 +43,7 @@ import {
   launchAmazonStorefrontViaShortcut,
   launchEpicStorefrontViaShortcut,
   launchGogStorefrontViaShortcut,
+  launchItchStorefrontViaShortcut,
   launchMicrosoftStorefrontViaShortcut,
 } from "../../utils/authShortcutLaunch";
 import { launchWrapperAuthViaShortcut } from "../../lib/steam-bridge/wrapper-shortcut-launch";
@@ -60,6 +61,7 @@ const BROWSER_STOREFRONTS: Partial<
   gog: launchGogStorefrontViaShortcut,
   amazon: launchAmazonStorefrontViaShortcut,
   microsoft: launchMicrosoftStorefrontViaShortcut,
+  itch: launchItchStorefrontViaShortcut,
 };
 
 /**

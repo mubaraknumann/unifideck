@@ -17,6 +17,7 @@
  */
 import { call } from "@decky/api";
 import { rpcRoutes } from "../api/rpc-routes";
+import { unwrapRpcEnvelope } from "../api/useRPC";
 
 export type ProtonDBTier =
   | "platinum"
@@ -85,8 +86,13 @@ interface BackendCompatEntry {
 export async function loadCompatCacheFromBackend(force = false): Promise<void> {
   if (cacheLoadedFromBackend && !force) return;
   try {
-    const raw = await call<[], Record<string, BackendCompatEntry>>(
-      rpcRoutes.getProtondbCache,
+    // The RPC answers in the `{success, error, data}` envelope; the
+    // `{str(app_id): entry}` map is `data`. Iterating the envelope itself
+    // yielded 0 entries on every build for months.
+    const wire = await call<[], unknown>(rpcRoutes.getProtondbCache);
+    const raw = unwrapRpcEnvelope<Record<string, BackendCompatEntry> | null>(
+      wire,
+      { route: rpcRoutes.getProtondbCache, throwing: false },
     );
     if (!raw || typeof raw !== "object") {
       cacheLoadedFromBackend = true;

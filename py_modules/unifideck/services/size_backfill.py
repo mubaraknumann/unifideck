@@ -66,7 +66,7 @@ LOOKUP_TIMEOUT_S = 30
 # HEAD at install time, showed the real 34.6 GB. Battle.net is deliberately
 # absent: its size comes from ``product.db`` and is 0 until the client
 # finishes writing, so a pre-install lookup has nothing to return.
-SIZE_CAPABLE_STORES = frozenset({"epic", "gog", "amazon", "gamevault"})
+SIZE_CAPABLE_STORES = frozenset({"epic", "gog", "amazon", "gamevault", "itch"})
 
 
 def is_running() -> bool:

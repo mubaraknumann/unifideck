@@ -139,7 +139,7 @@ CANONICAL_SCHEMA: dict[str, set[str]] = {
 #
 # The kwargs check above catches a second emitter that invents its own
 # payload; it cannot catch one that copies the right payload from the wrong
-# place. ``DownloadWorker`` is the sole dispatcher for all seven stores'
+# place. ``DownloadWorker`` is the sole dispatcher for every store's
 # ``install_game`` / ``update_game``, so it is the only thing that knows
 # when a download really starts and really finishes — a store installer
 # emitting DOWNLOAD_* is a duplicate by construction, and its "complete"

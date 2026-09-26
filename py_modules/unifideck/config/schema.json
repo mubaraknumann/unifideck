@@ -91,6 +91,10 @@
         "cross_store_enabled": {
           "type": "boolean",
           "description": "Opt-in: collapse a title owned on several tracked stores down to a single shortcut (\"one shortcut per game\"). Default false \u2014 each store's copy is its own shortcut. Groundwork; the precedence order is dedup.tracked_stores."
+        },
+        "ui_grouping_enabled": {
+          "type": "boolean",
+          "description": "Default true: stamp cross-store duplicates with a shared dedupe_group_id / edition_label so the All Games grid can show one card per title (multi-store badge cluster) and the detail page can offer a store switcher. Display-only \u2014 unlike cross_store_enabled, this never removes a shortcut. Escape hatch only; set false to fall back to one tile per store copy."
         }
       }
     },
@@ -152,6 +156,9 @@
         },
         "gamevault": {
           "$ref": "#/$defs/gamevaultStore"
+        },
+        "itch": {
+          "$ref": "#/$defs/itchStore"
         }
       }
     },
@@ -930,6 +937,22 @@
         },
         "enable_web_enrichment": {
           "type": "boolean"
+        }
+      }
+    },
+    "itchStore": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "butler_db": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "default_install_root": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "stall_timeout_seconds": {
+          "type": "integer",
+          "minimum": 60
         }
       }
     },

@@ -6,7 +6,7 @@ injected; everything here is shared:
 
     1. source.acquire()   → archive on local disk (download, or already there)
     2. extract            → install_root/<dir_name>/     (archive.py)
-    3. find the exe       → best launch target            (exe_finder.py)
+    3. find the exe       → best launch target            (stores/shared/launch_target.py)
     4. write the marker   → the record that survives      (markers.py)
     5. source.release()   → delete the staged copy, or keep the user's file
 
@@ -39,9 +39,9 @@ from typing import Any
 
 from unifideck.core.safe_delete import foreign_installs_under, safe_rmtree
 from unifideck.core.types import InstallResult, Result
+from unifideck.stores.shared.launch_target import find_executable
 
 from .archive import extract_archive, mkdir_p
-from .exe_finder import find_executable
 from .markers import (
     load_all_install_info,
     load_install_info,

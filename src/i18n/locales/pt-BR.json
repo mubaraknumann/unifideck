@@ -18,6 +18,9 @@
       "connected": "{{store}} conectado",
       "failed": "Falha no login em {{store}}"
     },
+    "hints": {
+      "itch": "O itch.io vai pedir sua senha novamente. Se nenhuma chave de API aparecer, toque em “Generate new API key”."
+    },
     "errors": {
       "networkTitle": "Sem conexão com a internet",
       "networkBody": "Conecte-se ao Wi-Fi e tente novamente."
@@ -353,6 +356,8 @@
       "ubisoftLaunchIdMissing": "Abrindo o Ubisoft Connect",
       "ubisoftLaunchIdMissingMessage": "Não foi possível resolver o ID de inicialização deste jogo. Abrindo o Ubisoft Connect para que você possa iniciá-lo pela sua biblioteca. Execute uma nova sincronização da biblioteca para corrigir a inicialização direta.",
       "startingBattlenetGame": "Iniciando {{gameTitle}} pelo Battle.net…",
+      "wc3ProtonUnsupported": "Warcraft III precisa de um Proton mais novo",
+      "wc3ProtonUnsupportedMessage": "{{gameTitle}} não consegue entrar na Battle.net nesta versão do Proton, por causa de um bug do Wine que faz o jogo exibir um erro de VPN. Abra as Propriedades dele na Steam, depois Compatibilidade, e escolha o GE-Proton11-7 ou mais recente.",
       "battlenetStartingClient": "Abrindo o Battle.net",
       "battlenetStartingClientMessage": "Aguardando o cliente Battle.net ficar pronto…",
       "battlenetInstallingClient": "Instalando o Battle.net",
@@ -477,6 +482,8 @@
       "stalled": "O download travou sem progresso. Tente novamente.",
       "directoryNotFound": "Não foi possível localizar os arquivos instalados",
       "lockConflict": "Outra operação está em progresso. Tente novamente",
+      "noCompatibleBuild": "Este jogo não tem uma versão para Linux ou Windows que possa ser instalada",
+      "folderInUse": "A pasta de instalação já contém um jogo de outra loja",
       "ubisoftClient": "Erro no cliente Ubisoft Connect. Tente reparar o prefixo",
       "ubisoftClientNotRunning": "O cliente Ubisoft Connect não está respondendo",
       "ubisoftBootstrap": "Falha ao configurar o prefixo do Ubisoft Connect",
@@ -542,7 +549,8 @@
     "ubisoft": "Ubisoft",
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
-    "gamevault": "GameVault"
+    "gamevault": "GameVault",
+    "itch": "itch.io"
   },
   "unifiedLibrary": {
     "error": "Erro do Unifideck",
@@ -727,6 +735,7 @@
     "cancelConfirmConfirm": "Cancelar download",
     "cancelConfirmCancel": "Continuar baixando",
     "playOnCloud": "Jogar na Nuvem",
+    "playInBrowser": "Jogar no navegador",
     "cloudSave": {
       "autoPullOn": "Os salvamentos na nuvem são baixados automaticamente na inicialização.",
       "close": "Fechar",
@@ -1049,7 +1058,9 @@
   "collectionSettings": {
     "title": "COLEÇÕES DO STEAM",
     "enabled": "Coleções ativadas",
-    "disabled": "Coleções desativadas"
+    "disabled": "Coleções desativadas",
+    "groupDuplicates": "Agrupar duplicatas",
+    "groupDuplicatesDescription": "Combina as cópias de um título de lojas diferentes em um único bloco em Todos os jogos, Ótimo no Deck e Instalados. Desativado por padrão — a cópia de cada loja é exibida separadamente."
   },
   "reconcile": {
     "repairedTitle": "Dados da biblioteca reparados",
@@ -1081,5 +1092,8 @@
     "errorUsernameRequired": "Por favor, insira seu nome de usuário",
     "errorPasswordRequired": "Por favor, insira sua senha",
     "errorConnection": "Falha ao conectar ao servidor GameVault"
+  },
+  "gameStoreSwitcher": {
+    "defaultEdition": "Edição padrão"
   }
 }

@@ -1,0 +1,84 @@
+Backport of upstream Wine commits for CertCreateCertificateChainEngine():
+  02bb0a34 crypt32: Trace CERT_CHAIN_ENGINE_CONFIG fields in CertCreateCertificateChainEngine().
+  eef8e97d crypt32: Don't access CERT_CHAIN_ENGINE_CONFIG::dwExclusiveFlags without checking size.
+  c7cc9be8 crypt32: Also accept CERT_CHAIN_ENGINE_CONFIG without dwExclusiveFlags.
+plus the include/wincrypt.h dwExclusiveFlags field they depend on.
+
+Fixes Warcraft III: Reforged 3.0 (ClientSdk.dll) login failing with
+"There was an error in handling the request. Please check your VPN":
+the game passes the current 88-byte CERT_CHAIN_ENGINE_CONFIG, which
+Proton's crypt32 rejects with E_INVALIDARG (only 64 and 80 accepted).
+
+--- a/include/wincrypt.h
++++ b/include/wincrypt.h
+@@ -3499,7 +3499,8 @@ typedef struct _CERT_CHAIN_ENGINE_CONFIG
+     DWORD       MaximumCachedCertificates;
+     DWORD       CycleDetectionModulus;
+     HCERTSTORE  hExclusiveRoot;
+-    HCERTSTORE  hExclusiveRootTrustedPeople;
++    HCERTSTORE  hExclusiveTrustedPeople;
++    DWORD       dwExclusiveFlags;
+ } CERT_CHAIN_ENGINE_CONFIG, *PCERT_CHAIN_ENGINE_CONFIG;
+
+ /* message-related definitions */
+--- a/dlls/crypt32/chain.c
++++ b/dlls/crypt32/chain.c
+@@ -221,15 +221,49 @@ typedef struct _CERT_CHAIN_ENGINE_CONFIG_NO_EXCLUSIVE_ROOT
+     DWORD       CycleDetectionModulus;
+ } CERT_CHAIN_ENGINE_CONFIG_NO_EXCLUSIVE_ROOT;
+
++typedef struct _CERT_CHAIN_ENGINE_CONFIG_NO_EXCLUSIVE_FLAGS
++{
++    DWORD       cbSize;
++    HCERTSTORE  hRestrictedRoot;
++    HCERTSTORE  hRestrictedTrust;
++    HCERTSTORE  hRestrictedOther;
++    DWORD       cAdditionalStore;
++    HCERTSTORE *rghAdditionalStore;
++    DWORD       dwFlags;
++    DWORD       dwUrlRetrievalTimeout;
++    DWORD       MaximumCachedCertificates;
++    DWORD       CycleDetectionModulus;
++    HCERTSTORE  hExclusiveRoot;
++    HCERTSTORE  hExclusiveTrustedPeople;
++} CERT_CHAIN_ENGINE_CONFIG_NO_EXCLUSIVE_FLAGS;
++
+ BOOL WINAPI CertCreateCertificateChainEngine(PCERT_CHAIN_ENGINE_CONFIG pConfig,
+  HCERTCHAINENGINE *phChainEngine)
+ {
+     BOOL ret;
+
+     TRACE("(%p, %p)\n", pConfig, phChainEngine);
++    TRACE("cbSize %lu\n", pConfig->cbSize);
++    TRACE("hRestrictedRoot %p\n", pConfig->hRestrictedRoot);
++    TRACE("hRestrictedTrust %p\n", pConfig->hRestrictedTrust);
++    TRACE("hRestrictedOther %p\n", pConfig->hRestrictedOther);
++    TRACE("cAdditionalStore %lu\n", pConfig->cAdditionalStore);
++    TRACE("dwFlags %lx\n", pConfig->dwFlags);
++    TRACE("dwUrlRetrievalTimeout %lu\n", pConfig->dwUrlRetrievalTimeout);
++    TRACE("MaximumCachedCertificates %lu\n", pConfig->MaximumCachedCertificates);
++    TRACE("CycleDetectionModulus %lu\n", pConfig->CycleDetectionModulus);
++    if (pConfig->cbSize != sizeof(CERT_CHAIN_ENGINE_CONFIG_NO_EXCLUSIVE_ROOT) &&
++        pConfig->cbSize != sizeof(CERT_CHAIN_ENGINE_CONFIG_NO_EXCLUSIVE_FLAGS) &&
++        pConfig->cbSize != sizeof(CERT_CHAIN_ENGINE_CONFIG))
++    {
++        SetLastError(E_INVALIDARG);
++        return FALSE;
++    }
+
+-    if (pConfig->cbSize != sizeof(CERT_CHAIN_ENGINE_CONFIG_NO_EXCLUSIVE_ROOT)
+-     && pConfig->cbSize != sizeof(CERT_CHAIN_ENGINE_CONFIG))
++    if (pConfig->cbSize == sizeof(CERT_CHAIN_ENGINE_CONFIG))
+     {
+-        SetLastError(E_INVALIDARG);
+-        return FALSE;
++        TRACE("hExclusiveRoot %p\n", pConfig->hExclusiveRoot);
++        TRACE("hExclusiveTrustedPeople %p\n", pConfig->hExclusiveTrustedPeople);
++        TRACE("dwExclusiveFlags %lx\n", pConfig->dwExclusiveFlags);
++        if (pConfig->dwExclusiveFlags)
++            FIXME("dwExclusiveFlags %lx not supported\n", pConfig->dwExclusiveFlags);
+     }
++
+     ret = CRYPT_CheckRestrictedRoot(pConfig->hRestrictedRoot);
+     if (!ret)
+     {

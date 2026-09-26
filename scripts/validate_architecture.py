@@ -504,6 +504,9 @@ SHARED_HELPERS: dict[str, str] = {
     "rsync_clone": "stores/shared/prefix_clone.py",
     "write_marker": "stores/shared/prefix_clone.py",
     "read_cli_user_json": "stores/shared/cli_credentials.py",
+    # Launch-target scorer for stores with no launch manifest. Promoted from
+    # stores/gamevault/exe_finder.py when itch.io became its second consumer.
+    "find_executable": "stores/shared/launch_target.py",
     # GOG's and Ubisoft's ``get_installed_path`` bodies were byte-identical;
     # Amazon's was the same shape on a different key. Audit register item 48.
     "install_path_from_record": "stores/shared/installed_path.py",

@@ -59,6 +59,12 @@ _STORE_INJECTIONS: dict[str, tuple[tuple[str, str], ...]] = {
         ("_edge", "edge_browser"),
         ("_subscription_service", "microsoft_subscription"),
     ),
+    # itch.io signs in through the standard Edge window (browser monitor +
+    # Edge for the post-login steering); butler owns everything after that.
+    "itch": (
+        ("_browser_monitor", "browser_monitor"),
+        ("_edge", "edge_browser"),
+    ),
     "ubisoft": (
         ("_shortcut_service", "shortcut"),
     ),

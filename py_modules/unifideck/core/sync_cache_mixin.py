@@ -64,8 +64,50 @@ class _SyncCacheMixin:
                 "[SyncService] Loaded %d cached games from library_cache.json",
                 sum(len(g) for g in self._all_games.values()),
             )
+            self._annotate_loaded_cache()
         except Exception as e:
             logger.warning("[SyncService] Failed to load library cache: %s", e)
+
+    def _annotate_loaded_cache(self) -> None:
+        """Re-stamp ``dedupe_group_id``/``edition_label`` on a freshly
+        loaded cache (C.10).
+
+        A cache written before this feature existed — or before the
+        user's most recent sync — carries ``None``/stale values for
+        these fields, since :meth:`_load_library_cache` deserializes
+        ``Game`` objects verbatim from whatever JSON was last persisted.
+        Without this, an upgrading user sees no cross-store grouping at
+        all until they happen to run a full sync, even though the
+        feature is enabled by default. Cheap: O(N) once per process
+        start, same cost as any other sync's annotation pass.
+
+        Best-effort — an annotation failure here must not prevent the
+        plugin from starting with its cached library; it only means the
+        grouping feature stays off until the next sync succeeds.
+        """
+        try:
+            from unifideck.core.game_grouping import (
+                annotate_duplicate_groups_if_enabled,
+            )
+
+            # Grouping is cross-store BY DEFINITION (the whole point is
+            # collapsing "same game, different store" onto one card), so
+            # this must run over every store's games together in one
+            # call — annotating each store's list separately would never
+            # let an Epic copy see its GOG sibling. Safe to flatten and
+            # discard the result: `annotate_duplicate_groups` mutates the
+            # `Game` objects it's given in place, and those are the same
+            # objects already sitting in `self._all_games`'s per-store
+            # lists, so the mutation is visible there with no
+            # reassignment needed.
+            all_games = [g for games in self._all_games.values() for g in games]
+            annotate_duplicate_groups_if_enabled(all_games, self._config)
+        except Exception:
+            logger.exception(
+                "[SyncService] failed to annotate duplicate groups on "
+                "cache load — continuing without cross-store grouping "
+                "until the next sync",
+            )
 
     def reset_library_state(self) -> None:
         """Drop the in-memory library and its on-disk cache.

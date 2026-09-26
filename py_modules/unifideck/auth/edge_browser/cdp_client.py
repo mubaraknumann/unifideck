@@ -9,7 +9,7 @@ instance through its ``--remote-debugging-port=N`` endpoint.
 The module is imported by ``EdgeBrowser`` which composes an
 ``EdgeCDPClient`` as ``self._cdp`` and delegates the four pure-CDP
 methods through thin stubs, preserving the pre-split public API for
-``_list_cdp_targets``, ``_get_browser_ws_url``, ``navigate_tab``, and
+``list_targets``, ``_get_browser_ws_url``, ``navigate_tab``, and
 ``_close_all_cdp_targets``.
 
 Responsibilities:

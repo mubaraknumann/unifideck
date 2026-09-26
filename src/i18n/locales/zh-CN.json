@@ -18,6 +18,9 @@
       "connected": "已连接 {{store}}",
       "failed": "{{store}} 登录失败"
     },
+    "hints": {
+      "itch": "itch.io 会再次要求输入密码。如果没有列出 API 密钥，请点按“Generate new API key”。"
+    },
     "errors": {
       "networkTitle": "无网络连接",
       "networkBody": "请连接 Wi-Fi 后重试。"
@@ -353,6 +356,8 @@
       "ubisoftLaunchIdMissing": "正在打开 Ubisoft Connect",
       "ubisoftLaunchIdMissingMessage": "无法解析此游戏的启动 ID。正在打开 Ubisoft Connect，以便您从库中启动它。请重新运行库同步以修复直接启动。",
       "startingBattlenetGame": "正在通过 Battle.net 启动 {{gameTitle}}…",
+      "wc3ProtonUnsupported": "魔兽争霸 III 需要更新的 Proton",
+      "wc3ProtonUnsupportedMessage": "由于 Wine 的一个缺陷会让游戏报告 VPN 错误，{{gameTitle}} 无法在此 Proton 版本上登录战网。请在 Steam 中打开该游戏的属性，进入兼容性，选择 GE-Proton11-7 或更新版本。",
       "battlenetStartingClient": "正在打开 Battle.net",
       "battlenetStartingClientMessage": "正在等待 Battle.net 客户端就绪…",
       "battlenetInstallingClient": "正在安装 Battle.net",
@@ -477,6 +482,8 @@
       "stalled": "下载停滞，没有任何进度。请重试。",
       "directoryNotFound": "无法找到已安装的文件",
       "lockConflict": "另一项操作正在进行中。请重试",
+      "noCompatibleBuild": "此游戏没有可安装的 Linux 或 Windows 版本",
+      "folderInUse": "安装文件夹中已有来自其他商店的游戏",
       "ubisoftClient": "Ubisoft Connect 客户端错误。请尝试修复环境",
       "ubisoftClientNotRunning": "Ubisoft Connect 客户端无响应",
       "ubisoftBootstrap": "无法配置 Ubisoft Connect 运行环境",
@@ -542,7 +549,8 @@
     "ubisoft": "Ubisoft",
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
-    "gamevault": "GameVault"
+    "gamevault": "GameVault",
+    "itch": "itch.io"
   },
   "unifiedLibrary": {
     "error": "Unifideck 错误",
@@ -727,6 +735,7 @@
     "cancelConfirmConfirm": "取消下载",
     "cancelConfirmCancel": "继续下载",
     "playOnCloud": "云端游玩",
+    "playInBrowser": "在浏览器中游玩",
     "cloudSave": {
       "autoPullOn": "启动时自动下载云端存档。",
       "close": "关闭",
@@ -1049,7 +1058,9 @@
   "collectionSettings": {
     "title": "STEAM 收藏夹",
     "enabled": "收藏夹已启用",
-    "disabled": "收藏夹已禁用"
+    "disabled": "收藏夹已禁用",
+    "groupDuplicates": "合并重复项",
+    "groupDuplicatesDescription": "将同一游戏在不同商店的副本合并为“所有游戏”“Deck 最佳”和“已安装”标签页中的一个图块。默认关闭——每个商店的副本将单独显示。"
   },
   "reconcile": {
     "repairedTitle": "库数据已修复",
@@ -1081,5 +1092,8 @@
     "errorUsernameRequired": "请输入用户名",
     "errorPasswordRequired": "请输入密码",
     "errorConnection": "连接 GameVault 服务器失败"
+  },
+  "gameStoreSwitcher": {
+    "defaultEdition": "标准版"
   }
 }

@@ -20,7 +20,8 @@
   },
   "dedup": {
     "tracked_stores": ["epic", "gog", "amazon", "ubisoft"],
-    "cross_store_enabled": false
+    "cross_store_enabled": false,
+    "ui_grouping_enabled": true
   },
   "download": {
     "custom_path": ""
@@ -126,6 +127,11 @@
       "default_install_root": "~/Games/GameVault",
       "download_dir": "~/.local/share/unifideck/gamevault_downloads",
       "default_vault_dir": "~/Games/UnifideckVault"
+    },
+    "itch": {
+      "butler_db": "~/.local/share/unifideck/butler/butler.db",
+      "default_install_root": "~/Games/itch",
+      "stall_timeout_seconds": 900
     }
   },
   "metadata": {

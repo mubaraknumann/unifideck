@@ -42,6 +42,7 @@ class _SyncResultsMixin:
         """
         merged = self._flatten(libraries)  # type: ignore[attr-defined]  # provided by _SyncQueriesMixin
         merged = self._maybe_collapse_duplicates(merged)
+        merged = self._maybe_annotate_duplicate_groups(merged)
         logger.info(
             "[SyncService] sync complete — %d games across %d stores "
             "in %dms (%d errors)",
@@ -80,3 +81,25 @@ class _SyncResultsMixin:
                 len(collapsed),
             )
         return collapsed
+
+    def _maybe_annotate_duplicate_groups(self, games: list[Game]) -> list[Game]:
+        """Stamp display-only ``dedupe_group_id``/``edition_label`` fields.
+
+        Unlike :meth:`_maybe_collapse_duplicates`, this never changes the
+        game count — it only powers the "All Games" grid's multi-store
+        card grouping and the detail-page store switcher. Gated by
+        ``dedup.ui_grouping_enabled`` (default true) purely as an escape
+        hatch, not because it's expected to need disabling.
+
+        Thin wrapper around
+        :func:`~unifideck.core.game_grouping.annotate_duplicate_groups_if_enabled`
+        — the same gate + Steam-owned-lookup logic also runs on cache
+        load and on a frontend Steam-owned-titles push, so it lives
+        there rather than only here.
+        """
+        from unifideck.core.game_grouping import (
+            annotate_duplicate_groups_if_enabled,
+        )
+
+        config = getattr(self, "_config", None)
+        return annotate_duplicate_groups_if_enabled(games, config)

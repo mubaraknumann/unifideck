@@ -10,11 +10,11 @@ evaluating the PUB catalog's rules against account facts:
   ``rules.py``       evaluates the rules -> the products actually granted
   ``installed.py``   ``aggregate.json`` (+ ``product.db``) for install state
 
-Both account fact sources are needed and neither is sufficient. Licences
-alone miss every free-to-play and subscription title, because those match
-on ``game_account`` rather than ``license_id``; ``games-and-subs`` alone
-misses everything purchased. Measured 2026-08-09 on one account: licences
-resolved 9 families, game accounts contributed 5 more.
+Licences alone miss every free-to-play and subscription title, because those
+match on ``game_account`` rather than ``license_id``, and nothing the client
+writes locally records which game accounts the user holds. The caller
+(``library.grant_ownership``) closes that by presuming one for every catalog
+program; this package only assembles and evaluates, never decides policy.
 """
 
 from .installed import (

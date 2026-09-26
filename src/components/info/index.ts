@@ -14,3 +14,4 @@ export { GameInfoInfoRow } from "./GameInfoInfoRow";
 export { GameInfoSynopsisSection } from "./GameInfoSynopsisSection";
 export { GameInfoNavButtons } from "./GameInfoNavButtons";
 export { GameInfoDetailsModal } from "./GameInfoDetailsModal";
+export { GameStoreSwitcher } from "./GameStoreSwitcher";

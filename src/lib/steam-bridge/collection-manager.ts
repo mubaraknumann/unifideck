@@ -358,14 +358,23 @@ export async function syncUnifideckCollections(): Promise<void> {
   await Promise.allSettled(getUnifideckTabs().map((t) => syncTab(t, allApps)));
 }
 
+/** One native Steam game the user owns, as pushed to the backend. */
+export interface SteamOwnedGame {
+  title: string;
+  appid: number;
+}
+
 /**
- * Display names of every Steam game the user owns — installed or not —
- * from Steam's "type-games" collection. Non-Steam shortcuts are excluded
- * (see {@link NON_STEAM_SHORTCUT_APP_TYPE}). `appmanifest` only knows
- * installed games, so this is the only way the backend learns about
- * owned-but-not-installed Steam games.
+ * `{title, appid}` for every Steam game the user owns — installed or
+ * not — from Steam's "type-games" collection. Non-Steam shortcuts are
+ * excluded (see {@link NON_STEAM_SHORTCUT_APP_TYPE}). `appmanifest`
+ * only knows installed games, so this is the only way the backend
+ * learns about owned-but-not-installed Steam games — both for the
+ * Ubisoft Steam-linked filter (title only) and for cross-store
+ * duplicate grouping's Steam cross-reference (needs the appid too, to
+ * point the detail-page store switcher at the real app).
  */
-export function collectSteamOwnedGameTitles(): string[] {
+export function collectSteamOwnedGames(): SteamOwnedGame[] {
   const cs = getCollectionStore();
   if (!cs) return [];
   let allApps: SteamAppOverview[] = [];
@@ -375,15 +384,19 @@ export function collectSteamOwnedGameTitles(): string[] {
   } catch {
     return [];
   }
-  const titles = new Set<string>();
+  const seen = new Set<number>();
+  const result: SteamOwnedGame[] = [];
   for (const a of allApps) {
     if (!a || a.appid <= 0 || a.app_type === NON_STEAM_SHORTCUT_APP_TYPE) {
       continue;
     }
-    const name = a.display_name?.trim();
-    if (name) titles.add(name);
+    if (seen.has(a.appid)) continue;
+    const title = a.display_name?.trim();
+    if (!title) continue;
+    seen.add(a.appid);
+    result.push({ title, appid: a.appid });
   }
-  return Array.from(titles);
+  return result;
 }
 
 /**

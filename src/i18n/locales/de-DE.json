@@ -18,6 +18,9 @@
       "connected": "{{store}} verbunden",
       "failed": "{{store}}-Anmeldung fehlgeschlagen"
     },
+    "hints": {
+      "itch": "itch.io fragt erneut nach deinem Passwort. Falls kein API-Schlüssel angezeigt wird, tippe auf „Generate new API key“."
+    },
     "errors": {
       "networkTitle": "Keine Internetverbindung",
       "networkBody": "Stellen Sie eine WLAN-Verbindung her und versuchen Sie es erneut."
@@ -353,6 +356,8 @@
       "ubisoftLaunchIdMissing": "Ubisoft Connect wird geöffnet",
       "ubisoftLaunchIdMissingMessage": "Die Start-ID für dieses Spiel konnte nicht ermittelt werden – Ubisoft Connect wird geöffnet, damit du es aus deiner Bibliothek starten kannst. Führe eine Bibliotheks-Synchronisierung erneut aus, um den Direktstart zu reparieren.",
       "startingBattlenetGame": "{{gameTitle}} wird über Battle.net gestartet…",
+      "wc3ProtonUnsupported": "Warcraft III benötigt ein neueres Proton",
+      "wc3ProtonUnsupportedMessage": "{{gameTitle}} kann sich mit dieser Proton-Version wegen eines Wine-Fehlers, der im Spiel als VPN-Fehler erscheint, nicht bei Battle.net anmelden. Öffne in Steam die Eigenschaften, dann Kompatibilität, und wähle GE-Proton11-7 oder neuer.",
       "battlenetStartingClient": "Battle.net wird geöffnet",
       "battlenetStartingClientMessage": "Warten, bis der Battle.net-Client bereit ist…",
       "battlenetInstallingClient": "Battle.net wird installiert",
@@ -477,6 +482,8 @@
       "stalled": "Download ohne Fortschritt unterbrochen. Bitte erneut versuchen.",
       "directoryNotFound": "Installierte Dateien konnten nicht gefunden werden",
       "lockConflict": "Ein anderer Vorgang wird ausgeführt. Versuche es erneut",
+      "noCompatibleBuild": "Dieses Spiel hat keinen installierbaren Linux- oder Windows-Build",
+      "folderInUse": "Der Installationsordner enthält bereits ein Spiel aus einem anderen Store",
       "ubisoftClient": "Ubisoft Connect-Client-Fehler. Versuche das Präfix zu reparieren",
       "ubisoftClientNotRunning": "Ubisoft Connect-Client antwortet nicht",
       "ubisoftBootstrap": "Ubisoft Connect-Präfix konnte nicht eingerichtet werden",
@@ -542,7 +549,8 @@
     "ubisoft": "Ubisoft",
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
-    "gamevault": "GameVault"
+    "gamevault": "GameVault",
+    "itch": "itch.io"
   },
   "unifiedLibrary": {
     "error": "Unifideck-Fehler",
@@ -727,6 +735,7 @@
     "cancelConfirmConfirm": "Download abbrechen",
     "cancelConfirmCancel": "Download fortsetzen",
     "playOnCloud": "In der Cloud spielen",
+    "playInBrowser": "Im Browser spielen",
     "cloudSave": {
       "autoPullOn": "Cloud-Spielstände werden beim Start automatisch heruntergeladen.",
       "close": "Schließen",
@@ -1049,7 +1058,9 @@
   "collectionSettings": {
     "title": "STEAM-SAMMLUNGEN",
     "enabled": "Sammlungen aktiviert",
-    "disabled": "Sammlungen deaktiviert"
+    "disabled": "Sammlungen deaktiviert",
+    "groupDuplicates": "Duplikate gruppieren",
+    "groupDuplicatesDescription": "Fasst die Kopien eines Titels aus verschiedenen Stores in „Alle Spiele“, „Optimal für Deck“ und „Installiert“ zu einer Kachel zusammen. Standardmäßig deaktiviert – jede Store-Kopie wird separat angezeigt."
   },
   "reconcile": {
     "repairedTitle": "Bibliotheksdaten repariert",
@@ -1081,5 +1092,8 @@
     "errorUsernameRequired": "Bitte Benutzername eingeben",
     "errorPasswordRequired": "Bitte Passwort eingeben",
     "errorConnection": "Verbindung zum GameVault-Server fehlgeschlagen"
+  },
+  "gameStoreSwitcher": {
+    "defaultEdition": "Standardedition"
   }
 }

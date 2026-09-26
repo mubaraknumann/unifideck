@@ -18,6 +18,9 @@
       "connected": "{{store}} verbonden",
       "failed": "Aanmelden bij {{store}} mislukt"
     },
+    "hints": {
+      "itch": "itch.io vraagt opnieuw om je wachtwoord. Staat er geen API-sleutel, druk dan op ‘Generate new API key’."
+    },
     "errors": {
       "networkTitle": "Geen internetverbinding",
       "networkBody": "Maak verbinding met wifi en probeer het opnieuw."
@@ -353,6 +356,8 @@
       "ubisoftLaunchIdMissing": "Ubisoft Connect openen",
       "ubisoftLaunchIdMissingMessage": "Kon de start-ID van deze game niet herleiden. Ubisoft Connect openen zodat je de game vanuit je bibliotheek kunt starten. Voer opnieuw een bibliotheeksynchronisatie uit om rechtstreeks starten te herstellen.",
       "startingBattlenetGame": "{{gameTitle}} wordt gestart via Battle.net…",
+      "wc3ProtonUnsupported": "Warcraft III vereist een nieuwere Proton",
+      "wc3ProtonUnsupportedMessage": "{{gameTitle}} kan met deze Proton-versie niet bij Battle.net inloggen, door een Wine-bug waardoor het spel een VPN-fout meldt. Open de Eigenschappen in Steam, dan Compatibiliteit, en kies GE-Proton11-7 of nieuwer.",
       "battlenetStartingClient": "Battle.net wordt geopend",
       "battlenetStartingClientMessage": "Wachten tot de Battle.net-client gereed is…",
       "battlenetInstallingClient": "Battle.net installeren",
@@ -477,6 +482,8 @@
       "stalled": "Download loopt vast zonder voortgang. Probeer het opnieuw.",
       "directoryNotFound": "Kan geïnstalleerde bestanden niet vinden",
       "lockConflict": "Een andere actie is bezig. Probeer opnieuw",
+      "noCompatibleBuild": "Deze game heeft geen installeerbare Linux- of Windows-build",
+      "folderInUse": "De installatiemap bevat al een game van een andere winkel",
       "ubisoftClient": "Fout in Ubisoft Connect. Probeer de prefix te repareren",
       "ubisoftClientNotRunning": "Ubisoft Connect reageert niet",
       "ubisoftBootstrap": "Kan Ubisoft Connect-prefix niet configureren",
@@ -542,7 +549,8 @@
     "ubisoft": "Ubisoft",
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
-    "gamevault": "GameVault"
+    "gamevault": "GameVault",
+    "itch": "itch.io"
   },
   "unifiedLibrary": {
     "error": "Unifideck-fout",
@@ -727,6 +735,7 @@
     "cancelConfirmConfirm": "Download annuleren",
     "cancelConfirmCancel": "Doorgaan met downloaden",
     "playOnCloud": "In de cloud spelen",
+    "playInBrowser": "Spelen in browser",
     "cloudSave": {
       "autoPullOn": "Cloudopslag wordt automatisch gedownload bij het opstarten.",
       "close": "Sluiten",
@@ -1049,7 +1058,9 @@
   "collectionSettings": {
     "title": "STEAM-COLLECTIES",
     "enabled": "Collecties ingeschakeld",
-    "disabled": "Collecties uitgeschakeld"
+    "disabled": "Collecties uitgeschakeld",
+    "groupDuplicates": "Duplicaten groeperen",
+    "groupDuplicatesDescription": "Voegt kopieën van een titel uit verschillende stores samen tot één tegel in Alle games, Geweldig op Deck en Geïnstalleerd. Standaard uitgeschakeld — de kopie van elke store wordt apart weergegeven."
   },
   "reconcile": {
     "repairedTitle": "Bibliotheekgegevens hersteld",
@@ -1081,5 +1092,8 @@
     "errorUsernameRequired": "Voer uw gebruikersnaam in",
     "errorPasswordRequired": "Voer uw wachtwoord in",
     "errorConnection": "Verbinding met GameVault-server mislukt"
+  },
+  "gameStoreSwitcher": {
+    "defaultEdition": "Standaardeditie"
   }
 }

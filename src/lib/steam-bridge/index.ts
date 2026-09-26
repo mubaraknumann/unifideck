@@ -30,3 +30,4 @@ export {
   createTemporaryShortcut,
   scheduleTemporaryShortcutCleanup,
 } from "./temp-shortcut";
+export { navigateToApp } from "./navigate-to-app";

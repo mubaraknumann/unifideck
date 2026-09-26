@@ -18,6 +18,9 @@
       "connected": "{{store}} bağlandı",
       "failed": "{{store}} oturum açma başarısız"
     },
+    "hints": {
+      "itch": "itch.io şifrenizi yeniden soracak. Hiç API anahtarı listelenmiyorsa “Generate new API key” düğmesine basın."
+    },
     "errors": {
       "networkTitle": "İnternet bağlantısı yok",
       "networkBody": "Wi-Fi'ye bağlanıp tekrar deneyin."
@@ -353,6 +356,8 @@
       "ubisoftLaunchIdMissing": "Ubisoft Connect açılıyor",
       "ubisoftLaunchIdMissingMessage": "Bu oyunun başlatma kimliği çözümlenemedi. Kitaplığınızdan başlatabilmeniz için Ubisoft Connect açılıyor. Doğrudan başlatmayı düzeltmek için kitaplık eşitlemesini yeniden çalıştırın.",
       "startingBattlenetGame": "{{gameTitle}}, Battle.net üzerinden başlatılıyor…",
+      "wc3ProtonUnsupported": "Warcraft III daha yeni bir Proton gerektiriyor",
+      "wc3ProtonUnsupportedMessage": "{{gameTitle}}, oyunun VPN hatası bildirmesine yol açan bir Wine hatası yüzünden bu Proton sürümünde Battle.net'e giriş yapamıyor. Steam'de Özellikler'i, ardından Uyumluluk'u açın ve GE-Proton11-7 veya daha yenisini seçin.",
       "battlenetStartingClient": "Battle.net açılıyor",
       "battlenetStartingClientMessage": "Battle.net istemcisinin hazır olması bekleniyor…",
       "battlenetInstallingClient": "Battle.net yükleniyor",
@@ -477,6 +482,8 @@
       "stalled": "İndirme ilerleme olmadan durdu. Lütfen tekrar deneyin.",
       "directoryNotFound": "Yüklü dosyalar bulunamadı",
       "lockConflict": "Başka bir işlem devam ediyor. Tekrar deneyin",
+      "noCompatibleBuild": "Bu oyunun kurulabilir bir Linux veya Windows sürümü yok",
+      "folderInUse": "Kurulum klasöründe zaten başka bir mağazadan bir oyun var",
       "ubisoftClient": "Ubisoft Connect istemci hatası. Öneki onarmayı deneyin",
       "ubisoftClientNotRunning": "Ubisoft Connect istemcisi yanıt vermiyor",
       "ubisoftBootstrap": "Ubisoft Connect öneki yapılandırılamadı",
@@ -542,7 +549,8 @@
     "ubisoft": "Ubisoft",
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
-    "gamevault": "GameVault"
+    "gamevault": "GameVault",
+    "itch": "itch.io"
   },
   "unifiedLibrary": {
     "error": "Unifideck Hatası",
@@ -727,6 +735,7 @@
     "cancelConfirmConfirm": "İndirmeyi İptal Et",
     "cancelConfirmCancel": "İndirmeye Devam Et",
     "playOnCloud": "Bulutta Oyna",
+    "playInBrowser": "Tarayıcıda oyna",
     "cloudSave": {
       "autoPullOn": "Bulut kayıtları başlangıçta otomatik olarak indirilir.",
       "close": "Kapat",
@@ -1049,7 +1058,9 @@
   "collectionSettings": {
     "title": "STEAM KOLEKSİYONLARI",
     "enabled": "Koleksiyonlar etkin",
-    "disabled": "Koleksiyonlar devre dışı"
+    "disabled": "Koleksiyonlar devre dışı",
+    "groupDuplicates": "Yinelenenleri grupla",
+    "groupDuplicatesDescription": "Farklı mağazalardaki aynı oyunun kopyalarını Tüm Oyunlar, Deck'te Harika ve Yüklü sekmelerinde tek bir kutuda birleştirir. Varsayılan olarak kapalıdır — her mağazanın kopyası ayrı ayrı gösterilir."
   },
   "reconcile": {
     "repairedTitle": "Kitaplık verileri onarıldı",
@@ -1081,5 +1092,8 @@
     "errorUsernameRequired": "Lütfen kullanıcı adınızı girin",
     "errorPasswordRequired": "Lütfen şifrenizi girin",
     "errorConnection": "GameVault sunucusuna bağlanılamadı"
+  },
+  "gameStoreSwitcher": {
+    "defaultEdition": "Standart Sürüm"
   }
 }

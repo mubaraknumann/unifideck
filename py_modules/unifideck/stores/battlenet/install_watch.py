@@ -22,7 +22,7 @@ Three facts, all measured, decide the shape of this file:
 * **The join goes through the uid.** ``aggregate.json`` and ``product.db`` are
   keyed on the product CODE (``hsb``); the library addresses titles by uid
   (``hs_beta``). Asking about the code reports every installed game as not
-  installed, so this reads through ``library.install_state_by_uid``.
+  installed, so this reads through ``install_state.install_state_by_uid``.
 
 Asking per-uid rather than "is anything ready in this prefix" also means a
 sibling Blizzard title finishing can never complete *this* install. That is the
@@ -40,7 +40,7 @@ from typing import Any
 from unifideck.stores.shared.installed_size import dir_allocated_bytes
 
 from . import agent_status, paths
-from . import library as library_mod
+from . import install_state as install_state_mod
 from .ownership import InstalledGame
 
 logger = logging.getLogger(__name__)
@@ -106,14 +106,18 @@ class BattlenetInstallProbe:
         if drive_c is None:
             return None
         try:
-            state = library_mod.install_state_by_uid(drive_c, self._prefix)
+            state = install_state_mod.install_state_by_uid(drive_c, self._prefix)
         except Exception:
             logger.debug(
                 "[Battlenet] could not read install state in %s",
                 self._prefix, exc_info=True,
             )
             return None
-        return library_mod.install_row_for(state, self._uid)
+        # The user picks the version inside the client, after Install has
+        # committed to a uid: choosing Classic on the 'wow' tile writes
+        # 'wow_classic_era'. The catalog says which uids are that same
+        # title, so a sibling Blizzard title still cannot answer for us.
+        return install_state_mod.title_install_row(drive_c, state, self._uid)
 
     def snapshot(self) -> None:
         """No baseline needed — the probe asks about one uid by name.
@@ -157,7 +161,7 @@ class BattlenetInstallProbe:
         # matches nothing and this title never gets its "queued behind the
         # updater" explanation.
         return agent_status.describe_wait(
-            drive_c, self.started_at, library_mod.normalize_uid(self._uid),
+            drive_c, self.started_at, install_state_mod.normalize_uid(self._uid),
         )
 
     def is_complete(self, install_dir: str) -> bool | None:

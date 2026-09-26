@@ -45,6 +45,7 @@ _STORE_TOKEN_KEYS = {
     "microsoft": "microsoft_token",
     "epic": "legendary_user",
     "amazon": "nile_user",
+    "itch": "butler_db",
 }
 
 

@@ -31,7 +31,7 @@ class _FakeBrowser:
         self.cdp_port = 9222
         self.process = None
 
-    def xcloud_cdp_port(self) -> int:
+    def browser_game_cdp_port(self) -> int:
         return self.cdp_port + 1
 
     def storefront_cdp_port(self) -> int:
@@ -117,5 +117,5 @@ def test_it_appends_to_the_log_rather_than_truncating(captured) -> None:
 def test_the_port_offsets_agree_with_the_browser() -> None:
     """One source of truth for the offsets, on EdgeBrowser."""
     browser = _FakeBrowser()
-    assert browser.xcloud_cdp_port() == 9223
+    assert browser.browser_game_cdp_port() == 9223
     assert browser.storefront_cdp_port() == 9224

@@ -40,6 +40,7 @@ import { findInReactTree } from "../lib/steam-bridge/react-tree";
 import {
   isUnifideckGame,
   isUnifideckCacheLoaded,
+  getGroupSiblings,
 } from "../lib/library-filters";
 import { getGameStateVersion } from "../lib/game-state-version";
 import { reinjectMetadataWhenLoaded } from "../lib/steam-bridge/app-store-patcher";
@@ -47,7 +48,7 @@ import { shouldPatchShortcut } from "../lib/steam-bridge/shortcut-ownership";
 import { DownloadProvider } from "../contexts/DownloadContext";
 import { PlaySectionWrapper } from "../components/play";
 import { HIDE_NATIVE_PLAY_MARKER } from "../components/play/play.css";
-import { GameInfoPanel } from "../components/info";
+import { GameInfoPanel, GameStoreSwitcher } from "../components/info";
 
 /** Stub component that's only used in the React DevTools
  *  display name. Helps debugging in production builds. */
@@ -108,12 +109,12 @@ function injectIntoTree(ret: unknown): void {
   if (!overview) return;
   const appId = overview.appid;
 
-  // Only override non-Steam shortcuts (appId > 2 billion).
-  if (!(appId > 2_000_000_000)) return;
-
-  // Only override Unifideck-managed games — never the user's own
-  // non-Steam shortcuts (EmulationStationDE, Firefox, ...). This single gate
-  // covers the hide marker, the Play wrapper, and the GameInfo panel.
+  // Only override non-Steam shortcuts (appId > 2 billion) — the Play-row /
+  // GameInfoPanel overrides are Unifideck-shortcut only.
+  //
+  // Only override Unifideck-managed games — never the user's own non-Steam
+  // shortcuts (EmulationStationDE, Firefox, ...). This single gate covers
+  // the hide marker, the Play wrapper, and the GameInfo panel.
   //
   // Two signals, because neither is enough alone: the cache is authoritative
   // but says nothing until an RPC lands (and retries with backoff on
@@ -123,21 +124,30 @@ function injectIntoTree(ret: unknown): void {
   // and whole tabbed section hidden — a blanked App-Details page for someone
   // else's shortcut, and worse the more shortcuts a user has (719 on the
   // device that surfaced it, 27 of them not ours).
-  if (
-    !shouldPatchShortcut(
+  const shouldPatch =
+    appId > 2_000_000_000 &&
+    shouldPatchShortcut(
       appId,
       isUnifideckCacheLoaded(),
       isUnifideckGame(appId),
-    )
-  ) {
-    return;
-  }
+    );
 
-  // Trigger Steam-Store metadata spoofing for this shortcut so
-  // Steam's own UI (capsule image, tile, presence) renders the
-  // matched Steam game. Fire-and-forget — the patcher reads from
-  // its in-memory cache; the backend RPC is a no-op stub.
-  void reinjectMetadataWhenLoaded(appId);
+  if (shouldPatch) {
+    // Trigger Steam-Store metadata spoofing for this shortcut so Steam's
+    // own UI (capsule image, tile, presence) renders the matched Steam
+    // game. Fire-and-forget — the patcher reads from its in-memory cache;
+    // the backend RPC is a no-op stub.
+    //
+    // Called here, before the `innerContainer` lookup below, and not gated
+    // on it being ready — this call needs only `appId`. It used to run
+    // unconditionally once past this same gate; a later refactor moved the
+    // `innerContainer`-not-ready early-return in front of it, so a render
+    // where the container isn't in the tree yet also skipped this call
+    // (the patcher fires again on the next render regardless, so that
+    // early-return is correct for the container-dependent injections below
+    // — just not for this one, which has no such dependency).
+    void reinjectMetadataWhenLoaded(appId);
+  }
 
   const innerContainer = findInReactTree<NodeWithChildren>(ret, (x) => {
     const n = x as NodeWithChildren | null;
@@ -157,6 +167,18 @@ function injectIntoTree(ret: unknown): void {
     !Array.isArray(innerContainer.props.children)
   )
     return;
+
+  // Store-switcher: independent of the `shouldPatch` gate above, since a
+  // duplicate group could in principle include a real Steam entry (see
+  // GameStoreSwitcher's docstring). No-op for the overwhelming majority
+  // of games, which aren't part of any group.
+  injectStoreSwitcher(
+    innerContainer.props.children as unknown[],
+    appId,
+    getGameStateVersion(appId),
+  );
+
+  if (!shouldPatch) return;
 
   // Mark the inner container so our scoped CSS rule (nativePlayHideCss)
   // hides Steam's native Play row — which renders in a *separate* subtree
@@ -227,6 +249,64 @@ function relocateHltbAbovePlay(
     return;
   }
   children.splice(newPlayIdx, 0, hltbEl);
+}
+
+/** Splice `<GameStoreSwitcher>` in for any appId that's part of a
+ *  cross-store duplicate group — native Steam pages included. No-op
+ *  (and removes a stale switcher) once the group no longer applies,
+ *  e.g. after navigating from a duplicated game to a unique one without
+ *  a full remount.
+ *
+ *  Which index of `children` this lands at no longer matters visually —
+ *  `GameStoreSwitcher` renders itself `position: fixed` (an overlay
+ *  pinned near the top of the screen, not a normal-flow element), so it
+ *  doesn't push anything else on the page up or down regardless of
+ *  where in the tree it's mounted. It still needs *some* array slot to
+ *  exist in at all — `unshift` is as good as any other index here — and
+ *  a native Steam app page's `InnerContainer.props.children` (confirmed
+ *  live via React-fiber inspection, both Half-Life 2 and Disco Elysium)
+ *  is a ONE-element array regardless, so there's no "near the header" or
+ *  "near Play section" slot to prefer even if position still mattered
+ *  the way it did for the two normal-flow injections below
+ *  (`injectPlayWrapper`, `injectGameInfoPanel`). See `GameStoreSwitcher`
+ *  itself for why the overlay approach was needed: a normal-flow
+ *  placement either sat close enough to SteamOS's fixed global search
+ *  bar to swallow taps (index 0) or landed far enough down a native
+ *  page's extra content (Activity/Your Stuff/Community, friends feed)
+ *  to be invisible without scrolling (appended at the end). */
+function injectStoreSwitcher(
+  children: unknown[],
+  appId: number,
+  version: number,
+): void {
+  const baseKey = `unifideck-store-switcher-${appId}`;
+  const versionedKey = `${baseKey}-v${version}`;
+  const existingIdx = children.findIndex((c) => keyOf(c).startsWith(baseKey));
+  const siblings = getGroupSiblings(appId);
+
+  if (siblings.length < 2) {
+    if (existingIdx !== -1) children.splice(existingIdx, 1);
+    return;
+  }
+  // C.12: a switcher for this appId is already spliced in, but its key
+  // may be from a STALE version — a re-sync rebuilds `dedupeGroupSiblings`
+  // (new/changed groups, an install-state flip that changed which store's
+  // copy is primary, ...) without this route's own renderFunc knowing
+  // anything happened. Checking presence alone left the old sibling list
+  // permanently in place until the user navigated away and back — this
+  // also removes and reinserts whenever the version has moved on, so a
+  // still-mounted detail page picks up the fresh siblings on its next
+  // render (which `getGameStateVersion`'s bump on install-state change
+  // already forces; the same key now also invalidates on a group change).
+  if (existingIdx !== -1) {
+    const stale = keyOf(children[existingIdx]) !== versionedKey;
+    if (!stale) return;
+    children.splice(existingIdx, 1);
+  }
+
+  children.unshift(
+    <GameStoreSwitcher key={versionedKey} appId={appId} siblings={siblings} />,
+  );
 }
 
 function injectPlayWrapper(

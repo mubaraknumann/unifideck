@@ -20,6 +20,7 @@ from typing import Any
 import pytest
 from _wine_session import token_of, write_registry
 
+from unifideck.core.store_capabilities import capability_flags
 from unifideck.launcher import wrapper_session as ws
 from unifideck.launcher.wrapper_stores import is_wrapper_store
 from unifideck.stores.battlenet import BattlenetStore
@@ -33,7 +34,6 @@ from unifideck.stores.battlenet.ownership import (
 from unifideck.stores.battlenet.prefix import MARKER_FILENAME
 from unifideck.stores.shared import prefix_clone as pc
 from unifideck.stores.shared.store_base import StoreBase
-from unifideck.core.store_capabilities import capability_flags
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "battlenet"
 LAUNCHER = "/plugin/bin/unifideck-launcher"
@@ -375,6 +375,268 @@ def test_free_to_play_and_handheld_status_become_tags() -> None:
     )
     assert set(games[0].tags) == {"free_to_play", "handheld_unsupported"}
     assert games[0].title == "Hearthstone"
+
+
+def _hearthstone_fragment(**base_extra: Any) -> dict[str, Any]:
+    """A game-account-gated title, the shape the presumption exists for."""
+    return {
+        "fragment_id": "hs",
+        "program_configuration": {"WTCG": {"run_each_rule": [{
+            "match": {"game_account": {"program_id": "WTCG"}},
+            "actions": [
+                {"add_product": {"product_id": {"id": "WTCG", "type": "retail"}}},
+                {"add_tag": {"name": "play_for_free"}},
+            ],
+        }]}},
+        "products": [{"id": "WTCG", "base": {
+            "program_id": "WTCG", "name": "hs#N",
+            "types": {"retail": {"uid": "hs_beta"}}, **base_extra}}],
+        "strings": {"default": {"hs#N": "Hearthstone"}},
+    }
+
+
+def test_a_free_to_play_title_reaches_the_library_without_game_account_facts() -> None:
+    """The shipped bug: no facts existed, so this title never appeared."""
+    catalog = merge_fragments(iter([_hearthstone_fragment()]))
+    games = build_library(catalog, AccountFacts(), {}, launcher_path=LAUNCHER)
+    assert [g.title for g in games] == ["Hearthstone"]
+    assert "free_to_play" in games[0].tags
+    assert games[0].metadata["ownership"] == "presumed"
+
+
+def test_an_owned_title_is_not_labelled_presumed() -> None:
+    games = build_library(
+        _catalog(), AccountFacts(licence_ids=frozenset({1105059})), {},
+        launcher_path=LAUNCHER,
+    )
+    ark = next(g for g in games if g.store_game_id == "ark")
+    assert ark.metadata["ownership"] == "granted"
+
+
+def test_two_programs_resolving_to_one_uid_yield_one_game() -> None:
+    """Same uid twice derives the same app id: one shortcut fighting itself."""
+    fragment = _hearthstone_fragment()
+    fragment["program_configuration"]["WTCG_Variant"] = {"run_each_rule": [{
+        "match": {"game_account": {"program_id": "WTCG_Variant"}},
+        "actions": [{"add_product": {"product_id": {"id": "WTCG", "type": "retail"}}}],
+    }]}
+    fragment["products"].append({"id": "WTCG_Variant", "base": {
+        "program_id": "WTCG_Variant", "name": "hs#N",
+        "types": {"retail": {"uid": "hs_beta"}}}})
+    games = build_library(
+        merge_fragments(iter([fragment])), AccountFacts(), {}, launcher_path=LAUNCHER,
+    )
+    assert [g.store_game_id for g in games] == ["hs_beta"]
+
+
+def _wow_versions_catalog() -> Any:
+    """WoW with retail and two Classic versions, as the real catalog has it.
+
+    ``override_product_id`` is Blizzard's own field: it names the family
+    code that selects a version other than the program's retail one.
+    """
+    return merge_fragments(iter([{
+        "fragment_id": "wow",
+        "program_configuration": {"WoW": {"run_each_rule": [{
+            "match": {"game_account": {"program_id": "WoW"}},
+            "actions": [{"add_product": {"product_id": {"id": "WoW", "type": "retail"}}}],
+        }]}},
+        "installs": {"wow": {}, "wow_classic": {}, "wow_classic_era": {}},
+        "products": [{"id": "WoW", "base": {
+            "program_id": "WoW", "name": "wow#N",
+            "types": {
+                "retail": {"uid": "wow"},
+                "wow_classic": {"uid": "wow_classic", "override_product_id": "WoWC"},
+                "wow_classic_era": {
+                    "uid": "wow_classic_era", "override_product_id": "WoWC",
+                },
+            }}}],
+        "strings": {"default": {"wow#N": "World of Warcraft"}},
+    }]))
+
+
+def _ready(uid: str, **kw: Any) -> InstalledGame:
+    return InstalledGame(code=uid, uid=uid, is_ready=True, **kw)
+
+
+def test_an_installed_version_launches_through_its_own_family_code() -> None:
+    """Measured: 'launch WoW' resets the client to retail and offers Install."""
+    games = build_library(
+        _wow_versions_catalog(), AccountFacts(),
+        {"wow_classic_era": _ready("wow_classic_era")}, launcher_path=LAUNCHER,
+    )
+    assert games[0].metadata["family"] == "WoWC"
+    assert games[0].metadata["client_selects"] is True
+
+
+def test_retail_keeps_the_program_id_and_launches_itself() -> None:
+    """The proven path stays untouched: W3 and friends auto-launch."""
+    games = build_library(
+        _wow_versions_catalog(), AccountFacts(),
+        {"wow": _ready("wow")}, launcher_path=LAUNCHER,
+    )
+    assert games[0].metadata["family"] == "WoW"
+    assert games[0].metadata["client_selects"] is False
+
+
+def test_two_installed_versions_hand_the_choice_to_the_client() -> None:
+    """With Retail and Classic both on disk, the user picks in the client."""
+    games = build_library(
+        _wow_versions_catalog(), AccountFacts(),
+        {"wow": _ready("wow", last_played_ms=1),
+         "wow_classic_era": _ready("wow_classic_era", last_played_ms=9)},
+        launcher_path=LAUNCHER,
+    )
+    assert len(games) == 1
+    assert games[0].metadata["client_selects"] is True
+
+
+def test_a_title_with_nothing_installed_keeps_its_program_id() -> None:
+    games = build_library(
+        _wow_versions_catalog(), AccountFacts(), {}, launcher_path=LAUNCHER,
+    )
+    assert games[0].metadata["family"] == "WoW"
+    assert games[0].metadata["client_selects"] is False
+
+
+def test_a_non_windows_program_is_not_granted_presumptively() -> None:
+    """A presumption must not invent a tile the client cannot install."""
+    catalog = merge_fragments(iter([_hearthstone_fragment(supported_platforms=["mac"])]))
+    assert build_library(catalog, AccountFacts(), {}, launcher_path=LAUNCHER) == []
+
+
+def test_a_non_windows_licence_granted_program_keeps_its_tile() -> None:
+    """The platform guard applies to the presumption only, never to ownership."""
+    fragment = _hearthstone_fragment(supported_platforms=["mac"])
+    fragment["program_configuration"]["WTCG"]["run_each_rule"][0]["match"] = {
+        "license_id": 7,
+    }
+    games = build_library(
+        merge_fragments(iter([fragment])),
+        AccountFacts(licence_ids=frozenset({7})), {}, launcher_path=LAUNCHER,
+    )
+    assert [g.store_game_id for g in games] == ["hs_beta"]
+
+
+def test_read_library_grants_a_free_to_play_title_from_a_real_prefix(tmp_path: Path) -> None:
+    """End to end off disk, which is the only way this bug was visible.
+
+    Every other test hand-builds ``AccountFacts``; production never had the
+    game-account facts they supplied, so the library shipped 7 titles short
+    while the suite stayed green.
+    """
+    from unifideck.stores.battlenet.library import read_library
+    from unifideck.stores.battlenet.ownership.licenses import CACHED_DATA_RELATIVE
+    from unifideck.stores.battlenet.ownership.pub_catalog import CACHE_RELATIVE
+
+    drive_c = tmp_path / "drive_c"
+    fragment = drive_c / CACHE_RELATIVE / "ab" / "cdef"
+    fragment.parent.mkdir(parents=True)
+    fragment.write_text(json.dumps(_hearthstone_fragment()), encoding="utf-8")
+
+    cached = drive_c / CACHED_DATA_RELATIVE
+    cached.parent.mkdir(parents=True, exist_ok=True)
+    con = sqlite3.connect(cached)
+    con.execute("CREATE TABLE key_value_store (key TEXT, value TEXT)")
+    con.execute("CREATE TABLE login_cache (name TEXT, environment TEXT, battle_tag TEXT)")
+    con.execute(
+        "INSERT INTO key_value_store VALUES (?, ?)",
+        ("features_cached_data_points", json.dumps({"licenses": [1105059]})),
+    )
+    con.commit()
+    con.close()
+
+    games = asyncio.run(read_library(
+        drive_c, collect_installed=dict, launcher_path=LAUNCHER,
+    ))
+    assert games is not None
+    assert [g.title for g in games] == ["Hearthstone"]
+
+
+def _wow_catalog() -> Any:
+    """WoW, whose one program installs as a dozen different uids."""
+    return merge_fragments(iter([{
+        "fragment_id": "wow",
+        "program_configuration": {"WoW": {"run_each_rule": [{
+            "match": {"game_account": {"program_id": "WoW"}},
+            "actions": [{"add_product": {"product_id": {"id": "WoW", "type": "retail"}}}],
+        }]}},
+        "installs": {"wow": {}, "wow_classic": {}, "wow_classic_era": {}},
+        "products": [{"id": "WoW", "base": {
+            "program_id": "WoW", "name": "wow#N",
+            "types": {"alpha": {"uid": "wow_alpha"}}}}],
+        "strings": {"default": {"wow#N": "World of Warcraft"}},
+    }]))
+
+
+def test_a_version_installed_from_inside_the_client_marks_the_tile_installed() -> None:
+    """Measured: Install on the 'wow' tile, pick Classic, get 'wow_classic_era'.
+
+    The tile offered Install over a finished 5 GB install because the join
+    knew only its own retail uid.
+    """
+    installed = {"wow_classic_era": InstalledGame(
+        code="wow_classic_era", uid="wow_classic_era",
+        name="World of Warcraft Classic", is_ready=True, total_bytes=4_772_163_724,
+    )}
+    games = build_library(_wow_catalog(), AccountFacts(), installed, launcher_path=LAUNCHER)
+    assert [g.store_game_id for g in games] == ["wow"]
+    assert games[0].installed is True
+    assert games[0].size_bytes == 4_772_163_724
+    assert games[0].metadata["installed_uid"] == "wow_classic_era"
+
+
+def test_a_matched_version_is_not_also_added_as_an_orphan() -> None:
+    """The dedupe that stops Classic Era becoming a second WoW shortcut."""
+    installed = {"wow_classic_era": InstalledGame(
+        code="wow_classic_era", uid="wow_classic_era", is_ready=True,
+    )}
+    games = build_library(_wow_catalog(), AccountFacts(), installed, launcher_path=LAUNCHER)
+    assert len(games) == 1
+
+
+def test_the_most_recently_played_version_wins_when_several_are_installed() -> None:
+    installed = {
+        "wow": InstalledGame(code="wow", uid="wow", is_ready=True, last_played_ms=1),
+        "wow_classic_era": InstalledGame(
+            code="wow_classic_era", uid="wow_classic_era", is_ready=True, last_played_ms=9,
+        ),
+    }
+    games = build_library(_wow_catalog(), AccountFacts(), installed, launcher_path=LAUNCHER)
+    assert [g.store_game_id for g in games] == ["wow"]
+    assert games[0].metadata["installed_uid"] == "wow_classic_era"
+
+
+def test_the_catalog_resolves_a_version_for_callers_that_hold_only_a_uid(
+    tmp_path: Path,
+) -> None:
+    """The watcher and the size/path lookups have no catalog in hand.
+
+    They must still recognise the version the user picked, and must not
+    accept a sibling Blizzard title in the same prefix.
+    """
+    from unifideck.stores.battlenet.install_state import title_install_row
+    from unifideck.stores.battlenet.ownership.pub_catalog import CACHE_RELATIVE
+
+    drive_c = tmp_path / "drive_c"
+    fragment = drive_c / CACHE_RELATIVE / "aa" / "bb"
+    fragment.parent.mkdir(parents=True)
+    fragment.write_text(json.dumps({
+        "fragment_id": "wow",
+        "installs": {"wow": {}, "wow_classic_era": {}},
+        "products": [{"id": "WoW", "base": {
+            "program_id": "WoW", "types": {"retail": {"uid": "wow"}}}}],
+    }), encoding="utf-8")
+
+    classic = {"wow_classic_era": InstalledGame(
+        code="wow_classic_era", uid="wow_classic_era", is_ready=True,
+    )}
+    row = title_install_row(drive_c, classic, "wow")
+    assert row is not None and row.uid == "wow_classic_era"
+
+    stranger = {"hsb": InstalledGame(code="hsb", uid="hs_beta", is_ready=True)}
+    assert title_install_row(drive_c, stranger, "wow") is None
+    assert title_install_row(drive_c, {}, "wow") is None
 
 
 def test_titles_without_an_install_uid_are_skipped() -> None:

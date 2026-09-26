@@ -54,16 +54,16 @@ function useResolved(g: Record<string, unknown> | null, queue: unknown = null) {
 }
 
 describe("usePlaySection — cloud titles never reach the install path", () => {
-  it("resolves an xcloud game to the xcloud state, not not-installed", () => {
+  it("resolves an xcloud game to the browser state, not not-installed", () => {
     const state = useResolved(game());
-    expect(state.kind).toBe("xcloud");
+    expect(state.kind).toBe("browser");
   });
 
   it("does the same when the store is not microsoft", () => {
     // The branch keys on the tag, not the store name — a second
     // subscription store would inherit the guard for free, and a
     // store-name check here would silently not.
-    expect(useResolved(game({ store: "someday" })).kind).toBe("xcloud");
+    expect(useResolved(game({ store: "someday" })).kind).toBe("browser");
   });
 
   it("still offers install for a Microsoft game WITHOUT the tag", () => {
@@ -83,11 +83,35 @@ describe("usePlaySection — cloud titles never reach the install path", () => {
       current: { game_id: "9NXR0000TEST", store: "microsoft" },
       queued: [],
     });
-    expect(state.kind).toBe("xcloud");
+    expect(state.kind).toBe("browser");
   });
 
   it("takes precedence over is_installed in either direction", () => {
-    expect(useResolved(game({ is_installed: true })).kind).toBe("xcloud");
+    expect(useResolved(game({ is_installed: true })).kind).toBe("browser");
+  });
+
+  it("marks an xcloud title as a stream on its play URL", () => {
+    const state = useResolved(game());
+    expect(state).toMatchObject({
+      kind: "browser",
+      variant: "stream",
+      url: "https://www.xbox.com/play/launch/9NXR0000TEST",
+    });
+  });
+
+  it("opens an itch.io HTML5 game as a web page", () => {
+    const state = useResolved(
+      game({
+        store: "itch",
+        store_tags: ["browser"],
+        browser_url: "https://poncle.itch.io/vampire-survivors",
+      }),
+    );
+    expect(state).toMatchObject({
+      kind: "browser",
+      variant: "web",
+      url: "https://poncle.itch.io/vampire-survivors",
+    });
   });
 });
 
