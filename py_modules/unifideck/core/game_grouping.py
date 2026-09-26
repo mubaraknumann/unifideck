@@ -231,6 +231,54 @@ def _bucket_steam_owned(
     return owned_buckets
 
 
+def _dedupe_bucket_candidates(
+    title: str,
+    owned_buckets: dict[str, list[OwnedApp]],
+) -> list[OwnedApp]:
+    """Every owned app reachable from any of ``title``'s bucket keys, each
+    appid included at most once — a title can hit more than one bucket
+    (see :func:`_bucket_keys`), and a candidate common to two of them
+    must not be scored/compared twice in :func:`_find_steam_owned_match`.
+    """
+    candidates: list[OwnedApp] = []
+    seen_appids: set[int] = set()
+    for key in _bucket_keys(title):
+        for owned_app in owned_buckets.get(key, []):
+            if owned_app.appid in seen_appids:
+                continue
+            seen_appids.add(owned_app.appid)
+            candidates.append(owned_app)
+    return candidates
+
+
+def _steam_owned_match_rank(
+    game_title: str,
+    query_norm: str,
+    query_base: str,
+    owned_app: OwnedApp,
+) -> tuple[int, int] | None:
+    """``(tier, leftover words)`` for one candidate — lower sorts better
+    — or ``None`` when it doesn't match at all. Split out of
+    :func:`_find_steam_owned_match` purely to keep that function's own
+    branching within the repo's complexity budget; the three tiers
+    (exact > edition-stripped > fuzzy) are documented on that function.
+    """
+    from unifideck.utils.title_match import strip_edition_suffix
+
+    candidate_norm = normalize_for_match(owned_app.title)
+    if not candidate_norm:
+        return None
+    if candidate_norm == query_norm:
+        tier = 0
+    elif strip_edition_suffix(candidate_norm) == query_base:
+        tier = 1
+    elif titles_match(game_title, owned_app.title):
+        tier = 2
+    else:
+        return None
+    return (tier, leftover_word_count(query_norm, candidate_norm))
+
+
 def _find_steam_owned_match(
     game: Game,
     owned_buckets: dict[str, list[OwnedApp]],
@@ -241,14 +289,14 @@ def _find_steam_owned_match(
     (e.g. "BioShock Infinite" buckets with both "BioShock" and
     "BioShock Infinite"); returning whichever came first in dict-
     iteration order silently picked the wrong appid depending on
-    insertion order. Scored instead: exact ``normalize_for_match``
-    equality wins outright, then equality after
-    ``strip_edition_suffix`` (handles "Thief Gold" ↔ owned "Thief Gold"
-    vs. the unrelated "Thief" also in-bucket), then the general fuzzy
-    ``titles_match`` acceptance — and among several ``titles_match``
-    acceptances, the fewest leftover words relative to the query wins
-    (picks exact "BioShock Infinite" over "BioShock" for a query of
-    "BioShock Infinite").
+    insertion order. Scored instead (see :func:`_steam_owned_match_rank`):
+    exact ``normalize_for_match`` equality wins outright, then equality
+    after ``strip_edition_suffix`` (handles "Thief Gold" ↔ owned "Thief
+    Gold" vs. the unrelated "Thief" also in-bucket), then the general
+    fuzzy ``titles_match`` acceptance — and among several
+    ``titles_match`` acceptances, the fewest leftover words relative to
+    the query wins (picks exact "BioShock Infinite" over "BioShock" for
+    a query of "BioShock Infinite").
     """
     from unifideck.utils.title_match import strip_edition_suffix
 
@@ -257,31 +305,11 @@ def _find_steam_owned_match(
         return None
     query_base = strip_edition_suffix(query_norm)
 
-    candidates: list[OwnedApp] = []
-    seen_appids: set[int] = set()
-    for key in _bucket_keys(game.title):
-        for owned_app in owned_buckets.get(key, []):
-            if owned_app.appid in seen_appids:
-                continue
-            seen_appids.add(owned_app.appid)
-            candidates.append(owned_app)
-
     best: OwnedApp | None = None
     best_rank = (4, 0)  # (tier, leftover words) — lower is better
-    for owned_app in candidates:
-        candidate_norm = normalize_for_match(owned_app.title)
-        if not candidate_norm:
-            continue
-        if candidate_norm == query_norm:
-            tier = 0
-        elif strip_edition_suffix(candidate_norm) == query_base:
-            tier = 1
-        elif titles_match(game.title, owned_app.title):
-            tier = 2
-        else:
-            continue
-        rank = (tier, leftover_word_count(query_norm, candidate_norm))
-        if rank < best_rank:
+    for owned_app in _dedupe_bucket_candidates(game.title, owned_buckets):
+        rank = _steam_owned_match_rank(game.title, query_norm, query_base, owned_app)
+        if rank is not None and rank < best_rank:
             best_rank = rank
             best = owned_app
     return best

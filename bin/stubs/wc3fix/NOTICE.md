@@ -5,10 +5,10 @@
 Two rebuilt Wine `crypt32.dll` binaries that accept the current 88-byte
 `CERT_CHAIN_ENGINE_CONFIG` struct, plus the patch that produced them.
 
-| File | SHA-256 |
-|------|---------|
-| `x86_64-windows/crypt32.dll` | `dca9a2c04c55a9239f7300a183e7d69222cbf7607c473a229ca314fa6903b6e3` |
-| `i386-windows/crypt32.dll` | `c73b62661f9a34203d08c6fc47329a8f8a22791f3da5db471276919be192ab1b` |
+| File                                   | SHA-256                                                            |
+| -------------------------------------- | ------------------------------------------------------------------ |
+| `x86_64-windows/crypt32.dll`           | `dca9a2c04c55a9239f7300a183e7d69222cbf7607c473a229ca314fa6903b6e3` |
+| `i386-windows/crypt32.dll`             | `c73b62661f9a34203d08c6fc47329a8f8a22791f3da5db471276919be192ab1b` |
 | `crypt32-chain-engine-config-88.patch` | `b57366f609a8ee15f80788dc9b38f05e19c93efc884024a4c49a153e4722b93b` |
 
 ## Why it exists
@@ -18,7 +18,7 @@ Warcraft III: Reforged 3.0 ships a `ClientSdk.dll` that calls
 `CERT_CHAIN_ENGINE_CONFIG`. Wine 11.0's `crypt32` accepts only the 64- and
 80-byte layouts and rejects anything else with `E_INVALIDARG`, so the game
 cannot build a certificate chain, treats Blizzard's TLS as untrusted, and
-tells the user to *"check your VPN"*. Every shipping Proton is on the Wine
+tells the user to _"check your VPN"_. Every shipping Proton is on the Wine
 11.0 stable branch, GE-Proton11-6 and `experimental-11.0-*` included, so no
 Proton selection avoids it.
 
@@ -29,7 +29,7 @@ are used, and `docs/proton-compatibility.md` for the user-facing writeup.
 
 Wine's `crypt32` is a **split PE/unix DLL**: the PE half here is paired with
 `files/lib/wine/<arch>-unix/crypt32.so`, and Wine only wires that unix half
-up for a DLL it loads as *builtin* from Proton's own directory. Dropping one
+up for a DLL it loads as _builtin_ from Proton's own directory. Dropping one
 of these next to a game executable and preferring it with `crypt32=n,b` was
 measured on-device and kills the game on launch:
 

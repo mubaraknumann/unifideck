@@ -66,6 +66,62 @@ def _tags(entry: CatalogEntry | None, free_to_play: bool) -> list[str]:
     return tags
 
 
+def _version_family_and_client_selects(
+    entry: CatalogEntry | None,
+    installed: InstalledGame | None,
+    versions_installed: int,
+) -> tuple[str | None, bool]:
+    """``(version_family, client_selects)`` for :func:`_game_from`.
+
+    Split out purely to keep that function's own branching within the
+    repo's complexity budget — the reasoning is unchanged from before
+    the split:
+
+    A version other than the program's own needs its own family code, and
+    the client will not auto-launch it: measured, 'launch WoW' sets the
+    client to WoW_retail (Install, over a finished Classic install) while
+    'launch WoWC' selects WoW_wow_classic_era and waits for the user's
+    Play. Retail keeps the proven auto-launching path.
+
+    Several versions on disk is the other case the user must resolve: the
+    client shows the version picker, so we select and let them press Play.
+    """
+    version_family = entry.launch_family_for(installed.uid) if entry and installed else None
+    client_selects = bool(version_family) or versions_installed > 1
+    return version_family, client_selects
+
+
+def _game_metadata(
+    program: str,
+    entry: CatalogEntry | None,
+    installed: InstalledGame | None,
+    *,
+    version_family: str | None,
+    client_selects: bool,
+    presumed: bool,
+) -> dict[str, Any]:
+    """The ``Game.metadata`` dict for :func:`_game_from` — split out
+    purely to keep that function's own branching within the repo's
+    complexity budget; field meanings are documented where they were
+    before the split."""
+    return {
+        "family": version_family or program,
+        # True when the client will only *select* this version and the
+        # user presses Play there, so the launcher must not report a
+        # failure when no game process appears.
+        "client_selects": client_selects,
+        # Diagnostic only, deliberately not a tag: tags render as pills
+        # in the UI, and "presumed" is our bookkeeping, not the user's.
+        "ownership": "presumed" if presumed else "granted",
+        # Which version of this title is on disk, when it is not the
+        # tile's own uid — Classic Era under the World of Warcraft tile.
+        "installed_uid": installed.uid if installed else None,
+        "title_id": entry.title_id if entry else None,
+        "version": installed.version if installed else None,
+        "last_played_ms": installed.last_played_ms if installed else None,
+    }
+
+
 def _game_from(
     program: str,
     entry: CatalogEntry | None,
@@ -89,15 +145,9 @@ def _game_from(
         return None
 
     name = catalog.display_name(program) or (installed.name if installed else None) or program
-    # A version other than the program's own needs its own family code, and
-    # the client will not auto-launch it: measured, 'launch WoW' sets the
-    # client to WoW_retail (Install, over a finished Classic install) while
-    # 'launch WoWC' selects WoW_wow_classic_era and waits for the user's
-    # Play. Retail keeps the proven auto-launching path.
-    version_family = entry.launch_family_for(installed.uid) if entry and installed else None
-    # Several versions on disk is the other case the user must resolve: the
-    # client shows the version picker, so we select and let them press Play.
-    client_selects = bool(version_family) or versions_installed > 1
+    version_family, client_selects = _version_family_and_client_selects(
+        entry, installed, versions_installed,
+    )
     from unifideck.services.shortcut.games_map import generate_app_id
 
     return Game(
@@ -112,22 +162,12 @@ def _game_from(
         tags=_tags(entry, free_to_play),
         icon_url=installed.logo_art_url if installed else None,
         hero_url=installed.box_art_url if installed else None,
-        metadata={
-            "family": version_family or program,
-            # True when the client will only *select* this version and the
-            # user presses Play there, so the launcher must not report a
-            # failure when no game process appears.
-            "client_selects": client_selects,
-            # Diagnostic only, deliberately not a tag: tags render as pills
-            # in the UI, and "presumed" is our bookkeeping, not the user's.
-            "ownership": "presumed" if presumed else "granted",
-            # Which version of this title is on disk, when it is not the
-            # tile's own uid — Classic Era under the World of Warcraft tile.
-            "installed_uid": installed.uid if installed else None,
-            "title_id": entry.title_id if entry else None,
-            "version": installed.version if installed else None,
-            "last_played_ms": installed.last_played_ms if installed else None,
-        },
+        metadata=_game_metadata(
+            program, entry, installed,
+            version_family=version_family,
+            client_selects=client_selects,
+            presumed=presumed,
+        ),
     )
 
 
