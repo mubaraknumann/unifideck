@@ -29,7 +29,7 @@ import {
   overviewCompatCategory,
 } from "../steam-bridge/compat-packed";
 import { invalidateGameSize } from "../game-size-cache";
-import { STORE_PRIORITY } from "../game-grouping";
+import { STORE_PRIORITY, indexOfFirstNonXboxOneTagged } from "../game-grouping";
 import { isGroupDuplicatesEnabled } from "../group-duplicates-setting";
 import { bumpGameStateVersion } from "../game-state-version";
 import type { SteamAppOverview } from "../../types/steam";
@@ -266,16 +266,22 @@ function hideAsDuplicateOnInstalledTab(appId: number): boolean {
 
 /** Same precedence `game-grouping.ts`'s `pickPrimary` uses for the (today
  *  unmounted) `GameGrid` component — installed copy first, else first
- *  store in `STORE_PRIORITY` — kept in sync so both surfaces agree on
- *  which store "wins" a duplicate group if `GameGrid` is ever wired up. */
+ *  store in `STORE_PRIORITY`, then (B.9) an unsuffixed/Series X|S title
+ *  over an "Xbox One"-only tagged sibling from that same store — kept in
+ *  sync so both surfaces agree on which store "wins" a duplicate group
+ *  if `GameGrid` is ever wired up. The Xbox tie-break itself lives in
+ *  `game-grouping.ts` so both callers share one regex/ranking rule. */
 function pickGroupPrimary(
   candidates: UnifideckGameInput[],
 ): UnifideckGameInput {
   const installed = candidates.find((c) => c.isInstalled);
   if (installed) return installed;
   for (const store of STORE_PRIORITY) {
-    const match = candidates.find((c) => c.store === store);
-    if (match) return match;
+    const matches = candidates.filter((c) => c.store === store);
+    if (matches.length > 0) {
+      const index = indexOfFirstNonXboxOneTagged(matches.map((c) => c.title));
+      return index === -1 ? matches[0] : matches[index];
+    }
   }
   return candidates[0];
 }

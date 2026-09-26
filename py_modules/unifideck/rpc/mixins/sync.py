@@ -138,7 +138,22 @@ class SyncRPCMixin(CleanupRPCMixin):
         safe = [g for g in (games or []) if isinstance(g, dict)]
         titles = [g["title"] for g in safe if isinstance(g.get("title"), str)]
         save_frontend_owned_titles(titles)
-        return {"count": save_frontend_owned_games(safe)}
+        count = save_frontend_owned_games(safe)
+
+        # C.11 — without this, a freshly-pushed Steam-owned snapshot only
+        # affects grouping/`steam_owned_app_id` at the NEXT full sync's
+        # `_maybe_annotate_duplicate_groups` call, so a duplicate group
+        # that should now show "already on Steam" stays stale until then.
+        # `_annotate_loaded_cache` mutates `self._all_games`'s `Game`
+        # objects in place (not a `get_all_games()` snapshot copy, which
+        # would silently update nothing this RPC's caller can see) and is
+        # already best-effort/exception-safe, so reuse it here rather than
+        # duplicate its annotation-and-error-handling shape.
+        if self.sync_service is not None:
+            self.sync_service._annotate_loaded_cache()
+            self.sync_service._save_library_cache()
+
+        return {"count": count}
 
     async def set_active_steam_user(self, account_id: str) -> Any:
         """Persist the live logged-in Steam account id the frontend read.

@@ -97,6 +97,38 @@ describe("groupGames", () => {
     const groups = groupGames(games);
     expect(groups.map((grp) => grp.key)).toEqual([String(first.app_id), "x"]);
   });
+
+  // B.9 — same-store Xbox console variants must not pick the older
+  // "Xbox One"-only tag over an unsuffixed/Series X|S sibling.
+  it("prefers the unsuffixed title over an Xbox One tag from the same store", () => {
+    const games = [
+      g({ store: "microsoft", title: "NHL 24 Xbox One", dedupe_group_id: "x" }),
+      g({ store: "microsoft", title: "NHL 24 Xbox Series X|S", dedupe_group_id: "x" }),
+    ];
+    const groups = groupGames(games);
+    expect(groups[0].primary.title).toBe("NHL 24 Xbox Series X|S");
+  });
+
+  it("falls back to the only candidate when every same-store copy is Xbox One tagged", () => {
+    const games = [g({ store: "microsoft", title: "Enlisted Xbox One", dedupe_group_id: "x" })];
+    const groups = groupGames(games);
+    expect(groups[0].primary.title).toBe("Enlisted Xbox One");
+  });
+
+  it("still prefers installed over the Xbox tie-break", () => {
+    const games = [
+      g({
+        store: "microsoft",
+        title: "NHL 24 Xbox One",
+        dedupe_group_id: "x",
+        installed: true,
+        is_installed: true,
+      }),
+      g({ store: "microsoft", title: "NHL 24 Xbox Series X|S", dedupe_group_id: "x" }),
+    ];
+    const groups = groupGames(games);
+    expect(groups[0].primary.title).toBe("NHL 24 Xbox One");
+  });
 });
 
 describe("STORE_PRIORITY", () => {

@@ -75,12 +75,46 @@ export function storePriorityRank(store: StoreId): number {
   return index === -1 ? Number.POSITIVE_INFINITY : index;
 }
 
+/** True when ``title`` carries an "Xbox One"-only console tag — the
+ *  suffix table both the backend (`EDITION_SUFFIXES`) and this file's
+ *  callers already strip for matching/labelling, matched here just to
+ *  rank it below an unsuffixed or "Series X|S" sibling (B.9). Kept
+ *  narrow and display-only: this never affects grouping, only which
+ *  same-store candidate the tile defaults to. */
+const XBOX_ONE_ONLY_TAG = /\bxbox\s+one(?:\s+(?:edition|version))?\s*$/i;
+
+/** Index of the first candidate whose title ISN'T tagged "Xbox One"-only
+ *  (B.9), or `-1` when every candidate is (or none has a title to check
+ *  — a titleless entry never outranks a real one, so it's treated the
+ *  same as "tagged"). An unsuffixed title or an explicit "Series X|S"
+ *  release both outrank the older console's tag: the Series X|S copy
+ *  plays on both consoles and reads as the more current listing.
+ *
+ *  Exported (rather than a same-store-array helper) so both
+ *  `pickPrimary` here and `library-filters`'s `pickGroupPrimary` — which
+ *  hold candidates as different element types — can share the one
+ *  regex and ranking rule instead of drifting apart. */
+export function indexOfFirstNonXboxOneTagged(
+  titles: (string | undefined)[],
+): number {
+  return titles.findIndex((t) => t != null && !XBOX_ONE_ONLY_TAG.test(t));
+}
+
+/** Prefers a candidate that ISN'T tagged "Xbox One"-only over one that
+ *  is, among several candidates from the SAME store (B.9). A no-op when
+ *  there's nothing to prefer (a single candidate, or no Xbox-One-tagged
+ *  one at all). */
+function preferNonXboxOneTag(candidates: Game[]): Game {
+  const index = indexOfFirstNonXboxOneTagged(candidates.map((g) => g.title));
+  return index === -1 ? candidates[0] : candidates[index];
+}
+
 function pickPrimary(games: Game[]): Game {
   const installed = games.find((g) => g.installed ?? g.is_installed);
   if (installed) return installed;
   for (const store of STORE_PRIORITY) {
-    const match = games.find((g) => g.store === store);
-    if (match) return match;
+    const matches = games.filter((g) => g.store === store);
+    if (matches.length > 0) return preferNonXboxOneTag(matches);
   }
   return games[0];
 }

@@ -209,6 +209,31 @@ describe('"all" filter hides non-primary cross-store duplicates', () => {
     expect(visible).toHaveLength(2);
   });
 
+  // B.9 — same-store Xbox console variants must not pick the older
+  // "Xbox One"-only tag over an unsuffixed/Series X|S sibling.
+  it("prefers an unsuffixed/Series X|S title over an Xbox One tag from the same store", () => {
+    const games: UnifideckGameInput[] = [
+      {
+        appId: 1,
+        store: "microsoft",
+        isInstalled: false,
+        title: "NHL 24 Xbox One",
+        dedupeGroupId: "nhl 24",
+      },
+      {
+        appId: 2,
+        store: "microsoft",
+        isInstalled: false,
+        title: "NHL 24 Xbox Series X|S",
+        dedupeGroupId: "nhl 24",
+      },
+    ];
+    updateUnifideckCache(games);
+
+    expect(isHiddenDuplicate(1)).toBe(true);
+    expect(isHiddenDuplicate(2)).toBe(false);
+  });
+
   it("still exposes every sibling via getGroupSiblings for the detail-page switcher", () => {
     const games: UnifideckGameInput[] = [
       { appId: 1, store: "epic", isInstalled: false, dedupeGroupId: "g" },
