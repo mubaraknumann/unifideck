@@ -99,6 +99,11 @@ export const rpcRoutes = {
   listGameExecutables: "list_game_executables",
   setGameExecutable: "set_game_executable",
   resetGameExecutable: "reset_game_executable",
+  // Companion executables — trainers/utilities launched alongside the
+  // game in the same Proton prefix (CompanionExecutablesRPCMixin)
+  listCompanionExecutables: "list_companion_executables",
+  addCompanionExecutable: "add_companion_executable",
+  removeCompanionExecutable: "remove_companion_executable",
   // Achievements (AchievementsRPCMixin) — GOG display + last-session summary
   getGameAchievements: "get_game_achievements",
   getLastSessionAchievements: "get_last_session_achievements",

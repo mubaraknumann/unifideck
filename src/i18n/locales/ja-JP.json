@@ -385,7 +385,9 @@
       "battlenetClientInstallFailedMessage": "Battle.net クライアントのインストーラーが完了しませんでした。もう一度お試しいただくか、起動ログで報告内容をご確認ください。",
       "installingBattlenet": "Battle.net 経由でインストール中",
       "installingBattlenetMessage": "Battle.net を開いています。{{gameTitle}} のダウンロードを開始するには、そこで「インストール」を押してください。",
-      "wrapperOpening": "{{client}} を開いています"
+      "wrapperOpening": "{{client}} を開いています",
+      "launchWarning": "起動の警告",
+      "companionStartFailed": "{{game_key}} のコンパニオンプログラムを起動できませんでした。ゲーム自体は正常に起動しました。"
     },
     "updateComplete": "アップデートが完了しました！",
     "updateCompleteMessage": "{{title}} をアップデートしました。",
@@ -761,6 +763,19 @@
       "subtitle": "このゲームが起動するファイルを選択します（ランチャーをスキップしてゲームを直接実行する場合など）。作業ディレクトリとクラウドセーブは影響を受けません。",
       "title": "実行ファイルの変更。{{game}}",
       "unavailable": "このゲームのフォルダを読み取れませんでした。"
+    },
+    "companions": {
+      "menuItem": "コンパニオンプログラム…",
+      "title": "コンパニオンプログラム — {{game}}",
+      "subtitle": "このゲームと同じ Proton プレフィックスで一緒に起動される追加プログラム（トレーナー、チートツール、ユーティリティ）。コンパニオンの起動に失敗してもゲームがブロックされることはありません。",
+      "add": "追加…",
+      "delayHint": "常に最小 10s の遅延が適用されます。ゲームの初回起動と同時に開始すると、失敗する場合があるためです。",
+      "empty": "コンパニオンプログラムはまだ追加されていません。",
+      "delaySeconds": "遅延: {{seconds}}s",
+      "added": "コンパニオンを追加しました",
+      "addFailed": "コンパニオンプログラムを追加できませんでした",
+      "removed": "コンパニオンを削除しました",
+      "removeFailed": "コンパニオンプログラムを削除できませんでした"
     }
   },
   "playMeta": {

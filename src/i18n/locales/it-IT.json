@@ -385,7 +385,9 @@
       "battlenetClientInstallFailedMessage": "Il programma di installazione del client Battle.net non è stato completato. Riprova o controlla il registro di avvio per vedere cosa ha segnalato.",
       "installingBattlenet": "Installazione tramite Battle.net",
       "installingBattlenetMessage": "Apertura di Battle.net. Premi Installa per avviare il download di {{gameTitle}}.",
-      "wrapperOpening": "Apertura di {{client}}"
+      "wrapperOpening": "Apertura di {{client}}",
+      "launchWarning": "Avviso di avvio",
+      "companionStartFailed": "Impossibile avviare un programma companion per {{game_key}}. Il gioco stesso è stato avviato normalmente."
     },
     "updateComplete": "Aggiornamento completato!",
     "updateCompleteMessage": "{{title}} è stato aggiornato.",
@@ -761,6 +763,19 @@
       "subtitle": "Scegli quale file avvia questo gioco (es. saltare un launcher e avviare direttamente il gioco). La cartella di lavoro e i salvataggi cloud non subiranno variazioni.",
       "title": "Modifica eseguibile. {{game}}",
       "unavailable": "Impossibile leggere la cartella di questo gioco."
+    },
+    "companions": {
+      "menuItem": "Programmi companion…",
+      "title": "Programmi companion — {{game}}",
+      "subtitle": "Programmi aggiuntivi (trainer, strumenti di trucchi, utilità) avviati insieme a questo gioco nello stesso prefisso Proton. Un companion che non si avvia non blocca mai il gioco.",
+      "add": "Aggiungi…",
+      "delayHint": "Viene sempre applicato un ritardo minimo di 10s — avviarlo insieme al primissimo avvio del gioco potrebbe altrimenti farlo fallire.",
+      "empty": "Nessun programma companion ancora aggiunto.",
+      "delaySeconds": "Ritardo: {{seconds}}s",
+      "added": "Companion aggiunto",
+      "addFailed": "Impossibile aggiungere il programma companion",
+      "removed": "Companion rimosso",
+      "removeFailed": "Impossibile rimuovere il programma companion"
     }
   },
   "playMeta": {

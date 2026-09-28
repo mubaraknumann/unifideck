@@ -385,7 +385,9 @@
       "battlenetClientInstallFailedMessage": "O instalador do cliente Battle.net não terminou. Tente novamente ou verifique o log de inicialização para ver o que ele relatou.",
       "installingBattlenet": "Instalando pelo Battle.net",
       "installingBattlenetMessage": "Abrindo o Battle.net. Pressione Instalar lá para começar o download de {{gameTitle}}.",
-      "wrapperOpening": "Abrindo o {{client}}"
+      "wrapperOpening": "Abrindo o {{client}}",
+      "launchWarning": "Aviso de inicialização",
+      "companionStartFailed": "Não foi possível iniciar um programa complementar para {{game_key}}. O jogo em si foi iniciado normalmente."
     },
     "updateComplete": "Atualização Concluída!",
     "updateCompleteMessage": "{{title}} foi atualizado.",
@@ -761,6 +763,19 @@
       "subtitle": "Escolha qual arquivo este jogo inicia (por exemplo, pular um inicializador e executar o jogo diretamente). O diretório de trabalho e os salvamentos na nuvem não serão afetados.",
       "title": "Alterar executável. {{game}}",
       "unavailable": "Não foi possível ler a pasta deste jogo."
+    },
+    "companions": {
+      "menuItem": "Programas complementares…",
+      "title": "Programas complementares — {{game}}",
+      "subtitle": "Programas adicionais (trainers, ferramentas de trapaça, utilitários) iniciados junto com este jogo no mesmo prefixo do Proton. Um complementar que falhe nunca bloqueia o jogo.",
+      "add": "Adicionar…",
+      "delayHint": "Um atraso mínimo de 10s é sempre aplicado — iniciá-lo junto ao primeiro início do jogo pode fazê-lo falhar.",
+      "empty": "Nenhum programa complementar adicionado ainda.",
+      "delaySeconds": "Atraso: {{seconds}}s",
+      "added": "Complementar adicionado",
+      "addFailed": "Não foi possível adicionar o programa complementar",
+      "removed": "Complementar removido",
+      "removeFailed": "Não foi possível remover o programa complementar"
     }
   },
   "playMeta": {

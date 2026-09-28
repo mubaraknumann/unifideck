@@ -1,17 +1,23 @@
 /**
- * app-context-menu-patch — inject "Change executable…" into the native game
- * context menu (the gear / right-click menu with Add to Favorites, Manage,
- * Properties…).
+ * app-context-menu-patch — inject "Change executable…" and "Companion
+ * executables…" into the native game context menu (the gear / right-click
+ * menu with Add to Favorites, Manage, Properties…).
  *
  * Technique ported from decky-steamgriddb's `contextMenuPatch.tsx`: resolve the
  * `LibraryContextMenu` component, `afterPatch` its `render` (+ the inner
  * `type.render` / `shouldComponentUpdate`), and splice a `MenuItem` in just
  * before the "Properties…" entry. Proven robust across Steam client versions.
  *
- * GATING: the item is added only for an INSTALLED Unifideck shortcut whose
- * store supports an executable override (gog / amazon / epic). Regular Steam
- * games — and unsupported stores (Microsoft xCloud) — are left untouched. The
- * patch only ADDS a menu item; it never mutates the overview or launch routing.
+ * GATING:
+ * - "Change executable…" is added only for an INSTALLED Unifideck shortcut
+ *   whose store supports an executable override (gog / amazon / epic /
+ *   gamevault — see `SUPPORTED_STORES`).
+ * - "Companion executables…" is added for ANY installed Unifideck shortcut
+ *   (it does not touch a store's games.map exe column — see
+ *   `companionsEligible`).
+ * Regular (non-Unifideck) Steam games are left untouched either way. The
+ * patch only ADDS menu items; it never mutates the overview or launch
+ * routing.
  */
 import {
   afterPatch,
@@ -27,12 +33,15 @@ import { createElement } from "react";
 import i18n from "i18next";
 import { getUnifideckGame } from "../library-filters";
 import { ChangeExecutableModal } from "../../components/modals/ChangeExecutableModal";
+import { CompanionExecutablesModal } from "../../components/modals/CompanionExecutablesModal";
 
 /** Stores whose launch target the user can override (see ExecutableRPCMixin). */
 const SUPPORTED_STORES = new Set(["gog", "amazon", "epic", "gamevault"]);
 
 /** Stable key so re-renders can dedupe our injected item. */
 const MENU_ITEM_KEY = "unifideck-change-exe";
+/** Stable key for the "Companion executables…" item (see CompanionExecutablesRPCMixin). */
+const COMPANIONS_MENU_ITEM_KEY = "unifideck-companion-exes";
 
 export interface AppContextMenuPatchHandle {
   unpatch: () => void;
@@ -78,7 +87,47 @@ function openModal(appId: number): void {
   );
 }
 
-/** Insert our item before "Properties…" (matched by its onSelected source). */
+/** The game's display name from Steam's app store, falling back to the id. */
+function resolveTitle(appId: number, gameId: string): string {
+  const overview = (
+    window as unknown as {
+      appStore?: {
+        GetAppOverviewByAppID?: (
+          id: number,
+        ) => { display_name?: string } | null;
+      };
+    }
+  ).appStore?.GetAppOverviewByAppID?.(appId);
+  return String(overview?.display_name ?? gameId);
+}
+
+/** Every store may attach companion executables — unlike "Change
+ *  executable…" this isn't gated by ``SUPPORTED_STORES`` since it doesn't
+ *  touch the games.map exe column at all, so xCloud/Microsoft games are
+ *  eligible too, provided they're an installed Unifideck shortcut. */
+function companionsEligible(
+  appId: number,
+): { store: string; gameId: string } | null {
+  const game = getUnifideckGame(appId);
+  if (!game || !game.storeGameId || !game.isInstalled) return null;
+  return { store: game.store, gameId: game.storeGameId };
+}
+
+function openCompanionsModal(appId: number): void {
+  const g = companionsEligible(appId);
+  if (!g) return;
+  const title = resolveTitle(appId, g.gameId);
+  showModal(
+    createElement(CompanionExecutablesModal, {
+      store: g.store,
+      gameId: g.gameId,
+      gameTitle: title,
+      closeModal: () => {},
+    }),
+  );
+}
+
+/** Insert our items before "Properties…" (matched by its onSelected source). */
 function spliceItem(children: unknown[], appId: number): void {
   const propsIdx = children.findIndex((item) =>
     findInReactTree(
@@ -87,21 +136,40 @@ function spliceItem(children: unknown[], appId: number): void {
         !!x?.onSelected && x.onSelected.toString().includes("AppProperties"),
     ),
   );
-  const node = createElement(
-    MenuItem,
-    { key: MENU_ITEM_KEY, onSelected: () => openModal(appId) },
-    i18n.t("play.exe.menuItem"),
-  );
-  if (propsIdx >= 0) children.splice(propsIdx, 0, node);
-  else children.push(node);
+  const nodes: unknown[] = [];
+  if (eligible(appId)) {
+    nodes.push(
+      createElement(
+        MenuItem,
+        { key: MENU_ITEM_KEY, onSelected: () => openModal(appId) },
+        i18n.t("play.exe.menuItem"),
+      ),
+    );
+  }
+  if (companionsEligible(appId)) {
+    nodes.push(
+      createElement(
+        MenuItem,
+        {
+          key: COMPANIONS_MENU_ITEM_KEY,
+          onSelected: () => openCompanionsModal(appId),
+        },
+        i18n.t("play.companions.menuItem"),
+      ),
+    );
+  }
+  if (propsIdx >= 0) children.splice(propsIdx, 0, ...nodes);
+  else children.push(...nodes);
 }
 
 /** Drop a previously-injected item so a re-render can't duplicate it. */
 function dedupe(children: unknown[]): void {
-  const idx = children.findIndex(
-    (x) => (x as { key?: string } | null)?.key === MENU_ITEM_KEY,
-  );
-  if (idx !== -1) children.splice(idx, 1);
+  for (const key of [MENU_ITEM_KEY, COMPANIONS_MENU_ITEM_KEY]) {
+    const idx = children.findIndex(
+      (x) => (x as { key?: string } | null)?.key === key,
+    );
+    if (idx !== -1) children.splice(idx, 1);
+  }
 }
 
 /** Re-resolve the appid from the menu's OWN React tree (not a stale closure).
@@ -141,7 +209,7 @@ function resolveItemsAppId(
 function patchMenuItems(menuItems: unknown[], fallbackAppId: number): void {
   dedupe(menuItems);
   const appId = resolveItemsAppId(menuItems, fallbackAppId);
-  if (!eligible(appId)) return;
+  if (!eligible(appId) && !companionsEligible(appId)) return;
   spliceItem(menuItems, appId);
 }
 
