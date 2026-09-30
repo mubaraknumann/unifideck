@@ -773,3 +773,159 @@ def test_remove_patch_rejects_missing_args():
     host = _make_host()
     with pytest.raises(RpcError):
         asyncio.run(host.remove_optiscaler_patch("", "123"))
+
+
+# ── proxy-DLL auto-configuration (dxgi vs winmm, WINEDLLOVERRIDES) ────────
+def _pe_importing(dlls: list[str]) -> bytes:
+    """Minimal PE32+ importing the given DLLs (see test_proxy_dll for layout)."""
+    import struct
+
+    buf = bytearray(4096)
+    buf[0:2] = b"MZ"
+    e = 0x80
+    struct.pack_into("<I", buf, 0x3C, e)
+    buf[e:e + 4] = b"PE\x00\x00"
+    coff = e + 4
+    struct.pack_into("<H", buf, coff + 2, 1)
+    struct.pack_into("<H", buf, coff + 16, 240)
+    opt = coff + 20
+    struct.pack_into("<H", buf, opt, 0x20B)
+    sec = opt + 240
+    struct.pack_into("<I", buf, sec + 12, 0)
+    struct.pack_into("<I", buf, sec + 16, len(buf))
+    struct.pack_into("<I", buf, sec + 20, 0)
+    imp = 0x600
+    struct.pack_into("<I", buf, opt + 112 + 8, imp)
+    cur = imp + (len(dlls) + 1) * 20
+    for i, d in enumerate(dlls):
+        desc = imp + i * 20
+        struct.pack_into("<I", buf, desc + 12, cur)
+        struct.pack_into("<I", buf, desc + 16, 0x1000 + i)
+        raw = d.encode() + b"\x00"
+        buf[cur:cur + len(raw)] = raw
+        cur += len(raw)
+    return bytes(buf)
+
+
+def _setup_patch(tmp_path, monkeypatch, exe_name, imported):
+    """Common fixture: fgmod installed, a game dir with a dxgi.dll proxy and
+    an exe importing ``imported``. Returns (host, game_dir, exe_path)."""
+    import unifideck.rpc.mixins.optiscaler as optiscaler_mod
+
+    fgmod = tmp_path / "fgmod"
+    fgmod.write_text("#!/usr/bin/env bash\n")
+    monkeypatch.setattr(optiscaler_mod, "_FGMOD_SCRIPT", fgmod)
+
+    game_dir = tmp_path / "game"
+    game_dir.mkdir()
+    (game_dir / "dxgi.dll").write_bytes(b"PROXY")  # fgmod's default proxy
+    exe = game_dir / exe_name
+    exe.write_bytes(_pe_importing(imported))
+
+    host = _make_host(str(game_dir))
+    _with_games_map_exe(host, str(exe))
+
+    class _FakeProc:
+        returncode = 0
+
+        async def communicate(self):
+            return b"Done!\n", b""
+
+    async def _fake_exec(*argv, **kwargs):
+        return _FakeProc()
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _fake_exec)
+    return host, game_dir, exe
+
+
+def test_apply_patch_sets_dxgi_override_for_dx12_game(tmp_path, monkeypatch):
+    """A game that statically imports dxgi keeps fgmod's dxgi default and
+    gets WINEDLLOVERRIDES=dxgi=n,b written automatically — no rename."""
+    host, game_dir, _ = _setup_patch(
+        tmp_path, monkeypatch, "game.exe", ["dxgi.dll", "kernel32.dll"],
+    )
+
+    res = asyncio.run(host.apply_optiscaler_patch("gog", "123"))
+
+    assert res["proxy_dll"] == "dxgi"
+    assert host.config.get("games.gog:123.env_overrides") == {
+        "WINEDLLOVERRIDES": "dxgi=n,b",
+    }
+    # No winmm copy created for a dxgi game.
+    assert not (game_dir / "winmm.dll").exists()
+
+
+def test_apply_patch_renames_proxy_and_sets_winmm_for_nixxes_port(
+    tmp_path, monkeypatch,
+):
+    """Regression this whole feature exists for: a Nixxes-style port imports
+    winmm but only loads dxgi dynamically. fgmod's dxgi.dll would never load.
+    The patch must copy the proxy to winmm.dll and persist
+    WINEDLLOVERRIDES=winmm=n,b so OptiScaler actually loads."""
+    host, game_dir, _ = _setup_patch(
+        tmp_path, monkeypatch, "Spider-Man.exe", ["winmm.dll", "winhttp.dll"],
+    )
+
+    res = asyncio.run(host.apply_optiscaler_patch("gamevault", "22"))
+
+    assert res["proxy_dll"] == "winmm"
+    # Proxy copied to the imported name so the loader pulls it in.
+    assert (game_dir / "winmm.dll").read_bytes() == b"PROXY"
+    assert host.config.get("games.gamevault:22.env_overrides") == {
+        "WINEDLLOVERRIDES": "winmm=n,b",
+    }
+
+
+def test_apply_patch_preserves_existing_user_override(tmp_path, monkeypatch):
+    """Auto-config must MERGE with a user's existing WINEDLLOVERRIDES, not
+    clobber it."""
+    host, _, _ = _setup_patch(
+        tmp_path, monkeypatch, "Spider-Man.exe", ["winmm.dll"],
+    )
+    host.config.set(
+        "games.gamevault:22.env_overrides",
+        {"WINEDLLOVERRIDES": "d3d11=n", "MANGOHUD": "1"},
+    )
+
+    asyncio.run(host.apply_optiscaler_patch("gamevault", "22"))
+
+    saved = host.config.get("games.gamevault:22.env_overrides")
+    assert saved["MANGOHUD"] == "1"
+    assert "winmm=n,b" in saved["WINEDLLOVERRIDES"]
+    assert "d3d11=n" in saved["WINEDLLOVERRIDES"]
+
+
+def test_apply_patch_does_not_overwrite_real_game_dll(tmp_path, monkeypatch):
+    """If a real DLL of the chosen proxy name already exists (the game
+    shipped it), don't clobber it — the override alone loads OptiScaler's
+    copy via native-then-builtin ordering."""
+    host, game_dir, _ = _setup_patch(
+        tmp_path, monkeypatch, "Spider-Man.exe", ["winmm.dll"],
+    )
+    (game_dir / "winmm.dll").write_bytes(b"REAL-GAME-WINMM")
+
+    asyncio.run(host.apply_optiscaler_patch("gamevault", "22"))
+
+    # Untouched — we did not overwrite the game's own DLL.
+    assert (game_dir / "winmm.dll").read_bytes() == b"REAL-GAME-WINMM"
+
+
+def test_apply_patch_proxy_autoconfig_failure_does_not_fail_patch(
+    tmp_path, monkeypatch,
+):
+    """A crash inside proxy auto-config must not fail an otherwise-successful
+    patch — it degrades to fgmod's dxgi default."""
+    host, _, _ = _setup_patch(
+        tmp_path, monkeypatch, "game.exe", ["dxgi.dll"],
+    )
+    import unifideck.rpc.mixins.optiscaler as optiscaler_mod
+
+    def _boom(_exe):
+        raise RuntimeError("pe parse exploded")
+
+    monkeypatch.setattr(optiscaler_mod, "pick_proxy_dll", _boom)
+
+    res = asyncio.run(host.apply_optiscaler_patch("gog", "123"))
+
+    assert res["success"] is True
+    assert res["proxy_dll"] == "dxgi"

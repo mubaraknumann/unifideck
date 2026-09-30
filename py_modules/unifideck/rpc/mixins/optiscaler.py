@@ -90,8 +90,14 @@ import os
 from pathlib import Path
 from typing import Any
 
+from unifideck.launcher.proton.fixes.proxy_dll import (
+    DEFAULT_PROXY_DLL,
+    pick_proxy_dll,
+    wine_dll_override_for,
+)
 from unifideck.launcher.proton.infrastructure.core import sanitize_frozen_loader_env
 from unifideck.rpc import RpcError
+from unifideck.rpc.mixins.game_env import _config_key as _game_env_config_key
 from unifideck.rpc.mixins.game_env import _load_env as _load_general_env_overrides
 
 logger = logging.getLogger(__name__)
@@ -351,11 +357,106 @@ class OptiScalerRPCMixin:
             raise RpcError(
                 "patch_failed", store=store, game_id=game_id, output=output,
             )
+
+        # Auto-configure the proxy DLL + WINEDLLOVERRIDES so the user never
+        # has to figure out which DLL the game imports or hand-type the
+        # override. fgmod installs the proxy as ``dxgi.dll``; if the exe
+        # doesn't statically import dxgi (e.g. Nixxes ports import winmm),
+        # OptiScaler would never load. This renames the proxy to a DLL the
+        # exe DOES import and persists the matching override. Best-effort:
+        # a failure here must not fail an otherwise-successful patch.
+        proxy = await self._autoconfigure_proxy(store, game_id, install_dir)
+
+        general_env = _load_general_env_overrides(self.config, store, game_id)
         logger.info(
-            "[OptiScaler] patched %s:%s (install_dir=%s, env_overrides=%s)",
-            store, game_id, install_dir, sorted(general_env),
+            "[OptiScaler] patched %s:%s (install_dir=%s, proxy=%s, env_overrides=%s)",
+            store, game_id, install_dir, proxy, sorted(general_env),
         )
-        return {"success": True, "output": output, "env": general_env}
+        return {
+            "success": True, "output": output, "env": general_env, "proxy_dll": proxy,
+        }
+
+    async def _autoconfigure_proxy(
+        self, store: str, game_id: str, install_dir: str,
+    ) -> str:
+        """Pick the right proxy DLL for this exe and persist its override.
+
+        1. Read the launched exe's PE import table (``pick_proxy_dll``).
+        2. If the chosen proxy differs from fgmod's ``dxgi.dll`` default and
+           that dxgi proxy exists, copy it to the chosen name so Windows'
+           loader actually pulls it in (the exe only searches for DLLs it
+           imports).
+        3. Persist ``WINEDLLOVERRIDES=<proxy>=n,b`` into the SAME per-game
+           env store ``GameEnvRPCMixin`` uses, so the game's own launch
+           picks it up — merging with any existing user overrides rather
+           than clobbering them.
+
+        Returns the chosen proxy stem (e.g. ``"winmm"``). Best-effort:
+        returns :data:`DEFAULT_PROXY_DLL` and logs on any failure.
+        """
+        try:
+            exe = await self._patch_target_exe(store, game_id)
+            if not exe:
+                return DEFAULT_PROXY_DLL
+            proxy = await asyncio.to_thread(pick_proxy_dll, exe)
+            if proxy != DEFAULT_PROXY_DLL:
+                await asyncio.to_thread(
+                    self._install_proxy_dll_copy, install_dir, proxy,
+                )
+            self._persist_proxy_override(store, game_id, proxy)
+            return proxy
+        except Exception:  # pragma: no cover - best-effort
+            logger.exception(
+                "[OptiScaler] proxy auto-config failed for %s:%s — leaving "
+                "fgmod's dxgi default in place", store, game_id,
+            )
+            return DEFAULT_PROXY_DLL
+
+    @staticmethod
+    def _install_proxy_dll_copy(install_dir: str, proxy: str) -> None:
+        """Copy fgmod's ``dxgi.dll`` proxy to ``<proxy>.dll`` in ``install_dir``.
+
+        No-op if the source dxgi proxy is missing or the target already
+        exists (don't clobber a real game DLL of that name — if one exists,
+        the game shipped it and the override alone will load OptiScaler's
+        copy via native-then-builtin ordering).
+        """
+        import shutil
+
+        src = os.path.join(install_dir, f"{DEFAULT_PROXY_DLL}.dll")
+        dst = os.path.join(install_dir, f"{proxy}.dll")
+        if not os.path.isfile(src):
+            return
+        if os.path.exists(dst):
+            return
+        shutil.copy2(src, dst)
+        logger.info("[OptiScaler] installed proxy %s.dll (from dxgi.dll)", proxy)
+
+    def _persist_proxy_override(
+        self, store: str, game_id: str, proxy: str,
+    ) -> None:
+        """Merge ``WINEDLLOVERRIDES=<proxy>=n,b`` into the per-game env store.
+
+        Preserves any existing ``WINEDLLOVERRIDES`` the user set (appends the
+        proxy entry if not already present) and leaves all other overrides
+        untouched. Written to ``games.<store>:<game_id>.env_overrides`` — the
+        same key ``GameEnvRPCMixin`` reads, so it survives Force Sync and
+        applies to the game's own launch.
+        """
+        current = _load_general_env_overrides(self.config, store, game_id)
+        override = wine_dll_override_for(proxy)
+        existing = current.get("WINEDLLOVERRIDES", "")
+        if not existing:
+            current["WINEDLLOVERRIDES"] = override
+        elif proxy not in existing:
+            current["WINEDLLOVERRIDES"] = f"{override};{existing}"
+        else:
+            return  # already configured for this proxy
+        self.config.set(_game_env_config_key(store, game_id), current)
+        logger.info(
+            "[OptiScaler] set WINEDLLOVERRIDES=%s for %s:%s",
+            current["WINEDLLOVERRIDES"], store, game_id,
+        )
 
     async def remove_optiscaler_patch(self, store: str, game_id: str) -> Any:
         """Run the ``fgmod-uninstaller.sh`` that patching dropped into the game dir."""
