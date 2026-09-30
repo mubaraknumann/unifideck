@@ -99,6 +99,17 @@ export const rpcRoutes = {
   listGameExecutables: "list_game_executables",
   setGameExecutable: "set_game_executable",
   resetGameExecutable: "reset_game_executable",
+  // Frame Generation / OptiScaler patch (OptiScalerRPCMixin) — drives the
+  // Decky-Framegen-installed ~/fgmod/fgmod wrapper with the correct game
+  // install dir, bypassing its broken %command%-argv detection.
+  getOptiscalerStatus: "get_optiscaler_status",
+  applyOptiscalerPatch: "apply_optiscaler_patch",
+  removeOptiscalerPatch: "remove_optiscaler_patch",
+  // General per-game environment-variable overrides (GameEnvRPCMixin) —
+  // shared by the game's OWN launch AND the OptiScaler patch step, so
+  // there's one place to set them, not two.
+  getGameEnv: "get_game_env",
+  setGameEnv: "set_game_env",
   // Achievements (AchievementsRPCMixin) — GOG display + last-session summary
   getGameAchievements: "get_game_achievements",
   getLastSessionAchievements: "get_last_session_achievements",
