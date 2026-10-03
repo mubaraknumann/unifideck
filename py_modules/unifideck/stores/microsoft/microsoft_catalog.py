@@ -8,7 +8,7 @@ import urllib.error
 import urllib.request
 from typing import TYPE_CHECKING, Any
 
-from unifideck.core.net import ssl_ctx_permissive as _ssl
+from unifideck.core.net import ssl_ctx_strict
 from unifideck.core.types import Game, GameTag
 from unifideck.utils.locale import get_unifideck_locale
 
@@ -267,10 +267,7 @@ def _xcloud_titles_sync(
     try:
         with urllib.request.urlopen(
             req, timeout=30,
-            context=_ssl(
-                "Microsoft xCloud /v2/titles — "
-                "outdated Deck cert store",
-            ),
+            context=ssl_ctx_strict(),
         ) as r:
             raw = r.read().decode("utf-8", errors="replace")
     except urllib.error.HTTPError as e:
@@ -376,10 +373,7 @@ def _fetch_batch_displaycatalog(
     try:
         with urllib.request.urlopen(
             req, timeout=30,
-            context=_ssl(
-                "Microsoft displaycatalog — "
-                "outdated Deck cert store",
-            ),
+            context=ssl_ctx_strict(),
         ) as r:
             raw = r.read().decode("utf-8", errors="replace")
     except urllib.error.HTTPError as e:
