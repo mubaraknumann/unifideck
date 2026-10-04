@@ -59,6 +59,8 @@ export interface RibbonStrings {
   tag_cloud: string;
   message_owned: string;
   message_cloud: string;
+  /** The neutral streaming line: it streams, but not via Game Pass or a known purchase. */
+  message_xcloud: string;
   installed: string;
   via: string;
   dir: "ltr" | "rtl";
@@ -92,11 +94,13 @@ export function buildRibbonStrings(): RibbonStrings {
   }
   return {
     tag_owned: t("storeOwnership.tagOwned"),
-    // The second line is the Xbox titles playable but not owned: Game Pass,
-    // which Unifideck plays by streaming.
+    // The streaming lines: Game Pass (owned or not), or plain Xbox Cloud
+    // Gaming when the reason it streams is unknown. Streaming an owned game
+    // is the "Cloud" note on the owned chip instead.
     tag_cloud: t("storeOwnership.tagStreamable"),
     message_owned: t("storeOwnership.messageOwned"),
     message_cloud: t("storeOwnership.messageGamePass"),
+    message_xcloud: t("storeOwnership.messageXboxCloud"),
     installed: t("storeOwnership.installed"),
     via: t("storeOwnership.via"),
     dir: typeof i18n.dir === "function" && i18n.dir() === "rtl" ? "rtl" : "ltr",

@@ -211,5 +211,9 @@
   "storeOwnership.messageGamePass": {
     "locales": "*",
     "reason": "Brand name (Xbox Game Pass), unchanged on Microsoft's own localized pages."
+  },
+  "storeOwnership.messageXboxCloud": {
+    "locales": "*",
+    "reason": "Brand name (Xbox Cloud Gaming), unchanged on Microsoft's own localized pages."
   }
 }

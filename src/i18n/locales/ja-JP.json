@@ -1079,6 +1079,7 @@
     "tagStreamable": "ストリーミング可",
     "messageOwned": "このゲームは次のストアで所有済みです:",
     "messageGamePass": "Xbox Game Pass",
+    "messageXboxCloud": "Xbox Cloud Gaming",
     "installed": "インストール済み",
     "platformPc": "PC",
     "platformConsole": "コンソール",

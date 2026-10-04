@@ -9,7 +9,7 @@ wrong title that then poisoned metadata, compatibility, and artwork search.
 ``_title_for`` now case-folds the lookup.
 
 The title map is built the way the library builds it
-(``_batch_resolve_titles`` → ``fetch_products``), with only the HTTP call
+(``fetch_products`` → ``titles_by_product``), with only the HTTP call
 faked.
 """
 from __future__ import annotations
@@ -42,8 +42,7 @@ async def _title_map(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
         mc, "_fetch_batch_displaycatalog",
         lambda batch, market: mc._parse_displaycatalog(_RAW),
     )
-    reader = mc.MicrosoftCatalogReader.__new__(mc.MicrosoftCatalogReader)
-    return await reader._batch_resolve_titles(["brrc2bp0g9p0"], "US")
+    return mc.titles_by_product(await mc.fetch_products(["brrc2bp0g9p0"], "US"))
 
 
 async def test_keys_are_uppercased(monkeypatch: pytest.MonkeyPatch) -> None:
