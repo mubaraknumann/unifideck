@@ -48,7 +48,7 @@ def _focus_xcloud_window() -> None:
     if shutil.which("xdotool") is None:
         return
     search_commands = [
-        ["xdotool", "search", "--onlyvisible", "--classname", "unifideck-xcloud"],
+        ["xdotool", "search", "--onlyvisible", "--classname", "unifideck-browser-game"],
         ["xdotool", "search", "--onlyvisible", "--classname", "www.xbox.com__play"],
         [
             "xdotool", "search", "--onlyvisible", "--name",

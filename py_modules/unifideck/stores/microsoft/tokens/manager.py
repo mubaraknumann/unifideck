@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from unifideck.security import SecureTokenStore
 
 from .oauth import OAuthMixin
 from .persistence import PersistenceMixin
-from .xbl_chain import XBLChainMixin
+from .xbl_chain import XBLChainMixin, _UserToken
 
 if TYPE_CHECKING:
     from unifideck.event_bus.event_bus import EventBus
@@ -37,6 +38,13 @@ class MicrosoftTokenManager(
         self._ms_access_token: str | None = None
         self._ms_refresh_token: str | None = None
         self._token_saved_at: float = 0.0
+        self._refresh_lock = asyncio.Lock()
+        self._transient_until: float = 0.0
+        self._refresh_error: str = ""
+        self._client_mismatch = False
+        self._mismatch_notified = False
+        self._loaded_payload: dict[str, Any] | None = None
+        self._xbl_user: _UserToken | None = None
     @property
     def access_token(self) -> str | None:
         """Access token."""
@@ -45,3 +53,7 @@ class MicrosoftTokenManager(
     def has_refresh_token(self) -> bool:
         """Check whether refresh token."""
         return bool(self._ms_refresh_token)
+    @property
+    def last_token_error(self) -> str:
+        """Why the last token request failed, or ``""``."""
+        return self._refresh_error

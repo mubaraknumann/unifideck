@@ -144,6 +144,24 @@ def build_native_argv(
     return argv
 
 
+def native_cwd(ctx: LaunchContext) -> Path:
+    """The directory a native game is started in.
+
+    ``games.map`` records the install root as ``work_dir``, but the launch
+    target often sits in a subfolder (itch.io's NW.js builds run
+    ``linux64/nw``; GameVault archives nest a ``Game/`` folder). Games open
+    their data relative to the process cwd, so a nested target runs from its
+    own folder. That is what butler's native launcher, Lutris and our own
+    Windows raw-exe path all do. A target at the root (GOG's ``start.sh``)
+    is unaffected, and a ``work_dir`` that is not an ancestor of the target
+    is kept as recorded.
+    """
+    exe_dir = ctx.exe_path.parent
+    if exe_dir != ctx.work_dir and ctx.work_dir in exe_dir.parents:
+        return exe_dir
+    return ctx.work_dir
+
+
 async def run_native_subprocess(
     svc: LauncherService, ctx: LaunchContext, state: RuntimeState,
 ) -> int:
@@ -176,7 +194,7 @@ async def run_native_subprocess(
     capture_stderr = _is_gog_dosbox_wrapper(ctx)
     proc = await asyncio.create_subprocess_exec(
         *cmd,
-        cwd=str(ctx.work_dir),
+        cwd=str(native_cwd(ctx)),
         env=env,
         stderr=asyncio.subprocess.PIPE if capture_stderr else None,
     )

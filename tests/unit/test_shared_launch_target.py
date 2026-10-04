@@ -1,4 +1,4 @@
-"""Tests for ``stores.gamevault.exe_finder`` — picking the launch target.
+"""Tests for ``stores.shared.launch_target`` — picking the launch target.
 
 Moved out of ``test_gamevault_install.py`` with the code, and extended for
 native Linux builds, which local mode makes common: a vault folder on a Steam
@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 import stat
 
-from unifideck.stores.gamevault.exe_finder import find_executable
+from unifideck.stores.shared.launch_target import find_executable
 
 
 def _elf(path, size: int = 4096) -> None:

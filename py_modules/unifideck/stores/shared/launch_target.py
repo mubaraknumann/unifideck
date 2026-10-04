@@ -1,14 +1,17 @@
-"""Pick the launch target out of an extracted GameVault archive.
+"""Pick the launch target out of an installed game folder — native or Windows.
 
-Split out of ``install.py`` (which was at 486 of its 550-LOC cap) so both
-modes share one implementation, and extended in the same move to find native
-Linux builds. A remote GameVault library is mostly Windows repacks, but a
-folder of DRM-free games on a Steam Deck is routinely half native, and the
-``.exe``-only scorer returned nothing for those: the marker got
-``exe_path: ""`` and reconcile wrote a games.map row with no target, i.e. an
-install that reports success and can never launch. That is the same defect
-:func:`find_executable`'s fallback already existed to prevent, arriving by a
-different door.
+Shared by the stores that hand us a folder of files and no launch manifest:
+GameVault (archives the owner uploaded) and itch.io (whatever the developer
+zipped). It began in ``stores/gamevault/exe_finder.py`` and was promoted here
+when itch.io became the second consumer, rather than grown a second scorer
+beside it (``validate_architecture`` ``SHARED_HELPERS`` pins the one copy).
+Not to be confused with ``core/exe_finder.py``, the ``.exe``-only resolver the
+CLI stores use when their manifest names no launch target.
+
+Native Linux builds are first-class. A folder of DRM-free games on a Steam
+Deck is routinely half native, and an ``.exe``-only scorer returned nothing for
+those: the marker got ``exe_path: ""`` and reconcile wrote a games.map row with
+no target, i.e. an install that reports success and can never launch.
 
 The keyword filter is a *preference*, not a validity test, so it degrades
 instead of eliminating: when it rejects everything, the best rejected
@@ -43,6 +46,11 @@ _UTIL_KEYWORDS = (
     "unins", "uninstall", "setup", "install", "redist", "vcredist",
     "directx", "dxsetup", "ue4", "ue5", "crash", "report",
     "_commonredist", "support", "dotnet",
+    # Chromium runtimes (NW.js, Electron, CEF) ship helper ELFs beside the
+    # real binary, and they are bigger than it: itch.io's NW.js builds carry
+    # ``nacl_helper`` (2.7 MB) next to ``nw`` (222 KB), so the size score
+    # picked the helper. Measured on a real install, 2026-09-23.
+    "helper", "sandbox", "crashpad",
 )
 
 # Directories that never hold the launch target and can be large. Pruning
@@ -89,10 +97,10 @@ def find_executable(
 ) -> str | None:
     """Best-guess launch target under *install_dir*, or None if there is none.
 
-    *prefer_native* comes from the archive's GameVault type token
-    (``L_P``/``L_SW``). It only reorders the two pools — a mislabelled archive
-    still resolves, because whichever pool is empty is skipped rather than
-    treated as an answer.
+    *prefer_native* comes from the store: GameVault's archive type token
+    (``L_P``/``L_SW``), itch.io's chosen upload platform. It only reorders the
+    two pools — a mislabelled archive still resolves, because whichever pool
+    is empty is skipped rather than treated as an answer.
 
     *title* is the game's name, used only to recognise a launcher named after
     the game (GOG's Linux builds do this instead of shipping ``start.sh``).
@@ -116,7 +124,7 @@ def find_executable(
         if rejected:
             best = max(rejected)[1]
             logger.warning(
-                "[GameVault exe] nothing under %s looks like the game itself; "
+                "[launch target] nothing under %s looks like the game itself; "
                 "using %s. If this archive is an installer, the game still has "
                 "to be installed from it before it will launch — and if it is "
                 "a native build, its launcher script may be missing.",
@@ -124,6 +132,19 @@ def find_executable(
             )
             return best
     return None
+
+
+def is_named_native_entry(path: str, title: str | None = None) -> bool:
+    """True for a native launcher named by convention or after the game.
+
+    The strong native signal: ``start.sh``-style names, or a script/binary
+    named after the title (GOG's ``game/Bastion``, a Ren'Py ``Game.sh``).
+    itch.io uses it to let a cross-platform build inside a *Windows* upload —
+    Ren'Py PC zips ship ``lib/linux-x86_64`` and ``<Game>.sh`` — run natively,
+    without letting any stray script in a Windows zip win.
+    """
+    name = os.path.basename(path).lower()
+    return name in _NATIVE_ENTRY_NAMES or _matches_title(name, title)
 
 
 def _collect(
@@ -143,7 +164,7 @@ def _collect(
         rejected = demote or _looks_like_a_utility(full)
         if demote:
             logger.info(
-                "[GameVault exe] %s is a Mono assembly in a native Linux "
+                "[launch target] %s is a Mono assembly in a native Linux "
                 "build; keeping it only as a fallback", full,
             )
         pools[kind]["rejected" if rejected else "preferred"].append(scored)

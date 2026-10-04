@@ -37,12 +37,19 @@ import {
   launchAmazonAuthViaShortcut,
   launchEpicAuthViaShortcut,
   launchGogAuthViaShortcut,
+  launchItchAuthViaShortcut,
   launchMicrosoftAuthViaShortcut,
 } from "../../utils/authShortcutLaunch";
 import { launchUbisoftAuthViaShortcut } from "../../utils/ubisoftShortcutLaunch";
 import { launchBattlenetAuthViaShortcut } from "../../utils/battlenetShortcutLaunch";
 import { prepareForSync } from "../../lib/steam-bridge/prepare-sync";
 import { storeReportsConnected } from "./store-status";
+import {
+  DEVICE_CODE_SLACK_MS,
+  type DeviceCodeStart,
+  parseDeviceCodeStart,
+} from "./device-code";
+import { pendingSignIns } from "../../stores/pending-signin-store";
 import type { StoreId, AuthResult } from "../../types/api";
 
 const AUTH_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes ceiling
@@ -80,6 +87,8 @@ interface StoreAuthResponse {
 interface KickOutcome {
   early: AuthResult | null;
   appId?: number;
+  /** Set for a device-code sign-in: the flow outlives its window. */
+  deviceCode?: DeviceCodeStart;
 }
 
 /** One in-flight auth flow, plus what it takes to abandon it. */
@@ -88,6 +97,8 @@ interface InflightAuth {
   startedAt: number;
   /** Settle this flow early so a fresh attempt can take over. */
   supersede: (reason: string) => void;
+  /** Watch a (re)launched auth window, so its exit is noticed. */
+  watchWindow: (appId: number) => void;
 }
 
 /** Auth dispatcher impl. */
@@ -126,8 +137,13 @@ class AuthDispatcherImpl {
     }
 
     EventBusClient.bumpToFast();
-    const { promise, supersede } = this.runFlow(store);
-    const entry: InflightAuth = { promise, startedAt: Date.now(), supersede };
+    const { promise, supersede, watchWindow } = this.runFlow(store);
+    const entry: InflightAuth = {
+      promise,
+      startedAt: Date.now(),
+      supersede,
+      watchWindow,
+    };
     this.inflight.set(store, entry);
     promise
       .finally(() => {
@@ -152,21 +168,30 @@ class AuthDispatcherImpl {
   private runFlow(store: StoreId): {
     promise: Promise<AuthResult>;
     supersede: (reason: string) => void;
+    watchWindow: (appId: number) => void;
   } {
     // Assigned synchronously by the Promise executor below, which runs
     // before this function returns.
     let supersede: (reason: string) => void = () => {};
+    let watchWindow: (appId: number) => void = () => {};
     const promise = new Promise<AuthResult>((resolve, reject) => {
       /** Cleanup. */
       const cleanup: Array<() => void> = [];
+      /** True once the backend says this is a device-code sign-in. */
+      let deviceFlow = false;
 
-      /** Timer. */
-      const timer = setTimeout(() => {
+      /** Timer. Reset to the code's own lifetime for a device-code flow. */
+      const onTimeout = (): void => {
         for (const fn of cleanup) fn();
+        if (deviceFlow) {
+          resolve({ success: false, store, error: "device_code_expired" });
+          return;
+        }
         reject(new Error(`auth timeout: ${store}`));
-      }, AUTH_TIMEOUT_MS);
-
+      };
+      let timer = setTimeout(onTimeout, AUTH_TIMEOUT_MS);
       cleanup.push(() => clearTimeout(timer));
+      cleanup.push(() => pendingSignIns.clear(store));
 
       supersede = (reason: string): void => {
         for (const fn of cleanup) fn();
@@ -240,6 +265,10 @@ class AuthDispatcherImpl {
        *  launch. So ask the backend what it actually thinks first — the
        *  same probe the stores tab uses — and only fail if it agrees. */
       const onAuthAppStopped = (): void => {
+        if (deviceFlow) {
+          onDeviceWindowClosed();
+          return;
+        }
         console.log(
           `[AuthDispatcher:${store}] auth app stopped; waiting ` +
             `${AUTH_APP_STOPPED_GRACE_MS}ms for a verdict`,
@@ -264,12 +293,31 @@ class AuthDispatcherImpl {
         cleanup.push(() => clearTimeout(grace));
       };
 
+      /** A device-code sign-in does not end with its window: the backend
+       *  keeps polling until the code is approved or expires, and its
+       *  terminal event settles this flow. Closing the window early (or by
+       *  accident) only hides the page; the QAM keeps the code and offers to
+       *  reopen it. One status check after the grace covers a lost event. */
+      const onDeviceWindowClosed = (): void => {
+        pendingSignIns.update(store, { windowOpen: false });
+        const grace = setTimeout(() => {
+          void storeReportsConnected(store).then((connected) => {
+            if (connected) onResolved({ success: true, store });
+          });
+        }, AUTH_APP_STOPPED_GRACE_MS);
+        cleanup.push(() => clearTimeout(grace));
+      };
+
+      watchWindow = (appId: number): void => {
+        cleanup.push(watchAppStopped(appId, onAuthAppStopped));
+      };
+
       // Fire the kick + shortcut launch only after the
       // listeners are installed — otherwise a fast backend
       // flow could emit its terminal event before we
       // subscribe.
       void this.kickAndLaunch(store)
-        .then(({ early, appId }) => {
+        .then(({ early, appId, deviceCode }) => {
           // Fast-path : the backend's ``store_auth`` returned
           // ``success: true`` right away (already-authed user).
           // Don't wait for an EventBus echo — the event may
@@ -279,16 +327,51 @@ class AuthDispatcherImpl {
             onResolved(early);
             return;
           }
-          if (appId !== undefined) {
-            cleanup.push(watchAppStopped(appId, onAuthAppStopped));
+          if (deviceCode) {
+            deviceFlow = true;
+            clearTimeout(timer);
+            timer = setTimeout(
+              onTimeout,
+              deviceCode.expiresInSec * 1000 + DEVICE_CODE_SLACK_MS,
+            );
           }
+          if (appId !== undefined) watchWindow(appId);
         })
         .catch((e) => {
           for (const fn of cleanup) fn();
           reject(e);
         });
     });
-    return { promise, supersede };
+    return { promise, supersede, watchWindow };
+  }
+
+  /** Abandon `store`'s sign-in: the backend stops waiting (no event) and the
+   *  flow settles as `"cancelled"`, which callers do not toast. */
+  async cancel(store: StoreId): Promise<void> {
+    const entry = this.inflight.get(store);
+    try {
+      await call<[StoreId, string], unknown>(
+        rpcRoutes.storeAuth,
+        store,
+        "cancel",
+      );
+    } catch (e) {
+      console.error(`[AuthDispatcher:${store}] cancel failed:`, e);
+    }
+    entry?.supersede("cancelled");
+  }
+
+  /** Reopen the auth window of a sign-in that is still waiting. The backend
+   *  keeps the page's URL file until the sign-in ends, so the launcher opens
+   *  the same pre-filled page. */
+  async reopenWindow(store: StoreId): Promise<boolean> {
+    const entry = this.inflight.get(store);
+    if (!entry || !pendingSignIns.get(store)) return false;
+    const launched = await this.launchForStore(store);
+    if (!launched.success || launched.app_id === undefined) return false;
+    pendingSignIns.update(store, { windowOpen: true });
+    entry.watchWindow(launched.app_id);
+    return true;
   }
 
   /** Two-stage kick : backend prep then frontend shortcut
@@ -352,6 +435,18 @@ class AuthDispatcherImpl {
         } as AuthResult,
       };
     }
+    // A device-code sign-in shows its code in the QAM, which renders above
+    // the auth window; publish it before the window covers the screen.
+    const deviceCode = parseDeviceCodeStart(startResult) ?? undefined;
+    if (deviceCode) {
+      pendingSignIns.set({
+        store,
+        userCode: deviceCode.userCode,
+        verificationUri: deviceCode.verificationUri,
+        expiresAt: Date.now() + deviceCode.expiresInSec * 1000,
+        windowOpen: true,
+      });
+    }
     console.log(`[AuthDispatcher:${store}] launching shortcut`);
     const launchResult = await this.launchForStore(store);
     console.log(
@@ -366,7 +461,7 @@ class AuthDispatcherImpl {
     // Slow path : shortcut launched, wait for the backend's terminal event
     // to land on the EventBus — or, failing that, for the launched app to
     // stop, which is why the appid comes back with the result.
-    return { early: null, appId: launchResult.app_id };
+    return { early: null, appId: launchResult.app_id, deviceCode };
   }
 
   /** Dispatch to the per-store shortcut launcher. */
@@ -384,6 +479,8 @@ class AuthDispatcherImpl {
         return launchUbisoftAuthViaShortcut();
       case "battlenet":
         return launchBattlenetAuthViaShortcut();
+      case "itch":
+        return launchItchAuthViaShortcut();
       default:
         return { success: false, error: `no launcher wired for ${store}` };
     }

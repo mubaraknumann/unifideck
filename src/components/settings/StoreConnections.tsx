@@ -9,7 +9,7 @@
  * plane is unchanged.
  */
 import { FC } from "react";
-import { PanelSection, Focusable } from "@decky/ui";
+import { DialogButton, PanelSection, Focusable } from "@decky/ui";
 import { useTranslation } from "react-i18next";
 import { useStores } from "../../contexts/StoreContext";
 import { useStoreAuth } from "../../hooks/useStoreAuth";
@@ -18,7 +18,63 @@ import { StoreIcon } from "../shared/StoreIcon";
 import { StoreAuthButton } from "./StoreAuthButton";
 import { StoreStorefrontButton } from "./StoreStorefrontButton";
 import { STORE_ROW_CSS } from "./storeConnections.css";
+import { AuthDispatcher } from "../../services/auth/AuthDispatcher";
+import { usePendingSignIn } from "../../stores/pending-signin-store";
 import type { StoreId } from "../../types/api";
+
+const SMALL_BUTTON = {
+  padding: "4px 10px",
+  fontSize: 10,
+  height: 28,
+  width: "fit-content",
+  minWidth: "unset",
+} as const;
+
+/**
+ * A sign-in waiting for the user (the Microsoft device-code flow). The code
+ * is already filled in on the page in the auth window; it is shown here
+ * because the QAM renders above that window, and the window may have been
+ * closed. The backend keeps waiting until the code expires either way.
+ */
+const PendingSignInRow: FC<{ storeId: StoreId }> = ({ storeId }) => {
+  const { t } = useTranslation();
+  const pending = usePendingSignIn(storeId);
+  if (!pending) return null;
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 6,
+        padding: "2px 0 4px 26px",
+      }}
+    >
+      <span style={{ fontSize: 11, color: "#b8bcbf" }}>
+        {t("auth.microsoft.code")}{" "}
+        <bdi style={{ fontFamily: "monospace", color: "#fff" }}>
+          {pending.userCode}
+        </bdi>
+      </span>
+      <div style={{ display: "flex", gap: 6, flex: "0 0 auto" }}>
+        {!pending.windowOpen && (
+          <DialogButton
+            style={SMALL_BUTTON}
+            onClick={() => void AuthDispatcher.reopenWindow(storeId)}
+          >
+            {t("auth.microsoft.reopen")}
+          </DialogButton>
+        )}
+        <DialogButton
+          style={SMALL_BUTTON}
+          onClick={() => void AuthDispatcher.cancel(storeId)}
+        >
+          {t("common.cancel")}
+        </DialogButton>
+      </div>
+    </div>
+  );
+};
 
 // ROW_CONFIG lived here: a per-store map of "if the status is
 // `legendary_not_installed`, show `storeConnections.legendaryNotInstalled`".
@@ -80,14 +136,27 @@ const StoreRow: FC<{ storeId: StoreId; displayName: string }> = ({
           />
         </div>
       </div>
+      <PendingSignInRow storeId={storeId} />
     </div>
   );
 };
+
+/**
+ * Listed after the storefronts. GameVault is a self-hosted server rather
+ * than a store, so it goes last instead of in alphabetical order.
+ */
+const LISTED_LAST: readonly StoreId[] = ["gamevault"];
 
 export const StoreConnections: FC = () => {
   const { t } = useTranslation();
   const { stores, loading } = useStores();
   if (loading) return null;
+  // Stable sort: the backend's order holds within each group.
+  const ordered = [...stores].sort(
+    (a, b) =>
+      Number(LISTED_LAST.includes(a.name)) -
+      Number(LISTED_LAST.includes(b.name)),
+  );
   return (
     <PanelSection title={t("storeConnections.title")}>
       {/* Rendered once for the whole section, not per row. */}
@@ -102,7 +171,7 @@ export const StoreConnections: FC = () => {
         flow-children="grid"
         style={{ display: "flex", flexDirection: "column", gap: 2 }}
       >
-        {stores.map((s) => (
+        {ordered.map((s) => (
           <StoreRow
             key={s.name}
             storeId={s.name}

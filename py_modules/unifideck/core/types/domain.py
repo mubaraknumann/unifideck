@@ -44,6 +44,33 @@ class Game:
             the metadata service, ``None`` until enriched.
         metadata: free-form dict for store-specific extras
             (release date, last-played, etc.).
+        dedupe_group_id: shared key for every cross-store copy of this
+            title (see ``core.game_grouping``), ``None`` when this is
+            the only copy. Display-layer only — each store's copy keeps
+            its own shortcut regardless of grouping.
+        edition_label: recognised edition/variant suffix stripped out of
+            ``title`` for matching (e.g. ``"Ultimate Edition"``),
+            ``None`` when the title carries none.
+        steam_owned_app_id: real Steam AppID of a native copy of this
+            title the user already owns, when
+            :mod:`core.game_grouping` found a title match against
+            ``steam.owned_games``. ``None`` when no such match exists.
+            Independent of ``dedupe_group_id`` — a singleton title can
+            still have this set.
+        steam_owned_edition_label: edition/variant suffix extracted from
+            the Steam-owned copy's own title (e.g. Disco Elysium's Steam
+            listing being "... - The Final Cut"), ``None`` when
+            ``steam_owned_app_id`` is unset or that title carries no
+            recognised suffix. Independent of ``edition_label`` — that
+            one describes THIS game's own title, this one describes the
+            separately-matched Steam copy's title, and title-matching
+            tolerates edition differences on purpose so the two are not
+            guaranteed to agree.
+        steam_versions: every owned Steam app in this game's group, as
+            ``{"app_id": int, "edition_label": str | None}``, the same list
+            on every member. Owning BioShock and BioShock Remastered on
+            Steam puts both here, so the store switcher lists both and the
+            library shows one Steam tile for the pair. Empty when none.
     """
 
     app_id: int
@@ -59,6 +86,11 @@ class Game:
     hero_url: str | None = None
     logo_url: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    dedupe_group_id: str | None = None
+    edition_label: str | None = None
+    steam_owned_app_id: int | None = None
+    steam_owned_edition_label: str | None = None
+    steam_versions: list[dict[str, Any]] = field(default_factory=list)
 
 @dataclass
 class StoreInfo:

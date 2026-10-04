@@ -29,6 +29,7 @@ import asyncio
 import logging
 from typing import Any
 
+from unifideck.auth.browser_types import ContentCapture
 from unifideck.auth.orchestrator import AuthOrchestrator
 from unifideck.core.binaries import clean_cli_env
 from unifideck.core.types import AuthResult, Events, Result, StoreAuthError
@@ -112,8 +113,10 @@ class EpicAuthFlow:
             # intermediate ``/id/api/redirect`` page body.
             # If URL-param matching misses the code, this
             # regex extracts it from ``document.body.innerText``.
-            content_trigger_url="epicgames.com/id/api/redirect",
-            content_regex=r'"authorizationCode"\s*:\s*"([^"]+)"',
+            content=ContentCapture(
+                trigger_url="epicgames.com/id/api/redirect",
+                regex=r'"authorizationCode"\s*:\s*"([^"]+)"',
+            ),
         )
 
     async def _is_already_authed(self) -> bool:

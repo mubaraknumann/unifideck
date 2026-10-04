@@ -106,32 +106,28 @@ def get_latest_ge_tag(timeout: float = 8.0) -> str | None:
     return tag or None
 
 
-def _installed_proton_script(tag: str) -> Path | None:
-    """The on-disk ``proton`` script for ``tag`` if present in any root."""
+def installed_ge_proton_path(tag: str) -> Path | None:
+    """Return ``tag``'s ``proton`` script only if its install is complete.
+
+    Presence is not enough. A partial/aborted extract left a real
+    GE-Proton10-34 with a non-executable ``proton``, and a tester's
+    GE-Proton11-7 had an executable ``proton`` but no usable
+    ``toolmanifest.vdf``, which made every launch die with umu's
+    ``KeyError: 'manifest'``. Calling either
+    copy "installed" pinned the user to it: the selector picked it on every
+    launch and the installer never downloaded a replacement. Calling it
+    "not installed" sends it through the normal download, which swaps a
+    fresh tree in over the broken one.
+    """
     for root in _SCAN_ROOTS:
         candidate = Path(root).expanduser() / tag / "proton"
-        if candidate.is_file():
+        if candidate.is_file() and is_proton_install_complete(candidate):
             return candidate
     return None
 
 
-def installed_ge_proton_path(tag: str) -> Path | None:
-    """Return ``tag``'s ``proton`` script only if it is validly installed.
-
-    A directory can survive a partial/aborted extract whose ``proton``
-    is left non-executable (observed with a real GE-Proton10-34 on
-    disk). Such a copy would be picked as "newest present" but die
-    with "Permission denied" on exec — so an install is only valid
-    when the ``proton`` script is BOTH present and executable.
-    """
-    script = _installed_proton_script(tag)
-    if script and os.access(script, os.X_OK):
-        return script
-    return None
-
-
 def is_valid_ge_install(tag: str) -> bool:
-    """True iff ``tag`` is installed with an executable ``proton`` script."""
+    """True iff ``tag`` is installed and passes the completeness check."""
     return installed_ge_proton_path(tag) is not None
 
 
@@ -168,8 +164,8 @@ def _toolmanifest_ok(root: Path) -> bool:
     return True
 
 
-def is_proton_install_complete(proton_script: Path) -> bool:
-    """True iff ``proton_script``'s install looks complete and runnable.
+def proton_install_problem(proton_script: Path) -> str | None:
+    """Why ``proton_script``'s install is unusable, or ``None`` if complete.
 
     Guards against a partially-installed / corrupt Proton being handed
     to umu, where every ``umu-run`` operation (createprefix, the
@@ -207,29 +203,37 @@ def is_proton_install_complete(proton_script: Path) -> bool:
 
     Best-effort and conservative: any unreadable/unexpected state is
     treated as *incomplete* so the caller degrades to a known-good
-    Proton rather than risk a hang.
+    Proton rather than risk a hang. The reason is a short phrase for
+    error messages and logs, so a failure names the missing piece.
     """
+    root = proton_script.parent
+    files_dir = root / "files"
+    version = root / "version"
     try:
-        if not (proton_script.is_file() and os.access(proton_script, os.X_OK)):
-            return False
-        root = proton_script.parent
-        files_dir = root / "files"
+        if not proton_script.is_file():
+            return "proton script missing"
+        if not os.access(proton_script, os.X_OK):
+            return "proton script not executable"
         if not files_dir.is_dir() or not any(files_dir.iterdir()):
-            return False
+            return "files/ payload missing or empty"
         if not (files_dir / "bin" / "wine").is_file():
-            return False
-        version = root / "version"
+            return "files/bin/wine missing"
         if not version.is_file() or version.stat().st_size == 0:
-            return False
+            return "version file missing or empty"
         if not _toolmanifest_ok(root):
-            return False
+            return "toolmanifest.vdf missing, empty or unreadable"
     except OSError as e:
         logger.warning(
             "[ge_installer] completeness check failed for %s: %s",
             proton_script, e,
         )
-        return False
-    return True
+        return f"unreadable ({e})"
+    return None
+
+
+def is_proton_install_complete(proton_script: Path) -> bool:
+    """True iff :func:`proton_install_problem` finds nothing wrong."""
+    return proton_install_problem(proton_script) is None
 
 
 def _select_tarball(assets: list[dict[str, Any]], tag: str | None = None) -> str | None:
@@ -471,15 +475,18 @@ def ensure_latest_ge(
 
     Returns ``None`` (the caller then falls back to Proton Experimental)
     when the release can't be fetched (offline / GitHub down) or the
-    download/extract fails. When the latest is already validly installed
-    it just refreshes the marker and returns it without downloading.
+    download/extract fails. When the latest is already completely installed
+    it just refreshes the marker and returns it without downloading. A tag
+    directory that exists but fails the completeness check is downloaded
+    again, and the fresh tree replaces it.
 
     The install itself is serialised across processes by :func:`ge_install_lock.install_lock`
-    and re-checked under it with the STRONG :func:`is_proton_install_complete`
-    rather than the presence-only ``installed_ge_proton_path``. The weak check
-    is false during a publish, so without the re-check the loser of a race
-    would download and republish over the directory the winner just installed
-    — and over whatever is running out of it.
+    and re-checked under it, so the loser of a race does not download and
+    republish over the directory the winner just installed (and over
+    whatever is running out of it). The explicit
+    :func:`is_proton_install_complete` in that re-check repeats what
+    ``installed_ge_proton_path`` already does; it stays as a guard in case
+    that lookup is ever relaxed again.
     """
     release = _fetch_latest_release(timeout)
     if not release:

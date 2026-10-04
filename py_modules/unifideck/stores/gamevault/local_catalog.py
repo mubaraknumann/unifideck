@@ -121,7 +121,7 @@ def prepare_vault(vault_dir: str) -> Path:
     here and is not stored: every install already goes through the shared
     storage picker (``pickStorageForInstall`` → ``install_game``'s
     ``install_path``), which knows about SD cards and USB drives and applies
-    to all seven stores. A second install-location setting on this one store
+    to every store. A second install-location setting on this one store
     would be a copy of that decision, and the two would disagree the first
     time a user changed one of them.
 

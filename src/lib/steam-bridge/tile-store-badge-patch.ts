@@ -26,6 +26,12 @@
  *    `opacity:0` + a `:hover` rule). We pass that class (with
  *    `DeckCompat`) to `C.$o`, exactly as native does, so we inherit both.
  *
+ * GROUPED TILES: with "Group duplicates" on, a tile stands for every copy
+ * of its game, so the badge shows every store's logo (up to
+ * {@link MAX_BADGE_LOGOS}, then "+N"). That includes a native Steam tile
+ * representing a game also owned elsewhere: its own Deck badge element is
+ * swapped for ours, rendered through the same `C.$o`, status icon kept.
+ *
  * SAFETY: this only READS `BIsModOrShortcut()` (to pick which tiles to
  * decorate) and ADDS an element to the rendered output. It never writes
  * `appStore`, never proxies the overview — so launch routing (RunGame),
@@ -41,7 +47,9 @@ import {
 } from "react";
 import { findInReactTree } from "./react-tree";
 import { StoreIcon } from "../../components/shared/StoreIcon";
-import { getStoreForApp } from "../library-filters";
+import { getGroupSiblings, getStoreForApp } from "../library-filters";
+import { isGroupDuplicatesEnabled } from "../group-duplicates-setting";
+import { storePriorityRank } from "../game-grouping";
 import { getFacet } from "../library-facets";
 import { activeCompatTrack } from "../device-type";
 import { overviewCompatCategory } from "./compat-packed";
@@ -243,12 +251,44 @@ function resolveBadgeRefs(req: WebpackRequire): boolean {
  * compat it renders the store logo alone in a matching container. Any
  * failure returns `null` (no badge) so the tile/grid can't break.
  */
-const StoreBadge: FC<{ category: number; store: StoreId }> = ({
+const MAX_BADGE_LOGOS = 3;
+
+/** One logo, or a row of them with "+N" past {@link MAX_BADGE_LOGOS}. */
+function storeLogos(stores: StoreId[]): ReactElement {
+  if (stores.length === 1) {
+    return createElement(StoreIcon, {
+      store: stores[0],
+      size: 16,
+      color: "#fff",
+    });
+  }
+  const shown = stores.slice(0, MAX_BADGE_LOGOS);
+  const extra = stores.length - shown.length;
+  return createElement(
+    "span",
+    { style: { display: "inline-flex", alignItems: "center", gap: 4 } },
+    ...shown.map((store) =>
+      createElement(StoreIcon, { key: store, store, size: 16, color: "#fff" }),
+    ),
+    extra > 0
+      ? createElement(
+          "span",
+          {
+            key: "more",
+            style: { fontSize: 11, fontWeight: 600, color: "#fff" },
+          },
+          `+${extra}`,
+        )
+      : null,
+  );
+}
+
+const StoreBadge: FC<{ category: number; stores: StoreId[] }> = ({
   category,
-  store,
+  stores,
 }) => {
   try {
-    const logo = createElement(StoreIcon, { store, size: 16, color: "#fff" });
+    const logo = storeLogos(stores);
     if (category > 0 && deckCompatBadge) {
       const base = deckCompatBadge({ category, className: deckClass });
       if (base && base.props) {
@@ -266,6 +306,36 @@ const StoreBadge: FC<{ category: number; store: StoreId }> = ({
     return null;
   }
 };
+
+/** Stores to badge on a tile: every store holding the game when grouping
+ *  is on and it has 2+, else the tile's own store (`ownStore`, `null` for
+ *  a native Steam tile, which then keeps Steam's own badge). */
+function badgeStores(
+  appId: number,
+  ownStore: StoreId | null,
+): StoreId[] | null {
+  if (isGroupDuplicatesEnabled()) {
+    const stores = [
+      ...new Set(getGroupSiblings(appId).map((s) => s.store as StoreId)),
+    ];
+    if (stores.length > 1) {
+      return stores.sort((a, b) => storePriorityRank(a) - storePriorityRank(b));
+    }
+  }
+  return ownStore ? [ownStore] : null;
+}
+
+/** Steam's own Deck badge on a native tile: `<xe.g display overview
+ *  className={SteamDeckCompatIcon}>` in the `LibraryItemIcons` row (read
+ *  from the tile module's source, 2026-10-03). Matched by that class, the
+ *  last token of {@link deckClass}, since its component is not `C.$o`. */
+function isNativeDeckBadge(child: unknown): boolean {
+  const props = (
+    child as { props?: { overview?: unknown; className?: unknown } } | null
+  )?.props;
+  const iconClass = deckClass.split(" ").pop();
+  return !!props?.overview && !!iconClass && props.className === iconClass;
+}
 
 const BADGE_KEY = "unifideck-store-badge";
 
@@ -309,16 +379,20 @@ function wrappedTileType(this: unknown, ...args: unknown[]): ReactElement {
   }
   const props = args[0] as TileProps | undefined;
   const app = props?.app;
-  // Fast bail for native tiles — only READ BIsModOrShortcut, never write.
-  if (
-    !app ||
-    typeof app.BIsModOrShortcut !== "function" ||
-    !app.BIsModOrShortcut()
-  ) {
+  // Only READ BIsModOrShortcut, never write.
+  if (!app || typeof app.BIsModOrShortcut !== "function") {
     return orig.apply(this, args);
   }
-  const store = getStoreForApp(app.appid, app.app_type);
-  if (!store || store === "steam") return orig.apply(this, args);
+  const isShortcut = app.BIsModOrShortcut();
+  let ownStore: StoreId | null = null;
+  if (isShortcut) {
+    const store = getStoreForApp(app.appid, app.app_type);
+    if (!store || store === "steam") return orig.apply(this, args);
+    ownStore = store as StoreId;
+  }
+  // A native tile is only decorated when it stands for copies elsewhere.
+  const stores = badgeStores(app.appid, ownStore);
+  if (!stores) return orig.apply(this, args);
 
   let ret: ReactElement;
   try {
@@ -341,10 +415,19 @@ function wrappedTileType(this: unknown, ...args: unknown[]): ReactElement {
       const badge = createElement(StoreBadge, {
         key: BADGE_KEY,
         category,
-        store: store as StoreId,
+        stores,
       });
       const kids = row.props.children;
-      if (Array.isArray(kids)) {
+      if (!isShortcut && Array.isArray(kids)) {
+        // Native tile: swap Steam's own Deck badge for ours, in place.
+        const nativeIdx = kids.findIndex(isNativeDeckBadge);
+        if (nativeIdx !== -1) kids[nativeIdx] = badge;
+        else if (
+          !kids.some((c) => (c as { key?: unknown } | null)?.key === BADGE_KEY)
+        ) {
+          kids.push(badge);
+        }
+      } else if (Array.isArray(kids)) {
         if (
           !kids.some((c) => (c as { key?: unknown } | null)?.key === BADGE_KEY)
         ) {

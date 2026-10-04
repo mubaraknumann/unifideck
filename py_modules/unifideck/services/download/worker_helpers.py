@@ -10,6 +10,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from unifideck.launcher.types.context import is_windows_executable
 from unifideck.launcher.wrapper_stores import uses_manual_download_phase
 
 from .models import DownloadItem
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 _BACKGROUND_TASKS: set[asyncio.Task[Any]] = set()
 
 
-def prefix_warmup_supported(item: DownloadItem) -> bool:
+def prefix_warmup_supported(item: DownloadItem, result: Any = None) -> bool:
     """Whether ``item``'s store and depot shape get an install-time warmup.
 
     Wrapper stores bootstrap their own prefix through the vendor client, so the
@@ -32,6 +33,10 @@ def prefix_warmup_supported(item: DownloadItem) -> bool:
     Proton/Wine, so building a prefix for it is pure waste and, worse, can wedge
     the shared prefix-setup machinery (wineserver locks, the GE-Proton retry
     ladder) for a game that will never use it.
+
+    The same holds for any store whose install reports a native exe in
+    ``InstallResult.metadata["exe_path"]`` (GameVault and itch.io native
+    builds): the launcher will exec it directly, so no prefix is built.
 
     The cloud-only store used to be named here as well. It no longer needs to
     be: the warmup runs on the install success path only, and that store now
@@ -45,6 +50,14 @@ def prefix_warmup_supported(item: DownloadItem) -> bool:
             "Linux-native GOG depot (start.sh), no Proton prefix needed",
             item.store,
             item.game_id,
+        )
+        return False
+    exe = ((getattr(result, "metadata", None) or {}).get("exe_path") or "")
+    if exe and not is_windows_executable(exe):
+        logger.info(
+            "[DownloadWorker] skipping prefix warmup for %s:%s: native "
+            "executable %s, no Proton prefix needed",
+            item.store, item.game_id, exe,
         )
         return False
     return True

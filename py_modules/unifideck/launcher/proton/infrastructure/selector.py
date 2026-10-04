@@ -349,11 +349,12 @@ def _resolve_logged(source: str, tool: str, tried: list[str]) -> Path | None:
     path = resolve_proton_path(tool)
     if not path:
         return None
-    if not ge_installer.is_proton_install_complete(path):
+    problem = ge_installer.proton_install_problem(path)
+    if problem:
         logger.warning(
             "[launcher.proton] %s tool %s resolved to an incomplete "
-            "install (%s) — skipping, will fall back",
-            source, tool, path.parent,
+            "install (%s: %s) — skipping, will fall back",
+            source, tool, path.parent, problem,
         )
         return None
     logger.info("[launcher.proton] selected via %s tool: %s", source, tool)

@@ -139,8 +139,8 @@ def title_variants(title: str) -> list[str]:
     missed those games entirely — and a miss costs the game ALL unifiDB
     enrichment, not just its cloud-save flag.
 
-    So we reuse the shared title-matching primitives (the same 58-entry
-    edition table and symbol normalisation behind SGDB artwork lookup and
+    So we reuse the shared title-matching primitives (the same edition
+    table and symbol normalisation behind SGDB artwork lookup and
     Steam-owned filtering) to derive a cleaned second form. The raw title is
     always tried first, so nothing that already matched can regress.
     """

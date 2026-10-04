@@ -79,6 +79,11 @@ export interface SteamAppOverview extends SteamApp {
   GetCapsuleImageURL(): string;
   GetHeaderImageURL(): string;
   GetLibraryImageURL(): string;
+  /** Ownership, measured on SteamOS 2026-10-03. Optional: older clients
+   *  may not have them. `BIsBorrowed` is true for a Family Sharing game
+   *  lent by someone else. */
+  BIsOwned?(): boolean;
+  BIsBorrowed?(): boolean;
 }
 
 /**
@@ -147,6 +152,42 @@ export interface ControllerConfigInfoMessageDone {
 export type ControllerConfigInfoMessage =
   | ControllerConfigInfoMessageList
   | ControllerConfigInfoMessageDone;
+
+/**
+ * Steam's internal callback list (not `SteamClient`'s registration shape):
+ * `Register` pushes onto `m_vecCallbacks` and hands back `Unregister` with a
+ * capital U. Additive: Steam's own callback stays registered beside ours.
+ */
+export interface SteamCallbackList<TArgs extends unknown[]> {
+  Register(callback: (...args: TArgs) => void): { Unregister(): void };
+}
+
+/**
+ * The Gaming Mode Store BrowserView controller
+ * (`GamepadUIMainWindowInstance.m_StoreBrowser`). Created lazily, the first
+ * time the store opens. `FinishedRequestCallbacks` is a getter; observed
+ * callback arguments are `(url, title)`, fired for steam://openurl
+ * navigations, in-page link clicks and Back.
+ */
+export interface SteamStoreBrowser {
+  m_URL?: string;
+  /** `(url, title)` when a page has finished loading. */
+  readonly FinishedRequestCallbacks?: SteamCallbackList<[string, string]>;
+  /** `(url, bool)` when a new page starts loading, ~0.7 s earlier. */
+  readonly StartLoadingCallbacks?: SteamCallbackList<[string, boolean]>;
+}
+
+/** The gamepad router's history (react-router's history object). */
+export interface SteamHistory {
+  location?: { pathname?: string };
+  listen?: (listener: (update: unknown) => void) => (() => void) | undefined;
+}
+
+/** The fields of `GamepadUIMainWindowInstance` beyond `@decky/ui`'s typing. */
+export interface GamepadMainWindowInternals {
+  m_StoreBrowser?: SteamStoreBrowser;
+  m_history?: SteamHistory;
+}
 declare global {
   /** Window. */
   interface Window {
@@ -164,13 +205,15 @@ declare global {
           ) => void,
         ): Unregisterable;
         CancelGameAction(gameActionId: number): void;
+        /** Takes the 64-bit gameID, never the appid (getShortcutRunGameId). */
         RunGame(
-          appId: string,
+          gameId: string,
           launchOptions: string,
           a: number,
           b: number,
         ): void;
-        TerminateApp(appId: string, force: boolean): void;
+        /** Takes the 64-bit gameID, never the appid (getShortcutRunGameId). */
+        TerminateApp(gameId: string, force: boolean): void;
         ShowControllerConfigurator(appId: number): void;
         OpenAppSettingsDialog(appId: number, section: string): void;
         AddShortcut(
@@ -211,12 +254,12 @@ declare global {
       // Steam client UI bundle (steamui/*.js). Used to apply the
       // official "Web Browser" template to the auth-window shortcut.
       Input?: {
-        // Streams the available controller-config templates/personal
-        // configs for ``appId`` as an array of ``List``/``Done``
-        // messages (see ControllerConfigInfoMessage). Populated after
-        // a ``QueryControllerConfigsForApp`` call.
+        // Streams controller-config messages for EVERY app as arrays of
+        // ``List``/``Done`` messages (see ControllerConfigInfoMessage);
+        // each carries its ``appID``. Takes the callback only: Steam's own
+        // bundle calls it with one argument, and ``(appId, cb)`` is rejected
+        // by the backend. Populated after ``QueryControllerConfigsForApp``.
         RegisterForControllerConfigInfoMessages(
-          appId: number,
           callback: (messages: ControllerConfigInfoMessage[]) => void,
         ): Unregisterable;
         // Triggers Steam to emit the config-info messages for the app.

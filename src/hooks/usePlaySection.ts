@@ -32,7 +32,14 @@ export type PlaySectionState =
   | { kind: "not-installed"; shouldOverride: true; installable: true }
   | { kind: "downloading"; shouldOverride: true; download: DownloadItem }
   | { kind: "installed"; shouldOverride: true; appId: number }
-  | { kind: "xcloud"; shouldOverride: true; appId: number; gameId: string };
+  | {
+      kind: "browser";
+      shouldOverride: true;
+      appId: number;
+      /** "stream" = xCloud (Play on Cloud); "web" = an HTML5 game. */
+      variant: "stream" | "web";
+      url: string;
+    };
 
 /**
  * Hook that resolves the current Play-section state
@@ -59,12 +66,23 @@ export function usePlaySection(appId: number | null): PlaySectionState {
       return { kind: "steam-native", shouldOverride: false };
     }
 
-    // xCloud (Xbox Cloud Gaming) titles stream in a browser — there's
-    // nothing to install, so they're always "playable". Surface a Play
-    // state regardless of is_installed; the launcher routes the xcloud
-    // games.map sentinel to the Edge kiosk streaming flow.
-    if (game.store_tags?.includes("xcloud")) {
-      return { kind: "xcloud", shouldOverride: true, appId, gameId: game.id };
+    // Browser games (xCloud streams, itch.io HTML5 games) open in an Edge
+    // window and install nothing, so they are always playable: surface a
+    // Play state regardless of is_installed. The launcher finds the URL in
+    // the library cache (backend `launcher/browser_games`). `xcloud` alone
+    // still counts, for a library cached before the `browser` tag existed.
+    const tags = game.store_tags ?? [];
+    if (tags.includes("browser") || tags.includes("xcloud")) {
+      const stream = tags.includes("xcloud");
+      return {
+        kind: "browser",
+        shouldOverride: true,
+        appId,
+        variant: stream ? "stream" : "web",
+        url:
+          game.browser_url ??
+          (stream ? `https://www.xbox.com/play/launch/${game.id}` : ""),
+      };
     }
 
     // Check the live queue first — a download in progress

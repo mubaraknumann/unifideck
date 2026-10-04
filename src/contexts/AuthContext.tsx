@@ -73,6 +73,9 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const logoutAll = useCallback(async () => {
     await logoutAllMut.mutate();
     authStore.clearAll();
+    // Cleared means "unknown", which keeps every store tab; re-read the
+    // real statuses so the signed-out stores' tabs go away.
+    await authStore.refetch();
   }, [logoutAllMut]);
 
   const notifyConnected = useCallback((store: StoreId) => {

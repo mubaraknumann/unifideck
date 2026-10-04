@@ -16,10 +16,16 @@ import os
 import sys
 import threading
 import time
+import zipfile
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+#: Candidate names for the bundled umu zipapp, most-authoritative first.
+#: ``umu-run`` is the real archive; ``umu_run.py`` is a symlink to it in the
+#: source tree that does not survive packaging. See :func:`_find_umu_zipapp`.
+_ZIPAPP_NAMES = ("umu-run", "umu_run.py")
 
 #: The gamescope compositor's X display. Game windows appear here, not on
 #: the nested ``:1`` the Steam client itself draws on. Overridable because
@@ -30,14 +36,35 @@ _POLL_INTERVAL = 0.3
 _MAX_RUNTIME = 300
 
 
-def _find_umu_zipapp() -> Path | None:
-    """Return path to the umu zipapp bundled with this plugin."""
+def _plugin_root() -> Path:
+    """This plugin's install root, derived from our own location."""
     # infrastructure/ → proton/ → launcher/ → unifideck/ → py_modules/ → plugin_root/
-    here = Path(__file__).resolve().parent
-    plugin_root = here.parents[4]
-    candidate = plugin_root / "bin" / "umu" / "umu" / "umu_run.py"
-    if candidate.is_file():
-        return candidate
+    return Path(__file__).resolve().parent.parents[4]
+
+
+def _find_umu_zipapp(plugin_root: Path | None = None) -> Path | None:
+    """Return path to the umu zipapp bundled with this plugin.
+
+    **Ask the file whether it is a zip; never trust the name.** In the source
+    checkout ``umu_run.py`` is a *symlink* to ``umu-run``, and the plugin
+    packager does not preserve symlinks — so every built plugin ships
+    ``umu-run`` alone and this function, when it looked only for
+    ``umu_run.py``, found nothing on every real install. That is not a
+    cosmetic miss: with no zipapp there is no Xlib, with no Xlib nothing is
+    tagged, and in Gaming Mode gamescope never focuses the game, so the
+    launch sits behind Steam's loading screen with the audio playing. It
+    logged one WARNING and carried on, and it passed in-tree because in a
+    checkout the symlink resolves.
+
+    Hence: try the real zipapp first, accept the symlink name as a fallback,
+    and confirm with :func:`zipfile.is_zipfile` that the thing found is
+    something ``sys.path`` can actually import from.
+    """
+    umu_dir = (plugin_root or _plugin_root()) / "bin" / "umu" / "umu"
+    for name in _ZIPAPP_NAMES:
+        candidate = umu_dir / name
+        if candidate.is_file() and zipfile.is_zipfile(candidate):
+            return candidate
     return None
 
 
@@ -51,7 +78,11 @@ def _import_xlib() -> tuple[Any, Any] | None:
     """
     umu_zip = _find_umu_zipapp()
     if umu_zip is None:
-        logger.warning("[gamescope_tagger] umu zipapp not found, cannot tag")
+        logger.warning(
+            "[gamescope_tagger] no umu zipapp among %s under %s — cannot tag, "
+            "so in Gaming Mode the game will stay behind the loading screen",
+            ", ".join(_ZIPAPP_NAMES), _plugin_root() / "bin" / "umu" / "umu",
+        )
         return None
     zip_str = str(umu_zip)
     added = zip_str not in sys.path

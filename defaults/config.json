@@ -20,7 +20,8 @@
   },
   "dedup": {
     "tracked_stores": ["epic", "gog", "amazon", "ubisoft"],
-    "cross_store_enabled": false
+    "cross_store_enabled": false,
+    "ui_grouping_enabled": true
   },
   "download": {
     "custom_path": ""
@@ -99,16 +100,24 @@
       "prefixes_dir": "~/.local/share/unifideck/prefixes/ubisoft"
     },
     "microsoft": {
-      "client_id": "000000004C12AE6F",
+      "auth_flow": "device_code",
+      "client_id": "1f907974-e22b-4810-a9de-d9647380c97e",
       "token_file": "~/.config/unifideck/microsoft_tokens.json",
-      "scope": "service::user.auth.xboxlive.com::MBI_SSL",
-      "auth_url": "https://login.live.com/oauth20_authorize.srf",
-      "token_url": "https://login.live.com/oauth20_token.srf",
-      "redirect_uri": "https://login.live.com/oauth20_desktop.srf",
-      "allowed_redirect_uris": [
-        "https://login.live.com/oauth20_desktop.srf",
-        "https://login.microsoftonline.com/common/oauth2/nativeclient"
-      ],
+      "scope": "XboxLive.signin offline_access",
+      "token_url": "https://login.microsoftonline.com/consumers/oauth2/v2.0/token",
+      "devicecode_url": "https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode",
+      "marketplace_relying_party": "http://mp.microsoft.com/",
+      "legacy_browser": {
+        "client_id": "000000004C12AE6F",
+        "scope": "service::user.auth.xboxlive.com::MBI_SSL",
+        "auth_url": "https://login.live.com/oauth20_authorize.srf",
+        "token_url": "https://login.live.com/oauth20_token.srf",
+        "redirect_uri": "https://login.live.com/oauth20_desktop.srf",
+        "allowed_redirect_uris": [
+          "https://login.live.com/oauth20_desktop.srf",
+          "https://login.microsoftonline.com/common/oauth2/nativeclient"
+        ]
+      },
       "xbl_auth_url": "https://user.auth.xboxlive.com/user/authenticate",
       "xsts_url": "https://xsts.auth.xboxlive.com/xsts/authorize",
       "xcloud_catalog_url": "https://catalog.gamepass.com/sigls/v2?id=fdd9e2a7-0fee-49f6-ad69-4354098401ff",
@@ -126,6 +135,11 @@
       "default_install_root": "~/Games/GameVault",
       "download_dir": "~/.local/share/unifideck/gamevault_downloads",
       "default_vault_dir": "~/Games/UnifideckVault"
+    },
+    "itch": {
+      "butler_db": "~/.local/share/unifideck/butler/butler.db",
+      "default_install_root": "~/Games/itch",
+      "stall_timeout_seconds": 900
     }
   },
   "metadata": {

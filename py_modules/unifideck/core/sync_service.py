@@ -163,6 +163,7 @@ class SyncService(
             Events.SHORTCUT_INSTALL_STATE_CHANGED,
             self._on_shortcut_install_state_changed,
         )
+        self._subscribe_grouping_refresh()
 
     async def sync_all(
         self,

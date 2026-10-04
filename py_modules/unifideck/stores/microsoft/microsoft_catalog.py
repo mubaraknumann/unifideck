@@ -17,6 +17,8 @@ from .microsoft_config import MicrosoftConfig
 if TYPE_CHECKING:
     from .microsoft_subscription import SubscriptionProbeResult
 
+from unifideck.launcher.browser_games import BROWSER_URL_KEY, XCLOUD_PLAY_URL
+
 logger = logging.getLogger(__name__)
 
 # Batch size for displaycatalog.mp.microsoft.com GET. 50 productIds
@@ -66,20 +68,26 @@ class MicrosoftCatalogReader:
     async def fetch_games(
         self,
         session: SubscriptionProbeResult,
-    ) -> list[Game]:
-        """Fetch entitled games using the active xCloud session."""
+    ) -> list[Game] | None:
+        """Fetch entitled games using the active xCloud session.
+
+        ``None`` when the catalog could not be read (see
+        ``MicrosoftStore.get_library``: an empty list deletes every xCloud
+        shortcut). ``[]`` only when ``/v2/titles`` answered and none of its
+        titles are entitled.
+        """
         if not session.gs_token or not session.regions:
             logger.warning(
                 "[MicrosoftCatalog] session has no gs_token/regions",
             )
-            return []
+            return None
         base_uri = _pick_region_base_uri(session.regions)
         if base_uri is None:
             logger.warning(
                 "[MicrosoftCatalog] no usable region baseUri "
                 "in session",
             )
-            return []
+            return None
         market = session.market or "US"
         lang = get_unifideck_locale(self._config_manager) or "en-US"
 
@@ -95,31 +103,17 @@ class MicrosoftCatalogReader:
             "[MicrosoftCatalog] /v2/titles returned %d titles in %.1fs",
             len(titles), time.time() - t0,
         )
-        if not titles:
-            logger.warning(
-                "[MicrosoftCatalog] /v2/titles returned 0 titles",
-            )
-            return []
-        entitled = [
-            t for t in titles
-            if isinstance(t, dict)
-            and isinstance(t.get("details"), dict)
-            and t["details"].get("hasEntitlement") is True
-        ]
-        logger.info(
-            "[MicrosoftCatalog] %d total visible, %d entitled",
-            len(titles), len(entitled),
-        )
-        if not entitled:
-            return []
+        entitled = _entitled_titles(titles, base_uri)
+        if entitled is None:
+            return None
 
         product_ids = _unique_product_ids(entitled)
         if not product_ids:
             logger.warning(
                 "[MicrosoftCatalog] entitled titles had no "
-                "productIds",
+                "productIds — keeping the existing xCloud shortcuts",
             )
-            return []
+            return None
         t1 = time.time()
         title_map = await self._batch_resolve_titles(
             product_ids, market,
@@ -148,7 +142,8 @@ class MicrosoftCatalogReader:
                 store_game_id=pid,
                 title=_title_for(title_map, pid, t.get("titleId", "")),
                 installed=False,
-                tags=[GameTag.XCLOUD],
+                tags=[GameTag.XCLOUD, GameTag.BROWSER],
+                metadata={BROWSER_URL_KEY: XCLOUD_PLAY_URL.format(game_id=pid)},
             ))
         return games
 
@@ -172,65 +167,12 @@ class MicrosoftCatalogReader:
     async def _batch_resolve_titles(
         self, product_ids: list[str], market: str,
     ) -> dict[str, str]:
-        """Resolve productIds → display titles via displaycatalog MP.
-
-        displaycatalog.mp.microsoft.com is a public CDN endpoint with
-        no auth requirement — faster and more reliable than
-        catalog.gamepass.com/v3, which requires undisclosed
-        calling-app-name headers and routinely 500s under even
-        modest concurrency. Same ProductTitle content.
-
-        Batches of ``_TITLE_BATCH_SIZE`` run concurrently with a
-        semaphore-bounded concurrency of ``_TITLE_BATCH_CONCURRENCY``.
-        """
-        batches: list[list[str]] = [
-            product_ids[i: i + _TITLE_BATCH_SIZE]
-            for i in range(0, len(product_ids), _TITLE_BATCH_SIZE)
-        ]
-        total_batches = len(batches)
-        logger.info(
-            "[MicrosoftCatalog] resolving %d titles in %d batches "
-            "(size=%d, concurrency=%d) via displaycatalog.mp.ms",
-            len(product_ids), total_batches,
-            _TITLE_BATCH_SIZE, _TITLE_BATCH_CONCURRENCY,
-        )
-        sem = asyncio.Semaphore(_TITLE_BATCH_CONCURRENCY)
-        loop = asyncio.get_event_loop()
-        out: dict[str, str] = {}
-        completed = 0
-
-        async def run_one(idx: int, batch: list[str]) -> dict[str, str]:
-            nonlocal completed
-            async with sem:
-                t0 = time.time()
-                result: dict[str, str] = await loop.run_in_executor(
-                    None,
-                    _resolve_batch_displaycatalog, batch, market,
-                )
-            completed += 1
-            logger.debug(
-                "[MicrosoftCatalog] batch %d/%d done in %.1fs "
-                "(%d/%d resolved)",
-                idx + 1, total_batches, time.time() - t0,
-                len(result), len(batch),
-            )
-            if (
-                completed % max(1, total_batches // 4) == 0
-                or completed == total_batches
-            ):
-                logger.info(
-                    "[MicrosoftCatalog] title resolution: "
-                    "%d/%d batches done",
-                    completed, total_batches,
-                )
-            return result
-
-        results = await asyncio.gather(
-            *(run_one(i, b) for i, b in enumerate(batches)),
-        )
-        for r in results:
-            out.update(r)
-        return out
+        """Resolve productIds → display titles via displaycatalog MP."""
+        products = await fetch_products(product_ids, market)
+        return {
+            pid: title for pid, raw in products.items()
+            if (title := product_title(raw))
+        }
 
 
 def _pick_region_base_uri(
@@ -247,6 +189,44 @@ def _pick_region_base_uri(
             return base
     return None
 
+
+
+def _entitled_titles(
+    titles: list[dict[str, Any]], base_uri: str,
+) -> list[dict[str, Any]] | None:
+    """The titles this account may stream, or ``None`` if the answer is unusable.
+
+    Both ``None`` cases keep the existing shortcuts (see ``fetch_games``):
+
+    - no titles at all: the catalog lists ~2,700 titles to every account,
+      so zero means the request failed or the answer was mangled;
+    - titles but none entitled: only reached with an active subscription
+      (the gate ran first), so the response changed shape.
+    """
+    if not titles:
+        logger.warning(
+            "[MicrosoftCatalog] /v2/titles returned no titles from %s "
+            "— keeping the existing xCloud shortcuts",
+            base_uri,
+        )
+        return None
+    entitled = [
+        t for t in titles
+        if isinstance(t, dict)
+        and isinstance(t.get("details"), dict)
+        and t["details"].get("hasEntitlement") is True
+    ]
+    logger.info(
+        "[MicrosoftCatalog] %d total visible, %d entitled",
+        len(titles), len(entitled),
+    )
+    if not entitled:
+        logger.warning(
+            "[MicrosoftCatalog] %d titles but none entitled — keeping "
+            "the existing xCloud shortcuts", len(titles),
+        )
+        return None
+    return entitled
 
 def _unique_product_ids(entitled: list[dict[str, Any]]) -> list[str]:
     """Extract unique productIds preserving first-seen order."""
@@ -326,9 +306,61 @@ def _xcloud_titles_sync(
     return results if isinstance(results, list) else []
 
 
-def _resolve_batch_displaycatalog(
+async def fetch_products(
+    product_ids: list[str], market: str,
+) -> dict[str, dict[str, Any]]:
+    """Raw displaycatalog products by UPPER-case productId.
+
+    displaycatalog.mp.microsoft.com is a public CDN endpoint with no auth
+    requirement — faster and more reliable than catalog.gamepass.com/v3,
+    which requires undisclosed calling-app-name headers and routinely 500s
+    under even modest concurrency.
+
+    Batches of ``_TITLE_BATCH_SIZE`` run concurrently, at most
+    ``_TITLE_BATCH_CONCURRENCY`` at a time. A failed batch contributes
+    nothing; callers treat a missing product as "unknown", never as absent.
+    Shared by the xCloud library (titles) and the owned-products index
+    (titles and platforms).
+    """
+    batches = [
+        product_ids[i: i + _TITLE_BATCH_SIZE]
+        for i in range(0, len(product_ids), _TITLE_BATCH_SIZE)
+    ]
+    logger.info(
+        "[MicrosoftCatalog] resolving %d products in %d batches "
+        "(size=%d, concurrency=%d) via displaycatalog.mp.ms",
+        len(product_ids), len(batches),
+        _TITLE_BATCH_SIZE, _TITLE_BATCH_CONCURRENCY,
+    )
+    sem = asyncio.Semaphore(_TITLE_BATCH_CONCURRENCY)
+
+    async def run_one(batch: list[str]) -> list[dict[str, Any]]:
+        async with sem:
+            return await asyncio.to_thread(_fetch_batch_displaycatalog, batch, market)
+
+    out: dict[str, dict[str, Any]] = {}
+    for products in await asyncio.gather(*(run_one(b) for b in batches)):
+        for raw in products:
+            pid = raw.get("ProductId")
+            if isinstance(pid, str) and pid:
+                # UPPER: store_game_ids are sometimes lowercase, and every
+                # lookup case-folds (see ``_title_for``).
+                out[pid.upper()] = raw
+    return out
+
+
+def product_title(raw: dict[str, Any]) -> str:
+    """``LocalizedProperties[0].ProductTitle`` of a displaycatalog product, or ""."""
+    loc = raw.get("LocalizedProperties")
+    if not isinstance(loc, list) or not loc or not isinstance(loc[0], dict):
+        return ""
+    title = loc[0].get("ProductTitle")
+    return title if isinstance(title, str) else ""
+
+
+def _fetch_batch_displaycatalog(
     batch: list[str], market: str,
-) -> dict[str, str]:
+) -> list[dict[str, Any]]:
     """GET displaycatalog.mp.microsoft.com for one batch of productIds."""
     from urllib.parse import urlencode as _uenc
     qs = _uenc({
@@ -341,7 +373,6 @@ def _resolve_batch_displaycatalog(
     req = urllib.request.Request(url, headers={
         "User-Agent": _BROWSER_UA, "Accept": "application/json",
     })
-    raw: str | None = None
     try:
         with urllib.request.urlopen(
             req, timeout=30,
@@ -357,18 +388,18 @@ def _resolve_batch_displaycatalog(
             "(batch size %d)",
             e.code, len(batch),
         )
-        return {}
+        return []
     except Exception as e:
         logger.warning(
             "[MicrosoftCatalog] displaycatalog %s (batch size %d)",
             type(e).__name__, len(batch),
         )
-        return {}
+        return []
     return _parse_displaycatalog(raw)
 
 
-def _parse_displaycatalog(raw: str) -> dict[str, str]:
-    """Parse displaycatalog response → {productId: ProductTitle}."""
+def _parse_displaycatalog(raw: str) -> list[dict[str, Any]]:
+    """Parse a displaycatalog response → its ``Products`` list."""
     try:
         data = json.loads(raw)
     except json.JSONDecodeError:
@@ -377,25 +408,8 @@ def _parse_displaycatalog(raw: str) -> dict[str, str]:
             "(len=%d, first=%.200s)",
             len(raw), raw,
         )
-        return {}
-    if not isinstance(data, dict):
-        return {}
-    products = data.get("Products")
+        return []
+    products = data.get("Products") if isinstance(data, dict) else None
     if not isinstance(products, list):
-        return {}
-    out: dict[str, str] = {}
-    for p in products:
-        if not isinstance(p, dict):
-            continue
-        pid = p.get("ProductId")
-        if not isinstance(pid, str) or not pid:
-            continue
-        loc = p.get("LocalizedProperties")
-        if not isinstance(loc, list) or not loc:
-            continue
-        title = loc[0].get("ProductTitle")
-        if isinstance(title, str) and title:
-            # Key on the UPPER form so the case-folded lookup in
-            # ``_title_for`` matches lowercase store_game_ids too.
-            out[pid.upper()] = title
-    return out
+        return []
+    return [p for p in products if isinstance(p, dict)]

@@ -1,6 +1,8 @@
-# Store-expansion feasibility studies (EA App · Battle.net · itch.io)
+# Store-expansion feasibility studies
 
-Independent feasibility studies for adding three new stores to Unifideck, commissioned to plan
+Round 1 (2026-07-03): EA App, Battle.net, itch.io. Round 2 (2026-09-24): library sources, Rockstar, Humble, plus an evaluation of Xodus.
+
+Round 1 was a set of independent feasibility studies for adding three new stores, commissioned to plan
 future development. Each combines online research against maintained primary sources with
 on-device prototyping on a Steam Deck (SteamOS Desktop Mode, 2026-07-03). Full detail per store:
 [itch.md](itch.md) · [ea.md](ea.md) · [battlenet.md](battlenet.md).
@@ -9,7 +11,42 @@ on-device prototyping on a Steam Deck (SteamOS Desktop Mode, 2026-07-03). Full d
 download/install → launch. Cloud saves / achievements / playtime-sync are stretch, not gating
 (matches the Amazon/Ubisoft precedent, which ship without them).
 
-## Verdict matrix
+
+## Round 2 (2026-09-24, v0.7.6): after itch.io and EA
+
+itch.io shipped in 0.7.6 and EA is being built separately. This round looked at what users ask
+for (every GitHub issue) and what comparable tools support (Heroic, Lutris, Playnite, GOG Galaxy
+plugins, NonSteamLaunchers, Junk Store). Full detail:
+[adoption.md](adoption.md) · [vaults.md](vaults.md) · [rockstar.md](rockstar.md) · [humble.md](humble.md) · [xodus.md](xodus.md).
+
+| | Adoption | Local Vault + Remote Vault | Rockstar | Humble |
+|---|---|---|---|---|
+| **Verdict** | ✅ Proven by POC for Epic and Amazon; GOG needs a scan-root fix | ✅ Feasible, mostly existing code | ⚠️ Feasible for single-player; ownership unmeasured | ✅ Feasible, moderate fragility |
+| **User demand** | #97, #60, #440 | #29 (5 👍), the top open store request | 3 bug reports from Epic-Rockstar users | None in our tracker |
+| **Competitors** | Heroic (`import` via the same CLIs) | RomM: Tender, Ludo (ROMs only) | Playnite (official), Galaxy (stale) | Lutris, Playnite, Galaxy, NSL, Heroic PR |
+| **Type** | Per-store adopt rows over the existing Epic/GOG/Amazon stores; always user-initiated | Two stores over one shared pipeline, from GameVault | Wrapper (Battle.net template) | API store; reuses the vault install pipeline |
+| **Sign-in** | none new | RomM device code / pairing; file shares by URL + credentials | Inside the client window | Standard Edge window, HttpOnly cookie over CDP |
+| **Top risk** | Two launchers own one folder; Amazon checks weak on nile 1.1.2 | Splitting a shipped store (local-mode games must keep their app ids) | Ownership read from a log file; self-updating client | Unofficial API behind Cloudflare |
+| **On-device result** | POC: Epic and Amazon adopted and launched | Not needed yet (design study) | Client installed unattended (`/quiet /norestart`) and rendered under GE-Proton11-7 | Anonymous API probe only |
+
+**Recommended order:**
+
+1. **Adoption** for Epic, GOG and Amazon, started by the user (suggestions, or one game from
+   Heroic). Most requested, no refactor, proven by the POC.
+2. **Split GameVault into Local Vault and Remote Vault** over a shared pipeline, migrating 0.7.5
+   local-mode games with their old app ids. Then RomM and FTP/HTTP/WebDAV shares in Remote Vault,
+   and installed-game folders in Local Vault.
+3. **Humble**, on top of that pipeline, once the run-the-installer step exists.
+4. **Rockstar**, only after a signed-in spike proves ownership can be read.
+
+Watch, don't build: [Xodus](xodus.md) (native Xbox PC / Game Pass on Linux). It is pre-alpha with
+no releases, and it runs games only on its own Wine fork. We would integrate it as an external tool
+in the existing Microsoft store once it ships a release, never fork it. Also watch Drop (pre-1.0). Skip: Riot (Vanguard), Legacy Games, IndieGala, Big Fish (no API, no requests).
+Cheap extra: Luna, GeForce NOW and Boosteroid as browser games (`GameTag.BROWSER`), no store code.
+
+*Round 2 written 2026-09-24 against v0.7.6. Uncommitted per repo policy.*
+
+## Round 1 verdict matrix
 
 | | itch.io | EA App | Battle.net |
 |---|---|---|---|

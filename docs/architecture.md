@@ -49,7 +49,7 @@ The machine-enforced invariants are in §9 (`.importlinter`).
 ├─────────────────────────────────────────────────┤
 │  Layer 5 — Services (services/)                 │  ← Infrastructure services
 ├─────────────────────────────────────────────────┤
-│  Layer 4 — Stores (stores/)                     │  ← 7 store connectors
+│  Layer 4 — Stores (stores/)                     │  ← one connector per store
 ├─────────────────────────────────────────────────┤
 │  Layer 3 — StoreBase (stores/shared/)           │  ← Abstract store contract
 ├─────────────────────────────────────────────────┤
@@ -82,6 +82,8 @@ Infrastructure primitives. No store or service knowledge.
 | `paths.py`                      | Canonical path resolution                 |
 | `store_urls.py`                 | Per-store storefront/search URL builders  |
 | `cross_source_dedupe.py`        | Drops a title owned on two stores at once |
+| `game_grouping.py`              | Display-only: stamps `dedupe_group_id`, `edition_label` and the owned Steam copy on each game, for the "Group duplicates" tabs and the game-page store switcher. Never removes a shortcut |
+| `game_identity.py`              | Which library rows and owned Steam apps are the same game (any version of it). One rule shared by `game_grouping.py` and the ownership ribbon's join |
 | `safe_delete.py`                | Guarded delete used by every sweep        |
 | `cleanup_sweeps.py`             | The blocking sweeps behind "delete all data" |
 | `marker_sweep.py`               | Install-dir ownership via `.unifideck*` markers |
@@ -89,6 +91,7 @@ Infrastructure primitives. No store or service knowledge.
 | `compat_bridge.py`              | Bridges our prefixes into `compatdata/` so Protontricks can see them; owns the signed/unsigned AppID pair |
 | `compat_tool_bridge.py`         | Resolves a compat-tool id to a Proton path |
 | `steam_appid_map.py`            | The one read of the shortcut → real-Steam-AppID cache that returns "an AppID or 0" |
+| `cross_store_ownership.py`      | Which non-Steam stores hold a given Steam AppID, any version of it (via `game_identity.py`). The Steam Store ownership ribbon's join, built on demand from the live library plus authenticated purchase indexes (Xbox) |
 | `store_capabilities.py`         | Per-store capability sets — the single source of truth behind the `get_store_infos` flags |
 | `io/async_file_ops.py`          | Async file read/write/remove              |
 | `io/safe_file_op.py`            | Atomic write with rollback                |
@@ -123,7 +126,7 @@ owned by `launcher/dispatcher.py`.
 
 ### Layer 4 — `stores/`
 
-Seven store connector sub-packages. Each is self-contained with its own auth, library, install, and update logic.
+A connector sub-package for each store (the set is `bootstrap/cache_registry._STORE_CACHES`). Each is self-contained with its own auth, library, install, and update logic.
 
 | Package             | Store                   | Backend                              |
 | ------------------- | ----------------------- | ------------------------------------ |
@@ -132,8 +135,9 @@ Seven store connector sub-packages. Each is self-contained with its own auth, li
 | `stores/amazon/`    | Amazon Games            | `bin/nile`                           |
 | `stores/ubisoft/`   | Ubisoft Connect         | UPC client in a per-game Wine prefix |
 | `stores/battlenet/` | Battle.net              | Battle.net client in a Wine prefix   |
-| `stores/microsoft/` | PC Game Pass / xCloud   | Edge browser + CDP                   |
+| `stores/microsoft/` | Xbox Cloud Gaming + owned Xbox purchases | xbox.com device-code sign-in in the Edge window; Collections for ownership (`ownership/`) |
 | `stores/gamevault/` | GameVault (self-hosted) | The user's own server over HTTP, or a local folder of archives |
+| `stores/itch/`      | itch.io                 | `bin/butler/butler`, run as the butlerd JSON-RPC daemon |
 
 ### Layer 5 — `services/`
 
@@ -149,6 +153,7 @@ Infrastructure services that subscribe to the EventBus and own cross-cutting con
 | `services/launcher/`               | Game launch orchestration, circuit breaker    |
 | `services/security/`               | Token store, bruteforce protection, audit log |
 | `services/microsoft_subscription/` | Game Pass entitlement probing                 |
+| `services/microsoft_ownership/`    | Xbox purchase index for the Steam Store ownership ribbon (never library rows) |
 | `services/launch_history/`         | Per-game launch timestamps                    |
 | `services/achievements/`           | Achievement fetch + last-session summary      |
 | `services/compatibility/`          | ProtonDB + Valve per-device ratings (Deck / Machine / SteamOS) |
@@ -176,6 +181,7 @@ The `Plugin` class in `main.py` is composed from the RPC mixin classes enumerate
 | `EdgeRPCMixin`             | `install_edge`                                                                  |
 | `ExecutableRPCMixin`       | `list_game_executables`, `set_game_executable`, `reset_game_executable`          |
 | `LibraryFacetsRPCMixin`    | `get_overview_enrichment`                                                       |
+| `StoreOwnershipRPCMixin`   | `show_store_ownership` (draws the "already owned" ribbon on a Steam Store page; CDP only when owned) |
 | `PlaytimeRPCMixin`         | `get_playtime`                                                                  |
 | `ObservabilityRPCMixin`    | `subscribe_replay`, `get_launcher_toasts`, `capture_logs`                        |
 | `ActionRPCMixin`           | `dispatch_unifideck_action` (URI dispatch)                                      |
@@ -195,7 +201,7 @@ These sit alongside the layered stack and can be imported by any layer.
 | ---------------- | ---------------------------------------------------------------------------------------------------------- |
 | `accounts/`      | Account-switch detection + data migration (backs `AccountRPCMixin`)                                         |
 | `auth/`          | OAuth browser monitor + multi-store auth orchestrator + Edge browser shims                                 |
-| `cdp/`           | Chrome DevTools Protocol injection utilities                                                               |
+| `cdp/`           | Chrome DevTools Protocol injection utilities: target listing + script injection, the xCloud shims, and the Steam Store ownership ribbon (`store_ribbon`, `store_ribbon_js`) |
 | `compatibility/` | Proton/Wine prefix management and helper wrappers                                                          |
 | `event_bus/`     | The message backbone. Broken out below, because half of it is not on the emit path                          |
 | `config/`        | Config manager, JSON schema validator, i18n schema, startup validation                                     |
@@ -255,6 +261,7 @@ Contains **only** compiled binaries and shell wrappers. All old `bin/*.py` helpe
 | `vcruntime_fix.reg`             | 1 KB    | Windows registry patch for VC runtime in Wine prefix                                     |
 | `stubs/GalaxyCommunication.exe` | binary  | GOG Galaxy overlay stub (copied into Wine prefix by the GOG store)                       |
 | `umu/`                          | dir     | `umu-run` runtime bundle (upstream project)                                              |
+| `butler/`                       | dir     | itch.io's `butler` (~23 MB) plus the `7z.so` / `libc7zip.so` it loads from its own folder |
 
 ---
 
@@ -414,12 +421,15 @@ All remote binaries are declared in `package.json` under `"remote_binary"`. The 
 | Binary       | Version  | URL                                             |
 | ------------ | -------- | ----------------------------------------------- |
 | `legendary`  | 0.20.43  | `github.com/Heroic-Games-Launcher/legendary`    |
-| `gogdl`      | v1.2.2   | `github.com/Heroic-Games-Launcher/heroic-gogdl` |
+| `gogdl`      | v1.3.0   | `github.com/Heroic-Games-Launcher/heroic-gogdl` |
 | `nile`       | v1.1.2   | `github.com/imLinguin/nile`                     |
 | `comet`      | v0.3.2   | `github.com/imLinguin/comet`                    |
 | `winetricks` | 20260125 | `github.com/Winetricks/winetricks`              |
+| `butler`     | 15.31.0  | `broth.itch.zone/butler/linux-amd64` (archive; see below) |
 
 `umu` is the exception: it is committed to the repo (`bin/umu/umu/umu-run`) rather than downloaded, so it has no `remote_binary` entry. Its version is recorded in `bin/umu/VERSION` (currently **1.4.4**) and reported in support bundles. Do not ship umu &lt;= 1.4.1: those versions fetch the Steam Linux Runtime from `repo.steampowered.com/<variant>/images/latest-public-beta[/VERSION.txt]`, which the repo now answers with HTTP 403. umu's *update* path tolerates that and keeps an existing runtime working, but its *install* path fails, so any Deck without a cached runtime can never obtain one. 1.4.3+ reads `images/latest-public-beta.txt` and fetches from the numbered directory it names, which serves normally.
+
+`butler` is the second exception, and the only **archive**: the broth zip holds `butler`, `7z.so` and `libc7zip.so`. It cannot be a `remote_binary` entry, because Decky writes a `remote_binary` download to `bin/<name>` byte for byte and never unzips it. Instead `build-plugin.sh` pins the zip (`BUTLER_URL` naming a version, never broth's moving `LATEST`, plus `BUTLER_SHA256`) and unpacks it into `bin/butler/`; `binary_signatures._KNOWN_HASHES["butler"]` pins the extracted executable; `test_binary_manifest_sync.py` checks all three. The two libraries are not optional: measured on 15.31.0, a butler without them silently downloads them next to itself on the first 7z install, which fails offline and on a read-only directory. (It prints "Ensuring dependencies…" in both cases; only the download adds files.) Licences: butler is MIT; the 7-zip components are LGPL-2.1 / MPL-2.0.
 
 `nile` is deliberately held at v1.1.2. v1.2.0 migrates auth into an encrypted store and **deletes** `~/.config/nile/user.json` on first run — the file `AmazonStore._check_nile_authenticated` reads to decide the store is available. Bumping it without migrating that check silently empties the Amazon library for users who are still perfectly authenticated.
 

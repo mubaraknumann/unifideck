@@ -1,8 +1,6 @@
 /**
- * Plugin entry — the thin lifecycle wiring.
- *
- * Replaces the 2409-line legacy index.tsx with ~130 LOC
- * that does exactly what a Decky plugin entry should do :
+ * Plugin entry — the thin lifecycle wiring. It does exactly
+ * what a Decky plugin entry should do :
  *
  *   1. Mount <RootProvider> around <QuickAccessPanel>
  *   2. Register the App Details router patch
@@ -11,12 +9,8 @@
  *      lifetime listener)
  *   5. Return a teardown function for plugin unload
  *
- * That's it. Every other concern lives in F1-F5 :
- *  - SteamBridge isolates Steam internals
- *  - Contexts hold all reactive state
- *  - Hooks expose business actions
- *  - Components are pure presentational
- *  - Services drive the auth flows
+ * Every other concern lives in its own layer (SteamBridge,
+ * contexts, hooks, components, services).
  *
  * If this file grows past 200 LOC, something is being
  * smuggled in that should live in another layer. The size
@@ -26,6 +20,7 @@ import { definePlugin } from "@decky/api";
 import { FC } from "react";
 import { initI18n } from "./i18n";
 import { SteamBridge } from "./lib/steam-bridge";
+import { tabManager } from "./lib/steam-bridge/tab-container";
 import { RootProvider } from "./contexts/RootProvider";
 import { QuickAccessPanel } from "./views/QuickAccessPanel";
 import { applyAppDetailsPatch } from "./views/AppDetailsPatch";
@@ -35,6 +30,7 @@ import { startCollectionManager } from "./lib/steam-bridge/collection-manager";
 import { startOverviewEnrichment } from "./lib/steam-bridge/overview-enrichment";
 import { startTileStoreBadgePatch } from "./lib/steam-bridge/tile-store-badge-patch";
 import { applyAppContextMenuPatch } from "./lib/steam-bridge/app-context-menu-patch";
+import { startStoreOwnershipRibbon } from "./lib/steam-bridge/store-ownership-ribbon";
 import { applyAppStorePatch } from "./lib/steam-bridge/app-store-patcher";
 import { loadCompatCacheFromBackend } from "./lib/protondb-cache";
 import { runBootstrapTasks } from "./bootstrap-tasks";
@@ -121,11 +117,26 @@ export default definePlugin(() => {
   } catch (e) {
     console.error("[Unifideck] app context-menu patch start failed:", e);
   }
+  // Mark Steam Store pages of games already owned on another store.
+  try {
+    handles.storeOwnershipRibbon = startStoreOwnershipRibbon();
+  } catch (e) {
+    console.error("[Unifideck] store ownership ribbon start failed:", e);
+  }
   // ── Boot-time singletons ──────────────────────────────
   // Start all reactive stores at boot so they track state
   // even when the QAM panel is closed. Each store subscribes
   // to EventBus events and/or fetches initial data.
   authStore.start();
+  // A signed-out store hides its library tab (tab-container.shouldShowTab).
+  const syncSignedOutTabs = () =>
+    tabManager.setSignedOutStores(
+      Object.entries(authStore.getSnapshot().statuses)
+        .filter(([, status]) => status === "disconnected")
+        .map(([store]) => store),
+    );
+  handles.signedOutTabs = authStore.subscribe(syncSignedOutTabs);
+  syncSignedOutTabs();
   storeInfoStore.start();
   downloadStore.start();
   syncStore.start();

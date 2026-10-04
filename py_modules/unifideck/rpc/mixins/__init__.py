@@ -25,6 +25,7 @@ Per-mixin scope:
 * ``PlaytimeRPCMixin``        — per-game playtime stats;
 * ``StorageRPCMixin``         — storage locations + browseable devices;
 * ``StoreRPCMixin``           — auth + login state;
+* ``StoreOwnershipRPCMixin``: "already owned elsewhere" Steam Store ribbon;
 * ``SyncRPCMixin``            — library sync + game info;
 * ``UIRPCMixin``              — Steam-UI manipulation + locale;
 * ``UpdaterRPCMixin``         — self-update + release notes.
@@ -46,6 +47,7 @@ from .observability import ObservabilityRPCMixin
 from .playtime import PlaytimeRPCMixin
 from .storage import StorageRPCMixin
 from .store import StoreRPCMixin
+from .store_ownership import StoreOwnershipRPCMixin
 from .sync import SyncRPCMixin
 from .ui import UIRPCMixin
 from .updater import UpdaterRPCMixin
@@ -64,6 +66,7 @@ __all__ = [
     "ObservabilityRPCMixin",
     "PlaytimeRPCMixin",
     "StorageRPCMixin",
+    "StoreOwnershipRPCMixin",
     "StoreRPCMixin",
     "SyncRPCMixin",
     "UIRPCMixin",

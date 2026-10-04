@@ -12,6 +12,27 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+INNER_TEXT_EXPRESSION = "document.body?.innerText || ''"
+
+
+@dataclass(frozen=True)
+class ContentCapture:
+    """Read the auth code out of a page instead of its URL.
+
+    When a tab's URL contains ``trigger_url``, the monitor evaluates
+    ``expression`` in that page over CDP and applies ``regex`` to the
+    string it returns; the first capture group is the code.
+
+    ``expression`` defaults to the visible text. It exists for pages that
+    keep the value out of ``innerText``: itch.io's API-keys page renders the
+    key in a ``code.full_key`` element that stays hidden until the user
+    clicks "View", so ``innerText`` never contains it.
+    """
+
+    trigger_url: str
+    regex: str
+    expression: str = INNER_TEXT_EXPRESSION
+
 
 @dataclass
 class AuthCaptureResult:

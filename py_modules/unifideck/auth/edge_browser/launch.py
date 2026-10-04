@@ -1,6 +1,6 @@
 """auth.edge_browser.launch — Edge subprocess spawn helpers.
 
-Deduplicates the ``launch_auth`` / ``launch_xcloud`` flows.
+Deduplicates the ``launch_auth`` / ``launch_browser_game`` flows.
 Both methods share ~35 LOC of identical logic:
 
   - Kill lingering instance, cleanup profile singleton state
@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 def _prepare_for_launch(browser: EdgeBrowser) -> list[str] | None:
     """Kill any lingering process, clean profile state, locate Edge.
 
-    Common prelude to launch_auth and launch_xcloud. Returns the
+    Common prelude to launch_auth and launch_browser_game. Returns the
     browser command list, or None if no compatible Edge was found.
     """
     browser.kill()
@@ -167,7 +167,7 @@ def launch_storefront(browser: EdgeBrowser, url: str) -> bool:
     """Launch a browsable store window on ``url``.
 
     The third window flavour, alongside ``launch_auth`` (app mode,
-    chrome-less) and ``launch_xcloud`` (kiosk). Every difference from
+    chrome-less) and ``launch_browser_game`` (kiosk). Every difference from
     ``launch_auth`` is deliberate:
 
       - **The URL is positional, not ``--app=``.** ``--app`` is
@@ -208,8 +208,12 @@ def launch_storefront(browser: EdgeBrowser, url: str) -> bool:
     )
 
 
-def launch_xcloud(browser: EdgeBrowser, xcloud_url: str) -> bool:
-    """Launch Edge in kiosk mode on an xCloud game streaming URL.
+def launch_browser_game(browser: EdgeBrowser, url: str) -> bool:
+    """Launch Edge in kiosk mode on a browser game's URL.
+
+    Browser games are xCloud streams and itch.io HTML5 games
+    (``launcher/browser_games``). This was ``launch_xcloud`` until the
+    second kind arrived; nothing in it was specific to Xbox.
 
     Distinct from launch_auth in several ways:
       - Kiosk fullscreen (not app mode) — the user plays the game
@@ -227,10 +231,9 @@ def launch_xcloud(browser: EdgeBrowser, xcloud_url: str) -> bool:
     survive across flows.
 
     Args:
-      xcloud_url: Target URL, typically
-        ``https://www.xbox.com/play/launch/{productId}``. The launcher
-        dispatcher passes this through from the game's work_dir slot
-        in games.map.
+      url: Target URL: ``https://www.xbox.com/play/launch/{productId}``
+        for a stream, the game's itch.io page for an HTML5 game. It
+        comes from ``LaunchContext.browser_url``.
 
     Returns:
       True if Edge was launched. False on missing browser or
@@ -239,7 +242,7 @@ def launch_xcloud(browser: EdgeBrowser, xcloud_url: str) -> bool:
     """
     cmd = _prepare_for_launch(browser)
     if not cmd:
-        logger.warning("[Edge] No compatible browser found for xCloud")
+        logger.warning("[Edge] No compatible browser found for a browser game")
         return False
     from .display import auth_window_flags
     from .edge import _BASE_FLAGS, PROFILE_DIR
@@ -248,17 +251,15 @@ def launch_xcloud(browser: EdgeBrowser, xcloud_url: str) -> bool:
     # browser.cdp_port, typically 9222) and the xCloud session
     # can coexist. Convention: auth=9222, xcloud=9223, storefront=9224.
     # The offsets live on EdgeBrowser so all three flavours agree.
-    xcloud_cdp_port = browser.xcloud_cdp_port()
+    game_cdp_port = browser.browser_game_cdp_port()
     # Size to the live display, like the other two window flavours.
     # This was pinned at 1024x720 @ 1.25 — the Deck's panel geometry —
     # which on a Steam Machine's TV is a small letterboxed window at
     # handheld scaling.
     env = clean_env()
     window_flags = auth_window_flags(env)
-    args = [*cmd, "--kiosk", "--class=unifideck-xcloud", f"--remote-debugging-port={xcloud_cdp_port}", f"--user-data-dir={PROFILE_DIR}", *_BASE_FLAGS, "--autoplay-policy=no-user-gesture-required", *window_flags, f"--lang={browser.locale_fn().split('-')[0]}", xcloud_url]
-    logger.info(
-        "[Edge] Launching xCloud kiosk: %s", xcloud_url[:80],
-    )
+    args = [*cmd, "--kiosk", "--class=unifideck-browser-game", f"--remote-debugging-port={game_cdp_port}", f"--user-data-dir={PROFILE_DIR}", *_BASE_FLAGS, "--autoplay-policy=no-user-gesture-required", *window_flags, f"--lang={browser.locale_fn().split('-')[0]}", url]
+    logger.info("[Edge] Launching browser game kiosk: %s", url[:80])
     return _spawn_edge_process(
-        browser, args, log_mode="a", label="xCloud", env=env,
+        browser, args, log_mode="a", label="Browser game", env=env,
     )

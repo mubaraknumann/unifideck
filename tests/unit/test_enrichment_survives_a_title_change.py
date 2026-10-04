@@ -161,4 +161,4 @@ def test_every_store_with_a_real_get_game_size_is_size_capable() -> None:
     """
     from unifideck.services.size_backfill import SIZE_CAPABLE_STORES
 
-    assert SIZE_CAPABLE_STORES == {"epic", "gog", "amazon", "gamevault"}
+    assert SIZE_CAPABLE_STORES == {"epic", "gog", "amazon", "gamevault", "itch"}

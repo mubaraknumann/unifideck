@@ -18,9 +18,23 @@
       "connected": "{{store}} に接続しました",
       "failed": "{{store}} のサインインに失敗しました"
     },
+    "hints": {
+      "itch": "itch.io でもう一度パスワードの入力を求められます。API キーが表示されていない場合は「Generate new API key」を押してください。",
+      "microsoft": "「アクセスを許可」を押す"
+    },
+    "microsoft": {
+      "code": "コード",
+      "reopen": "再度開く"
+    },
     "errors": {
       "networkTitle": "インターネット接続がありません",
-      "networkBody": "Wi-Fi に接続してからもう一度お試しください。"
+      "networkBody": "Wi-Fi に接続してからもう一度お試しください。",
+      "codeExpired": "コードの期限切れ",
+      "accessDenied": "拒否されました",
+      "noXboxProfile": "Xbox プロフィールなし",
+      "childAccount": "子供用アカウント",
+      "regionUnavailable": "地域が非対応",
+      "clientRejected": "Unifideck を更新"
     }
   },
   "storage": {
@@ -353,6 +367,8 @@
       "ubisoftLaunchIdMissing": "Ubisoft Connect を開いています",
       "ubisoftLaunchIdMissingMessage": "このゲームの起動IDを解決できませんでした。ライブラリから起動できるように Ubisoft Connect を開いています。直接起動を修復するには、ライブラリの同期を再実行してください。",
       "startingBattlenetGame": "Battle.net 経由で {{gameTitle}} を起動しています…",
+      "wc3ProtonUnsupported": "Warcraft III には新しい Proton が必要です",
+      "wc3ProtonUnsupportedMessage": "ゲームが VPN エラーを表示する Wine の不具合のため、{{gameTitle}} はこの Proton バージョンでは Battle.net にサインインできません。Steam でプロパティ → 互換性 を開き、GE-Proton11-7 以降を選択してください。",
       "battlenetStartingClient": "Battle.net を開いています",
       "battlenetStartingClientMessage": "Battle.net クライアントの準備を待っています…",
       "battlenetInstallingClient": "Battle.net をインストール中",
@@ -477,6 +493,8 @@
       "stalled": "ダウンロードが進行しないまま停止しました。もう一度お試しください。",
       "directoryNotFound": "インストールされたファイルが見つかりません",
       "lockConflict": "他の処理が実行中です。再試行してください",
+      "noCompatibleBuild": "このゲームにはインストールできる Linux 版または Windows 版がありません",
+      "folderInUse": "インストール先のフォルダーには、別のストアのゲームが既にあります",
       "ubisoftClient": "Ubisoft Connect エラー。プレフィックスの修復を試してください",
       "ubisoftClientNotRunning": "Ubisoft Connect が応答していません",
       "ubisoftBootstrap": "Ubisoft Connect プレフィックスを構成できませんでした",
@@ -542,7 +560,8 @@
     "ubisoft": "Ubisoft",
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
-    "gamevault": "GameVault"
+    "gamevault": "GameVault",
+    "itch": "itch.io"
   },
   "unifiedLibrary": {
     "error": "Unifideck エラー",
@@ -727,6 +746,7 @@
     "cancelConfirmConfirm": "ダウンロードをキャンセル",
     "cancelConfirmCancel": "ダウンロードを継続",
     "playOnCloud": "クラウドでプレイ",
+    "playInBrowser": "ブラウザーでプレイ",
     "cloudSave": {
       "autoPullOn": "起動時にクラウドセーブが自動的にダウンロードされます。",
       "close": "閉じる",
@@ -1047,9 +1067,26 @@
     "errorUnavailable": "このゲームでは実績を利用できません。"
   },
   "collectionSettings": {
-    "title": "STEAM コレクション",
+    "title": "ライブラリのゲーム項目",
     "enabled": "コレクションが有効",
-    "disabled": "コレクションが無効"
+    "disabled": "コレクションが無効",
+    "groupDuplicates": "重複をグループ化"
+  },
+  "storeOwnership": {
+    "settingsTitle": "STEAM ストア",
+    "toggleLabel": "他のストアで所有済みのゲームに印を付ける",
+    "tagOwned": "所有済み",
+    "tagStreamable": "ストリーミング可",
+    "messageOwned": "このゲームは次のストアで所有済みです:",
+    "messageGamePass": "Xbox Game Pass",
+    "installed": "インストール済み",
+    "platformPc": "PC",
+    "platformConsole": "コンソール",
+    "platformPcConsole": "PC + コンソール",
+    "platformPlayAnywhere": "Play Anywhere",
+    "noteGold": "Gold",
+    "noteCloud": "クラウド",
+    "via": "Unifideck 経由"
   },
   "reconcile": {
     "repairedTitle": "ライブラリデータを修復しました",
@@ -1081,5 +1118,8 @@
     "errorUsernameRequired": "ユーザー名を入力してください",
     "errorPasswordRequired": "パスワードを入力してください",
     "errorConnection": "GameVaultサーバーへの接続に失敗しました"
+  },
+  "gameStoreSwitcher": {
+    "defaultEdition": "スタンダードエディション"
   }
 }

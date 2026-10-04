@@ -134,6 +134,9 @@ def plugin_block(plugin_dir: str | None) -> dict[str, Any]:
         name: _mode_of(base / "bin" / name) for name in _BUNDLED_BINARIES
     }
     binaries["unifideck-launcher"] = _mode_of(base / "bin" / "unifideck-launcher")
+    # butler ships as a directory with the 7-zip libraries it dlopen()s.
+    binaries["butler"] = _mode_of(base / "bin" / "butler" / "butler")
+    binaries["butler-7z.so"] = _mode_of(base / "bin" / "butler" / "7z.so")
     return {
         "resolved": True,
         "path": plugin_dir,

@@ -18,9 +18,23 @@
       "connected": "{{store}} conectado",
       "failed": "Falha no login em {{store}}"
     },
+    "hints": {
+      "itch": "O itch.io vai pedir sua senha novamente. Se nenhuma chave de API aparecer, toque em “Generate new API key”.",
+      "microsoft": "Permitir acesso"
+    },
+    "microsoft": {
+      "code": "Código",
+      "reopen": "Reabrir"
+    },
     "errors": {
       "networkTitle": "Sem conexão com a internet",
-      "networkBody": "Conecte-se ao Wi-Fi e tente novamente."
+      "networkBody": "Conecte-se ao Wi-Fi e tente novamente.",
+      "codeExpired": "Código expirado",
+      "accessDenied": "Acesso negado",
+      "noXboxProfile": "Sem perfil Xbox",
+      "childAccount": "Conta infantil",
+      "regionUnavailable": "Região sem suporte",
+      "clientRejected": "Atualize o Unifideck"
     }
   },
   "storage": {
@@ -353,6 +367,8 @@
       "ubisoftLaunchIdMissing": "Abrindo o Ubisoft Connect",
       "ubisoftLaunchIdMissingMessage": "Não foi possível resolver o ID de inicialização deste jogo. Abrindo o Ubisoft Connect para que você possa iniciá-lo pela sua biblioteca. Execute uma nova sincronização da biblioteca para corrigir a inicialização direta.",
       "startingBattlenetGame": "Iniciando {{gameTitle}} pelo Battle.net…",
+      "wc3ProtonUnsupported": "Warcraft III precisa de um Proton mais novo",
+      "wc3ProtonUnsupportedMessage": "{{gameTitle}} não consegue entrar na Battle.net nesta versão do Proton, por causa de um bug do Wine que faz o jogo exibir um erro de VPN. Abra as Propriedades dele na Steam, depois Compatibilidade, e escolha o GE-Proton11-7 ou mais recente.",
       "battlenetStartingClient": "Abrindo o Battle.net",
       "battlenetStartingClientMessage": "Aguardando o cliente Battle.net ficar pronto…",
       "battlenetInstallingClient": "Instalando o Battle.net",
@@ -477,6 +493,8 @@
       "stalled": "O download travou sem progresso. Tente novamente.",
       "directoryNotFound": "Não foi possível localizar os arquivos instalados",
       "lockConflict": "Outra operação está em progresso. Tente novamente",
+      "noCompatibleBuild": "Este jogo não tem uma versão para Linux ou Windows que possa ser instalada",
+      "folderInUse": "A pasta de instalação já contém um jogo de outra loja",
       "ubisoftClient": "Erro no cliente Ubisoft Connect. Tente reparar o prefixo",
       "ubisoftClientNotRunning": "O cliente Ubisoft Connect não está respondendo",
       "ubisoftBootstrap": "Falha ao configurar o prefixo do Ubisoft Connect",
@@ -542,7 +560,8 @@
     "ubisoft": "Ubisoft",
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
-    "gamevault": "GameVault"
+    "gamevault": "GameVault",
+    "itch": "itch.io"
   },
   "unifiedLibrary": {
     "error": "Erro do Unifideck",
@@ -727,6 +746,7 @@
     "cancelConfirmConfirm": "Cancelar download",
     "cancelConfirmCancel": "Continuar baixando",
     "playOnCloud": "Jogar na Nuvem",
+    "playInBrowser": "Jogar no navegador",
     "cloudSave": {
       "autoPullOn": "Os salvamentos na nuvem são baixados automaticamente na inicialização.",
       "close": "Fechar",
@@ -1047,9 +1067,26 @@
     "errorUnavailable": "As conquistas não estão disponíveis para este jogo."
   },
   "collectionSettings": {
-    "title": "COLEÇÕES DO STEAM",
+    "title": "ENTRADAS DE JOGOS",
     "enabled": "Coleções ativadas",
-    "disabled": "Coleções desativadas"
+    "disabled": "Coleções desativadas",
+    "groupDuplicates": "Agrupar duplicatas"
+  },
+  "storeOwnership": {
+    "settingsTitle": "LOJA DO STEAM",
+    "toggleLabel": "Marcar jogos que você já tem em outra loja",
+    "tagOwned": "Adquirido",
+    "tagStreamable": "Em streaming",
+    "messageOwned": "Você já tem este jogo em:",
+    "messageGamePass": "Xbox Game Pass",
+    "installed": "Instalado",
+    "platformPc": "PC",
+    "platformConsole": "Console",
+    "platformPcConsole": "PC + Console",
+    "platformPlayAnywhere": "Play Anywhere",
+    "noteGold": "Gold",
+    "noteCloud": "Nuvem",
+    "via": "pelo Unifideck"
   },
   "reconcile": {
     "repairedTitle": "Dados da biblioteca reparados",
@@ -1081,5 +1118,8 @@
     "errorUsernameRequired": "Por favor, insira seu nome de usuário",
     "errorPasswordRequired": "Por favor, insira sua senha",
     "errorConnection": "Falha ao conectar ao servidor GameVault"
+  },
+  "gameStoreSwitcher": {
+    "defaultEdition": "Edição padrão"
   }
 }

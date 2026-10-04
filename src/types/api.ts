@@ -98,6 +98,28 @@ export interface Game {
   ownership_type?: OwnershipType;
   store_tags?: GameTag[];
   size_bytes?: number;
+  /** Shared key for every cross-store copy of this title (see backend
+   *  ``core.game_grouping``), absent/null when this is the only copy.
+   *  Display-only — grouping never changes which shortcuts exist. */
+  dedupe_group_id?: string | null;
+  /** Recognised edition/variant suffix stripped out of ``title`` for
+   *  matching (e.g. ``"Ultimate Edition"``), null when none. */
+  edition_label?: string | null;
+  /** Real Steam AppID of a native copy of this title the user already
+   *  owns, when the backend found a title match against the Steam
+   *  library. Null when no such match exists. Independent of
+   *  `dedupe_group_id` — a singleton title can still have this set. */
+  steam_owned_app_id?: number | null;
+  /** Edition/variant suffix extracted from the Steam-owned copy's own
+   *  title (e.g. "The Final Cut"), null when `steam_owned_app_id` is
+   *  unset or that title carries no recognised suffix. NOT guaranteed
+   *  to match this game's own `edition_label` — title-matching tolerates
+   *  edition differences on purpose. */
+  steam_owned_edition_label?: string | null;
+  /** Where a browser game opens (``GameTag`` ``browser``): an xCloud play
+   *  URL or an itch.io game page. From the backend's
+   *  ``metadata.browser_url``; absent for every installable game. */
+  browser_url?: string;
 }
 
 /** One achievement (definition + this user's unlock status). */
@@ -215,9 +237,12 @@ export type StoreCapability =
  *
  * The set is closed on purpose : every backend route
  * accepting a store argument validates against this
- * union and rejects anything else. Adding a 6th store
- * therefore requires a coordinated change in both
- * `core/types/events.py` (StoreEnum) and this file.
+ * union and rejects anything else. Adding a store
+ * therefore requires a coordinated change in the backend's
+ * store set (`bootstrap/cache_registry._STORE_CACHES`, which
+ * `scripts/validate_architecture.py` checks against the
+ * `stores/*` directories) and this file. See the
+ * `unifideck-drift-guard` lockstep table for the rest.
  */
 export type StoreId =
   | "steam"
@@ -227,7 +252,8 @@ export type StoreId =
   | "microsoft"
   | "ubisoft"
   | "battlenet"
-  | "gamevault";
+  | "gamevault"
+  | "itch";
 
 /**
  * Per-store availability + auth state, returned by
@@ -262,6 +288,9 @@ export type GameTag =
   | "dlc"
   | "preorder"
   | "early_access"
-  // Xbox Cloud Gaming title — streamed in a browser, never installed.
-  // Drives the "Play on Cloud" play-section variant.
-  | "xcloud";
+  // Xbox Cloud Gaming title: a cloud stream. Selects the "Play on Cloud"
+  // variant of the browser-game play section.
+  | "xcloud"
+  // Played in an Edge window at `browser_url`, never installed: xCloud
+  // streams and itch.io HTML5 games (backend `launcher/browser_games`).
+  | "browser";

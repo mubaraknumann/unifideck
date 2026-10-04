@@ -1,7 +1,7 @@
 """launcher/flows/storefront.py — open a store's shop, signed in.
 
-Third sibling of ``flows/auth.py`` (sign-in) and ``flows/xcloud.py``
-(game streaming). Runs in the launcher subprocess, under the SYSTEM
+Third sibling of ``flows/auth.py`` (sign-in) and the browser-game launch
+(a game in a browser window). Runs in the launcher subprocess, under the SYSTEM
 python3, launched by Steam via a temporary shortcut — because in
 Gaming Mode a window from a process Steam did not launch has no
 gamescope session and never renders.
@@ -39,7 +39,7 @@ from unifideck.launcher.types.errors import (
     GameNotFoundError,
 )
 
-from .auth import wait_for_browser_exit
+from .browser_window import wait_for_browser_exit
 
 if TYPE_CHECKING:
     from unifideck.auth.edge_browser import EdgeBrowser
@@ -87,7 +87,7 @@ def _busy_flavour(edge_browser: EdgeBrowser) -> str | None:
     ``SingletonSocket`` and exits at once, its own flags ignored. That
     would leave us exiting immediately (so Steam tears down the
     shortcut) while a window opened inside *another* app's gamescope
-    session — invisible behind an xCloud kiosk, or hijacking a live
+    session (invisible behind a browser-game kiosk), or hijacking a live
     sign-in.
 
     So probe the per-flavour CDP ports first and refuse rather than
@@ -97,8 +97,8 @@ def _busy_flavour(edge_browser: EdgeBrowser) -> str | None:
     """
     if edge_browser.cdp_alive(edge_browser.cdp_port):
         return "auth"
-    if edge_browser.cdp_alive(edge_browser.xcloud_cdp_port()):
-        return "xcloud"
+    if edge_browser.cdp_alive(edge_browser.browser_game_cdp_port()):
+        return "browser_game"
     return None
 
 

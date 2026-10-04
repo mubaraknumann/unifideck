@@ -31,7 +31,7 @@ from unifideck.launcher.types.errors import (
 )
 
 _AUTH_PORT = 9222
-_XCLOUD_PORT = 9223
+_BROWSER_GAME_PORT = 9223
 _SHOP_PORT = 9224
 
 
@@ -69,7 +69,7 @@ class _FakeEdge:
         self.closed: list[int] = []
 
     # ── ports ────────────────────────────────────────────────────
-    def xcloud_cdp_port(self) -> int:
+    def browser_game_cdp_port(self) -> int:
         return self.cdp_port + 1
 
     def storefront_cdp_port(self) -> int:
@@ -194,7 +194,7 @@ async def test_a_missing_edge_is_a_dependency_error() -> None:
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("port", "expected"),
-    [(_AUTH_PORT, "edge_busy_auth"), (_XCLOUD_PORT, "edge_busy_xcloud")],
+    [(_AUTH_PORT, "edge_busy_auth"), (_BROWSER_GAME_PORT, "edge_busy_browser_game")],
 )
 async def test_a_live_edge_is_refused_rather_than_fought(
     port: int, expected: str,

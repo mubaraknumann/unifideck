@@ -9,7 +9,7 @@ from unifideck.core.net import ssl_ctx_permissive as _ssl
 
 logger = logging.getLogger(__name__)
 __all__ = [
-    "build_xbl_chain",
+    "describe_xerr",
     "http_get",
     "http_post",
     "request_xsts_token",
@@ -34,62 +34,6 @@ def http_get(url: str, headers: dict[str, Any]) -> dict[str, Any]:
     with urllib.request.urlopen(req, timeout=15, context=_ssl("Microsoft OAuth — outdated Deck cert store")) as r:
         return cast(dict[str, Any], json.loads(r.read().decode()))
 
-def build_xbl_chain(
-    access_token: str,
-    locale: str,
-    xbl_auth_url: str,
-    xsts_url: str,
-    xbl_user_agent: str,
-    xsts_relying_party: str = "http://xboxlive.com",
-) -> dict[str, str] | None:
-
-    """Build XBL chain."""
-    logger.info("[MS] Building XBL/XSTS token chain")
-    try:
-        xbl_resp = _obtain_xbl_user_token(
-            access_token, locale, xbl_auth_url, xbl_user_agent,
-        )
-        if xbl_resp is None:
-            return None
-        xbl_token = xbl_resp["Token"]
-        user_hash = _extract_user_hash(xbl_resp)
-        logger.info(
-            "[MS] ✓ XBL user token obtained (uhs=%s)", user_hash,
-        )
-        xsts_rp = xsts_relying_party
-        xsts_resp = _request_xsts_token(
-            xbl_token, xsts_rp, locale, xsts_url, xbl_user_agent,
-        )
-        if xsts_resp is None:
-            return None
-        if "XErr" in xsts_resp:
-            _log_xsts_xerr(xsts_resp["XErr"])
-            return None
-        xsts_token = xsts_resp.get("Token")
-        if not xsts_token:
-            logger.error(
-                "[MS] XSTS token missing: %s", xsts_resp,
-            )
-            return None
-        xsts_claims = xsts_resp.get(
-            "DisplayClaims", {},
-        ).get("xui", [{}])
-        xuid = (
-            xsts_claims[0].get("xid") if xsts_claims else None
-        )
-        logger.info(
-            "[MS] ✓ XSTS token obtained (xuid=%s)", xuid,
-        )
-        return {
-            "xbl_token": xbl_token,
-            "user_hash": user_hash,
-            "xsts_token": xsts_token,
-            "xsts_rp": xsts_rp,
-            "xuid": xuid,
-        }
-    except Exception:
-        logger.exception("[MS] XBL chain error")
-        return None
 def request_xsts_token(
     xbl_token: str,
     xsts_rp: str,
@@ -107,14 +51,20 @@ def _obtain_xbl_user_token(
     locale: str,
     xbl_auth_url: str,
     xbl_user_agent: str,
+    *,
+    prefer_d: bool = False,
 ) -> dict[str, Any] | None:
+    """Exchange an MSA access token for an XBL user token.
 
-    """Obtain XBL user token."""
-    candidates = [
-        ("2", f"t={access_token}"),
-        ("1", f"d={access_token}"),
-        ("1", f"t={access_token}"),
-    ]
+    The RpsTicket prefix depends on who issued the access token: ``t=``
+    (contract v2) for a login.live.com ``MBI_SSL`` ticket, ``d=`` (contract
+    v1) for an Azure AD v2 ``XboxLive.signin`` token such as xbox.com's
+    device-code client. The likely one goes first so a sign-in costs one
+    request, not a failed one plus a retry, on every relying party.
+    """
+    live = [("2", f"t={access_token}"), ("1", f"d={access_token}"), ("1", f"t={access_token}")]
+    aad = [("1", f"d={access_token}"), ("2", f"t={access_token}")]
+    candidates = aad if prefer_d else live
     for contract_v, rps in candidates:
         resp = _try_xbl_request(
             contract_v, rps, locale, xbl_auth_url, xbl_user_agent,
@@ -217,17 +167,24 @@ def _request_xsts_token(
             "[MS] XSTS failed (RP=%r): %s", xsts_rp, e,
         )
         return None
-def _log_xsts_xerr(xerr: int) -> None:
-    """Log XSTS xerr."""
-    logger.error("[MS] XSTS error code: %d", xerr)
-    if xerr == 2148916238:
-        logger.error(
-            "[MS] Account has no Xbox profile — create one at xbox.com",
-        )
-    elif xerr == 2148916233:
-        logger.error(
-            "[MS] Account is from a country where Xbox is not available",
-        )
+#: XSTS ``XErr`` codes, as Microsoft documents them for Xbox Live sign-in.
+_XERR_MEANINGS: dict[int, str] = {
+    2148916227: "account banned from Xbox",
+    2148916229: "account restricted by guardian settings",
+    2148916233: "account has no Xbox profile (create one at xbox.com)",
+    2148916234: "Xbox terms of service not accepted",
+    2148916235: "Xbox is not available in the account's region",
+    2148916236: "account needs adult verification",
+    2148916237: "account needs adult verification",
+    2148916238: "child account must be added to a family by an adult",
+}
+
+
+def describe_xerr(xerr: int) -> str:
+    """A readable meaning for an XSTS ``XErr`` code."""
+    return _XERR_MEANINGS.get(xerr, f"unknown XErr {xerr}")
+
+
 def _read_http_error_body(err: urllib.error.HTTPError) -> str:
     """Read http error body."""
     try:

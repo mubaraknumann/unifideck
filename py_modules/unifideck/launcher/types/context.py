@@ -17,6 +17,21 @@ KNOWN_STORES: tuple[str, ...] = (
 )
 
 
+#: File types the launcher hands to Proton/umu. Anything else is exec'd as a
+#: native Linux target (ELF, shell script, AppImage).
+WINDOWS_EXE_SUFFIXES: tuple[str, ...] = (".exe", ".cmd", ".bat")
+
+
+def is_windows_executable(path: str | Path) -> bool:
+    """Whether ``path`` names a Windows launch target (by extension).
+
+    The one definition of the native/Windows split: the launcher routes on
+    it, and the install-time prefix warmup reads it so a native install does
+    not get a Proton prefix it will never use.
+    """
+    return str(path).lower().endswith(WINDOWS_EXE_SUFFIXES)
+
+
 @dataclass(frozen=True)
 class LaunchContext:
     """Immutable description of a single launch request.
@@ -47,10 +62,15 @@ class LaunchContext:
     action: str | None = None
     bypass_circuit_breaker: bool = False
     steam_app_id: str | None = None
+    # Browser games (``launcher/browser_games``): the URL to open, and
+    # ``"stream"`` (xCloud) or ``"web"`` (an HTML5 game). Their own fields
+    # because ``work_dir`` is a ``Path``, which collapses ``https://``.
+    browser_url: str | None = None
+    browser_kind: str = "web"
     @property
-    def is_xcloud(self) -> bool:
-        """Check whether xcloud."""
-        return str(self.exe_path) == "xcloud"
+    def is_browser_game(self) -> bool:
+        """Played in an Edge window at ``browser_url``; nothing installed."""
+        return self.browser_url is not None
     @property
     def is_windows_game(self) -> bool:
         """Check whether windows game."""
@@ -59,12 +79,11 @@ class LaunchContext:
         # would misroute them to the native path.
         if is_wrapper_store(self.store):
             return True
-        exe_str = str(self.exe_path).lower()
-        return exe_str.endswith((".exe", ".cmd", ".bat"))
+        return is_windows_executable(self.exe_path)
     @property
     def is_native_linux(self) -> bool:
         """Check whether native linux."""
-        return not self.is_xcloud and not self.is_windows_game
+        return not self.is_browser_game and not self.is_windows_game
     @property
     def game_key(self) -> str:
         """Game key."""
@@ -76,7 +95,7 @@ class LaunchContext:
             "game_id": self.game_id,
             "exe_path": str(self.exe_path),
             "work_dir": str(self.work_dir),
-            "is_xcloud": self.is_xcloud,
+            "is_browser_game": self.is_browser_game,
             "is_windows_game": self.is_windows_game,
             "is_launch_action": self.is_launch_action,
             "auth_store": self.auth_store,

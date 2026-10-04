@@ -1,5 +1,21 @@
 # Feasibility Study: itch.io store
 
+> **Implemented in 0.7.6** (`stores/itch/`, audit register 70). The current
+> behaviour is in `.claude/skills/unifideck-architecture/stores.md`, measured
+> against butler 15.31.0 on 2026-09-23. Several things below turned out wrong
+> and are kept only as the study's record:
+>
+> - Sign-in is **not** a pasted key. It is the standard Edge window; the key is
+>   read from the API-keys page after sign-in (behind a `/sudo` password check).
+> - butler cannot be a `package.json` `remote_binary`: it is a zip, and Decky
+>   never unzips. `build-plugin.sh` unpacks it into `bin/butler/`.
+> - The daemon needs `--keep-alive`, or it serves one client and exits.
+> - `Install.GetUploads` hides Windows uploads on SteamOS; `Fetch.GameUploads`
+>   is used instead, and butler ignores the install folder passed to it.
+> - itch.io is not the first store with native builds (GameVault was), and the
+>   library also includes free games from the user's collections.
+> - `~/feasibility-scratch/` no longer exists.
+
 **Verdict: FEASIBLE NOW.** CLI archetype (Amazon/nile template). All four MVP steps are
 documentation-proven against maintained primary sources, and the tooling was exercised on this
 Steam Deck (2026-07-03): butler runs natively on SteamOS and its butlerd JSON-RPC daemon

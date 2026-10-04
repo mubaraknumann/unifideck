@@ -29,6 +29,9 @@ import {
   overviewCompatCategory,
 } from "../steam-bridge/compat-packed";
 import { invalidateGameSize } from "../game-size-cache";
+import { STORE_PRIORITY, indexOfFirstNonXboxOneTagged } from "../game-grouping";
+import { isGroupDuplicatesEnabled } from "../group-duplicates-setting";
+import { bumpGameStateVersion } from "../game-state-version";
 import type { SteamAppOverview } from "../../types/steam";
 
 export type StoreSlug =
@@ -39,7 +42,8 @@ export type StoreSlug =
   | "ubisoft"
   | "battlenet"
   | "microsoft"
-  | "gamevault";
+  | "gamevault"
+  | "itch";
 
 export type FilterType =
   | "installed"
@@ -70,12 +74,276 @@ interface UnifideckCacheEntry {
   isInstalled: boolean;
   steamAppId?: number;
   storeGameId?: string;
+  title?: string;
+  dedupeGroupId?: string;
+  editionLabel?: string;
+  /** Real Steam AppID of a native copy of this title the user already
+   *  owns — NOT the same as `steamAppId` above (that's a metadata-
+   *  spoofing match to the Steam *store catalog*, unrelated to whether
+   *  the user owns it). Set by `core.game_grouping`'s Steam
+   *  cross-reference. */
+  steamOwnedAppId?: number;
+  /** Edition/variant suffix extracted from the Steam-owned copy's OWN
+   *  title (e.g. "The Final Cut"), independent of this entry's own
+   *  `editionLabel` — title-matching tolerates edition differences, so
+   *  the two are not guaranteed to agree. */
+  steamOwnedEditionLabel?: string;
+  /** Every owned Steam version of this game (the backend's
+   *  `steam_versions`): BioShock and BioShock Remastered when both are
+   *  owned. The same list on every member of a group. */
+  steamVersions?: SteamVersion[];
+}
+
+/** One owned Steam app that is a version of a Unifideck game. */
+export interface SteamVersion {
+  appId: number;
+  editionLabel?: string;
 }
 
 /** Stored in both signed and unsigned forms — Steam returns the
  *  appid signed in some surfaces and unsigned in others, and the
  *  filter functions can't predict which. */
 export const unifideckGameCache: Map<number, UnifideckCacheEntry> = new Map();
+
+/** One cross-store sibling of a duplicate-title group, as surfaced to
+ *  the detail-page store switcher. `store: "steam"` only ever appears
+ *  as the synthetic entry {@link getGroupSiblings} adds for a real
+ *  Steam-owned copy — Unifideck itself never manages a "steam" store. */
+export interface GroupSibling {
+  appId: number;
+  store: StoreSlug;
+  title: string;
+  editionLabel?: string;
+}
+
+/** Reverse index: ``dedupe_group_id`` → every sibling appId in that
+ *  group. Populated alongside ``unifideckGameCache``. Only groups with
+ *  more than one member are stored — a lone game has nothing to switch
+ *  to, so it isn't worth a Map entry. */
+const dedupeGroupSiblings: Map<string, GroupSibling[]> = new Map();
+
+/** Steam AppID → every owned Steam version in its game's group, for
+ *  groups that own 2+ Steam versions. Lets the tab filters show one Steam
+ *  tile for the pair instead of both. */
+const steamVersionPeers: Map<number, number[]> = new Map();
+
+/** Reverse index: real Steam AppID (any owned Steam version) → a bridging
+ *  Unifideck shortcut appId that matched it. Lets {@link getGroupSiblings}
+ *  answer when queried with the *real* Steam appid — e.g. the user opened
+ *  the native Steam app-details page for a game they also have on Epic —
+ *  which never appears as a key in ``unifideckGameCache`` on its own
+ *  (that cache is keyed by Unifideck shortcut appIds only). Real Steam
+ *  catalog appids are small positive ints, so no signed/unsigned variant
+ *  handling is needed here (unlike shortcut appIds). */
+const steamOwnedReverseAppId: Map<number, number> = new Map();
+
+/** Every other store's copy of the game at ``appId`` — title-matched by
+ *  the backend, cross-store siblings plus (when present) a synthetic
+ *  ``"steam"`` entry for a real Steam-owned copy — or ``[]`` when this
+ *  game has neither and the cache hasn't loaded yet. The detail-page
+ *  store switcher and the "All Games" grid's badge cluster both read
+ *  from this single source so they agree on what "the same game" means.
+ *  Unlike cross-store siblings (only meaningful in groups of 2+), the
+ *  Steam entry is added even for an otherwise-ungrouped (singleton)
+ *  title, since "also owned on Steam" doesn't require a second
+ *  Unifideck-managed copy to be worth surfacing. */
+export function getGroupSiblings(appId: number): GroupSibling[] {
+  const entry = unifideckGameCache.get(appId);
+  if (!entry) {
+    // Not a Unifideck shortcut appId — might be the real Steam appid of a
+    // game we also have on another store. Bridge to the Unifideck side and
+    // let that lookup build the full sibling list (it'll include a "steam"
+    // entry for this exact appId).
+    const bridgeAppId = steamOwnedReverseAppId.get(appId);
+    return bridgeAppId != null ? getGroupSiblings(bridgeAppId) : [];
+  }
+
+  const crossStoreSiblings = entry.dedupeGroupId
+    ? dedupeGroupSiblings.get(entry.dedupeGroupId) ?? []
+    : [];
+  const steamEntries: GroupSibling[] = steamVersionsOf(
+    entry,
+    crossStoreSiblings,
+  ).map((v) => ({
+    appId: v.appId,
+    store: "steam",
+    title: entry.title ?? "",
+    editionLabel: v.editionLabel,
+  }));
+  if (steamEntries.length === 0) return crossStoreSiblings;
+  // No cross-store group of its own, but Steam copies exist — still worth
+  // a switcher (this Unifideck copy + Steam).
+  const ownCopies =
+    crossStoreSiblings.length > 0
+      ? crossStoreSiblings
+      : [
+          {
+            appId,
+            store: entry.store,
+            title: entry.title ?? "",
+            editionLabel: entry.editionLabel,
+          },
+        ];
+  return [...ownCopies, ...steamEntries];
+}
+
+/** Every owned Steam version across *entry*'s group, each once. Reads each
+ *  member's `steamVersions`, and its own `steamOwnedAppId` too, so a cache
+ *  from a backend without `steam_versions` still lists its Steam copy. */
+function steamVersionsOf(
+  entry: UnifideckCacheEntry,
+  crossStoreSiblings: GroupSibling[],
+): SteamVersion[] {
+  const versions = new Map<number, SteamVersion>();
+  const members = [
+    entry,
+    ...crossStoreSiblings.map((s) => unifideckGameCache.get(s.appId)),
+  ];
+  for (const member of members) {
+    if (!member) continue;
+    for (const v of member.steamVersions ?? []) {
+      if (!versions.has(v.appId)) versions.set(v.appId, v);
+    }
+    const own = member.steamOwnedAppId;
+    if (own != null && !versions.has(own)) {
+      versions.set(own, {
+        appId: own,
+        editionLabel: member.steamOwnedEditionLabel,
+      });
+    }
+  }
+  return [...versions.values()];
+}
+
+interface AppStoreLike {
+  GetAppOverviewByAppID?: (appId: number) => { installed?: boolean } | null;
+}
+
+function isSteamAppInstalled(appId: number): boolean {
+  try {
+    const store = (window as unknown as { appStore?: AppStoreLike }).appStore;
+    return store?.GetAppOverviewByAppID?.(appId)?.installed === true;
+  } catch {
+    return false;
+  }
+}
+
+/** The Steam version that stands for a group owning several: an installed
+ *  one first, else the newest (highest AppID, usually the remaster). */
+function preferredSteamVersion(appIds: number[]): number {
+  const installed = appIds.filter(isSteamAppInstalled);
+  const pool = installed.length > 0 ? installed : appIds;
+  return Math.max(...pool);
+}
+
+/** True for a native Steam app that is one of several owned Steam versions
+ *  of a game and not the one chosen to represent it, while "Group
+ *  duplicates" is on. */
+export function isHiddenSteamVersion(appId: number): boolean {
+  if (!isGroupDuplicatesEnabled()) return false;
+  const peers = steamVersionPeers.get(appId);
+  if (!peers || peers.length < 2) return false;
+  return preferredSteamVersion(peers) !== appId;
+}
+
+/** Every appId that's redundant once "Group duplicates" is on — a
+ *  better tile already represents the same title, so this one is hidden
+ *  from "All Games", "Great on Deck", and "Installed" alike (via
+ *  {@link hideAsDuplicate}). Two reasons feed this set:
+ *
+ *  1. Not the chosen "primary" of a cross-store duplicate group — the
+ *     surviving tile is whichever store's shortcut
+ *     {@link pickGroupPrimary} chose.
+ *  2. The game is also owned on real native Steam
+ *     (`steamOwnedAppId` set) — the native Steam tile already shows
+ *     unconditionally, so every Unifideck copy is redundant, primary or
+ *     not.
+ *
+ *  Populated alongside ``unifideckGameCache`` — unconditionally,
+ *  regardless of the "Group duplicates" setting, since membership here
+ *  answers "is this a duplicate", not "should it be hidden right now".
+ *  Steam's native tile renderer (unlike our own `GameGrid`) can't show a
+ *  multi-store badge cluster, so grouping is a plain hide rather than a
+ *  merge — the detail-page store switcher (`GameStoreSwitcher`) is how
+ *  the other stores (Steam included) stay reachable regardless of the
+ *  setting. */
+const nonPrimaryDuplicateAppIds: Set<number> = new Set();
+
+/** Every appId that IS in {@link nonPrimaryDuplicateAppIds} (hidden from
+ *  "All Games"/"Great on Deck") but must still count for the Installed
+ *  tab, because THIS copy is installed while whatever's standing in for
+ *  it there (a same-group Unifideck sibling, or a real Steam-owned
+ *  copy) is not.
+ *
+ *  Two cases populate this, both in {@link _recomputeGroupHiding} /
+ *  {@link updateUnifideckCache}'s per-game loop:
+ *
+ *  1. This copy is installed and its cross-store group's chosen primary
+ *     is a DIFFERENT, not-installed sibling.
+ *  2. This copy is installed and carries a real ``steamOwnedAppId`` —
+ *     Steam's appmanifest scan only sees INSTALLED native Steam games
+ *     (`steam.owned_games.get_owned_app_ids`), so `steamOwnedAppId`
+ *     being set at all does not by itself mean the Steam copy is
+ *     installed; it can equally mean the frontend's full-library push
+ *     (`update_steam_owned_titles`, which also covers owned-but-not-
+ *     installed titles) found it. Steam's own native tile already
+ *     reflects Steam's real install state independently, so hiding an
+ *     installed Unifideck copy from Installed here would just make an
+ *     actually-installed game invisible on the one tab about installs
+ *     (the reviewer's example: GOG Bastion installed, no Steam-native
+ *     install of it).
+ *
+ *  Without this, installing a non-primary/Steam-owned-redundant copy
+ *  made that install invisible everywhere, including Installed. */
+const installedNonPrimaryAppIds: Set<number> = new Set();
+
+/** True if ``appId`` is a redundant copy of an already-shown title — see
+ *  {@link nonPrimaryDuplicateAppIds} for the two reasons. Does NOT
+ *  account for the "Group duplicates" setting — see {@link
+ *  hideAsDuplicate} for the gated version the tab filters actually use.
+ *  False for ungrouped, not-Steam-owned games and for a duplicate
+ *  group's primary. */
+export function isHiddenDuplicate(appId: number): boolean {
+  return nonPrimaryDuplicateAppIds.has(appId);
+}
+
+/** Gate for the "All Games"/"Great on Deck" duplicate hide. Reads the
+ *  setting live (no caching) so flipping it in Settings takes effect on
+ *  the very next filter pass, not just after a `tabManager.rebuildTabs()`
+ *  round-trip. */
+function hideAsDuplicate(appId: number): boolean {
+  return isGroupDuplicatesEnabled() && isHiddenDuplicate(appId);
+}
+
+/** Gate for the Installed tab's duplicate hide specifically — same as
+ *  {@link hideAsDuplicate} except it never hides an installed copy that
+ *  only lost the "primary" pick to an uninstalled sibling (B.7's
+ *  Installed-tab exception; see {@link installedNonPrimaryAppIds}). */
+function hideAsDuplicateOnInstalledTab(appId: number): boolean {
+  if (!isGroupDuplicatesEnabled()) return false;
+  if (!isHiddenDuplicate(appId)) return false;
+  return !installedNonPrimaryAppIds.has(appId);
+}
+
+/** The tile shown for a duplicate group: the installed copy first, else the
+ *  first store in `STORE_PRIORITY`, then an unsuffixed or Series X|S title
+ *  over an "Xbox One"-only sibling from that same store. The order and the
+ *  Xbox tie-break live in `game-grouping.ts`, shared with the store
+ *  switcher's sort. */
+function pickGroupPrimary(
+  candidates: UnifideckGameInput[],
+): UnifideckGameInput {
+  const installed = candidates.find((c) => c.isInstalled);
+  if (installed) return installed;
+  for (const store of STORE_PRIORITY) {
+    const matches = candidates.filter((c) => c.store === store);
+    if (matches.length > 0) {
+      const index = indexOfFirstNonXboxOneTagged(matches.map((c) => c.title));
+      return index === -1 ? matches[0] : matches[index];
+    }
+  }
+  return candidates[0];
+}
 
 /** Reverse index: ``"<store>:<store_game_id>"`` → shortcut appId.
  *  Lets callers that only hold a store/game-id pair (e.g. the
@@ -115,29 +383,161 @@ function variantIds(appId: number): number[] {
   return [...ids];
 }
 
+/** True if ``a`` and ``b`` are the same shortcut appId, allowing for
+ *  Steam reporting it signed on one surface and unsigned on another
+ *  (see {@link variantIds}). The detail-page store switcher's "which
+ *  copy am I looking at" check needs this — comparing the raw values
+ *  directly silently never matches when the currently-rendered
+ *  overview's appid and the cached sibling's appid come from different
+ *  surfaces. */
+export function appIdsMatch(a: number, b: number): boolean {
+  if (a === b) return true;
+  return variantIds(a).includes(b) || variantIds(b).includes(a);
+}
+
 export interface UnifideckGameInput {
   appId: number;
   store: Exclude<StoreSlug, "steam">;
   isInstalled: boolean;
   steamAppId?: number;
   storeGameId?: string;
+  title?: string;
+  dedupeGroupId?: string;
+  editionLabel?: string;
+  steamOwnedAppId?: number;
+  steamOwnedEditionLabel?: string;
+  steamVersions?: SteamVersion[];
+}
+
+/** Every group's member list, keyed by ``dedupeGroupId`` — kept alive
+ *  between calls (unlike {@link dedupeGroupSiblings}, which is display
+ *  data derived FROM this) so a later single-game update
+ *  ({@link updateSingleGameStatus}) can mutate one member's
+ *  ``isInstalled`` and re-run just that group's hide computation
+ *  without needing the full games list a bulk load has. */
+const groupMembers: Map<string, UnifideckGameInput[]> = new Map();
+
+/** B.7's Steam-owned half: ``steamOwnedAppId`` being set does NOT mean
+ *  the Steam copy is confirmed installed — it can come from the
+ *  frontend's full-library push (`update_steam_owned_titles`), which
+ *  also covers owned-but-not-installed titles, not just the appmanifest
+ *  scan (`steam.owned_games.get_owned_app_ids`, installed-only). If
+ *  THIS Unifideck copy is installed, it must still surface on the
+ *  Installed tab — Steam's own native tile independently reflects
+ *  Steam's real install state, so there is no risk of double-counting
+ *  the way there would be for two Unifideck copies of the same group. */
+function _markInstalledIfSteamOwnedNotConfirmedInstalled(
+  member: UnifideckGameInput,
+): void {
+  if (!member.isInstalled) return;
+  for (const id of variantIds(member.appId)) installedNonPrimaryAppIds.add(id);
+}
+
+/** Recompute {@link nonPrimaryDuplicateAppIds} /
+ *  {@link installedNonPrimaryAppIds} membership for one group's current
+ *  ``members``. Idempotent and side-effect-only — callers first clear
+ *  any of this group's appIds out of both sets (bulk rebuild clears
+ *  everything up front; a single-game update removes just this group's
+ *  variantIds) so re-running it after a member's ``isInstalled`` flips
+ *  reflects the new state instead of leaving a stale hide/show
+ *  decision from before the flip (B.8's fix). */
+function _recomputeGroupHiding(members: UnifideckGameInput[]): void {
+  if (members.length < 2) return;
+  // Steam cross-reference is matched per-game and isn't guaranteed to
+  // land on every title-matched sibling identically (see
+  // getGroupSiblings) — if ANY member found a Steam-owned match, the
+  // whole group is redundant with the native Steam tile, so every
+  // member is hidden rather than just the non-primary ones.
+  if (members.some((m) => m.steamOwnedAppId)) {
+    for (const member of members) {
+      for (const id of variantIds(member.appId))
+        nonPrimaryDuplicateAppIds.add(id);
+      _markInstalledIfSteamOwnedNotConfirmedInstalled(member);
+    }
+    return;
+  }
+  const primary = pickGroupPrimary(members);
+  for (const member of members) {
+    if (member.appId === primary.appId) continue;
+    for (const id of variantIds(member.appId))
+      nonPrimaryDuplicateAppIds.add(id);
+    // B.7: an installed non-primary copy still needs to surface on the
+    // Installed tab when the primary itself isn't installed — otherwise
+    // installing (say) GOG's copy of a game whose group primary is an
+    // uninstalled Steam-owned entry makes that install invisible
+    // everywhere, including the one tab whose whole point is "what's
+    // installed".
+    if (member.isInstalled && !primary.isInstalled) {
+      for (const id of variantIds(member.appId))
+        installedNonPrimaryAppIds.add(id);
+    }
+  }
+}
+
+/** Bridge every owned Steam version back to this row (its own version keeps
+ *  priority), and record which Steam apps are versions of each other. */
+function _indexSteamVersions(g: UnifideckGameInput): void {
+  const appIds = (g.steamVersions ?? []).map((v) => v.appId);
+  for (const appId of appIds) {
+    if (!steamOwnedReverseAppId.has(appId)) {
+      steamOwnedReverseAppId.set(appId, g.appId);
+    }
+    if (appIds.length > 1) steamVersionPeers.set(appId, appIds);
+  }
 }
 
 export function updateUnifideckCache(games: UnifideckGameInput[]): void {
   unifideckGameCache.clear();
   unifideckAppIdByStoreGame.clear();
+  dedupeGroupSiblings.clear();
+  nonPrimaryDuplicateAppIds.clear();
+  installedNonPrimaryAppIds.clear();
+  steamOwnedReverseAppId.clear();
+  steamVersionPeers.clear();
+  groupMembers.clear();
+  const groupBuilders: Map<string, GroupSibling[]> = new Map();
   for (const g of games) {
     const entry: UnifideckCacheEntry = {
       store: g.store,
       isInstalled: g.isInstalled,
       steamAppId: g.steamAppId,
       storeGameId: g.storeGameId,
+      title: g.title,
+      dedupeGroupId: g.dedupeGroupId,
+      editionLabel: g.editionLabel,
+      steamOwnedAppId: g.steamOwnedAppId,
+      steamOwnedEditionLabel: g.steamOwnedEditionLabel,
+      steamVersions: g.steamVersions,
     };
+    if (g.steamOwnedAppId) {
+      for (const id of variantIds(g.appId)) nonPrimaryDuplicateAppIds.add(id);
+      steamOwnedReverseAppId.set(g.steamOwnedAppId, g.appId);
+      _markInstalledIfSteamOwnedNotConfirmedInstalled(g);
+    }
+    _indexSteamVersions(g);
     for (const id of variantIds(g.appId)) unifideckGameCache.set(id, entry);
     if (g.storeGameId) {
       unifideckAppIdByStoreGame.set(`${g.store}:${g.storeGameId}`, g.appId);
     }
+    if (g.dedupeGroupId) {
+      const siblings = groupBuilders.get(g.dedupeGroupId) ?? [];
+      siblings.push({
+        appId: g.appId,
+        store: g.store,
+        title: g.title ?? "",
+        editionLabel: g.editionLabel,
+      });
+      groupBuilders.set(g.dedupeGroupId, siblings);
+
+      const members = groupMembers.get(g.dedupeGroupId) ?? [];
+      members.push(g);
+      groupMembers.set(g.dedupeGroupId, members);
+    }
   }
+  for (const [groupId, siblings] of groupBuilders) {
+    if (siblings.length > 1) dedupeGroupSiblings.set(groupId, siblings);
+  }
+  for (const members of groupMembers.values()) _recomputeGroupHiding(members);
 }
 
 export function updateSingleGameStatus(g: UnifideckGameInput): void {
@@ -147,14 +547,50 @@ export function updateSingleGameStatus(g: UnifideckGameInput): void {
     isInstalled: g.isInstalled,
     steamAppId: existing?.steamAppId ?? g.steamAppId,
     storeGameId: g.storeGameId ?? existing?.storeGameId,
+    title: existing?.title ?? g.title,
+    dedupeGroupId: existing?.dedupeGroupId ?? g.dedupeGroupId,
+    editionLabel: existing?.editionLabel ?? g.editionLabel,
+    steamOwnedAppId: existing?.steamOwnedAppId ?? g.steamOwnedAppId,
+    steamOwnedEditionLabel:
+      existing?.steamOwnedEditionLabel ?? g.steamOwnedEditionLabel,
+    steamVersions: existing?.steamVersions ?? g.steamVersions,
   };
   for (const id of variantIds(g.appId)) unifideckGameCache.set(id, entry);
-  if (
-    existing &&
-    existing.isInstalled === g.isInstalled &&
-    existing.store === g.store
-  )
-    return;
+  const installChanged = !existing || existing.isInstalled !== g.isInstalled;
+  if (existing && installChanged && entry.dedupeGroupId) {
+    // B.8: an install-state flip can change WHICH member is primary
+    // (e.g. this copy just became the only installed one) — the bulk
+    // load computed `nonPrimaryDuplicateAppIds`/`installedNonPrimaryAppIds`
+    // once and nothing since then re-ran that pick. Patch this group's
+    // stored member in place and recompute just its hide/show state.
+    const members = groupMembers.get(entry.dedupeGroupId);
+    if (members) {
+      const member = members.find((m) => m.appId === g.appId);
+      if (member) member.isInstalled = g.isInstalled;
+      for (const m of members) {
+        for (const id of variantIds(m.appId)) {
+          nonPrimaryDuplicateAppIds.delete(id);
+          installedNonPrimaryAppIds.delete(id);
+        }
+      }
+      _recomputeGroupHiding(members);
+      // C.12: a SIBLING's own detail page (not just `g.appId`'s, bumped
+      // below regardless) may already be open with a stale store-switcher
+      // — its primary/hidden status just changed as a side effect of
+      // THIS appId's install-state flip, even though the sibling's own
+      // isInstalled didn't change.
+      for (const m of members) {
+        if (m.appId !== g.appId) bumpGameStateVersion(m.appId);
+      }
+    }
+  } else if (existing && installChanged && entry.steamOwnedAppId) {
+    // Same B.7/B.8 reasoning as above for a singleton (no dedupeGroupId)
+    // Steam-owned game — installing it must make it reappear on
+    // Installed even though it stays hidden from All Games.
+    for (const id of variantIds(g.appId)) installedNonPrimaryAppIds.delete(id);
+    _markInstalledIfSteamOwnedNotConfirmedInstalled(g);
+  }
+  if (existing && !installChanged && existing.store === g.store) return;
   const next = (gameStateVersion.get(g.appId) ?? 0) + 1;
   for (const id of variantIds(g.appId)) gameStateVersion.set(id, next);
   if (forceRefreshCallback) {
@@ -222,10 +658,23 @@ type FilterFn<K extends FilterType> = (
 
 const filterFunctions: { [K in FilterType]: FilterFn<K> } = {
   all: (_p, app) => {
-    if (app.app_type !== NON_STEAM_APP_TYPE) return true;
-    return isUnifideckGame(app.appid);
+    // Owning several Steam versions of one game (BioShock + Remastered)
+    // shows one Steam tile for them while grouping is on.
+    if (app.app_type !== NON_STEAM_APP_TYPE) {
+      return !isHiddenSteamVersion(app.appid);
+    }
+    if (!isUnifideckGame(app.appid)) return false;
+    // Cross-store duplicates: only the chosen primary's tile shows here —
+    // see nonPrimaryDuplicateAppIds — but only when the user opted into
+    // grouping (default off: separate items, one tile per store). Steam's
+    // native tile can't render a multi-store badge cluster, so this is a
+    // hide, not a merge; the detail-page store switcher covers switching
+    // to the hidden stores regardless of the setting.
+    if (hideAsDuplicate(app.appid)) return false;
+    return true;
   },
   installed: (params, app) => {
+    if (hideAsDuplicateOnInstalledTab(app.appid)) return false;
     const isInstalled = getInstalledStatus(
       app.appid,
       app.app_type,
@@ -252,6 +701,8 @@ const filterFunctions: { [K in FilterType]: FilterFn<K> } = {
     return store === params.store;
   },
   deckCompat: (_p, app) => {
+    if (hideAsDuplicate(app.appid)) return false;
+    if (isHiddenSteamVersion(app.appid)) return false;
     // Read the bits for the device actually running. Steam packs a
     // separate rating per device, and on a Machine the Deck's bits are
     // not the ones its own filters and badges use.
@@ -335,12 +786,28 @@ export function runFilters(
 // interface in ``types/api.ts`` is misaligned (it expects
 // ``is_installed`` / ``executable``); ignore it and trust the
 // actual serialised field names from the backend.
+/** The backend's `steam_versions`, minus malformed entries. */
+function _steamVersionsFromRow(row: RpcGameRow): SteamVersion[] | undefined {
+  const versions = (row.steam_versions ?? []).flatMap((v) =>
+    typeof v?.app_id === "number" && v.app_id > 0
+      ? [{ appId: v.app_id, editionLabel: v.edition_label ?? undefined }]
+      : [],
+  );
+  return versions.length > 0 ? versions : undefined;
+}
+
 interface RpcGameRow {
   app_id?: number | null;
   store?: StoreSlug;
   store_game_id?: string;
+  title?: string;
   installed?: boolean;
   metadata?: Record<string, unknown>;
+  dedupe_group_id?: string | null;
+  edition_label?: string | null;
+  steam_owned_app_id?: number | null;
+  steam_owned_edition_label?: string | null;
+  steam_versions?: { app_id?: number; edition_label?: string | null }[];
 }
 
 type StoreCounts = Partial<Record<Exclude<StoreSlug, "steam">, number>>;
@@ -361,6 +828,9 @@ const _CACHE_RETRY_MAX = 5;
 const _CACHE_RETRY_BASE_MS = 1500;
 let cacheRetryCount = 0;
 let cacheRetryTimer: ReturnType<typeof setTimeout> | null = null;
+/** How long after a metadata phase to reload, so the backend's re-group
+ *  has landed. A full re-group is about 100 ms plus the cache write. */
+const REGROUP_RELOAD_DELAY_MS = 1500;
 
 /** Whether the first ``loadUnifideckCache`` attempt has completed.
  *  Synchronous callers (e.g. the App-Details patch) stay optimistic
@@ -386,6 +856,52 @@ function isNonSteamStore(
 /** Fetch the unified game list from the backend and populate
  *  ``unifideckGameCache``. Idempotent — safe to call from both
  *  the eager plugin-init path and the QAM-mount path. */
+/** Cross-store-switcher-relevant signature for one game, as pushed to
+ *  {@link loadUnifideckCache}. Two loads producing the same signature
+ *  for an appId mean {@link getGroupSiblings} would answer identically
+ *  for it either way — see {@link _bumpDetailPageVersionsOnChange}. */
+function _switcherSignature(g: UnifideckGameInput): string {
+  return [
+    g.dedupeGroupId ?? "",
+    g.editionLabel ?? "",
+    g.steamOwnedAppId ?? "",
+    g.steamOwnedEditionLabel ?? "",
+    (g.steamVersions ?? []).map((v) => v.appId).join(","),
+  ].join("\u0000");
+}
+
+let lastSwitcherSignatures: Map<number, string> = new Map();
+
+/** C.12 — bump `lib/game-state-version`'s per-appId counter (the one
+ *  `AppDetailsPatch`'s `injectStoreSwitcher` keys its element on) for
+ *  every appId whose cross-store-group signature changed since the
+ *  previous load. A re-sync rebuilds `dedupeGroupSiblings` here, but
+ *  nothing previously told an already-mounted detail page its switcher
+ *  data just went stale — {@link injectStoreSwitcher}'s "already
+ *  present, skip" check only compares appId, not content, so the stale
+ *  sibling list stuck around until the user navigated away and back.
+ *  Bumping the version doesn't by itself force a re-render — Steam's
+ *  own route render cycle still has to fire — but it stops the
+ *  `injectStoreSwitcher` short-circuit from suppressing the refresh on
+ *  whichever render does come next. Skips the appId churn entirely on a
+ *  no-op sync (identical signatures), which is the common case per
+ *  `_chain_is_redundant`'s reconcile-only fast path on the backend. */
+function _bumpDetailPageVersionsOnChange(inputs: UnifideckGameInput[]): void {
+  const nextSignatures = new Map<number, string>();
+  for (const g of inputs) {
+    const signature = _switcherSignature(g);
+    nextSignatures.set(g.appId, signature);
+    if (lastSwitcherSignatures.get(g.appId) !== signature) {
+      bumpGameStateVersion(g.appId);
+    }
+  }
+  // An appId that dropped out of the library entirely (uninstalled +
+  // swept) has nothing left to bump, so only forward-changes matter —
+  // no action needed for keys present in the old map but not the new
+  // one.
+  lastSwitcherSignatures = nextSignatures;
+}
+
 export async function loadUnifideckCache(): Promise<void> {
   try {
     const raw = await call<[], unknown>("get_all_unifideck_games");
@@ -403,6 +919,7 @@ export async function loadUnifideckCache(): Promise<void> {
       battlenet: 0,
       microsoft: 0,
       gamevault: 0,
+      itch: 0,
     };
     for (const g of games ?? []) {
       if (g.app_id == null) continue;
@@ -417,6 +934,12 @@ export async function loadUnifideckCache(): Promise<void> {
         isInstalled: Boolean(g.installed),
         steamAppId,
         storeGameId: g.store_game_id,
+        title: g.title,
+        dedupeGroupId: g.dedupe_group_id ?? undefined,
+        editionLabel: g.edition_label ?? undefined,
+        steamOwnedAppId: g.steam_owned_app_id ?? undefined,
+        steamOwnedEditionLabel: g.steam_owned_edition_label ?? undefined,
+        steamVersions: _steamVersionsFromRow(g),
       });
       counts[g.store] += 1;
     }
@@ -424,6 +947,7 @@ export async function loadUnifideckCache(): Promise<void> {
     // response (0 games) legitimately marks the cache loaded — the
     // library is genuinely empty. Only an RPC *failure* must not latch.
     updateUnifideckCache(inputs);
+    _bumpDetailPageVersionsOnChange(inputs);
     storeCountSink?.(counts);
     cacheLoaded = true;
     cacheRetryCount = 0;
@@ -511,9 +1035,37 @@ export function startUnifideckCacheAutoload(): () => void {
       invalidateGameSize(appId);
     },
   );
+  // The backend re-groups duplicates once the metadata phase (or the
+  // metadata backfill) has written new Steam mappings, which lands after
+  // `sync_complete`. The event reaches this poller before the backend's own
+  // handler finishes, so reload a moment later.
+  let regroupTimer: ReturnType<typeof setTimeout> | null = null;
+  const reloadAfterRegroup = (): void => {
+    if (regroupTimer != null) clearTimeout(regroupTimer);
+    regroupTimer = setTimeout(() => {
+      regroupTimer = null;
+      void loadUnifideckCache();
+    }, REGROUP_RELOAD_DELAY_MS);
+  };
+  const unsubscribeMetadataPhase = EventBusClient.subscribe(
+    Events.POST_SYNC_PHASE_CHANGED,
+    (kw) => {
+      if (kw.phase === "metadata" && kw.active === false) reloadAfterRegroup();
+    },
+  );
+  const unsubscribeBackfill = EventBusClient.subscribe(
+    Events.METADATA_BACKFILL_COMPLETE,
+    reloadAfterRegroup,
+  );
   return () => {
     window.removeEventListener("unifideck-sync-completed", onSyncCompleted);
     unsubscribeInstallState();
+    unsubscribeMetadataPhase();
+    unsubscribeBackfill();
+    if (regroupTimer != null) {
+      clearTimeout(regroupTimer);
+      regroupTimer = null;
+    }
     // A retry armed before unload would otherwise fire into a torn-down
     // plugin and re-populate the module caches.
     if (cacheRetryTimer != null) {

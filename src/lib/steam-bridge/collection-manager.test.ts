@@ -67,6 +67,7 @@ vi.mock("i18next", () => ({
 }));
 
 import {
+  collectSteamOwnedGames,
   deleteAllUnifideckCollections,
   syncUnifideckCollections,
   startCollectionManager,
@@ -125,6 +126,34 @@ function makeStore(names: string[]) {
   };
   return { map, store };
 }
+
+// This vitest/jsdom combination's `window.localStorage` doesn't implement
+// `getItem`/`setItem`/`clear` (a known limitation — see the same
+// workaround note in the sibling `library-filters/index.test.ts`). That
+// file's production code sits behind a mockable module boundary; this
+// suite calls `window.localStorage` directly, so it needs a real,
+// working store rather than a mocked-away import — a minimal in-memory
+// polyfill, installed once and reset in `beforeEach`.
+const memoryStorage = new Map<string, string>();
+Object.defineProperty(window, "localStorage", {
+  configurable: true,
+  value: {
+    getItem: (key: string) => memoryStorage.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      memoryStorage.set(key, String(value));
+    },
+    removeItem: (key: string) => {
+      memoryStorage.delete(key);
+    },
+    clear: () => {
+      memoryStorage.clear();
+    },
+    key: (index: number) => Array.from(memoryStorage.keys())[index] ?? null,
+    get length() {
+      return memoryStorage.size;
+    },
+  },
+});
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -238,5 +267,30 @@ describe("device-type race", () => {
     // then cloud-sync to every device on the account.
     expect(names).toContain("[Unifideck] Great on Machine");
     expect(names).not.toContain("[Unifideck] Great on Deck");
+  });
+});
+
+describe("collectSteamOwnedGames", () => {
+  function app(appid: number, title: string, extra: object = {}): object {
+    return { appid, display_name: title, app_type: 1, ...extra };
+  }
+
+  function withGames(apps: object[]): void {
+    (window as unknown as { collectionStore: unknown }).collectionStore = {
+      GetCollection: () => ({ allApps: apps }),
+    };
+  }
+
+  it("lists owned games and skips a game borrowed through Family Sharing", () => {
+    withGames([
+      app(10, "Owned", { BIsOwned: () => true, BIsBorrowed: () => false }),
+      app(20, "Borrowed", { BIsOwned: () => false, BIsBorrowed: () => true }),
+      app(30, "Older client"),
+    ]);
+
+    expect(collectSteamOwnedGames()).toEqual([
+      { title: "Owned", appid: 10 },
+      { title: "Older client", appid: 30 },
+    ]);
   });
 });

@@ -241,6 +241,16 @@ _SERVICE_DEFS: tuple[tuple[Any, ...], ...] = (
         lambda b, r, c, cfg, p, pl: (b, c),
         lambda b, r, c, cfg, p, pl: {"config": cfg},
     ),
+    # MicrosoftOwnershipService — the Xbox purchase index behind the Steam
+    # Store ownership ribbon. Reads purchases through the registry's
+    # MicrosoftStore (its shared token manager); plugin-only.
+    (
+        "microsoft_ownership",
+        "unifideck.services.microsoft_ownership",
+        "MicrosoftOwnershipService",
+        lambda b, r, c, cfg, p, pl: (b, r, c),
+        lambda b, r, c, cfg, p, pl: {"config": cfg},
+    ),
     # AchievementWatcher — GOG live unlock toasts (during play) + an
     # end-of-session summary (persisted for the game-info panel). Needs the
     # registry to reach the GOG store; plugin-only (not in the launcher

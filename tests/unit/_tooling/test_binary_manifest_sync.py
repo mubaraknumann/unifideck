@@ -131,6 +131,39 @@ def test_known_hashes_match_the_manifest(
     )
 
 
+def test_archive_binary_butler_is_fully_pinned(
+    manifest: dict[str, dict[str, str]], shell_urls: dict[str, str],
+) -> None:
+    """butler ships as an archive, so it is pinned in a different three places.
+
+    It must NOT be a ``remote_binary`` entry: Decky writes a remote_binary
+    download to ``bin/<name>`` byte for byte, which would replace the
+    unpacked ``bin/butler/`` with the raw zip. Instead build-plugin.sh pins
+    the zip (``BUTLER_URL`` naming a version + ``BUTLER_SHA256``) and
+    ``_KNOWN_HASHES`` pins the executable that comes out of it. A bump that
+    moves the URL without both hashes fails the build or the runtime check.
+    """
+    from unifideck.core.binaries.binary_signatures import _KNOWN_HASHES
+
+    assert "butler" not in manifest, (
+        "butler must not be a package.json remote_binary entry: Decky "
+        "would overwrite bin/butler/ with the unextracted zip"
+    )
+    url = shell_urls.get("butler", "")
+    assert re.search(r"/linux-amd64/\d+\.\d+\.\d+/archive/default$", url), (
+        f"BUTLER_URL must name an exact version, never LATEST: {url!r}"
+    )
+    path = _repo_file("build-plugin.sh")
+    assert path is not None
+    text = path.read_text(encoding="utf-8")
+    assert re.search(r'^BUTLER_SHA256="[0-9a-f]{64}"$', text, flags=re.MULTILINE), (
+        "build-plugin.sh must pin the butler zip with BUTLER_SHA256"
+    )
+    assert re.fullmatch(r"[0-9a-f]{64}", _KNOWN_HASHES.get("butler", "")), (
+        "binary_signatures._KNOWN_HASHES must pin the extracted butler"
+    )
+
+
 def test_bundled_umu_version_is_pinned() -> None:
     """``bin/umu/VERSION`` exists and names a plausible umu version.
 

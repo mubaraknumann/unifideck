@@ -87,11 +87,15 @@ _NAMED_CACHES: tuple[tuple[str, int], ...] = (
     # Save paths are very stable, so a long TTL avoids re-querying; the
     # 30-day expiry still lets genuinely-absent games re-check eventually.
     ("pcgw_saves", 30 * 24 * 3600),
+    # ``MicrosoftOwnershipService``'s Xbox purchase index (one key). TTL must
+    # stay 0: a positive TTL evicts on read, which would erase the last good
+    # list exactly when Microsoft is unreachable. Freshness is stored inside.
+    ("microsoft_owned", 0),
 )
 
 _STORE_CACHES: tuple[str, ...] = (
     "epic", "gog", "amazon", "microsoft", "ubisoft", "battlenet",
-    "gamevault",
+    "gamevault", "itch",
 )
 
 

@@ -20,6 +20,8 @@ STORE_TO_UMU = {
     "amazon": "amazon",
     "ubisoft": "ubisoft",
     "microsoft": "microsoft",
+    # protonfixes ships ``gamefixes-itchio`` (checked in GE-Proton11-1/11-3).
+    "itch": "itchio",
 }
 
 

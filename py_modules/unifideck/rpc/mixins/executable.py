@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 # override lives in (and is read back from) the games.map row for these. Other
 # stores (Epic → legendary ``--override-exe`` from the config key) use the
 # config-override path instead.
-_DIRECT_LAUNCH_STORES = frozenset({"gog", "amazon", "gamevault"})
+_DIRECT_LAUNCH_STORES = frozenset({"gog", "amazon", "gamevault", "itch"})
 
 # How deep to scan the install dir for candidate executables. Config tools and
 # shipping binaries live a level or two down (``Binaries/Win64/…``); deeper than

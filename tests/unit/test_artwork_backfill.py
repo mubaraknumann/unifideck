@@ -175,3 +175,52 @@ def test_attempts_namespace_is_registered_at_boot():
     from unifideck.services.artwork.service import _ATTEMPTS_NAMESPACE
 
     assert _ATTEMPTS_NAMESPACE in {name for name, _ttl in _NAMED_CACHES}
+
+
+@pytest.mark.asyncio
+async def test_store_fallback_only_fills_what_sgdb_left_empty(tmp_path, monkeypatch):
+    # itch.io's landscape cover is last-resort art: when SGDB found a real
+    # portrait capsule the cover must not replace it, only fill the rest.
+    svc = _service(tmp_path)
+    downloaded: dict[str, str] = {}
+
+    async def fake_sgdb(title, app_id, result, sources, only_kinds=None):
+        result["grid"] = True
+        sources["grid"] = "SGDB"
+
+    async def fake_download(grid_dir, app_id, kind, url, timeout):
+        downloaded[kind] = url
+        return True
+
+    svc._fill_from_sgdb = fake_sgdb  # type: ignore[method-assign]
+    monkeypatch.setattr("unifideck.services.artwork.service.download_and_save", fake_download)
+    result = await svc.fetch_artwork(
+        _APP, "itch", "1035957", "Helltaker",
+        extras={"cover_url": "https://img.itch.zone/cover.png"},
+    )
+    assert downloaded == {"grid_l": "https://img.itch.zone/cover.png"}
+    assert result["grid"] is True and result["grid_l"] is True
+
+
+@pytest.mark.asyncio
+async def test_store_fallback_is_not_blocked_by_a_cached_nothing_found(tmp_path, monkeypatch):
+    # The first device run: 9 itch.io games carried an attempts record from
+    # before the fallback phase existed, so the unchanged-missing-set skip
+    # would have hidden their covers forever.
+    svc = _service(tmp_path)
+    svc._cache.set("artwork_attempts", "itch:2966078",
+                   {"missing": ["grid", "grid_l", "hero", "icon", "logo"], "title": "Croaking Around"})
+    downloaded: dict[str, str] = {}
+
+    async def no_sgdb(title, app_id, result, sources, only_kinds=None):
+        return None
+
+    async def fake_download(grid_dir, app_id, kind, url, timeout):
+        downloaded[kind] = url
+        return True
+
+    svc._fill_from_sgdb = no_sgdb  # type: ignore[method-assign]
+    monkeypatch.setattr("unifideck.services.artwork.service.download_and_save", fake_download)
+    await svc.fetch_artwork(_APP, "itch", "2966078", "Croaking Around",
+                            extras={"cover_url": "https://img.itch.zone/c.png"})
+    assert set(downloaded) == {"grid", "grid_l"}

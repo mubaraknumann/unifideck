@@ -186,6 +186,7 @@ def test_missing_decky_log_dir_is_a_skip_not_a_failure(
         ".config/unifideck/gog_token.json",
         ".config/unifideck/gogdl_auth.json",
         ".config/unifideck/microsoft_token.json",
+        ".config/unifideck/microsoft_tokens.json",
         ".config/unifideck/device_fingerprint.json",
         ".config/legendary/user.json",
         ".config/nile/user.json",

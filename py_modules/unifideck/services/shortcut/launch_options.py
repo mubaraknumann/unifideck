@@ -21,7 +21,7 @@ import re
 # include ``.`` in the id character class but require the first
 # character to be alphanumeric (skips e.g. ``epic:.hidden`` noise).
 STORE_ID_PATTERN = re.compile(
-    r"\b(epic|gog|amazon|ubisoft|battlenet|microsoft|gamevault):"
+    r"\b(epic|gog|amazon|ubisoft|battlenet|microsoft|gamevault|itch):"
     r"([a-zA-Z0-9][a-zA-Z0-9._-]*)",
 )
 

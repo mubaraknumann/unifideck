@@ -22,6 +22,7 @@ from unifideck.event_bus.event_bus_devex import auto_wire
 from .event_handlers import _EventHandlersMixin
 from .fetcher import download_and_save, get_missing_kinds
 from .store_metadata import (
+    fetch_store_fallback_urls,
     fetch_store_urls,
     steam_cdn_urls,
     steam_search_appid,
@@ -216,7 +217,13 @@ class ArtworkService(_EventHandlersMixin):
         if not target:
             return result
 
-        if self._missing_set_unchanged(cache_key, target, force, title):
+        if self._missing_set_unchanged(cache_key, target, force, title) and not (
+            # A store's own fallback art (itch.io's cover) needs no SGDB query,
+            # so a cached "nothing found" must not stop it filling a gap. A
+            # record written before phase 4 existed would otherwise hide the
+            # cover forever; once the kind is filled the set changes anyway.
+            set(fetch_store_fallback_urls(store, extras)) & target
+        ):
             logger.debug(
                 "[ArtworkService] skipping %s: missing set unchanged (%s)",
                 title, sorted(target),
@@ -315,8 +322,9 @@ class ArtworkService(_EventHandlersMixin):
     ) -> None:
         """Run the three-source fetch pipeline, mutating ``result`` in place.
 
-        Phase 1 store metadata → Phase 2 SGDB fallback → Phase 3 Steam CDN,
-        each filling only the kinds still missing. Records the residual
+        Phase 1 store metadata → Phase 2 SGDB fallback → Phase 3 Steam CDN
+        → Phase 4 the store's last-resort art, each filling only the kinds
+        still missing. Records the residual
         missing set so the next sync can skip genuinely-absent art.
         """
         logger.info(
@@ -333,10 +341,17 @@ class ArtworkService(_EventHandlersMixin):
             await self._fill_from_sgdb(
                 title, app_id, result, sources, only_kinds=target,
             )
-        # Phase 3 — Steam CDN last resort.
+        # Phase 3 — Steam CDN.
         if not all(result.values()):
             await self._fill_from_steam_cdn(
                 title, app_id, result, sources,
+            )
+        # Phase 4 — the store's own last-resort art (itch.io's cover),
+        # only for kinds nothing better filled.
+        fallback = fetch_store_fallback_urls(store, extras)
+        if fallback and not all(result.values()):
+            await self._download_kinds(
+                fallback, app_id, result, sources, label=f"{store.upper()} fallback",
             )
         # Record what's still missing so the next sync can skip this
         # game iff the gaps haven't changed (genuinely-absent art).
