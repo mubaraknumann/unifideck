@@ -43,8 +43,8 @@ def assert_proton_still_complete(env: dict[str, str] | None) -> None:
     if not script.exists():
         # Not a Proton layout (umu resolves some PROTONPATH values itself).
         return
-    if not ge_installer.is_proton_install_complete(script):
+    problem = ge_installer.proton_install_problem(script)
+    if problem:
         raise ProtonUnavailableError(
-            f"Proton at {proton_dir} is incomplete or corrupt at launch time "
-            "(an external manager may have updated it mid-flight)",
+            f"Proton at {proton_dir} is unusable at launch time: {problem}",
         )

@@ -29,6 +29,8 @@ from .check_kit import fail as _fail
 from .check_kit import na as _na
 from .check_kit import ok as _ok
 from .check_kit import warn as _warn
+from .checks_edge_session import check_edge_session
+from .checks_proton import check_managed_ge
 from .checks_protontricks import check_protontricks
 from .checks_shortcuts import check_shortcut_backups, check_shortcut_ownership_census
 from .probe_storage import RISKY_FSTYPES, is_user_storage
@@ -465,6 +467,7 @@ _CHECKS: tuple[Callable[[_View], CheckResult], ...] = (
     _check_launcher_binary,
     _check_store_binaries,
     _check_umu_runtime,
+    check_managed_ge,
     _check_ntsync,
     _check_vulkan_32bit,
     _check_session_env,
@@ -478,6 +481,7 @@ _CHECKS: tuple[Callable[[_View], CheckResult], ...] = (
     _check_disk_space,
     _check_prefixes,
     check_protontricks,
+    check_edge_session,
     _check_cache_staleness,
     _check_clock_and_ca,
 )

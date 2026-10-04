@@ -37,7 +37,10 @@ def resolver() -> UbisoftBinaryResolver:
 def _install_ge(root: Path, tag: str, *, executable: bool = True) -> Path:
     """A GE-Proton on disk, as ``ge_installer`` leaves one."""
     tool_dir = root / tag
-    tool_dir.mkdir(parents=True, exist_ok=True)
+    (tool_dir / "files" / "bin").mkdir(parents=True, exist_ok=True)
+    (tool_dir / "files" / "bin" / "wine").write_text("#!/bin/sh\n")
+    (tool_dir / "version").write_text(f"{tag}\n")
+    (tool_dir / "toolmanifest.vdf").write_text('"manifest" { "commandline" "" }\n')
     script = tool_dir / "proton"
     script.write_text("#!/usr/bin/env python3\n")
     script.chmod(0o755 if executable else 0o644)

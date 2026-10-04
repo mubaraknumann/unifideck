@@ -23,7 +23,9 @@ from typing import Any
 from . import (
     probe_conflicts,
     probe_device,
+    probe_edge_session,
     probe_plugin_logs,
+    probe_proton,
     probe_protontricks,
     probe_stack,
     probe_storage,
@@ -89,6 +91,10 @@ def _stack_blocks(ctx: BundleContext) -> dict[str, Callable[[], Any]]:
             steam, ctx.root_sources.get("steam", "unknown"),
         ),
         "runtime": lambda: probe_stack.runtime_block(steam, data),
+        # Whether the GE-Proton every launch defaults to is complete. The
+        # runtime block lists GE builds by name only, which hid a copy with
+        # no toolmanifest.vdf that failed every launch.
+        "managed_ge": probe_proton.managed_ge_block,
         # Caches live under Decky's per-plugin *runtime* dir, which is a
         # different location from the install dir the plugin is served
         # from — passing the latter found nothing.
@@ -102,6 +108,9 @@ def _stack_blocks(ctx: BundleContext) -> dict[str, Callable[[], Any]]:
             _paths_attr(ctx, "playtime_db"),
         ),
         "storage": lambda: probe_storage.storage_block(ctx.config),
+        # Whether the Xbox Cloud Gaming kiosk's Microsoft sign-in was saved.
+        # The profile itself is denied from the archive; this is its shape.
+        "edge_session": lambda: probe_edge_session.edge_session_block(data),
     }
 
 
