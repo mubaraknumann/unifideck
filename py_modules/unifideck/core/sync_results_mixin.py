@@ -42,6 +42,7 @@ class _SyncResultsMixin:
         """
         merged = self._flatten(libraries)  # type: ignore[attr-defined]  # provided by _SyncQueriesMixin
         merged = self._maybe_collapse_duplicates(merged)
+        merged = self._maybe_annotate_duplicate_groups(merged)
         logger.info(
             "[SyncService] sync complete — %d games across %d stores "
             "in %dms (%d errors)",
@@ -80,3 +81,19 @@ class _SyncResultsMixin:
                 len(collapsed),
             )
         return collapsed
+
+    def _maybe_annotate_duplicate_groups(self, games: list[Game]) -> list[Game]:
+        """Stamp the display-only duplicate-grouping fields.
+
+        Unlike :meth:`_maybe_collapse_duplicates`, this never changes the
+        game count. It powers the "Group duplicates" library tabs and the
+        store switcher on a game page. See
+        :func:`~unifideck.core.game_grouping.annotate_duplicate_groups_if_enabled`.
+        """
+        from unifideck.core.game_grouping import (
+            annotate_duplicate_groups_if_enabled,
+        )
+
+        return annotate_duplicate_groups_if_enabled(
+            games, getattr(self, "_config", None), getattr(self, "_cache", None),
+        )

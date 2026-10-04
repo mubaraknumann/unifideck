@@ -341,6 +341,36 @@ def stop_client(prefix: str | Path, *, timeout: float = 15.0) -> int:
     return kill_client("battlenet", prefix, timeout=timeout)
 
 
+def _launched_game_pids(prefix: str | Path, pid: str | None, before: set[str]) -> list[str]:
+    """This launch's game processes: ``pid`` and any game that replaced it."""
+    return sorted(p for p in game_pids(prefix) if p == pid or p not in before)
+
+
+def stop_game(
+    prefix: str | Path, pid: str | None, before: set[str], *, timeout: float = 15.0,
+) -> int:
+    """Terminate the game this launch started. Returns how many were signalled.
+
+    The Steam stop button needs this and nothing else provides it. The game
+    is a child of the client's Wine session, whose pressure-vessel container
+    starts its own session, so Steam's reaper and the umu-run ``killpg``
+    both miss it. :func:`stop_client` spares it on purpose. Measured
+    2026-09-24: after a stop, ``Warcraft III.exe`` kept running with 27
+    processes around it. One SIGTERM to the game let the whole session wind
+    down, the Agent and wineserver included, within 15 s.
+
+    ``before`` is the phase-D snapshot, the same scoping as
+    :func:`wait_for_exit`: a game that predates this launch is never ours.
+    """
+    pids = _launched_game_pids(prefix, pid, before)
+    if not pids:
+        return 0
+    logger.info("[battlenet] stopping %d game process(es) in %s", len(pids), prefix)
+    return terminate(
+        pids, lambda: _launched_game_pids(prefix, pid, before), timeout, label="battlenet",
+    )
+
+
 def stop_stale_session(prefix: str | Path, *, timeout: float = 15.0) -> int:
     """Clear an entire dead Wine session out of ``prefix``.
 

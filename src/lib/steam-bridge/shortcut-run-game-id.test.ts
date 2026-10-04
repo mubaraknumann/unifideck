@@ -21,6 +21,11 @@
  */
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { getShortcutRunGameId } from "./shortcut-types";
+import { SteamBridge } from "./SteamBridge";
+
+// SteamBridge imports the Decky packages, which need Steam at load time.
+vi.mock("@decky/ui", () => ({}));
+vi.mock("@decky/api", () => ({ call: vi.fn() }));
 
 const YS_SIGNED = -325061865;
 const YS_UNSIGNED = 3969905431;
@@ -92,5 +97,23 @@ describe("getShortcutRunGameId", () => {
   it("survives a missing appStore entirely", () => {
     withAppStore(null);
     expect(getShortcutRunGameId(YS_UNSIGNED)).toBe(YS_GAMEID);
+  });
+});
+
+/**
+ * `TerminateApp` follows the same rule. The Play section's Stop (✕) passed
+ * `String(appId)`, which Steam accepted and ignored (measured 2026-09-24 on
+ * itch, GOG and Battle.net shortcuts: `TerminateGame` logged, nothing
+ * stopped). The same processes stopped at once when given the gameID.
+ */
+describe("SteamBridge.terminateApp", () => {
+  it("passes the shortcut's gameID, not its appid", () => {
+    withAppStore({ [YS_SIGNED]: { gameid: YS_GAMEID } });
+    const terminate = vi.fn();
+    (window as unknown as { SteamClient: unknown }).SteamClient = {
+      Apps: { TerminateApp: terminate },
+    };
+    new SteamBridge().terminateApp(String(YS_UNSIGNED), false);
+    expect(terminate).toHaveBeenCalledWith(YS_GAMEID, false);
   });
 });

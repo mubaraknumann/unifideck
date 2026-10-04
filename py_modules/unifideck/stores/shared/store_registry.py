@@ -3,7 +3,7 @@ import logging
 from collections.abc import Iterator
 from dataclasses import asdict
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from unifideck.core.store_capabilities import capability_flags
 from unifideck.core.types import Events, Result, StoreError
@@ -353,11 +353,18 @@ class StoreRegistry:
                 is_avail = await store.is_available()
                 store._cached_available = is_avail
                 return Result(success=is_avail)
+            if action == "cancel":
+                # Only stores with a sign-in that outlives its window (the
+                # Microsoft device-code poll) have anything to cancel.
+                cancel = getattr(store, "cancel_auth", None)
+                if cancel is None:
+                    return Result(success=True)
+                return cast("Result", await cancel())
             return Result(
                 success=False,
                 error=(
                     f"Unknown auth action: '{action}'. "
-                    f"Valid: start, complete, logout, status"
+                    f"Valid: start, complete, logout, status, cancel"
                 ),
             )
         except StoreError as e:

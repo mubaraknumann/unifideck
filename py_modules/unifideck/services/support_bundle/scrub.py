@@ -74,7 +74,7 @@ _RULES: tuple[tuple[str, re.Pattern[str], _Replacement], ...] = (
         re.compile(
             r"([?&#](?:access_token|refresh_token|id_token|code|client_secret"
             r"|authorization_code|session_state|password|api_key|apikey"
-            r"|exchange_code|signature|sig)=)[^&\s\"'<>]+",
+            r"|exchange_code|signature|sig|device_code|user_code|otc)=)[^&\s\"'<>]+",
             re.I,
         ),
         r"\1" + _REDACTED,
@@ -84,7 +84,7 @@ _RULES: tuple[tuple[str, re.Pattern[str], _Replacement], ...] = (
         re.compile(
             r"([\"']?[A-Za-z_.]*(?:access_token|refresh_token|id_token|secret"
             r"|password|passwd|api[_-]?key|credential|session[_-]?id"
-            r"|auth[_-]?code|bearer)[\"']?\s*[:=]\s*)"
+            r"|auth[_-]?code|bearer|device[_-]?code|user[_-]?code)[\"']?\s*[:=]\s*)"
             r"(\"[^\"]*\"|'[^']*'|[^\s,;}&]+)",
             re.I,
         ),
@@ -173,7 +173,8 @@ def profile_rules() -> dict[str, list[str]]:
 # and "eyJ" for the base64 JWT header.
 _TRIGGER = re.compile(
     r"(?i)token|secret|password|passwd|cookie|bearer|basic |credential"
-    r"|api[_-]?key|apikey|auth|session|signature|sig=|eyJ|code=|@|key",
+    r"|api[_-]?key|apikey|auth|session|signature|sig=|eyJ|code=|@|key"
+    r"|device[_-]?code|user[_-]?code|otc=",
 )
 
 

@@ -2,7 +2,7 @@
 
 Covers the shared install pipeline, archive-format detection and the install
 marker. The pieces that used to live here and now have their own files:
-executable scoring → ``test_gamevault_exe_finder.py``; the download and
+executable scoring → ``test_shared_launch_target.py``; the download and
 ``Content-Disposition`` handling → ``test_gamevault_sources.py``.
 
 The pipeline is deliberately exercised through a fake ``ArchiveSource``

@@ -91,6 +91,7 @@ bin/gogdl
 bin/nile
 bin/winetricks
 bin/comet
+bin/butler/
 
 # Per-binary download stamps. Each holds the version-pinned URL the adjacent
 # binary came from, so a rebuild skips re-fetching ~28 MB it already has.

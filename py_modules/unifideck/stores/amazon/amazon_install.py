@@ -224,7 +224,7 @@ class AmazonInstaller:
             )
         # No ``DOWNLOAD_COMPLETE`` here — see the same note in
         # ``stores/epic/install.py``. ``DownloadWorker`` owns every
-        # ``DOWNLOAD_*`` emit for all seven stores; the install is still
+        # ``DOWNLOAD_*`` emit for every store; the install is still
         # mid-flight at this point because prefix warmup has not run yet,
         # and only the worker's payload carries the ``Game`` record the
         # shortcut service needs to flip the install tag.

@@ -33,7 +33,12 @@ import pytest
 from tests.unit._repo_root import find_repo_file
 
 LISTENER = "src/services/boot-event-listener.tsx"
-STORE = "py_modules/unifideck/stores/microsoft/microsoft_store.py"
+# The emits live in the store and in its subscription gate (``library_gate``),
+# split out so "no subscription" and "could not check" stay distinct verdicts.
+STORE_FILES = (
+    "py_modules/unifideck/stores/microsoft/microsoft_store.py",
+    "py_modules/unifideck/stores/microsoft/library_gate.py",
+)
 EN_US = "src/i18n/locales/en-US.json"
 LOCALES = "src/i18n/locales"
 
@@ -46,12 +51,19 @@ def _require(rel: str) -> Path:
 
 
 def _emitted_reasons() -> set[str]:
-    """Every ``reason=`` MicrosoftStore passes to a SYNC_SKIPPED emit.
+    """Every ``reason=`` the Microsoft store passes to a SYNC_SKIPPED emit.
 
     AST-based: the emits span several lines each, so a line-oriented read
     would find the event name and miss the reason.
     """
-    tree = ast.parse(_require(STORE).read_text(encoding="utf-8"))
+    reasons: set[str] = set()
+    for rel in STORE_FILES:
+        reasons |= _reasons_in(rel)
+    return reasons
+
+
+def _reasons_in(rel: str) -> set[str]:
+    tree = ast.parse(_require(rel).read_text(encoding="utf-8"))
     reasons: set[str] = set()
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call) or not node.args:

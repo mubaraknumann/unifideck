@@ -1,14 +1,17 @@
 """cdp — Chrome DevTools Protocol clients for the Steam/Edge CEF endpoints.
 
-Three independent modules, each imported by full path rather than through
-this package (so there are deliberately no re-exports here):
+Independent modules, each imported by full path rather than through this
+package (so there are deliberately no re-exports here):
 
 * ``cdp_client``          — :class:`CDPClient`, the shared async websocket
   client. Built by ``services/bootstrap`` and used by ``auth/browser``.
 * ``page_inject``         — target listing + script injection primitives,
-  consumed by ``launcher/cdp``.
+  consumed by ``launcher/cdp`` and ``store_ribbon``.
 * ``xcloud_browser_shims`` — the xCloud gamepad/WSI shim JS, consumed by
   ``launcher/cdp/xcloud_cdp``.
+* ``store_ribbon`` / ``store_ribbon_js``: the Steam Store "already owned
+  elsewhere" ribbon, with exact-AppID target matching and the in-page JS,
+  consumed by ``rpc/mixins/store_ownership``.
 
 ``cdp_inject`` (``SteamCSSInjector``, ``get_cdp_client``,
 ``shutdown_cdp_client``, ``build_marker_id``) was deleted in the audit

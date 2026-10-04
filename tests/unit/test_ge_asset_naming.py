@@ -36,9 +36,17 @@ _ASSETS_NEW = [
 
 
 def _make_tree(root: Path, *, manifest: bool = True) -> Path:
-    """Build a minimal extracted Proton tool dir at ``root``."""
+    """Build a minimal extracted Proton tool dir at ``root``.
+
+    Carries every piece ``is_proton_install_complete`` checks, so a
+    promoted tree counts as installed; ``manifest=False`` models the
+    truncated-download case.
+    """
     root.mkdir(parents=True, exist_ok=True)
     (root / "proton").write_text("#!/bin/sh\n")
+    (root / "files" / "bin").mkdir(parents=True, exist_ok=True)
+    (root / "files" / "bin" / "wine").write_text("#!/bin/sh\n")
+    (root / "version").write_text("1\n")
     if manifest:
         (root / "toolmanifest.vdf").write_text('"manifest"\n{\n"commandline" "/proton"\n}\n')
     return root

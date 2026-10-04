@@ -597,7 +597,7 @@ AppDetailsPage
 
 **Files:**
 
-- `src/components/play/PlaySectionWrapper.tsx` - Custom PlaySection component (plus the button set in `src/components/play/`: `InstalledButtons.tsx`, `NotInstalledButtons.tsx`, `DownloadingButtons.tsx`, `XCloudButtons.tsx`)
+- `src/components/play/PlaySectionWrapper.tsx` - Custom PlaySection component (plus the button set in `src/components/play/`: `InstalledButtons.tsx`, `NotInstalledButtons.tsx`, `DownloadingButtons.tsx`, `BrowserGameButtons.tsx`)
 - `src/components/play/play.css.ts` - Scoped CSS, including the native play-row hide rules
 - `src/views/AppDetailsPatch.tsx` - Patcher that injects the component
 

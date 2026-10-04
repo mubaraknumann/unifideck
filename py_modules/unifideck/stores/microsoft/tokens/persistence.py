@@ -32,6 +32,10 @@ _LOG_PREFIX = "[MicrosoftTokens]"
 #: re-saved to the current path, then deleted.
 _LEGACY_PLAINTEXT_PATH = "~/.local/share/unifideck/microsoft_tokens.json"
 
+#: The client that issued every token saved before ``client_id`` was
+#: recorded (Unifideck <= 0.7.5): the login.live.com Xbox app client.
+UNRECORDED_CLIENT_ID = "000000004C12AE6F"
+
 
 class PersistenceMixin:
     """Persistence mixin."""
@@ -42,6 +46,9 @@ class PersistenceMixin:
     _config: MicrosoftConfig
     _secure_store: SecureTokenStore
     _bus: EventBus | None
+    _client_mismatch: bool
+    _mismatch_notified: bool
+    _loaded_payload: dict[str, Any] | None
 
     @property
     def _file(self) -> EncryptedTokenFile:
@@ -60,6 +67,7 @@ class PersistenceMixin:
 
     async def load(self) -> bool:
         """Load."""
+        self._client_mismatch = False
         resolved = await self._resolve_token_file()
         if resolved is None:
             return False
@@ -92,10 +100,27 @@ class PersistenceMixin:
         """Populate the in-memory token state from a parsed blob.
 
         Returns False (and resets state) when there's no refresh token —
-        nothing usable to keep.
+        nothing usable to keep — or when another OAuth client issued the
+        tokens. A refresh token only works with the client that issued it,
+        so after the configured client changes the old tokens can only
+        fail. They stay on disk untouched: putting the old client back in
+        the config makes them valid again with no sign-in.
         """
         refresh = data.get("refresh_token")
-        if not refresh:
+        issued_by = data.get("client_id") or UNRECORDED_CLIENT_ID
+        configured = self._config.client_id
+        self._client_mismatch = bool(refresh and configured) and issued_by != configured
+        self._mismatch_notified = (
+            data.get("notified_for_client") == self._config.client_id
+        )
+        self._loaded_payload = data if self._client_mismatch else None
+        if not refresh or self._client_mismatch:
+            if self._client_mismatch:
+                logger.info(
+                    "%s saved sign-in was issued to client %s, configured "
+                    "client is %s — a new sign-in is needed",
+                    _LOG_PREFIX, issued_by, self._config.client_id,
+                )
             self._ms_access_token = None
             self._ms_refresh_token = None
             self._token_saved_at = 0.0
@@ -131,13 +156,36 @@ class PersistenceMixin:
             "refresh_token": self._ms_refresh_token,
             "saved_at": self._token_saved_at,
             "scope": self._config.scope,
+            "client_id": self._config.client_id,
         })
+
+    @property
+    def client_mismatch(self) -> bool:
+        """The saved sign-in belongs to a different OAuth client (see load)."""
+        return self._client_mismatch
+
+    @property
+    def mismatch_notified(self) -> bool:
+        """The user was already told this saved sign-in no longer works."""
+        return self._mismatch_notified
+
+    async def mark_mismatch_notified(self) -> None:
+        """Record, in the kept old-client payload, that the user was told."""
+        if self._loaded_payload is None:
+            return
+        payload = {**self._loaded_payload, "notified_for_client": self._config.client_id}
+        if await self._file.write(await self._token_path(), payload):
+            self._loaded_payload = payload
+            self._mismatch_notified = True
 
     async def clear(self) -> None:
         """Clear."""
         self._ms_access_token = None
         self._ms_refresh_token = None
         self._token_saved_at = 0.0
+        self._client_mismatch = False
+        self._mismatch_notified = False
+        self._loaded_payload = None
         await self._file.remove(
             await self._token_path(),
             await self._legacy_path(),

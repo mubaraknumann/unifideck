@@ -46,7 +46,7 @@ def _make_proton(dir_path: Path, *, executable: bool) -> Path:
 
 def test_is_valid_ge_install_true_when_executable(tmp_path, monkeypatch):
     root = tmp_path / "compatibilitytools.d"
-    proton = _make_proton(root / "GE-Proton10-34", executable=True)
+    proton = _complete_tree(root, "GE-Proton10-34")
     monkeypatch.setattr(ge_installer, "_SCAN_ROOTS", (str(root),))
 
     assert ge_installer.is_valid_ge_install("GE-Proton10-34") is True

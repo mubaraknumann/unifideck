@@ -170,6 +170,19 @@ def resolve_family(uid: str) -> str | None:
     return family
 
 
+def client_selects_version(uid: str) -> bool:
+    """True when the client will only select this game, not start it.
+
+    Recorded at sync for any version that is not the program's own retail
+    product. Measured on the client: ``launch WoWC`` sets the active
+    product to ``WoW_wow_classic_era`` and stops, where ``launch W3``
+    continues to ``LaunchBinary``. Without this the launcher reports a
+    failure for a client that is sitting there waiting to be clicked.
+    """
+    record = _load_id_map().get(uid)
+    return bool(record.get("client_selects")) if isinstance(record, dict) else False
+
+
 def resolve_prefix(uid: str) -> Path | None:
     """The recorded prefix for a game. Never reconstructed from the uid."""
     record = _load_id_map().get(uid)

@@ -80,7 +80,9 @@ The integration is now a package under `stores/microsoft/` (it was a set of flat
 | `auth/edge_browser/`                              | Chromium/Edge install + launch + profile management        |
 | `compatibility/library.py`                        | `inject_virtual_keyboard` (CDP)                            |
 | `bin/unifideck-launcher`                          | xCloud launch                                              |
-| `src/components/play/XCloudButtons.tsx`           | "Play on Cloud" button (rendered by `PlaySectionWrapper`)  |
+| `launcher/browser_games.py`                       | Decides that a game is a browser game and where it opens (shared with itch.io HTML5 games) |
+| `services/launcher/browser_game.py`               | The Edge kiosk launch, held open until the window closes (shared) |
+| `src/components/play/BrowserGameButtons.tsx`      | "Play on Cloud" button, the `stream` variant (rendered by `PlaySectionWrapper`) |
 | `src/components/modals/ChromiumInstallModal.tsx`  | Chromium install modal                                     |
 | `src/components/settings/StoreConnections.tsx`    | Microsoft connection panel                                 |
 
@@ -147,19 +149,20 @@ Synchronization retrieves the full list of available xCloud games and adds them 
 
 <img src="../assets/Microsoft/sync-flow.jpg" alt="Sync flow" width="100%" />
 
-### games.map format
+### How the launcher knows it is xCloud
 
-```
-microsoft:{productId}|xcloud|{full_url}
-```
+xCloud titles have **no games.map row**. The catalog gives each one the tags
+`xcloud` and `browser` and a `metadata.browser_url` of
+`https://www.xbox.com/play/launch/{productId}`, which the sync writes to
+`library_cache.json`. When a launch finds no games.map row, the launcher asks
+`launcher/browser_games.browser_target`, which reads that record and returns
+the URL with `kind="stream"`. (Older docs described a
+`microsoft:{productId}|xcloud|{url}` games.map row; no code writes one.)
 
-Example:
-
-```
-microsoft:9NPDN9R45JX4|xcloud|https://www.xbox.com/play/launch/9NPDN9R45JX4
-```
-
-The launcher reads this entry to determine that it is an xCloud game and open Chromium.
+Two fallbacks keep a pre-0.7.6 cache working: an `xcloud` tag without a
+`browser_url`, and a Microsoft title missing from the cache, both resolve to
+the play URL built from the product id. The same mechanism serves itch.io's
+HTML5 games (`kind="web"`); see `.claude/skills/unifideck-architecture/stores.md`.
 
 ---
 
@@ -169,22 +172,23 @@ The launcher reads this entry to determine that it is an xCloud game and open Ch
 
 <img src="../assets/Microsoft/game-launch.jpg" alt="Game launch flow" width="100%" />
 
-### Chromium flags for xCloud
+### Edge flags for a browser game
+
+`auth/edge_browser/launch.launch_browser_game` builds the command line. The
+flags that matter here:
 
 | Flag                                         | Purpose                                |
 | -------------------------------------------- | -------------------------------------- |
-| `--app=URL`                                  | App mode: no address bar or tabs       |
-| `--start-fullscreen`                         | Fullscreen (no window borders)         |
-| `--user-data-dir=chromium-auth/`             | Shared profile with auth → SSO cookies |
-| `--enable-gamepad-button-axis-events`        | Steam Deck controller support          |
-| `--enable-features=WebGamepad`               | Web Gamepad API enabled                |
-| `--autoplay-policy=no-user-gesture-required` | Automatic video playback               |
-| `--disable-dev-shm-usage`                    | Shared memory compatibility            |
-| `--password-store=basic`                     | Prevents KWallet/GNOME Keyring popups  |
+| `--kiosk`                                    | Fullscreen, no window chrome           |
+| `--class=unifideck-browser-game`             | Window class for this kind of window   |
+| `--remote-debugging-port=<cdp_port + 1>`     | `browser_game_cdp_port()`: tells the storefront flow a game window holds the profile |
+| `--user-data-dir=edge-auth/`                 | Shared profile with auth, so the Xbox session carries over |
+| `--autoplay-policy=no-user-gesture-required` | The stream starts without a click      |
+| window size / scale flags                    | Sized to the live display (`display.auth_window_flags`) |
 
 ### Shared Chromium profile
 
-The same directory `~/.local/share/unifideck/chromium-auth/` is used for:
+The same directory `~/.local/share/unifideck/edge-auth/` (migrated from `chromium-auth/`) is used for:
 
 1. **Authentication** — Microsoft cookies are created here
 2. **Game launch** — Chromium reuses these cookies for xbox.com SSO
@@ -314,7 +318,7 @@ cursor = conn.execute(
 
 ### "Play on Cloud" button
 
-When a game has the `store_tags: ["xcloud"]` tag, `XCloudButtons` (rendered by `PlaySectionWrapper`) displays a special button:
+When a game has the `browser` or `xcloud` tag, `usePlaySection` returns the `browser` state and `PlaySectionWrapper` renders `BrowserGameButtons`. An `xcloud` title gets the `stream` variant, "Play on Cloud", which applies the gamepad layout after `RunGame`:
 
 | State         | Display                                                      |
 | ------------- | ------------------------------------------------------------ |

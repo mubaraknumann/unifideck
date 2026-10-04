@@ -11,6 +11,7 @@ import {
   SiEpicgames,
   SiGogdotcom,
   SiBattledotnet,
+  SiItchdotio,
   SiUbisoft,
 } from "react-icons/si";
 import { FaGamepad, FaSteam, FaXbox } from "react-icons/fa";
@@ -34,7 +35,17 @@ const STORE_ICONS: Record<StoreId, StoreGlyph> = {
   ubisoft: SiUbisoft,
   battlenet: SiBattledotnet,
   gamevault: GameVaultIcon,
+  itch: SiItchdotio,
 };
+
+/**
+ * The glyph component for *store* (generic gamepad for an unknown one).
+ * Exported so the Steam Store ownership ribbon can draw the same logos
+ * outside React (`lib/steam-bridge/store-icon-spec.ts`).
+ */
+export function storeGlyph(store: StoreId): StoreGlyph {
+  return STORE_ICONS[store] ?? FaGamepad;
+}
 
 interface Props {
   store: StoreId;
@@ -47,6 +58,6 @@ export const StoreIcon: FC<Props> = ({
   size = 16,
   color = "inherit",
 }) => {
-  const Icon = STORE_ICONS[store] ?? FaGamepad;
+  const Icon = storeGlyph(store);
   return <Icon size={size} color={color} />;
 };

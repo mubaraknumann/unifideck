@@ -42,8 +42,8 @@ async def _drain_until_reply(
     msg_id: int,
     ws_timeout: float,
     logger_prefix: str,
-) -> bool:
-    """Drain until reply."""
+) -> dict[str, Any] | None:
+    """The reply to *msg_id*; None on a closed socket or a CDP-level error."""
     while True:
         message = await websocket.receive(timeout=ws_timeout)
         if message.type in _CLOSE_MSG_TYPES:
@@ -51,7 +51,7 @@ async def _drain_until_reply(
                 "[%s] websocket closed during inject",
                 logger_prefix,
             )
-            return False
+            return None
         if message.type != aiohttp.WSMsgType.TEXT:
             continue
         payload = json.loads(message.data)
@@ -62,22 +62,65 @@ async def _drain_until_reply(
                 "[%s] Runtime.evaluate error: %s",
                 logger_prefix, payload["error"],
             )
-            return False
-        return True
+            return None
+        return payload if isinstance(payload, dict) else {}
 
-async def _inject_into_target(
+async def inject_into_target(
     target: dict[str, Any],
     sources: list[str],
     *,
     ws_timeout: float,
     logger_prefix: str,
 ) -> bool:
+    """Evaluate each of *sources* in one already-chosen page target.
 
-    """Inject into target."""
+    One short-lived websocket per call. Callers that match by URL substring
+    and poll should use :func:`inject_scripts`; a caller that needs what the
+    script returned uses :func:`evaluate_in_target`. Returns False on a
+    closed socket, a CDP-level error or a network failure. A script that
+    throws inside the page still returns True, because CDP reports that as
+    ``exceptionDetails``, not ``error``.
+    """
+    return await _evaluate_sources(target, sources, ws_timeout, logger_prefix) is not None
+
+
+async def evaluate_in_target(
+    target: dict[str, Any],
+    source: str,
+    *,
+    ws_timeout: float,
+    logger_prefix: str,
+) -> tuple[bool, Any]:
+    """Evaluate *source* in one page target; ``(ok, returned value)``.
+
+    ``ok`` fails exactly as :func:`inject_into_target` does. The value is
+    None when the script threw or returned nothing serialisable.
+    """
+    values = await _evaluate_sources(target, [source], ws_timeout, logger_prefix)
+    if values is None:
+        return False, None
+    return True, values[0] if values else None
+
+
+def _returned_value(reply: dict[str, Any]) -> Any:
+    """``result.result.value`` of a ``Runtime.evaluate`` reply, else None."""
+    outer = reply.get("result")
+    inner = outer.get("result") if isinstance(outer, dict) else None
+    return inner.get("value") if isinstance(inner, dict) else None
+
+
+async def _evaluate_sources(
+    target: dict[str, Any],
+    sources: list[str],
+    ws_timeout: float,
+    logger_prefix: str,
+) -> list[Any] | None:
+    """Each non-empty source's returned value, in order; None on failure."""
     ws_url = target.get("webSocketDebuggerUrl")
     if not isinstance(ws_url, str) or not ws_url:
-        return False
+        return None
     msg_id = 0
+    values: list[Any] = []
     try:
         async with aiohttp.ClientSession() as session, session.ws_connect(  # type: ignore[call-overload]
             ws_url,
@@ -104,17 +147,19 @@ async def _inject_into_target(
                         "userGesture": True,
                     },
                 })
-                if not await _drain_until_reply(
+                reply = await _drain_until_reply(
                     websocket, msg_id, ws_timeout, logger_prefix,
-                ):
-                    return False
-        return True
+                )
+                if reply is None:
+                    return None
+                values.append(_returned_value(reply))
+        return values
     except (TimeoutError, aiohttp.ClientError, OSError) as exc:
         logger.debug(
             "[%s] inject into %s failed: %s",
             logger_prefix, target.get("id"), exc,
         )
-        return False
+        return None
 
 async def inject_scripts(
     port: int,
@@ -215,7 +260,7 @@ async def _inject_into_matching_targets(
     all_ok = True
     had_success = False
     for target in page_targets:
-        ok = await _inject_into_target(
+        ok = await inject_into_target(
             target,
             sources,
             ws_timeout=min(15.0, timeout),

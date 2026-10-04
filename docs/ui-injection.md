@@ -221,3 +221,39 @@ document.querySelector("[data-unifideck-hidden-native=" + appId + "]");
 3. **`/json/version` CDP endpoint** — Connects to browser-level context, not SP page tab. Use `/json`.
 4. **Unmount cleanup for CDP** — React re-renders trigger unmount/remount, causing premature unhide. Use `prevAppIdRef` for navigation-aware cleanup.
 5. **Splicing at index 0** — Places components above the hero image. Splice at index 2+ to position below hero.
+
+---
+
+## 5. Steam Store page injection (CDP)
+
+The "already owned elsewhere" ribbon is the one place Unifideck writes DOM directly, because there is no other way in. In Gaming Mode the Steam Store is a separate CEF BrowserView, composited **above** the Big Picture window (bounds measured on-device: `{x:0, y:40, w:1278, h:601}`). React rendered in Steam's own window can only paint the header and footer strips around it, which is why IsThereAnyDeal for Deck draws a fixed bar in the footer. ProtonDB Badges and DeckySales instead inject into the store page over CDP; so does this.
+
+| Step | Where | How |
+| ---- | ----- | --- |
+| Notice navigation | `src/lib/steam-bridge/store-ownership-ribbon.ts` | `GamepadUIMainWindowInstance.m_StoreBrowser.StartLoadingCallbacks` and `.FinishedRequestCallbacks`, both `Register(cb)` with the URL first. No CDP. A once-a-second check re-attaches when Steam rebuilds the window or the store browser |
+| Decide | `rpc/mixins/store_ownership.py` | joins the live library with `steam_real_appid`; returns `not_owned` before any CDP work |
+| Draw | `cdp/store_ribbon.py` + `cdp/store_ribbon_js.py` | finds page targets on that exact AppID and evaluates the ribbon script |
+
+Findings verified with steam-debug on 2026-10-02:
+
+1. **The callback list is Steam's own and additive.** `FinishedRequestCallbacks` is a getter; `Register` pushes onto `m_vecCallbacks` and returns `{Unregister}`. It fired for `steam://openurl`, in-page link clicks and `GoBack()`. The browser object survived leaving the store and returning, but it is created lazily, so registration is retried on route changes into `/steamweb`.
+2. **`window.MainWindowBrowserManager` is the desktop UI's browser.** In Gaming Mode it stayed on the store front page while the real store was on an app page.
+3. **Back/forward loads a fresh document**, so the ribbon is redrawn on every callback and never deduplicated by URL.
+4. **Only `id` anchors are stable.** The Gamepad store page is React with hashed class names; `#FeatureTarget_*` ids and `#gamepad_carousel` survive. `#game_area_purchase` exists but is `display:none` in this layout.
+5. **Nothing may change height above the media carousel.** An in-flow banner inserted above it left the carousel's gamepad focus ring at its old position, because the ring's coordinates are computed when focus lands. Neither a blur/focus nor a `resize` event moved it. So the top placement is an absolute overlay inside the capsule-art container (the parent of `#gamepad_carousel img[src*="/header"]`), and the in-flow note sits below the carousel, just before `#FeatureTarget_purchase-options`.
+6. **Steam rebuilds the window and the store browser after a UI restart.** Shortcut changes after a sync restart the Steam UI; a reference taken once kept pointing at the old objects and the ribbon was off for every store until a plugin reload. Hence the once-a-second check.
+7. **On a page never visited before, "finished" often comes late.** Over four first visits, loading started at 0.5 to 1.1 s and the page's blocks existed at about 2 s, but `FinishedRequestCallbacks` fired at 1.4, 5.4, 7.0 and 7.1 s. So the ribbon is also requested on start-loading. At that moment the CDP target can already carry the new URL while its document is still the previous page, and the new document may not have an `<html>` element yet. The script answers `path-mismatch` in the old document and the backend retries; it observes `document` itself, not `documentElement`.
+8. **Gamepad focus belongs to Valve's navigation library, and its outline is a React component.** Each `#FeatureTarget_*` block is its own React root and navigation tree. Inside it, a focus-ring root (code contains `disableFocusRing` and `OnForceMeasureFocusRing`) provides the callbacks that draw the grey outline. A node rendered without that root takes focus but shows nothing. Nothing on the page styles a `gpfocus` class.
+
+Rules the ribbon script follows:
+
+- Every node is built with `createElement` + `textContent`. The payload is a JSON literal (`json.dumps(..., ensure_ascii=True)`), and a test bans `innerHTML`, `insertAdjacentHTML`, `document.write` and `eval(`.
+- Store logos are the same react-icons glyphs `<StoreIcon>` renders. The frontend reads them as SVG shape data (`src/lib/steam-bridge/store-icon-spec.ts`), the backend keeps only allowlisted shape tags and presentation attributes (`rpc/mixins/_store_ribbon_icons.py`), and the page rebuilds them with `createElementNS` + `setAttribute`. A logo that does not survive the allowlist falls back to a plain dot.
+- It checks `location.pathname` against `/app/<appid>` **before** touching a previous instance, so an evaluation that lost a race with the next navigation does nothing.
+- A window-scoped handle (`__unifideckOwnershipRibbon`) keeps a repeat call idempotent and lets a new payload replace the old one.
+- A MutationObserver redraws after React re-renders; if no anchor appears within 15 s it stops and logs one console line naming the selectors.
+- The capsule overlay never takes gamepad focus (`pointer-events:none`, `tabIndex=-1`). It carries the tag and a few words only, because the capsule is narrow in Gaming Mode and a sentence there was cut to "Included with Game P…": the stores for a purchase ("OWNED GOG · Xbox"), the service for a subscription ("STREAMABLE Xbox Game Pass").
+- The note takes gamepad focus like a native block, because it is built like one. It is rendered with the page's own React (found in `webpackChunkstore` by source, once per document) as its own navigation tree: the page's tree component (code contains `NewGamepadNavigationTree`) with navID `unifideck-owned-nav` and the same `parentEmbeddedNavTree` as `#FeatureTarget_purchase-options`. Inside are the page's focus-ring root and `Focusable` (code contains `"flow-children"`). That component stamps `data-react-nav-root` on its div, and the legacy tree embeds every element carrying it. Only the contexts above the tree component are copied; a copied context never updates. The rows inside are still built with `createElement`/`textContent`. If any piece is missing or the render throws, the same note is drawn as plain DOM, which the D-pad skips.
+- Two earlier attempts, measured with D-pad presses sent through `m_StoreBrowser.ForwardGamepadEventDetail('vgp_onbuttondown', {button: 10})` (10 = down, 9 = up):
+  - Joining the purchase block's tree: down from the note jumped past the purchase options to DLC, and up from DLC came back to the note.
+  - Copying that tree's context: a frozen `bActiveTree: false`, so focus landed but the outline never drew.

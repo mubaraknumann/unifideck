@@ -48,10 +48,12 @@ function buildHandles() {
       overviewEnrichment: fn("overviewEnrichment"),
       tileStoreBadgePatch: fn("tileStoreBadgePatch"),
       appContextMenuPatch: { unpatch: fn("appContextMenuPatch") },
+      storeOwnershipRibbon: fn("storeOwnershipRibbon"),
       lifetimeListener: { unregister: fn("lifetimeListener") },
       launcherToastPoll: fn("launcherToastPoll"),
       pluginUpdateNotice: fn("pluginUpdateNotice"),
       bootEventListener: fn("bootEventListener"),
+      signedOutTabs: fn("signedOutTabs"),
     },
   };
 }

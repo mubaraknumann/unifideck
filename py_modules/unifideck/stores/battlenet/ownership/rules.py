@@ -41,10 +41,12 @@ KEY_RUN_FIRST = "run_first_rule"
 class AccountFacts:
     """What we know about the signed-in account, as the rules see it.
 
-    ``licence_ids`` comes from the client's ``CachedData.db``;
-    ``game_account_programs`` from ``games-and-subs`` (the web endpoint's
-    real job) or from the client's own state. ``flags`` covers the handful
-    of ``flag`` matches in the catalog.
+    ``licence_ids`` comes from the client's ``CachedData.db``.
+    ``game_account_programs`` has no source: no local file records the
+    user's game accounts, so ``library._presumed_facts`` fills it with every
+    program in the catalog and the free-to-play set is granted on that
+    presumption. ``flags`` covers the handful of ``flag`` matches in the
+    catalog and has no producer at all (audit register item 51).
     """
 
     licence_ids: frozenset[int] = frozenset()

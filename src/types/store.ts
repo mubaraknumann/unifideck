@@ -9,7 +9,7 @@ import type { StoreId } from "./api";
 export type { StoreId };
 /** Full set of stores the architecture knows about, including
  *  not-yet-implemented ones flagged in the design doc. */
-export type StoreIdExtended = StoreId | "ea" | "itch";
+export type StoreIdExtended = StoreId | "ea";
 
 /** Per-store visual config used by `<StoreIcon>`. */
 export interface StoreVisual {
@@ -73,5 +73,11 @@ export const STORE_VISUALS: Record<StoreId, StoreVisual> = {
     display_name: "GameVault",
     brand_color: "#1a9c3e",
     icon_path: "/assets/gamevault.svg",
+  },
+  itch: {
+    id: "itch",
+    display_name: "itch.io",
+    brand_color: "#fa5c5c",
+    icon_path: "/assets/itch.svg",
   },
 };

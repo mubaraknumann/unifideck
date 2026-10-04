@@ -103,6 +103,17 @@ class StoreBase(ABC):
         """
         return None
 
+    async def shutdown(self) -> None:
+        """Release what the store holds open for the plugin's lifetime.
+
+        Called once for every registered store when the plugin unloads
+        (``bootstrap/teardown.unload_plugin``). The default holds nothing.
+        A store that owns a background loop or a long-lived subprocess
+        overrides it (Microsoft's token-refresh poll, itch.io's butlerd
+        daemon), so the teardown needs no per-store branch.
+        """
+        return
+
     def get_prefix_path(self, game_id: str) -> str | None:
         """The Wine prefix a game lives in, for stores where that is the install.
 

@@ -213,7 +213,7 @@ class EpicInstaller:
         """Wrap a terminal error in a failing ``InstallResult``.
 
         Emits nothing. ``DownloadWorker`` is the sole emitter of every
-        ``DOWNLOAD_*`` event for all seven stores: it turns this envelope
+        ``DOWNLOAD_*`` event for every store: it turns this envelope
         into the one ``DOWNLOAD_FAILED`` (``_emit_failure``), and only its
         payload carries the queue item the UI needs — the game title for
         the toast and ``error_message`` for the history row. This method

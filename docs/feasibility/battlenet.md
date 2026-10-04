@@ -576,6 +576,25 @@ Cross-validation: every `title_id` in the catalog matched the `games-and-subs`
 titleId for the five game-account titles exactly (ODIN 1329875278, WTCG
 1465140039, Pro 5272175, ANBS 1095647827, WoW 5730135).
 
+### Update 2026-09-20: the second source was never reachable, so it is presumed
+
+The "secondary" source in section 12 was never built, and the measurements above
+are why that mattered: the shipped library was the 17, not the 22. Re-examined on
+device, `games-and-subs` is not reachable from anything we can ship - it needs
+live account.battle.net session cookies, and the client-local state carries no
+substitute. `CachedData.db` holds `schema_info`, `login_cache`, `remote_objects`,
+`key_value_store`, `catalog_cache` and `browser_stats`; the licences come from
+`key_value_store.features_cached_data_points` and no table records game accounts.
+`Battle.net.config` carries none either.
+
+So `library.grant_ownership` now presumes a game account for **every** catalog
+program: the gated set is exactly the titles any Battle.net account can install
+and play, which makes the presumption true in practice rather than convenient.
+Measured against the live catalog on this account: 16 granted -> 23, nothing
+lost, adding WoW, Hearthstone (WTCG), Overwatch (Pro), Heroes of the Storm
+(Hero), Diablo Immortal (ANBS), AUKS and GRY. The 22 above is reached the same
+way, by a different road.
+
 ### Catalog structure, and four traps that cost real time
 
 `products[].base` is the metadata record: `program_id` (the `--exec` code),

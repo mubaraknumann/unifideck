@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 from unifideck.core.types import SubscriptionTier
 from unifideck.event_bus.event_bus import EventBus
@@ -23,6 +23,14 @@ if TYPE_CHECKING:
     )
     from unifideck.stores.microsoft.tokens import MicrosoftTokenManager, XBLTokenChain
 logger = logging.getLogger(__name__)
+
+
+class TierAnswer(NamedTuple):
+    """A subscription tier plus whether Microsoft actually just said so."""
+
+    tier: SubscriptionTier
+    authoritative: bool
+
 
 class MicrosoftSubscriptionService(
     _CacheMixin, _ProbeEmissionMixin, _EventHandlersMixin,
@@ -61,8 +69,20 @@ class MicrosoftSubscriptionService(
         self,
         token_manager: MicrosoftTokenManager,
     ) -> SubscriptionTier:
-
         """Get tier."""
+        return (await self.get_tier_checked(token_manager)).tier
+
+    async def get_tier_checked(
+        self,
+        token_manager: MicrosoftTokenManager,
+    ) -> TierAnswer:
+        """The tier, and whether it is a current answer from Microsoft.
+
+        Only a fresh cache entry or a probe that just succeeded is
+        authoritative. A stale cache entry and the no-cache fallback are
+        guesses: the library sync must treat them as "could not read",
+        because acting on a guessed NONE deletes every xCloud shortcut.
+        """
         cache_key = await self._resolve_cache_key(token_manager)
         async with self._lock:
             cached = self._read_cache(cache_key)
@@ -74,10 +94,11 @@ class MicrosoftSubscriptionService(
                     cached.tier.value,
                     int(cached.expires_at - time.time()),
                 )
-                return cached.tier
+                return TierAnswer(cached.tier, authoritative=True)
             probe_result = await self._run_probe(token_manager)
             if probe_result.ok:
-                return await self._handle_probe_success(cache_key, probe_result)
+                tier = await self._handle_probe_success(cache_key, probe_result)
+                return TierAnswer(tier, authoritative=True)
             if cached is not None:
                 logger.warning(
                     "[MSSubSvc] probe failed (%s), using stale "
@@ -86,18 +107,17 @@ class MicrosoftSubscriptionService(
                     cached.tier.value,
                     _fmt_ts(cached.detected_at),
                 )
-                return cached.tier
-            # No SUBSCRIPTION_CHECK_FAILED emit here. Returning NONE makes
-            # MicrosoftStore emit SYNC_SKIPPED(reason="subscription_check_error"),
-            # which is the channel the frontend actually renders — a second
-            # event carrying the same news had no consumer on any leg
+                return TierAnswer(cached.tier, authoritative=False)
+            # No SUBSCRIPTION_CHECK_FAILED emit here: MicrosoftStore turns a
+            # non-authoritative answer into SYNC_SKIPPED(reason=
+            # "subscription_check_error"), the channel the frontend renders
             # (audit §1.3).
             logger.warning(
                 "[MSSubSvc] probe failed (%s) and no cache "
-                "— returning NONE",
+                "— tier unknown",
                 probe_result.error,
             )
-            return SubscriptionTier.NONE
+            return TierAnswer(SubscriptionTier.NONE, authoritative=False)
 
     async def _handle_probe_success(
         self, cache_key: str, probe_result: SubscriptionProbeResult,

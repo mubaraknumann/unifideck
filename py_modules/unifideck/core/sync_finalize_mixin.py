@@ -99,9 +99,16 @@ class _SyncFinalizeMixin:
         )
         self._arm_artwork_phase(fetch_artwork, total_games)
         self._last_sync_time = time.time()
-        self._save_library_cache()
         self._arm_watchdog()
+        # _aggregate_results (via _maybe_annotate_duplicate_groups) mutates
+        # the Game objects backing `libraries`/`self._all_games` in place
+        # (dedupe_group_id, edition_label). The cache save MUST come after
+        # it, not before — saving first persisted the pre-annotation state,
+        # so a Decky/plugin restart reloaded stale unannotated games from
+        # disk even though the just-finished sync's in-memory RPC responses
+        # were correct until the next restart silently lost the annotation.
         result = self._aggregate_results(libraries, errors, duration_ms, total)
+        self._save_library_cache()
         await self._emit_complete(
             result, libraries, errors, duration_ms, total_games,
             fetch_artwork=fetch_artwork,

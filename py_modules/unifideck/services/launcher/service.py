@@ -20,6 +20,8 @@ from unifideck.launcher.types.context import LaunchContext, RuntimeState
 from unifideck.launcher.types.options import parse_launch_options
 from unifideck.launcher.wrapper_stores import is_wrapper_store
 
+from .browser_game import run_browser_game
+
 if TYPE_CHECKING:
     from unifideck.auth.edge_browser import EdgeBrowser
     from unifideck.event_bus.event_bus import EventBus
@@ -117,7 +119,7 @@ class LauncherService:
     async def launch(self, ctx: LaunchContext) -> Result:
         """Launch a game described by the immutable ``LaunchContext``.
 
-        Dispatch matrix: xCloud → ``_launch_xcloud``; Windows →
+        Dispatch matrix: browser game → ``browser_game.run_browser_game``; Windows →
         ``_launch_windows``; native Linux → ``_launch_native``.
         Wrapped in circuit-breaker check + error-toast emission.
         Returns a ``Result`` summarising exit code + elapsed time.
@@ -351,120 +353,18 @@ class LauncherService:
     async def _dispatch_launch_kind(
         self, ctx: LaunchContext, state: RuntimeState,
     ) -> Result:
-        """Select the launch backend for ``ctx`` (xCloud / Windows / native).
+        """Select the launch backend for ``ctx`` (browser game / Windows / native).
 
         Pure dispatch: each branch is one async call. Extracted
         from ``launch`` (lot 13a) to keep that method's fan-out
         under the gate; the dispatch matrix itself stays trivial
         so any new launch kind only adds one entry here.
         """
-        if ctx.is_xcloud:
-            return await self._launch_xcloud(ctx)
+        if ctx.is_browser_game:
+            return await run_browser_game(self, ctx)
         if ctx.is_windows_game:
             return await self._launch_windows(ctx, state)
         return await self._launch_native(ctx, state)
-
-    async def _xcloud_edge_check(self, ctx: LaunchContext) -> Result | None:
-        """Abort result when Edge isn't installed, else ``None`` to continue.
-
-        xCloud streaming requires Edge. Checked before GAME_LAUNCHED so we
-        don't emit a launch/stop pair for a no-op. Extracted from
-        ``_launch_xcloud`` to keep that method under the line cap.
-        """
-        if self._edge_browser.is_installed:
-            return None
-        logger.warning(
-            "[LauncherService] xCloud launch aborted — Edge not installed",
-        )
-        await emit_stage(
-            self._bus,
-            i18n_key="toasts.launcher.browserRequired",
-            game_title=ctx.game_key,
-            severity="error",
-            priority="normal",
-        )
-        return Result(
-            success=False, error="edge_not_installed", store=ctx.store,
-        )
-
-    async def _launch_xcloud(self, ctx: LaunchContext) -> Result:
-        """xCloud streaming path — Edge kiosk mode on the Xbox URL."""
-        from unifideck.core.types.events import Events
-
-        store = ctx.store
-        game_id = ctx.game_id
-
-        edge_abort = await self._xcloud_edge_check(ctx)
-        if edge_abort is not None:
-            return edge_abort
-
-        await self._bus.emit(
-            Events.GAME_LAUNCHED,
-            store=store,
-            game_id=game_id,
-            title="",  # No title on LaunchContext
-            app_id=0  # No app_id on LaunchContext
-        )
-
-        # xCloud streaming URL. ``/play/launch/{productId}`` is the
-        # page that *starts the stream* — the old ``/play/games/{id}``
-        # was just a store details page (Edge opened but the game never
-        # started, which is the "launches Edge, not the game" symptom).
-        # Built from the game id directly: the games.map sentinel stores
-        # the URL in ``work_dir``, but the dispatcher wraps that field
-        # in ``Path`` (which collapses ``https://`` → ``https:/``), so
-        # it's not a safe URL source here.
-        url = f"https://www.xbox.com/play/launch/{game_id}"
-
-        await emit_stage(
-            self._bus,
-            i18n_key="toasts.launcher.signingIn",
-            game_title=ctx.game_key,
-        )
-
-        try:
-            # ``EdgeBrowser.launch_xcloud`` is synchronous and
-            # returns ``bool``. We dispatch through
-            # ``asyncio.to_thread`` because the underlying
-            # ``subprocess.Popen[bytes]`` blocks while Edge
-            # initializes; without the thread hop the event loop
-            # stalls for ~half a second on every launch.
-            launched = await asyncio.to_thread(
-                self._edge_browser.launch_xcloud, url,
-            )
-            if not launched:
-                return Result(
-                    success=False,
-                    error="edge_launch_failed",
-                    store=store,
-                )
-            # Block until the streaming session ends — exactly like
-            # the native / Windows paths ``await proc.wait()``. Without
-            # this the launcher returned immediately, ``GAME_STOPPED``
-            # fired at once, and Steam showed the game as stopped while
-            # Edge was still streaming (no playtime, stale running
-            # indicator, Stop did nothing). Registering the Edge
-            # process as the active subprocess also lets SIGTERM-based
-            # cancellation (Stop) reach it.
-            self._active_subprocess = self._edge_browser.process
-            await self._wait_for_xcloud_session()
-            return Result(success=True, store=store)
-        except Exception as e:
-            logger.exception("[LauncherService] xCloud launch failed")
-            return Result(success=False, error=str(e))
-        finally:
-            self._active_subprocess = None
-            await self._bus.emit(Events.GAME_STOPPED, store=store, game_id=game_id)
-
-    async def _wait_for_xcloud_session(self) -> None:
-        """Block until the Edge streaming session ends.
-
-        Reuses the launcher's canonical xCloud session wait (process
-        ``.wait()`` with a max-duration cap + a poll fallback when no
-        process handle is available).
-        """
-        from unifideck.launcher.flows.xcloud import _wait_for_session_end
-        await _wait_for_session_end(self._edge_browser)
 
     async def _get_launch_id_or_none(self) -> str | None:
         """Return the current launch id from ``launch_history`` or None."""

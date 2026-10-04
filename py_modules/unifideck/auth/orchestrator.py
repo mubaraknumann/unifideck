@@ -34,15 +34,16 @@ import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from unifideck.auth.url_file import write_url_file_atomically
 from unifideck.core.types import AuthResult, Events
 
 if TYPE_CHECKING:
     from unifideck.event_bus.event_bus import EventBus
 
     from .browser import OAuthBrowserMonitor
+    from .browser_types import ContentCapture
     # Type aliases for the store-specific callbacks. Keeping them
     # explicit makes the contract between the orchestrator and its
     # callers obvious at the type level.
@@ -113,8 +114,7 @@ class AuthOrchestrator:
         timeout: float | None = None,  # noqa: ASYNC109 — timeout is API value passed to underlying lib (urllib/aiohttp/subprocess), not an asyncio.timeout() wrapper
         write_url_file: str | None = None,
         background: bool = False,
-        content_trigger_url: str | None = None,
-        content_regex: str | None = None,
+        content: ContentCapture | None = None,
     ) -> AuthResult:
         """Execute the CDP OAuth flow (blocking or background).
 
@@ -160,16 +160,14 @@ class AuthOrchestrator:
                 allowed_uris=allowed_uris,
                 exchange_code=exchange_code,
                 deadline=deadline,
-                content_trigger_url=content_trigger_url,
-                content_regex=content_regex,
+                content=content,
             )
         return await self._await_redirect_and_exchange(
             url=url,
             allowed_uris=allowed_uris,
             exchange_code=exchange_code,
             deadline=deadline,
-            content_trigger_url=content_trigger_url,
-            content_regex=content_regex,
+            content=content,
         )
 
     async def _acquire_auth_url(
@@ -220,7 +218,7 @@ class AuthOrchestrator:
         recover the URL via the bus even if the file write
         didn't go through.
         """
-        write_ok = await self._write_url_atomically(write_url_file, url)
+        write_ok = await write_url_file_atomically(write_url_file, url)
         if write_ok:
             return None
         return await self._emit_failed(
@@ -253,8 +251,7 @@ class AuthOrchestrator:
         exchange_code: ExchangeCodeCallback,
         deadline: float,
         *,
-        content_trigger_url: str | None = None,
-        content_regex: str | None = None,
+        content: ContentCapture | None = None,
     ) -> AuthResult:
         """Wait for the CDP redirect and exchange the code.
 
@@ -277,8 +274,7 @@ class AuthOrchestrator:
             capture = await self._monitor.wait_for_redirect(
                 allowed_uris=allowed_uris,
                 timeout=deadline,
-                content_trigger_url=content_trigger_url,
-                content_regex=content_regex,
+                content=content,
             )
         except asyncio.CancelledError:
             logger.info(
@@ -376,8 +372,7 @@ class AuthOrchestrator:
         exchange_code: ExchangeCodeCallback,
         deadline: float,
         *,
-        content_trigger_url: str | None = None,
-        content_regex: str | None = None,
+        content: ContentCapture | None = None,
     ) -> AuthResult:
         """Create the asyncio task for background mode and return.
 
@@ -397,8 +392,7 @@ class AuthOrchestrator:
                     allowed_uris=allowed_uris,
                     exchange_code=exchange_code,
                     deadline=deadline,
-                    content_trigger_url=content_trigger_url,
-                    content_regex=content_regex,
+                    content=content,
                 )
             except asyncio.CancelledError:
                 # task cancelled mid-flight; swallow to let shutdown proceed
@@ -475,49 +469,3 @@ class AuthOrchestrator:
             )
 
     # ─── I/O helpers ──────────────────────────────────────────
-
-    @staticmethod
-    async def _write_url_atomically(path: str, url: str) -> bool:
-        """Write the OAuth URL to disk atomically.
-
-        Creates the parent directory if needed, writes to a
-        `.tmp` sibling first, then renames into place. This
-        guarantees the shell launcher never reads a half-written
-        URL file.
-        """
-        def _write_sync() -> str:
-            expanded = Path(path).expanduser()
-            parent = expanded.parent
-            parent.mkdir(parents=True, exist_ok=True)
-            tmp = expanded.with_name(expanded.name + ".tmp")
-            with tmp.open("w", encoding="utf-8") as f:
-                f.write(url)
-            tmp.replace(expanded)
-            return str(expanded)
-
-        # `expanded` was bound only on the
-        # success path (the result of asyncio.to_thread). When
-        # _write_sync raised OSError, the `except` handler
-        # referenced an unbound `expanded`, producing an
-        # UnboundLocalError that masked the real OSError and
-        # propagated to the caller instead of returning False.
-        # Bind a fallback up front so the error path can always
-        # log a meaningful target path.
-        #
-        # The fallback is the raw `path` (no expanduser): the
-        # real expanded path is computed inside _write_sync and
-        # overwrites this on success. Calling Path(...).expanduser()
-        # here would be a blocking pathlib call in an async
-        # function (ASYNC240) for no benefit — the value is only
-        # ever used in the error log, where the un-expanded path
-        # (e.g. "~/.config/...") is just as diagnostic.
-        expanded = path
-        try:
-            expanded = await asyncio.to_thread(_write_sync)
-            logger.debug(
-                "[AuthOrchestrator] wrote auth URL to %s", expanded,
-            )
-            return True
-        except OSError:
-            logger.exception("[AuthOrchestrator] failed to write %s", expanded)
-            return False

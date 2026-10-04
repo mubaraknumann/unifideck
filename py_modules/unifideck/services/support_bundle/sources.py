@@ -255,6 +255,13 @@ _STATE_MEDIUM: tuple[SourceSpec, ...] = (
         writer="steam/owned_games.py",
     ),
     SourceSpec(
+        key="steam_owned_games",
+        what="Titles + appids already owned on Steam (cross-store grouping input)",
+        root="data", pattern="steam_owned_games.json", arch_dir="data",
+        max_bytes=CAP_SMALL_JSON, scrub="json", priority=55, expect="sync",
+        writer="steam/owned_games.py",
+    ),
+    SourceSpec(
         key="games_map", what="app_id to store/game mapping used by the launcher",
         root="paths", pattern="games_map_path", arch_dir="data",
         scrub="text", priority=60, expect="sync",

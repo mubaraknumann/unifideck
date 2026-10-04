@@ -179,5 +179,37 @@
   "gamevault.password": {
     "locales": ["it-IT"],
     "reason": "Same word as ubisoftAuth.passwordLabel, kept consistent. The other 14 locales translated this key, which is why only it-IT is listed."
+  },
+  "storeOwnership.noteCloud": {
+    "locales": ["de-DE", "fr-FR", "it-IT", "nl-NL"],
+    "reason": "A one-word note on an owned Xbox chip for a title that also streams through Xbox Cloud Gaming. German, French, Italian and Dutch use the loanword 'Cloud' itself for cloud gaming (Steam's own 'Steam Cloud' is untranslated in all four); a native word ('Wolke', 'nuage', 'nuvola', 'wolk') would read as weather. The other 11 locales translate it, which is why only these four are listed."
+  },
+  "storeOwnership.platformPc": {
+    "locales": "*",
+    "reason": "Platform name on a Steam Store ribbon chip ('Xbox · PC'). 'PC' is the term every supported language uses for Windows gaming, as Steam's own store does."
+  },
+  "storeOwnership.platformConsole": {
+    "locales": ["fr-FR", "it-IT", "nl-NL", "pt-BR"],
+    "reason": "French, Italian, Dutch and Brazilian Portuguese all write 'console' for a game console; the other locales translate it."
+  },
+  "storeOwnership.platformPcConsole": {
+    "locales": ["fr-FR", "it-IT", "nl-NL", "pt-BR"],
+    "reason": "'PC' plus the word 'console', which these four languages write as English does (see storeOwnership.platformConsole)."
+  },
+  "storeOwnership.platformPlayAnywhere": {
+    "locales": "*",
+    "reason": "Microsoft's program name (Xbox Play Anywhere), shown untranslated on Microsoft's own localized store pages."
+  },
+  "storeOwnership.noteGold": {
+    "locales": "*",
+    "reason": "Brand: Games with Gold / Xbox Live Gold. The Xbox console marks these titles with an untranslated 'GOLD' badge in every language."
+  },
+  "auth.microsoft.code": {
+    "locales": ["de-DE", "fr-FR", "nl-NL"],
+    "reason": "Label before the Microsoft sign-in code in the QAM. German, French and Dutch all use the word 'Code'."
+  },
+  "storeOwnership.messageGamePass": {
+    "locales": "*",
+    "reason": "Brand name (Xbox Game Pass), unchanged on Microsoft's own localized pages."
   }
 }

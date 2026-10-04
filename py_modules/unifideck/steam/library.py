@@ -14,6 +14,7 @@ from unifideck.utils.config_helpers import get_cfg
 from unifideck.utils.title_match import (
     normalize_for_match,
     strip_edition_suffix,
+    strip_platform_suffix,
     titles_match,
 )
 from unifideck.utils.vdf_compat import (
@@ -153,6 +154,31 @@ async def _request_storesearch(
     return items if isinstance(items, list) else []
 
 
+async def _retry_cleaned(
+    title: str, timeout_s: float, session: aiohttp.ClientSession | None,
+) -> tuple[dict[str, Any], int] | None:
+    """Search again without platform words, then without edition words.
+
+    Steam's search finds nothing for "DOOM Eternal Standard Edition (PC)"
+    and finds the game for "doom eternal". Platform words go first, alone,
+    so an edition that is its own Steam game ("Mafia: Definitive Edition")
+    is searched before its bare franchise. Every hit still has to pass
+    ``titles_match`` against the full title.
+    """
+    normalized = normalize_for_match(title)
+    tried = {normalized}
+    for query in (strip_platform_suffix(normalized), strip_edition_suffix(normalized)):
+        if not query or query in tried:
+            continue
+        tried.add(query)
+        match = _pick_store_match(
+            title, await _storesearch_items(query, timeout_s, session),
+        )
+        if match is not None:
+            return match
+    return None
+
+
 def _pick_store_match(
     query: str, items: list[dict[str, Any]],
 ) -> tuple[dict[str, Any], int] | None:
@@ -187,11 +213,7 @@ async def search_store(
         title, await _storesearch_items(title, timeout_s, session),
     )
     if match is None:
-        stripped = strip_edition_suffix(normalize_for_match(title))
-        if stripped and stripped != normalize_for_match(title):
-            match = _pick_store_match(
-                title, await _storesearch_items(stripped, timeout_s, session),
-            )
+        match = await _retry_cleaned(title, timeout_s, session)
     if match is None:
         return None
 

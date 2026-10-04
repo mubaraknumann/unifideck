@@ -55,7 +55,16 @@ LANGUAGE_PICKER_STORES = frozenset({"gog", "epic"})
 #: ``WRAPPER_STORES`` among the stores that have a storefront at all; kept as
 #: its own set because "has a browser storefront" and "is not a wrapper
 #: store" are not the same claim and a future store could be neither.
-BROWSER_STOREFRONT_STORES = frozenset({"epic", "gog", "amazon", "microsoft"})
+BROWSER_STOREFRONT_STORES = frozenset({"epic", "gog", "amazon", "microsoft", "itch"})
+
+#: Stores whose library lists titles the user can *play* rather than titles
+#: the user *bought*. Microsoft's catalog returns every entitled title, Game
+#: Pass and owned Play Anywhere alike (``MicrosoftStore.get_library``), and
+#: the two cannot be told apart from the payload, so a row from one of
+#: these stores must never be described as "owned". Read by the Steam Store
+#: ownership ribbon (``core/cross_store_ownership``), which words these rows
+#: as "playable" instead. Not a ``capability_flags`` key: no frontend reads it.
+SUBSCRIPTION_LIBRARY_STORES = frozenset({"microsoft"})
 
 
 def capability_flags(store: str) -> dict[str, bool]:

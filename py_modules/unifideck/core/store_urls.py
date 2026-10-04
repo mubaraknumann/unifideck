@@ -64,7 +64,11 @@ import urllib.parse
 #   microsoft — /play is the Game Pass cloud catalogue, and xbox.com is
 #               the domain EdgeProfileManager.has_xbox_session() reads,
 #               i.e. the one we know the session is planted on.
+#   itch      — the front page. The sign-in leaves an itch.io session in
+#               the shared Edge profile (the user signs in on itch.io
+#               itself), so the shop opens signed in with no cookie work.
 _STOREFRONT_URLS: dict[str, str] = {
+    "itch": "https://itch.io/",
     "epic": "https://store.epicgames.com/",
     "gog": "https://www.gog.com/",
     "amazon": "https://luna.amazon.com/",
@@ -101,4 +105,6 @@ def store_search_url(store: str, title: str) -> str:
         return f"https://us.shop.battle.net/en-us/search?q={encoded}"
     if store == "microsoft":
         return "https://www.xbox.com/en-US/games"
+    if store == "itch":
+        return f"https://itch.io/search?q={encoded}"
     return ""

@@ -141,7 +141,7 @@ def _stub_tiers(
     monkeypatch.setattr(S, "_compat_tool_roots", lambda: [])
     monkeypatch.setattr(S, "_discovered_library_commons", lambda: [])
     monkeypatch.setattr(
-        S.ge_installer, "is_proton_install_complete", lambda _p: True,
+        S.ge_installer, "proton_install_problem", lambda _p: None,
     )
 
 

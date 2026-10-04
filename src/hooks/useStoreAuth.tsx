@@ -43,6 +43,34 @@ const NETWORK_ERROR_CODES = new Set([
 ]);
 
 /**
+ * Extra line under the "Starting sign-in" toast for stores whose sign-in has
+ * a step the user would not expect. itch.io asks for the password a second
+ * time before it shows the API-keys page, and a new account has to press
+ * "Generate new API key" there once.
+ */
+const SIGN_IN_HINT_KEYS: Partial<Record<StoreId, string>> = {
+  itch: "auth.hints.itch",
+  microsoft: "auth.hints.microsoft",
+};
+
+/**
+ * Backend sign-in failures that have a sentence of their own (the Microsoft
+ * device-code flow, `MicrosoftDeviceAuth`). Anything else shows its raw code
+ * under the generic "sign-in failed" title, as before.
+ */
+const ERROR_KEYS: Record<string, string> = {
+  device_code_expired: "auth.errors.codeExpired",
+  access_denied: "auth.errors.accessDenied",
+  no_xbox_profile: "auth.errors.noXboxProfile",
+  child_account: "auth.errors.childAccount",
+  region_unavailable: "auth.errors.regionUnavailable",
+  client_rejected: "auth.errors.clientRejected",
+};
+
+/** The user pressed Cancel; telling them it failed would be noise. */
+const SILENT_ERRORS = new Set(["cancelled"]);
+
+/**
  * Shape returned by {@link useStoreAuth}. Bundles the
  * reactive `status` field with the action callbacks so
  * components destructure once instead of subscribing to
@@ -121,7 +149,11 @@ export function useStoreAuth(store: StoreId): UseStoreAuthResult {
 
     setBusy(true);
     try {
-      toast.info(t("auth.toasts.signingIn", { store: storeName }));
+      const hintKey = SIGN_IN_HINT_KEYS[store];
+      toast.info(
+        t("auth.toasts.signingIn", { store: storeName }),
+        hintKey ? t(hintKey) : undefined,
+      );
       const result = await AuthDispatcher.start(store);
       // Browser-based OAuth needs Microsoft Edge. When the
       // backend reports the prereq is missing, surface a
@@ -142,6 +174,13 @@ export function useStoreAuth(store: StoreId): UseStoreAuthResult {
       if (result.success) {
         auth.notifyConnected(store);
         toast.success(t("auth.toasts.connected", { store: storeName }));
+      } else if (result.error && SILENT_ERRORS.has(result.error)) {
+        // Cancelled by the user: nothing to report.
+      } else if (result.error && ERROR_KEYS[result.error]) {
+        toast.error(
+          t("auth.toasts.failed", { store: storeName }),
+          t(ERROR_KEYS[result.error]),
+        );
       } else if (result.error && NETWORK_ERROR_CODES.has(result.error)) {
         toast.error(
           t("auth.errors.networkTitle"),

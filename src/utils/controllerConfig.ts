@@ -69,7 +69,7 @@ const CONFIG_INFO_TIMEOUT_MS = 4000;
 /** Default an xCloud shortcut to the "Gamepad With Joystick Trackpad"
  *  layout. Best-effort and fire-and-forget: a failed/absent apply just
  *  leaves the current layout. Run *after* `RunGame` (see
- *  `launchAppWithConfiguredGamepad`) — Steam's controller-config API is
+ *  `launchAppWithControllerLayout`). Steam's controller-config API is
  *  inert for an idle shortcut, so we apply once the app is the active
  *  launch target; the selection persists for subsequent launches. */
 export async function ensureGamepadConfigForApp(appId: number): Promise<void> {
@@ -80,11 +80,21 @@ export async function ensureGamepadConfigForApp(appId: number): Promise<void> {
   );
 }
 
-/** Launch a Steam shortcut by appId, going through Steam's
- *  RunGame API. Returns false when Steam's Apps surface is
- *  unavailable (test environments, very early plugin boot). */
-export async function launchAppWithConfiguredGamepad(
+/** Which Steam Input template a browser game's shortcut defaults to.
+ *  `gamepad` (Gamepad With Joystick Trackpad) drives an xCloud stream as an
+ *  Xbox pad; `web-browser` gives an HTML5 game a trackpad mouse. */
+export type BrowserGameLayout = "gamepad" | "web-browser";
+
+/** Launch a browser game's shortcut through Steam's RunGame API, then
+ *  default it to `layout`. Returns false when Steam's Apps surface is
+ *  unavailable (test environments, very early plugin boot).
+ *
+ *  The layout is applied AFTER `RunGame`: Steam's controller-config API is
+ *  inert for an idle shortcut. Fire-and-forget, so it never delays the
+ *  launch; the selection persists for later launches. */
+export async function launchAppWithControllerLayout(
   appId: number,
+  layout: BrowserGameLayout,
 ): Promise<boolean> {
   const steamApps = window.SteamClient?.Apps;
   if (!steamApps?.RunGame) {
@@ -92,10 +102,12 @@ export async function launchAppWithConfiguredGamepad(
   }
 
   steamApps.RunGame(getShortcutRunGameId(appId), "", -1, 100);
-  console.log(`${LOG_PREFIX} Launched appId=${appId}`);
-  // Fire-and-forget so it never delays the launch: default the shortcut to
-  // the gamepad layout once it's the active controller-config target.
-  void ensureGamepadConfigForApp(appId);
+  console.log(`${LOG_PREFIX} Launched appId=${appId} (${layout} layout)`);
+  if (layout === "gamepad") {
+    void ensureGamepadConfigForApp(appId);
+  } else {
+    applyWebBrowserLayout(appId);
+  }
 
   return true;
 }
@@ -210,26 +222,32 @@ function applySelectedTemplate(
         resolve(ok);
       };
 
-      state.reg = input.RegisterForControllerConfigInfoMessages(
-        appId,
-        (messages) => {
-          if (state.settled || !Array.isArray(messages)) return;
-          const tpl = messages.filter(isTemplateEntry).find(matches);
-          if (!tpl) return;
-          state.settled = true;
-          try {
-            input.SetSelectedConfigForApp(appId, idx, tpl.URL, false, true);
-            console.log(
-              `${LOG_PREFIX} applied ${label} to ` +
-                `appId=${appId} (${tpl.URL})`,
-            );
-            finish(true);
-          } catch (e) {
-            console.warn(`${LOG_PREFIX} SetSelectedConfigForApp failed:`, e);
-            finish(false);
-          }
-        },
-      );
+      // ONE argument, the callback: Steam's own bundle calls
+      // `RegisterForControllerConfigInfoMessages(this.onControllerConfigInfo)`.
+      // Passing `(appId, cb)` made the backend reject arg 0 ("invalid
+      // argument (arg 0): uint_value: <appid>", measured 2026-09-23), so no
+      // message ever arrived and every layout apply timed out. The stream
+      // carries every app's configs, hence the appID filter.
+      state.reg = input.RegisterForControllerConfigInfoMessages((messages) => {
+        if (state.settled || !Array.isArray(messages)) return;
+        const tpl = messages
+          .filter(isTemplateEntry)
+          .filter((m) => m.appID === appId || m.appID === 0)
+          .find(matches);
+        if (!tpl) return;
+        state.settled = true;
+        try {
+          input.SetSelectedConfigForApp(appId, idx, tpl.URL, false, true);
+          console.log(
+            `${LOG_PREFIX} applied ${label} to ` +
+              `appId=${appId} (${tpl.URL})`,
+          );
+          finish(true);
+        } catch (e) {
+          console.warn(`${LOG_PREFIX} SetSelectedConfigForApp failed:`, e);
+          finish(false);
+        }
+      });
       input.QueryControllerConfigsForApp(appId, idx, false);
       state.timer = setTimeout(() => {
         if (!state.settled) {

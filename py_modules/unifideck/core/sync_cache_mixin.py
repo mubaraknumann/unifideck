@@ -32,6 +32,7 @@ class _SyncCacheMixin:
     _config: ConfigManager | None
     _all_games: dict[str, list[Game]]
     _last_sync_time: float | None
+    _bus: Any
 
     def _get_library_cache_path(self) -> Path:
         """Resolve the library_cache.json file path."""
@@ -64,8 +65,64 @@ class _SyncCacheMixin:
                 "[SyncService] Loaded %d cached games from library_cache.json",
                 sum(len(g) for g in self._all_games.values()),
             )
+            self._annotate_loaded_cache()
         except Exception as e:
             logger.warning("[SyncService] Failed to load library cache: %s", e)
+
+    def _annotate_loaded_cache(self) -> None:
+        """Re-stamp the duplicate-grouping fields on the in-memory library.
+
+        Runs on cache load (a cache from an older build, or from before
+        the user's last sync, carries stale fields), after the metadata
+        phase, and when the frontend pushes the owned Steam library.
+
+        Best-effort: a failure here must not stop the plugin starting with
+        its cached library; grouping just stays as it was until the next
+        sync.
+        """
+        try:
+            from unifideck.core.game_grouping import (
+                annotate_duplicate_groups_if_enabled,
+            )
+
+            # One call over every store together: grouping is cross-store,
+            # so an Epic copy has to see its GOG sibling. The Game objects
+            # are mutated in place, the same ones held in `_all_games`.
+            all_games = [g for games in self._all_games.values() for g in games]
+            annotate_duplicate_groups_if_enabled(
+                all_games, self._config, getattr(self, "_cache", None),
+            )
+        except Exception:
+            logger.exception(
+                "[SyncService] failed to annotate duplicate groups on "
+                "cache load — continuing without cross-store grouping "
+                "until the next sync",
+            )
+
+    def _subscribe_grouping_refresh(self) -> None:
+        """Re-group when new Steam mappings land after a sync.
+
+        Grouping reads ``steam_real_appid``, which the metadata phase
+        writes *after* ``sync_complete`` and the metadata backfill writes
+        later still. Without this, a newly synced game would group by
+        title alone until the next sync.
+        """
+        from unifideck.core.types import Events
+
+        self._bus.on(Events.POST_SYNC_PHASE_CHANGED, self._on_metadata_phase_done)
+        self._bus.on(Events.METADATA_BACKFILL_COMPLETE, self._on_metadata_backfilled)
+
+    def _on_metadata_phase_done(self, **kwargs: Any) -> None:
+        if kwargs.get("phase") == "metadata" and not kwargs.get("active", True):
+            self.refresh_duplicate_groups()
+
+    def _on_metadata_backfilled(self, **_kwargs: Any) -> None:
+        self.refresh_duplicate_groups()
+
+    def refresh_duplicate_groups(self) -> None:
+        """Re-group the in-memory library and persist it."""
+        self._annotate_loaded_cache()
+        self._save_library_cache()
 
     def reset_library_state(self) -> None:
         """Drop the in-memory library and its on-disk cache.

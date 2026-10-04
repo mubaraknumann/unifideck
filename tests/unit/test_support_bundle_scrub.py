@@ -58,6 +58,17 @@ def test_oauth_query_parameters_keep_their_keys() -> None:
     assert "client_id=public-app" in result
 
 
+def test_device_sign_in_codes_are_masked() -> None:
+    """The device-code sign-in puts a live code in a URL and in JSON bodies."""
+    result = _text(
+        "open https://www.microsoft.com/link?otc=9W2495MG\n"
+        '{"device_code": "DAQABAAEAAAD", "user_code": "9W2495MG"}\n',
+    )
+    assert "9W2495MG" not in result
+    assert "DAQABAAEAAAD" not in result
+    assert "otc=<REDACTED>" in result
+
+
 def test_key_value_assignments_are_masked() -> None:
     result = _text(
         'settings {"access_token": "abc123secret", "refresh_token": "r-9988"}\n'

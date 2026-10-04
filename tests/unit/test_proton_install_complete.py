@@ -17,9 +17,16 @@ from __future__ import annotations
 import os
 import stat
 
-from unifideck.launcher.proton.infrastructure import ge_installer
-from unifideck.launcher.proton.infrastructure import selector
+import pytest
 
+from unifideck.launcher.proton.infrastructure import (
+    ge_install_lock,
+    ge_installer,
+    ge_marker,
+    proton_health,
+    selector,
+)
+from unifideck.launcher.types.errors import ProtonUnavailableError
 
 _VALID_MANIFEST = '"manifest"\n{\n  "commandline" "/proton run"\n}\n'
 
@@ -156,3 +163,108 @@ def test_resolve_logged_none_when_tool_unresolved(monkeypatch):
     monkeypatch.setattr(selector, "resolve_proton_path", lambda tool: None)
     tried: list[str] = []
     assert selector._resolve_logged("saved", "nope", tried) is None
+
+
+# ── reasons: a failed check names the missing piece ──────────────────
+
+
+def test_problem_is_none_for_a_complete_install(tmp_path):
+    proton = _make_proton(tmp_path / "GE-Proton11-7")
+    assert ge_installer.proton_install_problem(proton) is None
+
+
+@pytest.mark.parametrize(("kwargs", "needle"), [
+    ({"manifest": None}, "toolmanifest.vdf"),
+    ({"manifest": ""}, "toolmanifest.vdf"),
+    ({"exe": False}, "not executable"),
+    ({"wine": False}, "files/bin/wine"),
+    ({"version": ""}, "version"),
+])
+def test_problem_names_the_missing_piece(tmp_path, kwargs, needle):
+    proton = _make_proton(tmp_path / "GE-Proton11-7", **kwargs)
+    problem = ge_installer.proton_install_problem(proton)
+    assert problem is not None
+    assert needle in problem
+
+
+def test_spawn_check_error_names_the_problem(tmp_path):
+    """The launch-time error says what is missing, not a guess at the cause."""
+    proton = _make_proton(tmp_path / "GE-Proton11-7", manifest=None)
+    with pytest.raises(ProtonUnavailableError, match=r"toolmanifest\.vdf"):
+        proton_health.assert_proton_still_complete(
+            {"PROTONPATH": str(proton.parent)},
+        )
+
+
+# ── the managed GE: a broken tag dir does not count as installed ──────
+#
+# Field report (v0.7.5): GE-Proton11-7 had an executable ``proton`` but no
+# usable ``toolmanifest.vdf``. The presence-only "installed?" check said
+# yes, so the default tier picked it on every launch, the plugin never
+# re-downloaded it, and every game plus the Ubisoft login died with umu's
+# ``KeyError: 'manifest'``.
+
+_TAG = "GE-Proton11-7"
+
+
+def _managed_root(tmp_path, monkeypatch):
+    """Point the installer's scan roots and install target at ``tmp_path``."""
+    root = tmp_path / "compatibilitytools.d"
+    monkeypatch.setattr(ge_installer, "_SCAN_ROOTS", (str(root),))
+    monkeypatch.setattr(ge_installer, "COMPAT_TOOLS_DIR", root)
+    return root
+
+
+def test_manifestless_ge_is_not_installed(tmp_path, monkeypatch):
+    root = _managed_root(tmp_path, monkeypatch)
+    _make_proton(root / _TAG, manifest=None)
+
+    assert ge_installer.installed_ge_proton_path(_TAG) is None
+    assert ge_installer.is_valid_ge_install(_TAG) is False
+
+
+def test_complete_ge_is_installed(tmp_path, monkeypatch):
+    root = _managed_root(tmp_path, monkeypatch)
+    proton = _make_proton(root / _TAG)
+
+    assert ge_installer.installed_ge_proton_path(_TAG) == proton
+
+
+def test_ensure_latest_ge_redownloads_a_manifestless_install(tmp_path, monkeypatch):
+    root = _managed_root(tmp_path, monkeypatch)
+    _make_proton(root / _TAG, manifest=None)
+    monkeypatch.setattr(ge_marker, "_MARKER", tmp_path / "latest.json")
+    monkeypatch.setattr(ge_install_lock, "INSTALL_LOCK", tmp_path / "ge.lock")
+    monkeypatch.setattr(
+        ge_installer, "_fetch_latest_release", lambda timeout: {
+            "tag_name": _TAG,
+            "assets": [{"name": f"{_TAG}-x86_64.tar.gz", "browser_download_url": "u"}],
+        },
+    )
+    fresh = tmp_path / "fresh" / "proton"
+    downloads: list[tuple[str, str]] = []
+
+    def _fake_install(tag, url, _cb):
+        downloads.append((tag, url))
+        return fresh
+
+    monkeypatch.setattr(ge_installer, "_download_and_install", _fake_install)
+
+    assert ge_installer.ensure_latest_ge() == (fresh, _TAG)
+    assert downloads == [(_TAG, "u")]
+
+
+def test_default_tier_skips_a_manifestless_cached_ge(tmp_path, monkeypatch):
+    """Offline with a broken cached GE: fall back to Experimental, not the GE."""
+    root = _managed_root(tmp_path, monkeypatch)
+    _make_proton(root / _TAG, manifest=None)
+    experimental = _make_proton(tmp_path / "Proton - Experimental")
+    monkeypatch.setattr(selector.external_ge, "find_external_ge_proton", lambda *a, **k: None)
+    monkeypatch.setattr(selector.ge_marker, "read_cached_latest_tag", lambda: _TAG)
+    monkeypatch.setattr(selector.ge_installer, "ensure_latest_ge", lambda **_k: None)
+    monkeypatch.setattr(
+        selector, "resolve_proton_path",
+        lambda tool: experimental if tool == "proton_experimental" else None,
+    )
+
+    assert selector._default_latest_ge([]) == (experimental, "proton_experimental")

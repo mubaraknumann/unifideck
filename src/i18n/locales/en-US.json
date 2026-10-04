@@ -18,9 +18,23 @@
       "connected": "{{store}} connected",
       "failed": "{{store}} sign-in failed"
     },
+    "hints": {
+      "itch": "itch.io will ask for your password again. If no API key is listed, press “Generate new API key”.",
+      "microsoft": "Press Allow access"
+    },
+    "microsoft": {
+      "code": "Code",
+      "reopen": "Reopen"
+    },
     "errors": {
       "networkTitle": "No internet connection",
-      "networkBody": "Connect to Wi-Fi and try again."
+      "networkBody": "Connect to Wi-Fi and try again.",
+      "codeExpired": "Code expired",
+      "accessDenied": "Sign-in declined",
+      "noXboxProfile": "No Xbox profile",
+      "childAccount": "Child account",
+      "regionUnavailable": "Region unsupported",
+      "clientRejected": "Update Unifideck"
     }
   },
   "storage": {
@@ -362,6 +376,8 @@
       "errorCircuitBreakerOpen": "{{game_key}} failed to launch {{count}} times recently. Automatic retries paused.",
       "launcherError": "Couldn't launch {{game_key}} ({{error_code}}). Check the logs for details.",
       "startingBattlenetGame": "Starting {{gameTitle}} through Battle.net…",
+      "wc3ProtonUnsupported": "Warcraft III Needs a Newer Proton",
+      "wc3ProtonUnsupportedMessage": "{{gameTitle}} can't sign in to Battle.net on this Proton version, because of a Wine bug that makes the game report a VPN error. Open its Properties in Steam, then Compatibility, and pick GE-Proton11-7 or newer.",
       "battlenetStartingClient": "Opening Battle.net",
       "battlenetStartingClientMessage": "Waiting for the Battle.net client to be ready…",
       "battlenetInstallingClient": "Installing Battle.net",
@@ -477,6 +493,8 @@
       "stalled": "Download stalled with no progress. Please try again.",
       "directoryNotFound": "Could not locate installed files",
       "lockConflict": "Another operation is in progress. Try again",
+      "noCompatibleBuild": "This game has no Linux or Windows build that can be installed",
+      "folderInUse": "The install folder already holds a game from another store",
       "ubisoftClient": "Ubisoft Connect client error. Try repairing the prefix",
       "ubisoftClientNotRunning": "Ubisoft Connect client not responding",
       "ubisoftBootstrap": "Failed to set up Ubisoft Connect prefix",
@@ -542,7 +560,8 @@
     "ubisoft": "Ubisoft",
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
-    "gamevault": "GameVault"
+    "gamevault": "GameVault",
+    "itch": "itch.io"
   },
   "unifiedLibrary": {
     "error": "Unifideck Error",
@@ -627,9 +646,26 @@
     "detailed": "Detailed"
   },
   "collectionSettings": {
-    "title": "STEAM COLLECTIONS",
+    "title": "GAME SHORTCUTS",
     "enabled": "Collections enabled",
-    "disabled": "Collections disabled"
+    "disabled": "Collections disabled",
+    "groupDuplicates": "Group duplicates"
+  },
+  "storeOwnership": {
+    "settingsTitle": "STEAM STORE",
+    "toggleLabel": "Flag games you already own on another store",
+    "tagOwned": "Owned",
+    "tagStreamable": "Streamable",
+    "messageOwned": "You already own this game on:",
+    "messageGamePass": "Xbox Game Pass",
+    "installed": "Installed",
+    "platformPc": "PC",
+    "platformConsole": "Console",
+    "platformPcConsole": "PC + Console",
+    "platformPlayAnywhere": "Play Anywhere",
+    "noteGold": "Gold",
+    "noteCloud": "Cloud",
+    "via": "via Unifideck"
   },
   "installLanguageModal": {
     "title": "Select Language",
@@ -750,6 +786,7 @@
     "cancelConfirmConfirm": "Cancel download",
     "cancelConfirmCancel": "Keep downloading",
     "playOnCloud": "Play on Cloud",
+    "playInBrowser": "Play in Browser",
     "cloudSave": {
       "label": "Cloud saves",
       "menuTitle": "Cloud saves. {{game}}",
@@ -1081,5 +1118,8 @@
     "errorUsernameRequired": "Please enter your username",
     "errorPasswordRequired": "Please enter your password",
     "errorConnection": "Failed to connect to GameVault server"
+  },
+  "gameStoreSwitcher": {
+    "defaultEdition": "Standard Edition"
   }
 }

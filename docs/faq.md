@@ -58,6 +58,11 @@ This FAQ keeps to practical issues that have already shown up in release notes, 
 | Hidden games keep reappearing in older builds.                              | Update to at least 0.5.0. Hidden games were explicitly added there and hidden Steam games were kept hidden as well.                                                                        |
 | Amazon support is missing entirely.                                         | Amazon support first shipped in 0.4.0. If you are on an older package, update.                                                                                                             |
 | Cloud saves do not work for every store or every game.                      | That is expected. Cloud save support currently targets Epic and GOG, and support still depends on the individual game.                                                                     |
+| An itch.io bundle game is missing from my library. | Games from a bundle only appear once you claim them on itch.io (open the bundle page and press "Download" or "Claim" for the game). Unifideck lists what you own or have claimed, plus the free games in your collections. |
+| A paid game in my itch.io collection is not listed. | Collections are bookmarks, so a paid game appears only once you have bought it. Free collection games are listed and install like owned ones. |
+| itch.io asked for my password twice when connecting. | That is itch.io's own check before it shows your API keys. If no key is listed, press "Generate new API key" once; Unifideck reads the key from the page. |
+| An itch.io game says "Play in Browser" instead of Install. | The game only has a browser (HTML5) version. It opens in an Edge window, like Xbox Cloud Gaming, and needs a network connection. |
+| I disconnected itch.io but the API key is still on my account. | Disconnecting only removes the key from this device. Revoke it at itch.io → Settings → API keys if you no longer want it. |
 
 ## Logs and debugging
 

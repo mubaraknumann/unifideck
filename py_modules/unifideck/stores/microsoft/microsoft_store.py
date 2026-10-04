@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from unifideck.auth.browser import OAuthBrowserMonitor
 from unifideck.auth.edge_browser import EdgeBrowser
 from unifideck.auth.orchestrator import AuthOrchestrator
+from unifideck.auth.url_file import remove_url_file
 from unifideck.core.types import (
     AuthResult,
     Events,
@@ -23,10 +23,14 @@ from unifideck.stores.shared.browser_auth_rebuild import (
 from unifideck.stores.shared.store_base import StoreBase
 from unifideck.utils.locale import get_unifideck_locale
 
+from .library_gate import GateVerdict, check_subscription_gate
 from .microsoft_browser_auth import MicrosoftBrowserAuth
 from .microsoft_catalog import MicrosoftCatalogReader
 from .microsoft_config import MicrosoftConfig
-from .tokens import MicrosoftTokenManager
+from .microsoft_device_auth import MS_AUTH_URL_FILE, MicrosoftDeviceAuth
+from .ownership import MicrosoftOwnershipReader, OwnedFetch
+from .session_health import SessionHealth
+from .tokens import MicrosoftTokenManager, TokenState
 
 if TYPE_CHECKING:
     from unifideck.config import ConfigManager
@@ -76,6 +80,7 @@ class MicrosoftStore(BrowserAuthRebuildMixin, StoreBase):
             ),
             bus=bus,
         )
+        self._build_token_users(bus)
         self._catalog = MicrosoftCatalogReader(
             config=self._ms_config,
             config_manager=self._config_manager,
@@ -89,6 +94,16 @@ class MicrosoftStore(BrowserAuthRebuildMixin, StoreBase):
         self._auth: MicrosoftBrowserAuth | None = None
         self._poll_task: asyncio.Task[None] | None = None
         self._rebuild_auth_after_injection()
+    def _build_token_users(self, bus: EventBus) -> None:
+        """The parts that share the token manager: sign-in health, the
+        device-code sign-in, and the ownership reader."""
+        self._health = SessionHealth(bus, self._tokens)
+        self._ownership = MicrosoftOwnershipReader(self._tokens)
+        # A getter, not ``self._edge``: Edge is injected after __init__.
+        self._device_auth = MicrosoftDeviceAuth(
+            bus, self._tokens, self._ms_config, lambda: self._edge,
+        )
+
     def _build_auth_flow(
         self, orchestrator: AuthOrchestrator,
     ) -> MicrosoftBrowserAuth:
@@ -137,6 +152,11 @@ class MicrosoftStore(BrowserAuthRebuildMixin, StoreBase):
                 pass
             self._poll_task = None
 
+    async def shutdown(self) -> None:
+        """Plugin unload: stop the token-refresh loop and any sign-in poll."""
+        await self.stop_token_refresh_polling()
+        await self._device_auth.cancel()
+
     async def _token_poll_loop(self) -> None:
         """Internal loop: refresh (if stale) every poll interval."""
         while True:
@@ -144,12 +164,11 @@ class MicrosoftStore(BrowserAuthRebuildMixin, StoreBase):
                 await asyncio.sleep(self.TOKEN_POLL_INTERVAL_SECONDS)
                 if not await self._tokens.load():
                     continue  # not signed in -- nothing to refresh
-                if not await self._tokens.refresh_if_stale():
-                    logger.warning(
-                        "[MicrosoftStore] background token refresh "
-                        "failed; clearing dead session",
+                state = await self._tokens.refresh_if_stale()
+                if state is TokenState.DEAD:
+                    await self._health.on_session_dead(
+                        self._tokens.last_token_error,
                     )
-                    await self._tokens.clear()
             except asyncio.CancelledError:
                 raise
             except Exception:
@@ -168,35 +187,37 @@ class MicrosoftStore(BrowserAuthRebuildMixin, StoreBase):
         ``refresh_if_stale`` is cheap when the access token isn't
         actually due for renewal (an in-memory age check, no network
         call), so this stays fast on the common path.
+
+        Only a ``DEAD`` answer signs the user out. ``TRANSIENT`` (no
+        network, a Microsoft outage) keeps the session: the user is still
+        signed in, Microsoft just could not be asked. Treating the two
+        alike signed out every Deck that refreshed while offline.
         """
         if not self._ms_config.is_valid():
             self._cached_available = False
             return False
         loaded = await self._tokens.load()
         if not loaded:
+            if self._tokens.client_mismatch:
+                await self._health.on_client_changed()
             self._cached_available = False
             return False
-        fresh = await self._tokens.refresh_if_stale()
-        if not fresh:
-            logger.warning(
-                "[MicrosoftStore] token invalid during availability "
-                "check; clearing dead session",
-            )
-            await self._tokens.clear()
+        state = await self._tokens.refresh_if_stale()
+        if state is TokenState.DEAD:
+            await self._health.on_session_dead(self._tokens.last_token_error)
             self._cached_available = False
             return False
         self._cached_available = True
         return True
 
     async def start_auth(self, **kwargs: Any) -> AuthResult:
+        """Start the sign-in for the configured flow (see ``MicrosoftConfig``).
 
-        """Start auth."""
-        if self._auth is None:
-            return AuthResult(
-                success=False,
-                error="auth_not_configured",
-                store="microsoft",
-            )
+        Both flows run in the Edge auth window, because Xbox Cloud Gaming
+        streams on that profile's Microsoft cookies. Only the legacy flow
+        clears them first: it needs a fresh login form to capture a code
+        from, while the device-code flow is happy to reuse the session.
+        """
         if self._edge is None or not self._edge.is_installed:
             logger.info(
                 "[MicrosoftStore] Edge not installed — "
@@ -210,9 +231,37 @@ class MicrosoftStore(BrowserAuthRebuildMixin, StoreBase):
                 metadata={"needs_2fa": False},
             )
         EdgeBrowser.ensure_controller_permissions()
+        if self._ms_config.uses_device_code:
+            return cast("AuthResult", await self._device_auth.start_auth())
+        if self._auth is None:
+            return AuthResult(
+                success=False,
+                error="auth_not_configured",
+                store="microsoft",
+            )
         self._edge.clear_store_cookies("microsoft.com")
         self._edge.clear_store_cookies("live.com")
         return cast("AuthResult", await self._auth.start_auth())
+
+    async def cancel_auth(self) -> Result:
+        """Abandon a device-code sign-in in progress (no event)."""
+        await self._device_auth.cancel()
+        return Result(success=True)
+
+    async def get_owned_products(self) -> OwnedFetch:
+        """Every Xbox product the account owns (Steam Store ribbon only).
+
+        Independent of the Game Pass gate: purchases are owned with or
+        without a subscription. Needs xbox.com's client, because
+        Collections answers the legacy login.live.com client with an
+        empty list (``ownership.collections_api``).
+        """
+        if not self._ms_config.uses_device_code:
+            return OwnedFetch.failed("the legacy Microsoft sign-in cannot read purchases")
+        if not await self.is_available():
+            return OwnedFetch.failed("not signed in to Microsoft")
+        return await self._ownership.fetch()
+
     async def complete_auth(
         self, code: str = "", **kwargs: Any,
     ) -> AuthResult:
@@ -226,6 +275,7 @@ class MicrosoftStore(BrowserAuthRebuildMixin, StoreBase):
         )
     async def logout(self) -> Result:
         """Logout."""
+        await self._device_auth.cancel()
         if self._auth is not None:
             result = await self._auth.logout()
         else:
@@ -234,18 +284,7 @@ class MicrosoftStore(BrowserAuthRebuildMixin, StoreBase):
                 Events.STORE_LOGOUT, store="microsoft",
             )
             result = Result(success=True)
-        auth_url_file = await asyncio.to_thread(
-            lambda: Path("~/.local/share/unifideck/ms_auth_url.txt").expanduser(),
-        )
-        if await asyncio.to_thread(auth_url_file.is_file):
-            try:
-                auth_url_file.unlink()
-            except OSError as e:
-                logger.warning(
-                    "[MicrosoftStore] could not remove %s: "
-                    "%s",
-                    auth_url_file, e,
-                )
+        await remove_url_file(MS_AUTH_URL_FILE)
         if self._edge is not None:
             try:
                 self._edge.kill()
@@ -259,112 +298,67 @@ class MicrosoftStore(BrowserAuthRebuildMixin, StoreBase):
         return result
 
     async def get_library(self, *, force: bool = False) -> list[Game] | None:
+        """The entitled xCloud titles, or ``None`` when they can't be read.
 
-        """Get library.
+        A list, even an empty one, is authoritative: the post-sync
+        reconcile deletes every xCloud shortcut missing from it. So every
+        "could not read" path returns ``None`` (keep the shortcuts), and
+        ``[]`` is reserved for Microsoft saying the account has no
+        subscription (see ``library_gate``).
 
         Flow:
           1. Tokens must be loaded + not stale.
-          2. Subscription gate must report an active tier — this
+          2. The subscription gate must report an active tier — this
              also captures the xCloud session (gsToken + regions)
              into the service for catalog reuse.
-          3. Catalog fetches ``/v2/titles`` from the regional core
-             endpoint using the session and returns only entitled
-             titles (Game Pass + owned Play Anywhere). ``hasEntitlement``
-             encodes tier access server-side, so no additional tier
-             filter is needed here.
+          3. The catalog fetches ``/v2/titles`` from the regional core
+             endpoint and keeps the entitled titles (Game Pass + owned
+             Play Anywhere); ``hasEntitlement`` encodes tier access
+             server-side.
         """
         if not await self.is_available():
             logger.info(
-                "[MicrosoftStore] not authenticated; "
-                "returning empty library",
+                "[MicrosoftStore] not authenticated; library not read",
             )
-            return []
-        fresh = await self._tokens.refresh_if_stale()
-        if not fresh:
-            logger.error(
-                "[MicrosoftStore] token refresh failed; "
-                "session is dead",
+            return None
+        state = await self._tokens.refresh_if_stale()
+        if state is TokenState.DEAD:
+            await self._health.on_session_dead(self._tokens.last_token_error)
+            return None
+        if state is TokenState.TRANSIENT:
+            logger.warning(
+                "[MicrosoftStore] could not refresh the Microsoft sign-in "
+                "(offline?); library not read, xCloud shortcuts kept",
             )
-            await self._tokens.clear()
+            return None
+        verdict = await check_subscription_gate(
+            self._subscription_service, self._tokens, self._bus,
+        )
+        if verdict is GateVerdict.EMPTY:
             return []
-        if not await self._check_subscription_gate():
-            return []
+        if verdict is GateVerdict.UNREADABLE:
+            return None
         if self._subscription_service is None:
             logger.warning(
                 "[MicrosoftStore] no subscription_service injected "
-                "— cannot get xCloud session; returning empty",
+                "— cannot get xCloud session; library not read",
             )
-            return []
+            return None
         session = await self._subscription_service.get_session(
             self._tokens,
         )
         if session is None or not session.gs_token:
             logger.warning(
                 "[MicrosoftStore] no usable xCloud session "
-                "(no gsToken); returning empty",
+                "(no gsToken); library not read",
             )
-            return []
+            return None
         try:
             return await self._catalog.fetch_games(session)
         except Exception:
             logger.exception("[MicrosoftStore] get_library failed")
-            return []
+            return None
 
-    async def _check_subscription_gate(self) -> bool:
-
-        """Check subscription gate."""
-        if self._subscription_service is None:
-            logger.debug(
-                "[MicrosoftStore] no subscription_service "
-                "wired — skipping subscription gate (legacy "
-                "behaviour)",
-            )
-            return True
-        from unifideck.core.types import SubscriptionTier
-        try:
-            tier = await self._subscription_service.get_tier(
-                self._tokens,
-            )
-        except Exception as e:
-            logger.warning(
-                "[MicrosoftStore] subscription check raised: "
-                "%s — skipping sync", e,
-            )
-            await self._bus.emit(
-                Events.SYNC_SKIPPED,
-                store="microsoft",
-                reason="subscription_check_error",
-            )
-            return False
-        if tier == SubscriptionTier.NONE:
-            logger.info(
-                "[MicrosoftStore] no active xCloud "
-                "subscription — skipping sync",
-            )
-            await self._bus.emit(
-                Events.SYNC_SKIPPED,
-                store="microsoft",
-                reason="no_active_subscription",
-            )
-            return False
-        if tier == SubscriptionTier.ACTIVE_UNKNOWN:
-            logger.warning(
-                "[MicrosoftStore] subscription active but "
-                "tier unknown — skipping sync pending "
-                "capture data",
-            )
-            await self._bus.emit(
-                Events.SYNC_SKIPPED,
-                store="microsoft",
-                reason="subscription_tier_unknown",
-            )
-            return False
-        logger.info(
-            "[MicrosoftStore] active subscription detected "
-            "(tier=%s) — fetching catalog",
-            tier.value,
-        )
-        return True
     # ── Install lifecycle: refused, not faked ────────────────────────────
     #
     # This store's titles are Xbox Cloud Gaming streams. There is nothing to

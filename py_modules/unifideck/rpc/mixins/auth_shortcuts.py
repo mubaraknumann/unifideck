@@ -74,6 +74,7 @@ _AUTH_SHORTCUT_META: dict[str, dict[str, str]] = {
     "gog":       {"title": "GOG Sign-In",          "env": "UNIFIDECK_GOG_ACTION"},
     "amazon":    {"title": "Amazon Games Sign-In", "env": "UNIFIDECK_AMAZON_ACTION"},
     "microsoft": {"title": "Microsoft Sign-In",    "env": "UNIFIDECK_MICROSOFT_ACTION"},
+    "itch":      {"title": "itch.io Sign-In",      "env": "UNIFIDECK_ITCH_ACTION"},
 }
 
 class AuthShortcutsRPCMixin:
@@ -96,6 +97,10 @@ class AuthShortcutsRPCMixin:
     async def get_microsoft_auth_shortcut_context(self) -> Any:
         """Auth-shortcut context for the Microsoft / xCloud launcher."""
         return _build_and_log("microsoft")
+
+    async def get_itch_auth_shortcut_context(self) -> Any:
+        """Auth-shortcut context for the itch.io sign-in window."""
+        return _build_and_log("itch")
 
     async def _wrapper_auth_shortcut_context(self, store_id: str) -> Any:
         """Auth-shortcut context for any wrapper store.

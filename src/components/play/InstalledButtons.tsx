@@ -8,16 +8,17 @@
  *   Running: [ Resume ] [ ✕ ]   Space Required · Last Played [ 🎮 ] [ ⚙ ] [ ✕ ]
  *   Update:  [ Update ]  Space Required · Last Played      [ 🎮 ] [ ⚙ ] [ ✕ ]
  *
- * Running detection polls Steam's per-client ``display_status``
- * every 2 s (4 = running, 1 = launching). Update detection is a
+ * Running detection is ``useAppRunning`` (Steam's per-client
+ * ``display_status``, polled every 2 s). Update detection is a
  * reactive read of ``UpdateStore`` via ``useGameUpdate`` — the
  * backend sweep fills it, so no per-mount RPC fires here.
  */
-import { FC, useCallback, useEffect, useState } from "react";
+import { FC, useCallback } from "react";
 import { DialogButton, showModal } from "@decky/ui";
 import { useTranslation } from "react-i18next";
 import { FaPlay, FaSyncAlt, FaTimes, FaTrash } from "react-icons/fa";
 import { SteamControllerIcon, SteamGearIcon } from "../shared";
+import { useAppRunning } from "../../hooks/useAppRunning";
 import { useGameInfo } from "../../hooks/useGameInfo";
 import { useGameActions } from "../../hooks/useGameActions";
 import { useGameUpdate } from "../../hooks/useGameUpdate";
@@ -44,28 +45,6 @@ interface Props {
 }
 
 const defaultBridge = new SteamBridge();
-const RUNNING_POLL_MS = 2000;
-const STEAM_STATUS_RUNNING = 4;
-const STEAM_STATUS_LAUNCHING = 1;
-
-function readDisplayStatus(appId: number): number | undefined {
-  const store = (
-    window as unknown as {
-      appStore?: {
-        m_mapApps?: {
-          get?: (
-            id: number,
-          ) =>
-            | { local_per_client_data?: { display_status?: number } }
-            | undefined;
-        };
-      };
-    }
-  ).appStore;
-  const app = store?.m_mapApps?.get?.(appId);
-  return app?.local_per_client_data?.display_status;
-}
-
 function openControllerConfig(appId: number): void {
   (
     window as unknown as {
@@ -94,7 +73,7 @@ export const InstalledButtons: FC<Props> = ({
   const { data: game, loading } = useGameInfo(appId);
   const actions = useGameActions(bridge);
   const toast = useToast();
-  const [isRunning, setIsRunning] = useState(false);
+  const isRunning = useAppRunning(appId);
   const gameStore = game?.store;
   const gameId = game?.id;
   // Read-only view of the backend sweep's result — already in memory, so
@@ -114,25 +93,6 @@ export const InstalledButtons: FC<Props> = ({
   // read by ``selector.select_proton_version``; the double-Proton problem
   // the clearing existed to avoid is handled properly at the umu spawn
   // point by ``launcher.proton.infrastructure.container_escape``.
-
-  // Running-state poll (2 s).
-  useEffect(() => {
-    let cancelled = false;
-    const tick = () => {
-      if (cancelled) return;
-      const status = readDisplayStatus(appId);
-      if (status === undefined) return;
-      setIsRunning(
-        status === STEAM_STATUS_RUNNING || status === STEAM_STATUS_LAUNCHING,
-      );
-    };
-    tick();
-    const id = window.setInterval(tick, RUNNING_POLL_MS);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-  }, [appId]);
 
   const onUpdate = useCallback(async () => {
     if (!game) return;

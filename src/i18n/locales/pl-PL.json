@@ -18,9 +18,23 @@
       "connected": "Połączono z {{store}}",
       "failed": "Logowanie do {{store}} nie powiodło się"
     },
+    "hints": {
+      "itch": "itch.io ponownie poprosi o hasło. Jeśli nie widać klucza API, naciśnij „Generate new API key”.",
+      "microsoft": "Zezwól na dostęp"
+    },
+    "microsoft": {
+      "code": "Kod",
+      "reopen": "Otwórz ponownie"
+    },
     "errors": {
       "networkTitle": "Brak połączenia z internetem",
-      "networkBody": "Połącz się z siecią Wi-Fi i spróbuj ponownie."
+      "networkBody": "Połącz się z siecią Wi-Fi i spróbuj ponownie.",
+      "codeExpired": "Kod wygasł",
+      "accessDenied": "Odrzucono",
+      "noXboxProfile": "Brak profilu Xbox",
+      "childAccount": "Konto dziecka",
+      "regionUnavailable": "Region nieobsługiwany",
+      "clientRejected": "Zaktualizuj Unifideck"
     }
   },
   "storage": {
@@ -353,6 +367,8 @@
       "ubisoftLaunchIdMissing": "Otwieranie Ubisoft Connect",
       "ubisoftLaunchIdMissingMessage": "Nie udało się ustalić identyfikatora uruchamiania tej gry. Otwieranie Ubisoft Connect, abyś mógł uruchomić ją z biblioteki. Ponownie uruchom synchronizację biblioteki, aby naprawić bezpośrednie uruchamianie.",
       "startingBattlenetGame": "Uruchamianie {{gameTitle}} przez Battle.net…",
+      "wc3ProtonUnsupported": "Warcraft III wymaga nowszego Protona",
+      "wc3ProtonUnsupportedMessage": "{{gameTitle}} nie może zalogować się do Battle.net na tej wersji Protona z powodu błędu Wine, przez który gra zgłasza błąd VPN. Otwórz Właściwości gry w Steam, potem Zgodność, i wybierz GE-Proton11-7 lub nowszy.",
       "battlenetStartingClient": "Otwieranie Battle.net",
       "battlenetStartingClientMessage": "Oczekiwanie na gotowość klienta Battle.net…",
       "battlenetInstallingClient": "Instalowanie Battle.net",
@@ -477,6 +493,8 @@
       "stalled": "Pobieranie zatrzymało się bez postępu. Spróbuj ponownie.",
       "directoryNotFound": "Nie można zlokalizować zainstalowanych plików",
       "lockConflict": "Inna operacja jest w toku. Spróbuj ponownie",
+      "noCompatibleBuild": "Ta gra nie ma wersji dla Linuksa ani Windows, którą można zainstalować",
+      "folderInUse": "Folder instalacji zawiera już grę z innego sklepu",
       "ubisoftClient": "Błąd Ubisoft Connect. Spróbuj naprawić prefiks",
       "ubisoftClientNotRunning": "Klient Ubisoft Connect nie odpowiada",
       "ubisoftBootstrap": "Nie udało się skonfigurować prefiksu Ubisoft Connect",
@@ -542,7 +560,8 @@
     "ubisoft": "Ubisoft",
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
-    "gamevault": "GameVault"
+    "gamevault": "GameVault",
+    "itch": "itch.io"
   },
   "unifiedLibrary": {
     "error": "Błąd Unifideck",
@@ -727,6 +746,7 @@
     "cancelConfirmConfirm": "Anuluj pobieranie",
     "cancelConfirmCancel": "Kontynuuj pobieranie",
     "playOnCloud": "Graj w chmurze",
+    "playInBrowser": "Graj w przeglądarce",
     "cloudSave": {
       "autoPullOn": "Zapisy w chmurze są pobierane automatycznie przy uruchomieniu.",
       "close": "Zamknij",
@@ -1047,9 +1067,26 @@
     "errorUnavailable": "Osiągnięcia nie są dostępne dla tej gry."
   },
   "collectionSettings": {
-    "title": "KOLEKCJE STEAM",
+    "title": "POZYCJE GIER",
     "enabled": "Kolekcje włączone",
-    "disabled": "Kolekcje wyłączone"
+    "disabled": "Kolekcje wyłączone",
+    "groupDuplicates": "Grupuj duplikaty"
+  },
+  "storeOwnership": {
+    "settingsTitle": "SKLEP STEAM",
+    "toggleLabel": "Oznaczaj gry, które masz już w innym sklepie",
+    "tagOwned": "Posiadane",
+    "tagStreamable": "Streaming",
+    "messageOwned": "Masz już tę grę w:",
+    "messageGamePass": "Xbox Game Pass",
+    "installed": "Zainstalowane",
+    "platformPc": "PC",
+    "platformConsole": "Konsola",
+    "platformPcConsole": "PC + Konsola",
+    "platformPlayAnywhere": "Play Anywhere",
+    "noteGold": "Gold",
+    "noteCloud": "Chmura",
+    "via": "przez Unifideck"
   },
   "reconcile": {
     "repairedTitle": "Naprawiono dane biblioteki",
@@ -1081,5 +1118,8 @@
     "errorUsernameRequired": "Podaj swoją nazwę użytkownika",
     "errorPasswordRequired": "Podaj swoje hasło",
     "errorConnection": "Nie udało się połączyć z serwerem GameVault"
+  },
+  "gameStoreSwitcher": {
+    "defaultEdition": "Edycja standardowa"
   }
 }

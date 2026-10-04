@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from unifideck.services.launch_logs import LaunchLogsService
     from unifideck.services.memory_sampler import MemorySamplerService
     from unifideck.services.metadata_service import MetadataService
+    from unifideck.services.microsoft_ownership import MicrosoftOwnershipService
     from unifideck.services.microsoft_subscription import MicrosoftSubscriptionService
     from unifideck.services.playtime import PlaytimeService
     from unifideck.services.playtime_sync import PlaytimeSyncService
@@ -71,6 +72,7 @@ class ServiceContainer:
     # Read-only: it describes the install, never repairs it.
     support_bundle: SupportBundleService | None = None
     microsoft_subscription: MicrosoftSubscriptionService | None = None
+    microsoft_ownership: MicrosoftOwnershipService | None = None
     # AchievementWatcher — GOG live unlock toasts + end-of-session summary.
     # Reads achievements back from GOG (Comet does the in-game unlocking);
     # plugin-only (the launcher subset never requests it).
