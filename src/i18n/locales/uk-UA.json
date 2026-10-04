@@ -1079,6 +1079,7 @@
     "tagStreamable": "Стримінг",
     "messageOwned": "Ця гра у вас уже є в:",
     "messageGamePass": "Xbox Game Pass",
+    "messageXboxCloud": "Xbox Cloud Gaming",
     "installed": "Встановлено",
     "platformPc": "PC",
     "platformConsole": "Консоль",
