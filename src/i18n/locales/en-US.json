@@ -658,6 +658,7 @@
     "tagStreamable": "Streamable",
     "messageOwned": "You already own this game on:",
     "messageGamePass": "Xbox Game Pass",
+    "messageXboxCloud": "Xbox Cloud Gaming",
     "installed": "Installed",
     "platformPc": "PC",
     "platformConsole": "Console",

@@ -135,6 +135,7 @@ describe("buildRibbonStrings", () => {
     const s = buildRibbonStrings();
     expect(s.tag_owned).toBe("t:storeOwnership.tagOwned");
     expect(s.message_cloud).toBe("t:storeOwnership.messageGamePass");
+    expect(s.message_xcloud).toBe("t:storeOwnership.messageXboxCloud");
     expect(s.tag_cloud).toBe("t:storeOwnership.tagStreamable");
     expect(s.dir).toBe("ltr");
     expect(s.store_labels.gog).toBe("GOG");

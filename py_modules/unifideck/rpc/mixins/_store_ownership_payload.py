@@ -28,7 +28,7 @@ _MAX_STEAM_APP_ID = 2_000_000_000
 _MAX_STRING = 160
 
 _REQUIRED_STRINGS = (
-    "tag_owned", "tag_cloud", "message_owned", "message_cloud",
+    "tag_owned", "tag_cloud", "message_owned", "message_cloud", "message_xcloud",
     "installed", "via",
 )
 
@@ -43,7 +43,11 @@ class RibbonStrings:
     tag_owned: str
     tag_cloud: str
     message_owned: str
+    #: The Game Pass line ("Xbox Game Pass").
     message_cloud: str
+    #: The neutral line for a title that streams for a reason we cannot name
+    #: ("Xbox Cloud Gaming"): never says Game Pass, never says owned.
+    message_xcloud: str
     installed: str
     via: str
     direction: str
@@ -128,8 +132,10 @@ def build_ribbon_payload(
     """The data the in-page ribbon script draws (see ``cdp/store_ribbon_js``).
 
     Purchases and subscription rows are separate sections: a subscription
-    row is "playable", never "owned". The overlay names the purchase stores
-    when there are any, otherwise the subscription service.
+    row is "playable", never "owned". Game Pass and the neutral cloud line
+    are separate too, so an owned game that is also in Game Pass shows both
+    facts. The overlay names the purchase stores when there are any,
+    otherwise the subscription service.
     """
     owned = [c for c in copies if not c.subscription]
     cloud = [c for c in copies if c.subscription]
@@ -141,17 +147,21 @@ def build_ribbon_payload(
             "message": strings.message_owned,
             "chips": [_owned_chip(c, strings, steam_name) for c in owned],
         })
-    if cloud:
-        sections.append({
-            "kind": "cloud",
-            "tag": strings.tag_cloud,
-            "message": strings.message_cloud,
-            "chips": _cloud_chips(cloud, strings, steam_name),
-        })
+    for message, group in (
+        (strings.message_cloud, [c for c in cloud if c.game_pass]),
+        (strings.message_xcloud, [c for c in cloud if not c.game_pass]),
+    ):
+        if group:
+            sections.append({
+                "kind": "cloud",
+                "tag": strings.tag_cloud,
+                "message": message,
+                "chips": _cloud_chips(group, strings, steam_name),
+            })
     return {
         "appid": steam_app_id,
         "dir": strings.direction,
-        "overlay": _overlay(owned, strings),
+        "overlay": _overlay(owned, cloud, strings),
         "sections": sections,
         "installed": strings.installed,
         "via": strings.via,
@@ -172,11 +182,15 @@ def _owned_chip(
 
 def purchase_notes(copy: OwnedCopy, strings: RibbonStrings) -> list[str]:
     """Where an indexed purchase plays, "Gold" if it needs a subscription,
-    and "Cloud" if it also streams. Empty for stores without an index.
+    and "Cloud" if it streams as the user's own game. Empty for stores
+    without an index.
 
-    No "Cloud" next to "Play Anywhere": Play Anywhere already says the game
-    plays everywhere, the cloud included. It stays for a console-only or
-    PC-only purchase that also streams, where it is new information.
+    "Cloud" is never Game Pass: a Game Pass title gets its own line, and
+    ``copy.streams`` is only set on an owned copy outside Game Pass.
+
+    No "Cloud" next to "Play Anywhere": Play Anywhere already includes the
+    cloud. It stays for a console-only or PC-only purchase that also streams,
+    where it is new information.
     """
     labels = strings.note_labels
     notes = []
@@ -206,12 +220,19 @@ def _cloud_chips(
     return chips
 
 
-def _overlay(owned: list[OwnedCopy], strings: RibbonStrings) -> dict[str, Any]:
+def _overlay(
+    owned: list[OwnedCopy], cloud: list[OwnedCopy], strings: RibbonStrings,
+) -> dict[str, Any]:
     """The tag plus a few words: the capsule strip is narrow in Gaming Mode
     (a sentence was cut to "Included with Game P…"). Purchases name their
-    stores; the subscription line names the service, "Xbox Game Pass",
-    because "Xbox" alone read as owned."""
+    stores; the subscription line names the service ("Xbox Game Pass", or
+    "Xbox Cloud Gaming" when it is not Game Pass), because "Xbox" alone read
+    as owned."""
     if owned:
         labels = [strings.store_labels.get(c.store) or c.store for c in owned]
         return {"tag": strings.tag_owned, "text": " · ".join(labels)}
-    return {"tag": strings.tag_cloud, "text": strings.message_cloud}
+    game_pass = any(c.game_pass for c in cloud)
+    return {
+        "tag": strings.tag_cloud,
+        "text": strings.message_cloud if game_pass else strings.message_xcloud,
+    }

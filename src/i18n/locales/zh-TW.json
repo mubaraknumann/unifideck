@@ -658,6 +658,7 @@
     "tagStreamable": "可串流",
     "messageOwned": "您已在以下商店擁有此遊戲：",
     "messageGamePass": "Xbox Game Pass",
+    "messageXboxCloud": "Xbox Cloud Gaming",
     "installed": "已安裝",
     "platformPc": "PC",
     "platformConsole": "主機",
