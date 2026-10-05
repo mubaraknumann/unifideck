@@ -252,3 +252,30 @@ def test_sweep_only_removes_butler_staging(tmp_path: Path) -> None:
     (downloads / "someones-game" / "save.dat").write_text("keep")
     assert sweep_staging(str(tmp_path)) == ["abandoned"]
     assert (downloads / "someones-game" / "save.dat").exists()
+
+
+class _TomlDaemon(_Daemon):
+    """Ships an ``.itch.toml``, whose play target comes back resolved."""
+
+    async def Install_Perform(self, conn: _Conn, p: dict[str, Any]) -> dict[str, Any]:
+        result = await super().Install_Perform(conn, p)
+        (self.root / "fear-assessment" / ".itch.toml").write_text(
+            '[[actions]]\nname = "play"\npath = "linux64/nw"\n',
+        )
+        return result
+
+
+async def test_install_into_a_symlinked_games_folder_succeeds(tmp_path: Path) -> None:
+    """``~/Games`` -> SD card is common; ``relative_to`` used to raise here
+    after the download had finished, failing a complete install."""
+    real = tmp_path / "sdcard"
+    real.mkdir()
+    link = tmp_path / "Games"
+    link.symlink_to(real, target_is_directory=True)
+    daemon = _TomlDaemon(link)
+
+    result = await _installer(daemon).install("2119837", str(link), None)
+
+    assert result.success, result.error
+    manifest = json.loads((link / "fear-assessment" / ".unifideck_manifest.json").read_text())
+    assert manifest["executable_relative"] == "linux64/nw"

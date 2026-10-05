@@ -89,6 +89,23 @@ def _location_for(locations: list[dict[str, Any]], root: str) -> str | None:
     return None
 
 
+def _relative_launch_path(exe: str | None, folder: str) -> str:
+    """*exe* relative to *folder*, comparing real paths.
+
+    ``.itch.toml`` targets come back resolved while butler's install folder
+    does not, so a symlinked Games folder (commonly ``~/Games`` pointing at
+    the SD card) made ``Path.relative_to`` raise after the download had
+    finished. A target outside the folder is treated as no target.
+    """
+    if not exe:
+        return ""
+    rel = os.path.relpath(os.path.realpath(exe), os.path.realpath(folder))
+    if rel == os.pardir or rel.startswith(os.pardir + os.sep):
+        logger.error("[itch] launch target %s is outside the install folder %s", exe, folder)
+        return ""
+    return rel
+
+
 def _remove_if_ours(folder: str, owner_key: str) -> None:
     """Delete *folder* unless games.map says another store installed there."""
     if os.path.exists(folder) and not foreign_installs_under(folder, owner_key=owner_key):
@@ -256,7 +273,7 @@ class ItchInstaller:
                 "the shortcut will not launch until one is chosen with "
                 "Change Executable", title, folder,
             )
-        rel = str(Path(exe).relative_to(folder)) if exe else ""
+        rel = _relative_launch_path(exe, folder)
         await write_manifest(folder, STORE, game_id, title, rel,
                              platform="linux" if exe and not exe.endswith(".exe") else "windows")
         logger.info("[itch] installed %s (%s upload) → %s, launch %s",

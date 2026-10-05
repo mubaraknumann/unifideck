@@ -147,30 +147,51 @@ class ButlerdConnection:
     async def _read_loop(self) -> None:
         try:
             while line := await self._reader.readline():
-                await self._dispatch(json.loads(line))
-        except (ConnectionError, ValueError, asyncio.IncompleteReadError) as e:
+                msg = _parse_frame(line)
+                if msg is not None:
+                    await self._dispatch(msg)
+        except (ConnectionError, asyncio.IncompleteReadError) as e:
             logger.warning("[butlerd] connection lost: %s", e)
         finally:
             self._fail_pending("butlerd connection lost")
 
     async def _dispatch(self, msg: dict[str, Any]) -> None:
         if "id" in msg and ("result" in msg or "error" in msg):
-            fut = self._pending.get(msg["id"])
-            if fut is not None and not fut.done():
-                if "error" in msg:
-                    fut.set_exception(ButlerdError.from_payload(msg["error"]))
-                else:
-                    fut.set_result(msg.get("result") or {})
+            self._resolve(msg)
             return
         method = str(msg.get("method") or "")
         params = msg.get("params") or {}
         if "id" in msg:
             await self._answer(msg["id"], method, params)
-        elif self._on_notification is not None:
+        else:
+            self._notify(method, params)
+
+    def _resolve(self, msg: dict[str, Any]) -> None:
+        fut = self._pending.get(msg["id"])
+        if fut is None or fut.done():
+            return
+        if "error" in msg:
+            fut.set_exception(ButlerdError.from_payload(msg["error"]))
+        else:
+            fut.set_result(msg.get("result") or {})
+
+    def _notify(self, method: str, params: dict[str, Any]) -> None:
+        if self._on_notification is None:
+            return
+        try:
             self._on_notification(method, params)
+        except Exception:
+            # A bug in a progress hook must not end the transport, and
+            # with it every install in flight on this connection.
+            logger.exception("[butlerd] notification handler failed on %s", method)
 
     async def _answer(self, req_id: Any, method: str, params: dict[str, Any]) -> None:
-        answer = self._on_request(method, params) if self._on_request else None
+        answer = None
+        if self._on_request is not None:
+            try:
+                answer = self._on_request(method, params)
+            except Exception:
+                logger.exception("[butlerd] request handler failed on %s", method)
         logger.info("[butlerd] server request %s -> %s",
                     method, "answered" if answer is not None else "refused")
         reply: dict[str, Any] = {"jsonrpc": "2.0", "id": req_id}
@@ -262,17 +283,44 @@ class ButlerDaemon:
             logger.info("[butlerd] daemon stopped")
 
     async def _ensure_started(self) -> None:
-        if self._proc is not None and self._proc.returncode is None:
+        """Start the daemon unless one is running *and* listening.
+
+        A daemon that never announced its port (a slow start after an SD
+        card wake, or one that exited) is killed and forgotten. Keeping it
+        meant every later call skipped the restart and failed in ``_open``
+        until the plugin restarted. Every start failure is a
+        ``ButlerdError``, the one exception callers handle.
+        """
+        if self._proc is not None and self._proc.returncode is None and self._listen is not None:
             return
         if not self._cli_path:
             raise ButlerdError("butler_not_found")
-        self._shared = None
-        self._proc = await self._spawn(self._cli_path)
-        self._listen = await asyncio.wait_for(self._await_listen(), _LISTEN_TIMEOUT_S)
+        await self._discard_proc()
+        try:
+            self._proc = await self._spawn(self._cli_path)
+            self._listen = await asyncio.wait_for(self._await_listen(), _LISTEN_TIMEOUT_S)
+        except (TimeoutError, OSError, ButlerdError) as e:
+            await self._discard_proc()
+            reason = str(e) or f"no listen notification within {_LISTEN_TIMEOUT_S:.0f}s"
+            raise ButlerdError(f"butler daemon did not start: {reason}") from e
         self._drain = asyncio.create_task(self._drain_output(), name="butlerd-log")
         self._harden_db()
         logger.info("[butlerd] daemon pid %s listening on %s",
                     self._proc.pid, self._listen["tcp"]["address"])
+
+    async def _discard_proc(self) -> None:
+        """Kill a daemon that is not usable, and forget everything about it."""
+        proc, self._proc = self._proc, None
+        self._listen = None
+        self._shared = None
+        if self._drain is not None:
+            self._drain.cancel()
+            self._drain = None
+        if proc is not None and proc.returncode is None:
+            with contextlib.suppress(ProcessLookupError):
+                proc.kill()
+            with contextlib.suppress(Exception):
+                await proc.wait()
 
     async def _spawn(self, cli_path: str) -> asyncio.subprocess.Process:
         """Start ``butler daemon``; see the module docstring for each flag."""
@@ -311,9 +359,13 @@ class ButlerDaemon:
             logger.log(level, "[butlerd] %s", text)
 
     async def _open(self, **handlers: Any) -> ButlerdConnection:
-        assert self._listen is not None
+        if self._listen is None:
+            raise ButlerdError("butler daemon is not listening")
         host, port = str(self._listen["tcp"]["address"]).rsplit(":", 1)
-        reader, writer = await asyncio.open_connection(host, int(port), limit=_STREAM_LIMIT)
+        try:
+            reader, writer = await asyncio.open_connection(host, int(port), limit=_STREAM_LIMIT)
+        except OSError as e:
+            raise ButlerdError(f"cannot reach butler daemon: {e}") from e
         conn = ButlerdConnection(reader, writer, **handlers)
         await conn.call("Meta.Authenticate", {"secret": self._listen["secret"]}, timeout=15)
         return conn
@@ -322,3 +374,15 @@ class ButlerDaemon:
         for suffix in _DB_SUFFIXES:
             harden_cli_credential_file(self._db_path + suffix, self._store)
 
+
+def _parse_frame(line: bytes) -> dict[str, Any] | None:
+    """One JSON-RPC frame, or None (logged) for anything that is not an object."""
+    try:
+        msg = json.loads(line)
+    except ValueError:
+        logger.warning("[butlerd] skipping a frame that is not JSON: %.120r", line)
+        return None
+    if not isinstance(msg, dict):
+        logger.warning("[butlerd] skipping a frame that is not an object: %.120r", line)
+        return None
+    return msg
