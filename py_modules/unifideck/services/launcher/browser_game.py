@@ -18,6 +18,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from unifideck.core.types import Result
+from unifideck.launcher.browser_games import is_allowed_browser_url
 from unifideck.launcher.flows.browser_window import wait_for_browser_exit
 from unifideck.launcher.rpc import emit_stage
 
@@ -61,6 +62,11 @@ async def run_browser_game(svc: LauncherService, ctx: LaunchContext) -> Result:
     if abort is not None:
         return abort
     url = str(ctx.browser_url)
+    if not is_allowed_browser_url(url, ctx.browser_kind):
+        # ``browser_target`` already filters; this guards any other builder
+        # of a LaunchContext, since the window shows no address bar.
+        logger.warning("[LauncherService] browser game URL refused: %r", url[:120])
+        return Result(success=False, error="browser_url_refused", store=ctx.store)
     await svc._bus.emit(
         Events.GAME_LAUNCHED, store=ctx.store, game_id=ctx.game_id,
         title="", app_id=0,  # LaunchContext carries neither
@@ -72,7 +78,9 @@ async def run_browser_game(svc: LauncherService, ctx: LaunchContext) -> Result:
     try:
         # ``launch_browser_game`` is synchronous: ``Popen`` blocks for about
         # half a second while Edge initialises.
-        launched = await asyncio.to_thread(svc._edge_browser.launch_browser_game, url)
+        launched = await asyncio.to_thread(
+            svc._edge_browser.launch_browser_game, url, kind=ctx.browser_kind,
+        )
         if not launched:
             return Result(success=False, error="edge_launch_failed", store=ctx.store)
         # Block like the native and Windows paths ``await proc.wait()``.

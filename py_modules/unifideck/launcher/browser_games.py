@@ -22,6 +22,7 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,13 @@ BROWSER_TAG = "browser"
 #: it from here, so it is defined once.
 XCLOUD_PLAY_URL = "https://www.xbox.com/play/launch/{game_id}"
 _XCLOUD_TAG = "xcloud"
+
+#: Where each kind may open. A browser game's URL comes from store data and
+#: the window has no address bar, so anything else is refused rather than
+#: shown: a cloud stream only ever starts on xbox.com, and an HTML5 game only
+#: ever runs on its itch.io page.
+_STREAM_HOSTS = frozenset({"www.xbox.com", "xbox.com"})
+_WEB_HOST = "itch.io"
 
 
 @dataclass(frozen=True)
@@ -64,6 +72,20 @@ def cached_game(store: str, game_id: str) -> dict[str, Any] | None:
     return None
 
 
+def is_allowed_browser_url(url: str, kind: str) -> bool:
+    """Whether a browser game of *kind* may open *url*: https, on its own host."""
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return False
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme != "https" or not host:
+        return False
+    if kind == "stream":
+        return host in _STREAM_HOSTS
+    return host == _WEB_HOST or host.endswith("." + _WEB_HOST)
+
+
 def browser_target(store: str, game_id: str) -> BrowserTarget | None:
     """The browser target for a game with no games.map row, or None.
 
@@ -77,8 +99,14 @@ def browser_target(store: str, game_id: str) -> BrowserTarget | None:
     tags = set(game.get("tags") or [])
     url = str((game.get("metadata") or {}).get(BROWSER_URL_KEY) or "")
     streamed = _XCLOUD_TAG in tags or store == "microsoft"
+    kind = "stream" if streamed else "web"
     if url and (BROWSER_TAG in tags or streamed):
-        return BrowserTarget(url=url, kind="stream" if streamed else "web")
+        if is_allowed_browser_url(url, kind):
+            return BrowserTarget(url=url, kind=kind)
+        logger.warning(
+            "[browser_games] refusing %s %s: %r is not an allowed %s URL",
+            store, game_id, url[:120], kind,
+        )
     if streamed:
         return BrowserTarget(url=XCLOUD_PLAY_URL.format(game_id=game_id), kind="stream")
     return None
