@@ -20,7 +20,10 @@ import { definePlugin } from "@decky/api";
 import { FC } from "react";
 import { initI18n } from "./i18n";
 import { SteamBridge } from "./lib/steam-bridge";
-import { tabManager } from "./lib/steam-bridge/tab-container";
+import {
+  attachGroupDuplicatesRefresh,
+  tabManager,
+} from "./lib/steam-bridge/tab-container";
 import { RootProvider } from "./contexts/RootProvider";
 import { QuickAccessPanel } from "./views/QuickAccessPanel";
 import { applyAppDetailsPatch } from "./views/AppDetailsPatch";
@@ -137,6 +140,7 @@ export default definePlugin(() => {
     );
   handles.signedOutTabs = authStore.subscribe(syncSignedOutTabs);
   syncSignedOutTabs();
+  handles.groupDuplicatesRefresh = attachGroupDuplicatesRefresh();
   storeInfoStore.start();
   downloadStore.start();
   syncStore.start();

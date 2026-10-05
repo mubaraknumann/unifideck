@@ -54,6 +54,7 @@ function buildHandles() {
       pluginUpdateNotice: fn("pluginUpdateNotice"),
       bootEventListener: fn("bootEventListener"),
       signedOutTabs: fn("signedOutTabs"),
+      groupDuplicatesRefresh: fn("groupDuplicatesRefresh"),
     },
   };
 }

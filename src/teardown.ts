@@ -39,6 +39,7 @@ export interface TeardownHandles {
   pluginUpdateNotice?: (() => void) | null;
   bootEventListener?: (() => void) | null;
   signedOutTabs?: (() => void) | null;
+  groupDuplicatesRefresh?: (() => void) | null;
 }
 /**
  * Run every disposer captured during bootstrap, in
@@ -66,6 +67,8 @@ const DISPOSERS: Record<keyof TeardownHandles, (h: TeardownHandles) => void> = {
   bootEventListener: (h) => h.bootEventListener?.(),
   launcherToastPoll: (h) => h.launcherToastPoll?.(),
   pluginUpdateNotice: (h) => h.pluginUpdateNotice?.(),
+  // Its window listener outlives a reload and would rebuild a stale tabManager.
+  groupDuplicatesRefresh: (h) => h.groupDuplicatesRefresh?.(),
   signedOutTabs: (h) => h.signedOutTabs?.(),
   // Unregisters from Steam's store-browser callback list and the router
   // history; a leak here would keep drawing ribbons after unload.
