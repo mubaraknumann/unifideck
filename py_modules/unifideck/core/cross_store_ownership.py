@@ -50,6 +50,12 @@ from unifideck.core.types.events import GameTag
 #: resolve to the base game's AppID and claim ownership of it.
 NOT_OWNERSHIP_TAGS = frozenset({GameTag.DLC.value, GameTag.DEMO.value, GameTag.BETA.value})
 
+#: ``Game.metadata["ownership"]`` for a row the store granted on a
+#: presumption rather than on evidence (Battle.net presumes a game account
+#: for every free-to-play catalog program, ``stores/battlenet/library``).
+#: It earns a library tile, never an "owned" claim on a purchase page.
+PRESUMED_OWNERSHIP = "presumed"
+
 #: Distinct owned titles kept per store. Two is enough to show an edition
 #: mismatch; more would only crowd a chip.
 _MAX_TITLES = 2
@@ -309,6 +315,8 @@ def _titles(candidates: Iterable[str]) -> tuple[str, ...]:
 def _counts_as_ownership(game: Game) -> bool:
     """Whether *game* is a non-Steam row that means "you have it"."""
     if not game.store or game.store == "steam":
+        return False
+    if (game.metadata or {}).get("ownership") == PRESUMED_OWNERSHIP:
         return False
     return not any(str(tag) in NOT_OWNERSHIP_TAGS for tag in game.tags or ())
 
