@@ -118,41 +118,17 @@ Upstream fixed it in **Wine 11.6** (three commits: `02bb0a34`, `eef8e97d`, `c7cc
 upstream fix, and on it the game simply works with no workaround at all. Set it in the game's
 Properties in Steam → Compatibility.
 
-On **GE-Proton11-6**, Unifideck patches it for you automatically (below). On anything older —
-including Proton Experimental `11.0-*` — it tells you in a toast and the game keeps showing
-the VPN error.
+Unifideck checks the selected Proton's own `crypt32.dll` for the upstream fix at every
+Warcraft III launch. If it is missing — GE-Proton11-6, Proton Experimental `11.0-*` and
+anything older — a toast tells you to switch, and the game keeps showing the VPN error until
+you do. That is a direct capability check rather than a version allowlist, so it goes quiet
+on its own once your Proton carries the fix.
 
-#### How the fix works
-
-Unifideck checks the selected Proton's own `crypt32.dll` for the upstream fix. If it is
-already there, Unifideck does nothing. That is a direct capability check rather than a version
-allowlist, so this workaround switches itself off as soon as your Proton catches up.
-
-If it is missing and the build is GE-Proton11-6, Unifideck builds a private patched copy under
-`~/.local/share/unifideck/proton/GE-Proton11-6-wc3fix` and points `PROTONPATH` at it for this
-one title. Your real GE-Proton11-6 is never modified, and no other game is affected.
-
-Only GE-Proton11-6 is patched, because in Wine this DLL is a **split PE/unix pair** — the
-`crypt32.dll` under `files/lib/wine/x86_64-windows/` only works alongside the `crypt32.so`
-under `files/lib/wine/x86_64-unix/` from the same build, and the bundled DLL was compiled
-against GE-Proton11-6. Pairing it with another build's unix half is untested, so Unifideck
-refuses rather than guessing.
-
-The copy is a **hardlink tree**: every file except the two `crypt32.dll`s is a second name for
-the original's inode, so it costs about 1.7 MB of real disk and a fraction of a second,
-against the ~1.5 GB a plain copy would take. It is rebuilt automatically if you update
-GE-Proton11-6 or Unifideck ships a new DLL. It does not appear in Steam's compatibility
-dropdown, because Unifideck sets `PROTONPATH` itself.
-
-For the record, the obvious cheaper approach does **not** work: dropping the patched DLL next
-to `Warcraft III.exe` with `WINEDLLOVERRIDES=crypt32=n,b` loads it, but Wine only wires up the
-unix half for a DLL loaded as *builtin* from Proton's own directory. The game then dies
-instantly with `ACCESS_VIOLATION (Failed to read address 0x40)` inside `CRYPT32.dll`. That is
-why the patched DLL has to live inside a Proton build.
-
-Provenance, hashes, and the LGPL notice for the bundled DLLs are in
-`bin/stubs/wc3fix/NOTICE.md`. Once a Proton built on Wine 11.6 or newer ships, this whole
-workaround can be removed.
+Development builds of 0.7.6 patched GE-Proton11-6 instead, with a prebuilt `crypt32.dll` and a
+private Proton copy under `~/.local/share/unifideck/proton/`. That DLL is the component that
+validates Blizzard's certificate chain, and it came prebuilt from a third-party release that
+could not be rebuilt from source here, so it is no longer shipped. The first Warcraft III
+launch on this build deletes the old copy; your real Proton builds are not touched.
 
 ---
 
