@@ -145,7 +145,7 @@ class SyncRPCMixin(CleanupRPCMixin):
         count = save_frontend_owned_games(pairs) if pairs else len(titles)
 
         if self.sync_service is not None:
-            await asyncio.to_thread(self.sync_service.refresh_duplicate_groups)
+            await self.sync_service.refresh_duplicate_groups()
         return {"count": count}
 
     async def set_active_steam_user(self, account_id: str) -> Any:

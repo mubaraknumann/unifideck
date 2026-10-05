@@ -13,7 +13,9 @@ other sync mixins use.
 """
 from __future__ import annotations
 
+import asyncio
 import contextlib
+import dataclasses
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -25,6 +27,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+#: The ``Game`` fields duplicate grouping writes (``core.game_grouping``).
+_GROUPING_FIELDS = (
+    "dedupe_group_id", "edition_label", "steam_owned_app_id",
+    "steam_owned_edition_label", "steam_versions",
+)
+
 class _SyncCacheMixin:
     """``library_cache.json`` load/save for :class:`SyncService`."""
 
@@ -33,6 +41,7 @@ class _SyncCacheMixin:
     _all_games: dict[str, list[Game]]
     _last_sync_time: float | None
     _bus: Any
+    _grouping_lock: asyncio.Lock | None = None
 
     def _get_library_cache_path(self) -> Path:
         """Resolve the library_cache.json file path."""
@@ -112,17 +121,57 @@ class _SyncCacheMixin:
         self._bus.on(Events.POST_SYNC_PHASE_CHANGED, self._on_metadata_phase_done)
         self._bus.on(Events.METADATA_BACKFILL_COMPLETE, self._on_metadata_backfilled)
 
-    def _on_metadata_phase_done(self, **kwargs: Any) -> None:
+    # Async on purpose: the bus runs a *sync* handler on a worker thread,
+    # which let these two and the owned-titles RPC mutate the same Game
+    # objects concurrently. As coroutines they run on the event loop and
+    # go through refresh_duplicate_groups' lock.
+    async def _on_metadata_phase_done(self, **kwargs: Any) -> None:
         if kwargs.get("phase") == "metadata" and not kwargs.get("active", True):
-            self.refresh_duplicate_groups()
+            await self.refresh_duplicate_groups()
 
-    def _on_metadata_backfilled(self, **_kwargs: Any) -> None:
-        self.refresh_duplicate_groups()
+    async def _on_metadata_backfilled(self, **_kwargs: Any) -> None:
+        await self.refresh_duplicate_groups()
 
-    def refresh_duplicate_groups(self) -> None:
-        """Re-group the in-memory library and persist it."""
-        self._annotate_loaded_cache()
-        self._save_library_cache()
+    async def refresh_duplicate_groups(self) -> None:
+        """Re-group the in-memory library and persist it.
+
+        The grouping pass (~100 ms on a large library) runs off the event
+        loop, on *copies* of the games, so a concurrent
+        ``get_all_unifideck_games`` never serialises half-cleared fields.
+        The result is applied and saved on the loop, and only if
+        ``_all_games`` is still the library it was computed from: a sync
+        finalize or a "Delete all Unifideck data" that replaced it in the
+        meantime has already saved the newer state, which this must not
+        overwrite. One refresh at a time.
+        """
+        if self._grouping_lock is None:
+            self._grouping_lock = asyncio.Lock()
+        async with self._grouping_lock:
+            snapshot = self._all_games
+            games = [g for store_games in snapshot.values() for g in store_games]
+            try:
+                regrouped = await asyncio.to_thread(self._regrouped_copies, games)
+            except Exception:
+                logger.exception("[SyncService] duplicate-group refresh failed")
+                return
+            if self._all_games is not snapshot:
+                logger.info(
+                    "[SyncService] library replaced during a duplicate-group "
+                    "refresh; keeping the newer library",
+                )
+                return
+            for live, fresh in zip(games, regrouped, strict=True):
+                for name in _GROUPING_FIELDS:
+                    setattr(live, name, getattr(fresh, name))
+            self._save_library_cache()
+
+    def _regrouped_copies(self, games: list[Game]) -> list[Game]:
+        """Annotated copies of *games*; the originals are not touched."""
+        from unifideck.core.game_grouping import annotate_duplicate_groups_if_enabled
+
+        copies = [dataclasses.replace(g, steam_versions=list(g.steam_versions)) for g in games]
+        annotate_duplicate_groups_if_enabled(copies, self._config, getattr(self, "_cache", None))
+        return copies
 
     def reset_library_state(self) -> None:
         """Drop the in-memory library and its on-disk cache.

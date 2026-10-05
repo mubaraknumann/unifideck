@@ -21,7 +21,7 @@ class _FakeSyncService:
     def __init__(self) -> None:
         self.refresh_calls = 0
 
-    def refresh_duplicate_groups(self) -> None:
+    async def refresh_duplicate_groups(self) -> None:
         self.refresh_calls += 1
 
 
