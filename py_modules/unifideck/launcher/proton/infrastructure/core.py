@@ -289,6 +289,29 @@ def _apply_icu_dll_overrides(env: dict[str, str], game_id: str | None) -> None:
     )
 
 
+def _apply_wrapper_dll_overrides(env: dict[str, str], ctx: LaunchContext) -> None:
+    """Prefer a game's bundled ddraw/dinput wrapper over Wine's builtin."""
+    from unifideck.launcher.proton.fixes.game_fixes import bundled_wrapper_dlls
+    dlls = bundled_wrapper_dlls(ctx.exe_path.parent, ctx.work_dir)
+    if not dlls:
+        return
+    existing = env.get("WINEDLLOVERRIDES", "")
+    named = {
+        name.strip().lower()
+        for entry in existing.split(";")
+        for name in entry.split("=", 1)[0].split(",")
+    }
+    missing = [dll for dll in dlls if dll not in named]
+    if not missing:
+        return
+    added = ";".join(f"{dll}=n,b" for dll in missing)
+    env["WINEDLLOVERRIDES"] = f"{existing};{added}" if existing else added
+    logger.info(
+        "[launcher.proton.core] bundled wrapper DLL(s) (%s): "
+        "WINEDLLOVERRIDES+=%s", ctx.game_id, added,
+    )
+
+
 def _apply_per_title_env(
     env: dict[str, str],
     ctx: LaunchContext,
@@ -313,6 +336,7 @@ def _apply_per_title_env(
     # same title ships the same bundled ICU on GOG and Epic alike.
     if needs_native_icu(ctx.game_id, umu_id, exe_name):
         _apply_icu_dll_overrides(env, ctx.game_id)
+    _apply_wrapper_dll_overrides(env, ctx)
 
 
 def _apply_compat_paths(

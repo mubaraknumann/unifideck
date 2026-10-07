@@ -257,3 +257,55 @@ def test_user_env_override_still_wins(tmp_path, monkeypatch):
         proton_tool_id="GE-Proton11-3",
     )
     assert plan.env["WINEDLLOVERRIDES"] == "icuuc=b"
+
+
+# ── Bundled ddraw/dinput wrappers (GOG classics, e.g. Resident Evil 2) ──
+
+def _prepare_in_install_dir(tmp_path, monkeypatch, files, env_overrides=None):
+    install = tmp_path / "game"
+    install.mkdir()
+    for name in files:
+        (install / name).write_bytes(b"")
+    ctx = LaunchContext(
+        store="gog",
+        game_id="1534123252",
+        exe_path=install / "RE2Launcher.exe",
+        work_dir=install,
+        plugin_dir=tmp_path,
+        env_overrides=env_overrides or {},
+    )
+    prefix = tmp_path / "prefix"
+    prefix.mkdir()
+    monkeypatch.setattr(core, "_resolve_prefix", lambda c: prefix)
+    monkeypatch.setattr(core, "_lookup_umu_id", lambda c, s, p: None)
+    monkeypatch.setattr(
+        core, "_locate_umu_wrapper", lambda p, d: tmp_path / "umu-run",
+    )
+    return core.proton_prepare(
+        ctx, RuntimeState(),
+        python_bin=Path("/usr/bin/python3"),
+        proton_path=tmp_path / "proton",
+        proton_tool_id="GE-Proton11-7",
+    )
+
+
+def test_bundled_ddraw_dinput_get_native_override(tmp_path, monkeypatch):
+    monkeypatch.delenv("WINEDLLOVERRIDES", raising=False)
+    plan = _prepare_in_install_dir(
+        tmp_path, monkeypatch, ["RE2Launcher.exe", "DDRAW.dll", "dinput.dll"],
+    )
+    assert plan.env["WINEDLLOVERRIDES"] == "ddraw=n,b;dinput=n,b"
+
+
+def test_no_bundled_wrapper_adds_no_override(tmp_path, monkeypatch):
+    monkeypatch.delenv("WINEDLLOVERRIDES", raising=False)
+    plan = _prepare_in_install_dir(tmp_path, monkeypatch, ["game.exe"])
+    assert "WINEDLLOVERRIDES" not in plan.env
+
+
+def test_existing_ddraw_override_is_kept(tmp_path, monkeypatch):
+    monkeypatch.setenv("WINEDLLOVERRIDES", "ddraw=b")
+    plan = _prepare_in_install_dir(
+        tmp_path, monkeypatch, ["ddraw.dll", "dinput.dll"],
+    )
+    assert plan.env["WINEDLLOVERRIDES"] == "ddraw=b;dinput=n,b"
