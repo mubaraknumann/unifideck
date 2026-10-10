@@ -16,6 +16,7 @@ are pinned here:
 """
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import pytest
@@ -250,6 +251,10 @@ def harness(monkeypatch, tmp_path):
     bus.on(Events.SYNC_STARTED, _started)
     bus.on(Events.SYNC_COMPLETE, _complete)
     svc = ss.SyncService(_Registry(epic, gog), bus)
+    # No post-sync services here, so no phase would ever report done; with
+    # no phases registered each run finishes at its fetch. The queue tests
+    # register phases themselves and report them done by hand.
+    svc._registered_phases.clear()
     return svc, epic, gog, events
 
 
@@ -367,3 +372,69 @@ def test_malformed_sync_times_are_dropped():
     assert _deserialize_sync_times({"epic": 1.5, "gog": "x", "amazon": True}) == {
         "epic": 1.5,
     }
+
+
+# ── queue: one store after another ──────────────────────
+
+
+async def _until(condition: Any, timeout: float = 5.0) -> None:
+    """Yield to the loop until ``condition()`` holds (or fail after timeout)."""
+    async def _poll() -> None:
+        while not condition():
+            await asyncio.sleep(0.005)
+
+    await asyncio.wait_for(_poll(), timeout)
+
+
+def _finish_chain(svc: ss.SyncService) -> None:
+    """Report every post-sync phase done for the current run."""
+    for phase in sorted(svc._registered_phases):
+        svc._on_post_sync_phase(
+            phase=phase, active=False, run_id=svc._generation.run_id,
+        )
+
+
+@pytest.mark.asyncio
+async def test_a_queued_store_waits_for_the_previous_run_to_fully_finish(harness):
+    """The second store's fetch must not start while the first's chain runs.
+
+    Starting it at the end of the first fetch made the second run's chain
+    cancel the first's part-way, leaving the first store half done.
+    """
+    svc, epic, gog, _events = harness
+    svc._registered_phases.update({"metadata", "artwork"})
+
+    first = await svc.sync_stores(["epic"])
+    assert first.restart_pending is False, "nothing queued: no wait"
+    assert not svc._chain_idle.is_set(), "epic's chain is still running"
+
+    owner = asyncio.create_task(svc.sync_stores(["gog"]))
+    await _until(lambda: svc._draining)
+    await asyncio.sleep(0.01)
+    assert gog.fetches == [], "gog must wait for epic's chain"
+    assert svc.queued_scope() == {"kind": "force", "stores": ["gog"]}
+
+    third = await svc.sync_stores(["amazon"])
+    assert third.restart_pending is True, "a third press queues behind"
+
+    _finish_chain(svc)
+    await _until(lambda: len(gog.fetches) == 1)  # gog runs once epic is done
+    await _until(lambda: not svc._chain_idle.is_set())
+    _finish_chain(svc)
+    await asyncio.wait_for(owner, 1)
+    assert svc.queued_scope() is None
+
+
+@pytest.mark.asyncio
+async def test_cancel_drops_the_queue_and_releases_it(harness):
+    svc, _epic, gog, _events = harness
+    svc._registered_phases.update({"metadata", "artwork"})
+    await svc.sync_stores(["epic"])
+    owner = asyncio.create_task(svc.sync_stores(["gog"]))
+    await _until(lambda: svc._draining)
+
+    assert await svc.cancel() is True, "cancel reaches the post-sync chain"
+    await asyncio.wait_for(owner, 1)
+    assert gog.fetches == [], "a cancelled queue does not run on"
+    assert svc.queued_scope() is None
+    assert await svc.cancel() is False, "nothing left to cancel"

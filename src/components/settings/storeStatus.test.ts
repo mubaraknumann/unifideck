@@ -46,27 +46,27 @@ describe("formatStoreStatus", () => {
     expect(line).toEqual({ text: "", tone: "normal" });
   });
 
-  it("shows fetch counts while a store's library is fetched", () => {
+  it("counts games, number first, while the library is fetched", () => {
     const line = formatStoreStatus(
       t,
       input({ row: row({ phase: "games", done: 41, total: 120 }) }),
     );
-    expect(line.text).toBe("storeConnections.phaseGames 41/120");
-    expect(line.detail).toBe("storeConnections.phaseGames: 41 / 120");
+    expect(line.text).toBe('storeConnections.progressGames{"done":41,"count":120}');
+    expect(line.detail).toBeUndefined();
   });
 
-  it("shows a rounded-down percentage for the post-sync phases", () => {
+  it("counts images, number first, while artwork downloads", () => {
     const line = formatStoreStatus(
       t,
       input({ row: row({ phase: "artwork", done: 210, total: 340 }) }),
     );
-    expect(line.text).toBe("storeConnections.phaseArtwork 61%");
-    expect(line.detail).toBe("storeConnections.phaseArtwork: 210 / 340");
+    expect(line.text).toBe('storeConnections.progressImages{"done":210,"count":340}');
+    expect(line.detail).toBeUndefined();
   });
 
-  it("does not divide by zero for an empty phase", () => {
+  it("counts games for the metadata and compat steps too", () => {
     const line = formatStoreStatus(t, input({ row: row({ phase: "compat", done: 0, total: 0 }) }));
-    expect(line.text).toBe("storeConnections.phaseCompat 0%");
+    expect(line.text).toBe('storeConnections.progressGames{"done":0,"count":0}');
   });
 
   it("names queued and waiting rows", () => {

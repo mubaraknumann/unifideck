@@ -9,10 +9,13 @@
  * with the button that held it and Steam would send it to the top of
  * the panel.
  *
- * Which row is open is owned by the parent (one at a time); styles come
- * from `storeConnections.css.ts`.
+ * Which row is open is owned by the parent (one at a time), and so is
+ * scroll: opening a row never scrolls the panel itself. `onToggle` hands
+ * the parent this row's element so it can keep the tapped header still
+ * while other rows close around it. Styles come from
+ * `storeConnections.css.ts`.
  */
-import { FC, ReactNode, useEffect, useRef } from "react";
+import { FC, ReactNode, useRef } from "react";
 import { Focusable } from "@decky/ui";
 import { FaChevronDown } from "react-icons/fa";
 import type { StoreStatusLine } from "./storeStatus";
@@ -22,7 +25,8 @@ interface Props {
   label: string;
   status: StoreStatusLine;
   expanded: boolean;
-  onToggle: () => void;
+  /** Called with this row's element, so the parent can anchor its scroll. */
+  onToggle: (row: HTMLElement | null) => void;
   /** Action buttons, shown while expanded. */
   children: ReactNode;
 }
@@ -35,33 +39,29 @@ export const ExpandableRow: FC<Props> = ({
   onToggle,
   children,
 }) => {
+  const rootRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
-  const actionsRef = useRef<HTMLDivElement>(null);
   const toneClass = status.tone === "error" ? " error" : "";
-
-  // Opening a row near the bottom of the panel would otherwise leave its
-  // buttons below the fold.
-  useEffect(() => {
-    if (expanded) {
-      actionsRef.current?.scrollIntoView?.({ block: "nearest" });
-    }
-  }, [expanded]);
+  const toggle = (): void => onToggle(rootRef.current);
 
   const collapseFromActions = (e: CustomEvent): void => {
     // Handled here: B closes this row instead of the whole panel.
     e.stopPropagation();
-    onToggle();
+    toggle();
     // After the buttons unmount, so the row is the only thing left to take
     // focus.
     window.requestAnimationFrame(() => headerRef.current?.focus());
   };
 
   return (
-    <div className={`unifideck-store-row${expanded ? " expanded" : ""}`}>
+    <div
+      ref={rootRef}
+      className={`unifideck-store-row${expanded ? " expanded" : ""}`}
+    >
       <Focusable
         ref={headerRef}
         className="unifideck-store-row-header"
-        onActivate={onToggle}
+        onActivate={toggle}
         aria-expanded={expanded}
       >
         {icon}
@@ -75,17 +75,18 @@ export const ExpandableRow: FC<Props> = ({
       </Focusable>
       {expanded && (
         <Focusable
-          ref={actionsRef}
           flow-children="column"
           className="unifideck-store-row-actions"
           onCancel={collapseFromActions}
         >
-          {children}
+          {/* Above the buttons, straight under the row it explains, where
+              it cannot be missed. */}
           {status.detail && (
             <div className={`unifideck-store-row-detail${toneClass}`}>
               {status.detail}
             </div>
           )}
+          {children}
         </Focusable>
       )}
     </div>
