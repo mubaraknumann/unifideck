@@ -172,10 +172,6 @@
     "failed": "同步失败",
     "cancelled": "已取消",
     "storesDone": "已完成 {{done}}/{{total}}",
-    "phaseGames": "游戏",
-    "phaseMetadata": "元数据",
-    "phaseArtwork": "图片",
-    "phaseCompat": "兼容性",
     "syncGames": "同步游戏",
     "syncImages": "同步图片",
     "openStore": "打开商店",
@@ -183,7 +179,11 @@
     "syncAllGames": "同步所有游戏",
     "syncAllImages": "同步所有图片",
     "cancelSync": "取消同步",
-    "cancelling": "正在取消…"
+    "cancelling": "正在取消…",
+    "progressGames": "{{done}}/{{count}} 款游戏",
+    "progressGames_other": "{{done}}/{{count}} 款游戏",
+    "progressImages": "{{done}}/{{count}} 张图片",
+    "progressImages_other": "{{done}}/{{count}} 张图片"
   },
   "cleanup": {
     "title": "清理",

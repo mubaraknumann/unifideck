@@ -20,6 +20,7 @@ the host at runtime.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from collections.abc import Iterable
@@ -45,6 +46,7 @@ class _SyncScopeMixin:
     _last_sync_time: float | None
     _store_sync_times: dict[str, float]
     _pending_request: SyncRequest | None
+    _request_lock: asyncio.Lock
 
     if TYPE_CHECKING:
         async def _enqueue(self, request: SyncRequest) -> SyncResult: ...
@@ -146,6 +148,12 @@ class _SyncScopeMixin:
             }
             for name, games in self._all_games.items()
         }
+
+    async def _take_pending(self) -> SyncRequest | None:
+        """Remove and return the queued request (``None`` if cancel took it)."""
+        async with self._request_lock:
+            current, self._pending_request = self._pending_request, None
+        return current
 
     def queued_scope(self) -> dict[str, Any] | None:
         """The request waiting behind the in-flight sync, if any.

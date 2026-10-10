@@ -70,6 +70,10 @@ class SyncStoreImpl {
   private _pendingPhases = new Set<string>();
   private _observedActiveSync = false;
   private _pendingRestart = false;
+  // A restart one run earned while another run was queued behind it. The
+  // prompt waits for the last queued run instead of interrupting between
+  // runs; see the drain below.
+  private _carryRestart = false;
   // Generation of the sync we are currently draining phases for, latched
   // from `sync_started`. `_pendingPhases` is a single mutable set that
   // `sync_started` replaces wholesale, so without a run id a phase-done
@@ -108,8 +112,11 @@ class SyncStoreImpl {
         this._currentRunId = readRunId(payload);
         // A new generation supersedes any restart armed by the previous
         // one — that reconcile's counters described a library state this
-        // run is about to replace.
-        this._pendingRestart = false;
+        // run is about to replace. A restart *carried* from a run that
+        // finished just before this queued one still stands: those
+        // shortcuts were written and Steam has not seen them yet.
+        this._pendingRestart = this._carryRestart;
+        this._carryRestart = false;
         this._update({ isSyncing: true, isCancelling: false });
         EventBusClient.bumpToFast();
         this._startPolling();
@@ -146,18 +153,16 @@ class SyncStoreImpl {
           // One last read so the store rows pick up their final state and
           // the new per-store game counts / sync times.
           void this._pollOnce();
-          if (this._pendingRestart && this._observedActiveSync) {
+          // Another store's sync is queued and starts next: hold the
+          // prompt for the end of the queue rather than asking for a
+          // restart between runs.
+          const queuedNext = this._snapshot.progress?.queued != null;
+          if (this._pendingRestart && this._observedActiveSync && queuedNext) {
             this._pendingRestart = false;
-            try {
-              showModal(
-                <SteamRestartModal reason="sync" closeModal={() => {}} />,
-              );
-            } catch (e) {
-              console.error(
-                "[SyncStore] showModal(SteamRestartModal) failed",
-                e,
-              );
-            }
+            this._carryRestart = true;
+          } else if (this._pendingRestart && this._observedActiveSync) {
+            this._pendingRestart = false;
+            this._showRestartModal();
           } else if (this._pendingRestart) {
             // Replay path: clear flag so a later sync can re-arm.
             this._pendingRestart = false;
@@ -190,6 +195,11 @@ class SyncStoreImpl {
 
     this._unsubs.push(
       EventBusClient.subscribe("sync_cancelled", () => {
+        // Cancel drops the queue, so a restart held for its end is due now.
+        if (this._carryRestart) {
+          this._carryRestart = false;
+          this._showRestartModal();
+        }
         this._pendingPhases.clear();
         // Progress is refreshed, not cleared — see `notifySyncStarted`.
         this._update({
@@ -250,6 +260,14 @@ class SyncStoreImpl {
    */
   refresh(): Promise<void> {
     return this._pollOnce();
+  }
+
+  private _showRestartModal(): void {
+    try {
+      showModal(<SteamRestartModal reason="sync" closeModal={() => {}} />);
+    } catch (e) {
+      console.error("[SyncStore] showModal(SteamRestartModal) failed", e);
+    }
   }
 
   /** Notify the store that a cancel was requested. */

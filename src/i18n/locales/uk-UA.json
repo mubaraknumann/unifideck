@@ -172,10 +172,6 @@
     "failed": "Помилка синхронізації",
     "cancelled": "Скасовано",
     "storesDone": "Готово {{done}} з {{total}}",
-    "phaseGames": "Ігри",
-    "phaseMetadata": "Метадані",
-    "phaseArtwork": "Обкладинки",
-    "phaseCompat": "Сумісність",
     "syncGames": "Синхронізувати ігри",
     "syncImages": "Синхронізувати обкладинки",
     "openStore": "Відкрити магазин",
@@ -183,7 +179,11 @@
     "syncAllGames": "Синхронізувати всі ігри",
     "syncAllImages": "Синхронізувати всі обкладинки",
     "cancelSync": "Скасувати синхронізацію",
-    "cancelling": "Скасування…"
+    "cancelling": "Скасування…",
+    "progressGames": "{{done}}/{{count}} гра",
+    "progressGames_other": "{{done}}/{{count}} ігор",
+    "progressImages": "{{done}}/{{count}} обкладинка",
+    "progressImages_other": "{{done}}/{{count}} обкладинок"
   },
   "cleanup": {
     "title": "Очищення",

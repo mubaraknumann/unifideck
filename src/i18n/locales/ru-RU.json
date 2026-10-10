@@ -172,10 +172,6 @@
     "failed": "Ошибка синхронизации",
     "cancelled": "Отменено",
     "storesDone": "Готово {{done}} из {{total}}",
-    "phaseGames": "Игры",
-    "phaseMetadata": "Метаданные",
-    "phaseArtwork": "Обложки",
-    "phaseCompat": "Совместимость",
     "syncGames": "Синхронизировать игры",
     "syncImages": "Синхронизировать обложки",
     "openStore": "Открыть магазин",
@@ -183,7 +179,11 @@
     "syncAllGames": "Синхронизировать все игры",
     "syncAllImages": "Синхронизировать все обложки",
     "cancelSync": "Отменить синхронизацию",
-    "cancelling": "Отмена…"
+    "cancelling": "Отмена…",
+    "progressGames": "{{done}}/{{count}} игра",
+    "progressGames_other": "{{done}}/{{count}} игр",
+    "progressImages": "{{done}}/{{count}} обложка",
+    "progressImages_other": "{{done}}/{{count}} обложек"
   },
   "cleanup": {
     "title": "Очистка",

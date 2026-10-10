@@ -172,10 +172,6 @@
     "failed": "동기화 실패",
     "cancelled": "취소됨",
     "storesDone": "{{total}}개 중 {{done}}개 완료",
-    "phaseGames": "게임",
-    "phaseMetadata": "메타데이터",
-    "phaseArtwork": "이미지",
-    "phaseCompat": "호환성",
     "syncGames": "게임 동기화",
     "syncImages": "이미지 동기화",
     "openStore": "스토어 열기",
@@ -183,7 +179,11 @@
     "syncAllGames": "모든 게임 동기화",
     "syncAllImages": "모든 이미지 동기화",
     "cancelSync": "동기화 취소",
-    "cancelling": "취소 중…"
+    "cancelling": "취소 중…",
+    "progressGames": "게임 {{done}}/{{count}}개",
+    "progressGames_other": "게임 {{done}}/{{count}}개",
+    "progressImages": "이미지 {{done}}/{{count}}개",
+    "progressImages_other": "이미지 {{done}}/{{count}}개"
   },
   "cleanup": {
     "title": "정리 작업",

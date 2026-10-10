@@ -172,10 +172,6 @@
     "failed": "Falha na sincronização",
     "cancelled": "Cancelada",
     "storesDone": "{{done}} de {{total}} concluídas",
-    "phaseGames": "Jogos",
-    "phaseMetadata": "Metadados",
-    "phaseArtwork": "Imagens",
-    "phaseCompat": "Compatibilidade",
     "syncGames": "Sincronizar jogos",
     "syncImages": "Sincronizar imagens",
     "openStore": "Abrir loja",
@@ -183,7 +179,11 @@
     "syncAllGames": "Sincronizar todos os jogos",
     "syncAllImages": "Sincronizar todas as imagens",
     "cancelSync": "Cancelar sincronização",
-    "cancelling": "Cancelando…"
+    "cancelling": "Cancelando…",
+    "progressGames": "{{done}}/{{count}} jogo",
+    "progressGames_other": "{{done}}/{{count}} jogos",
+    "progressImages": "{{done}}/{{count}} imagem",
+    "progressImages_other": "{{done}}/{{count}} imagens"
   },
   "cleanup": {
     "title": "Limpeza",

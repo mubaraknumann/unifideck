@@ -117,6 +117,9 @@ class SyncService(
         # from another task doesn't wait for the in-flight sync.
         self._request_lock = asyncio.Lock()
         self._pending_request: SyncRequest | None = None
+        # True while one ``_enqueue`` call owns the queue and is working
+        # through it; every other request merges into ``_pending_request``.
+        self._draining = False
         self._cancel_event = asyncio.Event()
         self._all_games: dict[str, list[Game]] = {}
         self._last_sync_time: float | None = None
@@ -145,6 +148,11 @@ class SyncService(
         # phases are pre-listed; others register at bootstrap.
         self._registered_phases: set[str] = {"artwork", "metadata"}
         self._watchdog_task: asyncio.Task[None] | None = None
+        # Clear while a run's post-sync chain is still working. The queue
+        # waits on it, so a queued run starts only once the previous one has
+        # fully finished — not just its fetch.
+        self._chain_idle = asyncio.Event()
+        self._chain_idle.set()
         # In-flight per-store fetch task, held so :meth:`cancel` can
         # interrupt a slow ``store.get_library()`` mid-await.
         self._current_store_task: (
@@ -230,28 +238,25 @@ class SyncService(
         return await self._enqueue(request)
 
     async def _enqueue(self, request: SyncRequest) -> SyncResult:
-        """Queue or run a :class:`SyncRequest`. Merges if a sync is in flight.
+        """Queue a :class:`SyncRequest`; runs queued requests one at a time.
 
-        Two paths:
+        Every request merges into ``_pending_request`` (force wins, flags OR,
+        store sets union). The first caller owns the queue and works through
+        it in :meth:`_drain_queue`; the rest get a "queued" result with
+        ``restart_pending=True``. A login mid-sync folds in the same way.
 
-        * **Lock free** — acquire it, run ``_run_sync``, then drain any
-          request enqueued during the run (recursing to run it too).
-        * **Lock held** — merge into ``_pending_request`` (force wins,
-          flags OR together) and return a "queued" :class:`SyncResult`
-          with ``restart_pending=True``.
-
-        The merge step is what makes auth-chained syncs work — login
-        finishes mid-sync, the post-auth request folds into the queue
-        and runs automatically once the current sync completes.
+        A queued run starts only once the previous run has *fully* finished,
+        post-sync chain included. Starting it when the fetch released the
+        lock made its chain cancel the previous one part-way, which with
+        per-store runs left the earlier store's metadata and artwork undone.
         """
-        if self._lock.locked():
-            async with self._request_lock:
-                merged = (
-                    self._pending_request.merge(request)
-                    if self._pending_request is not None
-                    else request
-                )
-                self._pending_request = merged
+        async with self._request_lock:
+            self._pending_request = (
+                self._pending_request.merge(request)
+                if self._pending_request is not None
+                else request
+            )
+        if self._draining or self._lock.locked():
             held_for = (
                 f"{time.monotonic() - self._lock_acquired_at:.1f}s"
                 if self._lock_acquired_at is not None
@@ -270,11 +275,34 @@ class SyncService(
                 restart_pending=True,
                 source=request.source,
             )
-        async with self._lock:
-            self._lock_acquired_at = time.monotonic()
-            try:
-                current = request
-                while True:
+        self._draining = True
+        try:
+            return await self._drain_queue()
+        finally:
+            self._draining = False
+
+    async def _drain_queue(self) -> SyncResult:
+        """Run queued requests until the queue is empty; return the last result.
+
+        Waits for the previous run's post-sync chain *outside* the lock, so
+        install-state flips (which take the lock) are not held up for the
+        minutes an artwork pass can take.
+        """
+        result = SyncResult(success=True, games=[], count=0, duration_ms=0)
+        # Only a queued request waits for the chain: with nothing queued the
+        # caller gets its result as soon as its own fetch is done.
+        while self._pending_request is not None:
+            await self._chain_idle.wait()
+            current = await self._take_pending()
+            if current is None:  # cancelled while waiting
+                return result
+            logger.info(
+                "[SyncService] starting queued sync (source=%s, kind=%s)",
+                current.source, current.kind,
+            )
+            async with self._lock:
+                self._lock_acquired_at = time.monotonic()
+                try:
                     result = await self._run_sync(
                         fetch_artwork=current.fetch_artwork,
                         resync_artwork=current.resync_artwork,
@@ -282,20 +310,10 @@ class SyncService(
                         stores=current.stores,
                         artwork_only=current.kind == "artwork",
                     )
-                    result.source = current.source
-                    # Drain anything queued during the run.
-                    async with self._request_lock:
-                        next_req = self._pending_request
-                        self._pending_request = None
-                    if next_req is None:
-                        return result
-                    logger.info(
-                        "[SyncService] draining queued sync (source=%s, kind=%s)",
-                        next_req.source, next_req.kind,
-                    )
-                    current = next_req
-            finally:
-                self._lock_acquired_at = None
+                finally:
+                    self._lock_acquired_at = None
+            result.source = current.source
+        return result
 
     def _resolve_cooldown_ms(self) -> int:
         """Read ``sync.cooldown_seconds`` from config, default 5s.
@@ -377,6 +395,8 @@ class SyncService(
                 self._spawn_size_backfill()
                 self._record_chain_complete()
             self._bus.set_sync_progress(None)
+            # The run is fully finished; the next queued one may start.
+            self._chain_idle.set()
 
     def resume_size_backfill(self) -> None:
         """Restart an interrupted size warm-up at plugin boot.
@@ -497,9 +517,18 @@ class SyncService(
         Returns ``False`` immediately if no sync is running; otherwise
         ``True`` — the running code finds out via ``_cancel_event``
         and/or ``progress.status`` and exits at its next checkpoint.
+
+        Covers the post-sync chain too, not just the fetch, and drops any
+        queued request: Cancel stops syncing rather than skipping ahead to
+        the next queued store.
         """
-        if not self._lock.locked():
+        if not self._lock.locked() and self._chain_idle.is_set():
             return False
+        self._pending_request = None
+        # Metadata and compat do not announce a phase cancelled by the
+        # user, so the pending set would never drain; release the queue
+        # here instead of leaving it to the 30-minute watchdog.
+        self._chain_idle.set()
         self._cancel_event.set()
         # Mark progress cancelled so the post-sync service loops see it
         # at their next iteration (essential for cancellation mid-post-

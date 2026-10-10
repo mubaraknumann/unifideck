@@ -172,10 +172,6 @@
     "failed": "同期に失敗しました",
     "cancelled": "キャンセルしました",
     "storesDone": "{{total}} 件中 {{done}} 件完了",
-    "phaseGames": "ゲーム",
-    "phaseMetadata": "メタデータ",
-    "phaseArtwork": "画像",
-    "phaseCompat": "互換性",
     "syncGames": "ゲームを同期",
     "syncImages": "画像を同期",
     "openStore": "ストアを開く",
@@ -183,7 +179,11 @@
     "syncAllGames": "すべてのゲームを同期",
     "syncAllImages": "すべての画像を同期",
     "cancelSync": "同期をキャンセル",
-    "cancelling": "キャンセル中…"
+    "cancelling": "キャンセル中…",
+    "progressGames": "{{done}}/{{count}} 本のゲーム",
+    "progressGames_other": "{{done}}/{{count}} 本のゲーム",
+    "progressImages": "{{done}}/{{count}} 枚の画像",
+    "progressImages_other": "{{done}}/{{count}} 枚の画像"
   },
   "cleanup": {
     "title": "クリーンアップ",

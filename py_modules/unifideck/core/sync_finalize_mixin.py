@@ -51,6 +51,7 @@ class _SyncFinalizeMixin:
     _generation: SyncGeneration
     _watchdog_task: asyncio.Task[None] | None
     _cache_snapshot: dict[str, dict[str, Any]] | None
+    _chain_idle: asyncio.Event
     # Whether the last finalized run covered only part of the library's
     # work; read at the drain site to decide whether to record the chain.
     _last_run_partial: bool = False
@@ -204,6 +205,9 @@ class _SyncFinalizeMixin:
         the emit, lets the frontend's polling loop see the transition.
         """
         self._post_sync_pending = set(self._registered_phases)
+        if self._post_sync_pending:
+            # Held until the last phase reports done (or cancel/watchdog).
+            self._chain_idle.clear()
         if fetch_artwork:
             self._progress.start_artwork(total_games)
         else:
@@ -323,6 +327,7 @@ class _SyncFinalizeMixin:
             if self._progress.status != "cancelled":
                 self._progress.mark_complete()
             self._bus.set_sync_progress(None)
+            self._chain_idle.set()
 
 
 

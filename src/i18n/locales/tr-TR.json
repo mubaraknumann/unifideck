@@ -172,10 +172,6 @@
     "failed": "Senkronizasyon başarısız",
     "cancelled": "İptal edildi",
     "storesDone": "{{total}} mağazadan {{done}} tamamlandı",
-    "phaseGames": "Oyunlar",
-    "phaseMetadata": "Meta veriler",
-    "phaseArtwork": "Görseller",
-    "phaseCompat": "Uyumluluk",
     "syncGames": "Oyunları senkronize et",
     "syncImages": "Görselleri senkronize et",
     "openStore": "Mağazayı aç",
@@ -183,7 +179,11 @@
     "syncAllGames": "Tüm oyunları senkronize et",
     "syncAllImages": "Tüm görselleri senkronize et",
     "cancelSync": "Senkronizasyonu iptal et",
-    "cancelling": "İptal ediliyor…"
+    "cancelling": "İptal ediliyor…",
+    "progressGames": "{{done}}/{{count}} oyun",
+    "progressGames_other": "{{done}}/{{count}} oyun",
+    "progressImages": "{{done}}/{{count}} görsel",
+    "progressImages_other": "{{done}}/{{count}} görsel"
   },
   "cleanup": {
     "title": "Temizlik",

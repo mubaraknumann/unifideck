@@ -18,7 +18,7 @@
  * Driver hooks (`useStores`, `useStoreAuth`, `useSync`) come from the
  * current architecture so the data plane is unchanged.
  */
-import { FC, useEffect, useRef, useState } from "react";
+import { FC, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { PanelSection, Focusable, DialogButton } from "@decky/ui";
 import { useTranslation } from "react-i18next";
 import { FaImage, FaLayerGroup, FaSync, FaTimes } from "react-icons/fa";
@@ -130,6 +130,23 @@ const IN_RUN_STATES: readonly StoreSyncState[] = [
   "waiting",
 ];
 
+/**
+ * The nearest ancestor that actually scrolls — the Quick Access panel's
+ * scroll container, which belongs to Steam rather than to us.
+ */
+function scrollParent(el: HTMLElement | null): HTMLElement | null {
+  for (let node = el?.parentElement; node; node = node.parentElement) {
+    const { overflowY } = window.getComputedStyle(node);
+    if (
+      (overflowY === "auto" || overflowY === "scroll") &&
+      node.scrollHeight > node.clientHeight
+    ) {
+      return node;
+    }
+  }
+  return null;
+}
+
 /** The open row, kept across QAM mount/unmount like the active tab. */
 let persistentExpanded: string | null = null;
 
@@ -159,7 +176,7 @@ function useRecentlyFinished(state: StoreSyncState | undefined): boolean {
 
 interface RowProps {
   expanded: boolean;
-  onToggle: () => void;
+  onToggle: (row: HTMLElement | null) => void;
   /** Cooldown after a run ends, shared by every sync button. */
   canSync: boolean;
 }
@@ -311,7 +328,26 @@ export const StoreConnections: FC = () => {
     void syncStore.refresh();
   }, []);
 
-  const toggle = (id: string): void => {
+  // The tapped row and where its header sat on screen just before the
+  // toggle. Only one row is open at a time, so opening one can close
+  // another above it and pull the tapped header upward; the layout effect
+  // below scrolls by however far it moved, so what was tapped stays under
+  // the finger. Nothing else ever scrolls the panel on open — the content
+  // grows downward, and Steam brings a button into view when the D-pad
+  // reaches it.
+  const anchor = useRef<{ row: HTMLElement; top: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const held = anchor.current;
+    anchor.current = null;
+    if (!held || !held.row.isConnected) return;
+    const moved = held.row.getBoundingClientRect().top - held.top;
+    const scroller = scrollParent(held.row);
+    if (moved !== 0 && scroller) scroller.scrollTop += moved;
+  }, [expanded]);
+
+  const toggle = (id: string, row: HTMLElement | null): void => {
+    anchor.current = row ? { row, top: row.getBoundingClientRect().top } : null;
     const next = expanded === id ? null : id;
     persistentExpanded = next;
     setExpanded(next);
@@ -340,13 +376,13 @@ export const StoreConnections: FC = () => {
             storeId={s.name}
             displayName={s.display_name}
             expanded={expanded === s.name}
-            onToggle={() => toggle(s.name)}
+            onToggle={(row) => toggle(s.name, row)}
             canSync={cooldown.canSync}
           />
         ))}
         <AllStoresRow
           expanded={expanded === ALL_STORES_ROW}
-          onToggle={() => toggle(ALL_STORES_ROW)}
+          onToggle={(row) => toggle(ALL_STORES_ROW, row)}
           canSync={cooldown.canSync}
         />
       </Focusable>

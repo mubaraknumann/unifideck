@@ -172,10 +172,6 @@
     "failed": "فشلت المزامنة",
     "cancelled": "تم الإلغاء",
     "storesDone": "اكتمل {{done}} من {{total}}",
-    "phaseGames": "الألعاب",
-    "phaseMetadata": "البيانات الوصفية",
-    "phaseArtwork": "الصور",
-    "phaseCompat": "التوافق",
     "syncGames": "مزامنة الألعاب",
     "syncImages": "مزامنة الصور",
     "openStore": "فتح المتجر",
@@ -183,7 +179,11 @@
     "syncAllGames": "مزامنة جميع الألعاب",
     "syncAllImages": "مزامنة جميع الصور",
     "cancelSync": "إلغاء المزامنة",
-    "cancelling": "جارٍ الإلغاء…"
+    "cancelling": "جارٍ الإلغاء…",
+    "progressGames": "{{done}}/{{count}} لعبة",
+    "progressGames_other": "{{done}}/{{count}} ألعاب",
+    "progressImages": "{{done}}/{{count}} صورة",
+    "progressImages_other": "{{done}}/{{count}} صور"
   },
   "cleanup": {
     "title": "تنظيف البيانات",

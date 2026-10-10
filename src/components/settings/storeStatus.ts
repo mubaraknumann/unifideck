@@ -7,20 +7,20 @@
  *   1. blank                  — signed out; the grey icon says so.
  *   2. its row in the current run (`SyncProgress.stores[id]`):
  *        queued  → `Queued`
- *        active  → `Games 41/120` while fetching, `Images 62%` after
+ *        active  → `41/120 games`, or `210/340 images` while artwork
+ *                   downloads — number first, like the idle `340 games`
  *        waiting → `Waiting…` (its part is done, the run is not)
  *        error   → `Sync failed` (stays until the next run)
  *        done / cancelled → `Done` / `Cancelled` briefly, then idle
  *   3. a queued request that names it → `Queued`
  *   4. idle → `340 games`, or `Not synced yet`
  *
- * `detail` is the longer form for the expanded row: full counts while a
- * phase runs, or the error message after a failure.
+ * Progress lives only in the row. `detail` is shown at the top of an
+ * expanded row, above its buttons, and carries just what the row cannot: a failure's message.
  */
 import type { TFunction } from "i18next";
 import type {
   QueuedSync,
-  StoreSyncPhase,
   StoreSyncRow,
   StoreSyncSummary,
 } from "../../types/syncProgress";
@@ -40,14 +40,6 @@ export interface StoreStatusInput {
   recentlyFinished: boolean;
 }
 
-/** i18n key for each phase's label. Explicit, so every key is greppable. */
-const PHASE_KEYS: Record<Exclude<StoreSyncPhase, "">, string> = {
-  games: "storeConnections.phaseGames",
-  metadata: "storeConnections.phaseMetadata",
-  artwork: "storeConnections.phaseArtwork",
-  compat: "storeConnections.phaseCompat",
-};
-
 /** Whether `queued` names `store` (`stores: null` names every store). */
 export function isQueued(
   queued: QueuedSync | null | undefined,
@@ -57,24 +49,18 @@ export function isQueued(
   return queued.stores === null || queued.stores.includes(store);
 }
 
-function phaseLabel(t: TFunction, phase: StoreSyncPhase): string {
-  return phase ? t(PHASE_KEYS[phase]) : "";
-}
-
 function activeLine(t: TFunction, row: StoreSyncRow): StoreStatusLine {
-  const label = phaseLabel(t, row.phase);
-  const detail = `${label}: ${row.done} / ${row.total}`;
-  // Library fetch counts are small and meaningful; the post-sync phases
-  // walk the whole library, where a percentage reads better.
-  if (row.phase === "games") {
-    return {
-      text: `${label} ${row.done}/${row.total}`,
-      tone: "normal",
-      detail,
-    };
-  }
-  const percent = row.total > 0 ? Math.floor((row.done / row.total) * 100) : 0;
-  return { text: `${label} ${percent}%`, tone: "normal", detail };
+  // Every phase walks this store's games one at a time, so it reads as a
+  // count of them, number first like the idle "340 games". Artwork is the
+  // one step the user knows as images. `count` drives the plural.
+  const key =
+    row.phase === "artwork"
+      ? "storeConnections.progressImages"
+      : "storeConnections.progressGames";
+  return {
+    text: t(key, { done: row.done, count: row.total }),
+    tone: "normal",
+  };
 }
 
 function idleLine(t: TFunction, input: StoreStatusInput): StoreStatusLine {

@@ -172,10 +172,6 @@
     "failed": "Synchronisatie mislukt",
     "cancelled": "Geannuleerd",
     "storesDone": "{{done}} van {{total}} klaar",
-    "phaseGames": "Spellen",
-    "phaseMetadata": "Metagegevens",
-    "phaseArtwork": "Afbeeldingen",
-    "phaseCompat": "Compatibiliteit",
     "syncGames": "Spellen synchroniseren",
     "syncImages": "Afbeeldingen synchroniseren",
     "openStore": "Winkel openen",
@@ -183,7 +179,11 @@
     "syncAllGames": "Alle spellen synchroniseren",
     "syncAllImages": "Alle afbeeldingen synchroniseren",
     "cancelSync": "Synchronisatie annuleren",
-    "cancelling": "Annuleren…"
+    "cancelling": "Annuleren…",
+    "progressGames": "{{done}}/{{count}} spel",
+    "progressGames_other": "{{done}}/{{count}} spellen",
+    "progressImages": "{{done}}/{{count}} afbeelding",
+    "progressImages_other": "{{done}}/{{count}} afbeeldingen"
   },
   "cleanup": {
     "title": "Opruimen",
