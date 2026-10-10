@@ -235,8 +235,10 @@ def harness(monkeypatch, tmp_path):
         ss.SyncService, "_get_library_cache_path",
         lambda self: tmp_path / "library_cache.json",
     )
-    # The 30-minute post-sync watchdog would outlive each test's loop.
+    # The 30-minute post-sync watchdog, and the size warm-up a finished
+    # chain starts, would both outlive each test's loop.
     monkeypatch.setattr(ss.SyncService, "_arm_watchdog", lambda self: None)
+    monkeypatch.setattr(ss.SyncService, "_spawn_size_backfill", lambda self: None)
     epic = _Store("epic", _games("epic", 3))
     gog = _Store("gog", _games("gog", 2))
     bus = EventBus()
