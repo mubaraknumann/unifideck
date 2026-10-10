@@ -47,7 +47,7 @@ MAX_LINE_LENGTH = int(os.environ.get("WEBSOCKETS_MAX_LINE_LENGTH", "8192"))
 MAX_BODY_SIZE = int(os.environ.get("WEBSOCKETS_MAX_BODY_SIZE", "1_048_576"))  # 1 MiB
 
 
-def d(value: bytes) -> str:
+def d(value: bytes | bytearray) -> str:
     """
     Decode a bytestring for interpolating into an error message.
 
@@ -102,7 +102,7 @@ class Request:
     @classmethod
     def parse(
         cls,
-        read_line: Callable[[int], Generator[None, None, bytes]],
+        read_line: Callable[[int], Generator[None, None, bytes | bytearray]],
     ) -> Generator[None, None, Request]:
         """
         Parse a WebSocket handshake request.
@@ -159,7 +159,10 @@ class Request:
             raise NotImplementedError("transfer codings aren't supported")
 
         if "Content-Length" in headers:
-            raise ValueError("unsupported request body")
+            # Some devices send a Content-Length header with a value of 0.
+            # This raises ValueError if Content-Length isn't an integer too.
+            if int(headers["Content-Length"]) != 0:
+                raise ValueError("unsupported request body")
 
         return cls(path, headers)
 
@@ -191,7 +194,7 @@ class Response:
     status_code: int
     reason_phrase: str
     headers: Headers
-    body: bytes = b""
+    body: bytes | bytearray = b""
 
     _exception: Exception | None = None
 
@@ -207,10 +210,10 @@ class Response:
     @classmethod
     def parse(
         cls,
-        read_line: Callable[[int], Generator[None, None, bytes]],
-        read_exact: Callable[[int], Generator[None, None, bytes]],
-        read_to_eof: Callable[[int], Generator[None, None, bytes]],
-        include_body: bool = True,
+        read_line: Callable[[int], Generator[None, None, bytes | bytearray]],
+        read_exact: Callable[[int], Generator[None, None, bytes | bytearray]],
+        read_to_eof: Callable[[int], Generator[None, None, bytes | bytearray]],
+        proxy: bool = False,
     ) -> Generator[None, None, Response]:
         """
         Parse a WebSocket handshake response.
@@ -246,10 +249,17 @@ class Response:
             protocol, raw_status_code, raw_reason = status_line.split(b" ", 2)
         except ValueError:  # not enough values to unpack (expected 3, got 1-2)
             raise ValueError(f"invalid HTTP status line: {d(status_line)}") from None
-        if protocol != b"HTTP/1.1":
-            raise ValueError(
-                f"unsupported protocol; expected HTTP/1.1: {d(status_line)}"
-            )
+        if proxy:  # some proxies still use HTTP/1.0
+            if protocol not in [b"HTTP/1.1", b"HTTP/1.0"]:
+                raise ValueError(
+                    f"unsupported protocol; expected HTTP/1.1 or HTTP/1.0: "
+                    f"{d(status_line)}"
+                )
+        else:
+            if protocol != b"HTTP/1.1":
+                raise ValueError(
+                    f"unsupported protocol; expected HTTP/1.1: {d(status_line)}"
+                )
         try:
             status_code = int(raw_status_code)
         except ValueError:  # invalid literal for int() with base 10
@@ -266,12 +276,13 @@ class Response:
 
         headers = yield from parse_headers(read_line)
 
-        if include_body:
+        body: bytes | bytearray
+        if proxy:
+            body = b""
+        else:
             body = yield from read_body(
                 status_code, headers, read_line, read_exact, read_to_eof
             )
-        else:
-            body = b""
 
         return cls(status_code, reason, headers, body)
 
@@ -289,8 +300,8 @@ class Response:
 
 
 def parse_line(
-    read_line: Callable[[int], Generator[None, None, bytes]],
-) -> Generator[None, None, bytes]:
+    read_line: Callable[[int], Generator[None, None, bytes | bytearray]],
+) -> Generator[None, None, bytes | bytearray]:
     """
     Parse a single line.
 
@@ -316,7 +327,7 @@ def parse_line(
 
 
 def parse_headers(
-    read_line: Callable[[int], Generator[None, None, bytes]],
+    read_line: Callable[[int], Generator[None, None, bytes | bytearray]],
 ) -> Generator[None, None, Headers]:
     """
     Parse HTTP headers.
@@ -358,7 +369,9 @@ def parse_headers(
 
         name = raw_name.decode("ascii")  # guaranteed to be ASCII at this point
         value = raw_value.decode("ascii", "surrogateescape")
-        headers[name] = value
+
+        # Since we just validated raw_value, we don't need to revalidate it.
+        headers.set_insecure(name, value)
 
     else:
         raise SecurityError("too many HTTP headers")
@@ -369,10 +382,10 @@ def parse_headers(
 def read_body(
     status_code: int,
     headers: Headers,
-    read_line: Callable[[int], Generator[None, None, bytes]],
-    read_exact: Callable[[int], Generator[None, None, bytes]],
-    read_to_eof: Callable[[int], Generator[None, None, bytes]],
-) -> Generator[None, None, bytes]:
+    read_line: Callable[[int], Generator[None, None, bytes | bytearray]],
+    read_exact: Callable[[int], Generator[None, None, bytes | bytearray]],
+    read_to_eof: Callable[[int], Generator[None, None, bytes | bytearray]],
+) -> Generator[None, None, bytes | bytearray]:
     # https://datatracker.ietf.org/doc/html/rfc7230#section-3.3.3
 
     # Since websockets only does GET requests (no HEAD, no CONNECT), all

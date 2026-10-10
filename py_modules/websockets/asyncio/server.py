@@ -50,7 +50,7 @@ class ServerConnection(Connection):
         async for message in websocket:
             await process(message)
 
-    The iterator exits normally when the connection is closed with close code
+    The iterator exits normally when the connection is closed with code
     1000 (OK) or 1001 (going away) or without a close code. It raises a
     :exc:`~websockets.exceptions.ConnectionClosedError` when the connection is
     closed with any other code.
@@ -405,18 +405,25 @@ class Server:
         # but before it starts executing.
         self.handlers[connection] = self.loop.create_task(self.conn_handler(connection))
 
-    def close(self, close_connections: bool = True) -> None:
+    def close(
+        self,
+        close_connections: bool = True,
+        code: CloseCode | int = CloseCode.GOING_AWAY,
+        reason: str = "",
+    ) -> None:
         """
         Close the server.
 
         * Close the underlying :class:`asyncio.Server`.
-        * When ``close_connections`` is :obj:`True`, which is the default,
-          close existing connections. Specifically:
+        * When ``close_connections`` is :obj:`True`, which is the default, close
+          existing connections. Specifically:
 
           * Reject opening WebSocket connections with an HTTP 503 (service
             unavailable) error. This happens when the server accepted the TCP
             connection but didn't complete the opening handshake before closing.
-          * Close open WebSocket connections with close code 1001 (going away).
+          * Close open WebSocket connections with code 1001 (going away).
+            ``code`` and ``reason`` can be customized, for example to use code
+            1012 (service restart).
 
         * Wait until all connection handlers terminate.
 
@@ -425,16 +432,21 @@ class Server:
         """
         if self.close_task is None:
             self.close_task = self.get_loop().create_task(
-                self._close(close_connections)
+                self._close(close_connections, code, reason)
             )
 
-    async def _close(self, close_connections: bool) -> None:
+    async def _close(
+        self,
+        close_connections: bool = True,
+        code: CloseCode | int = CloseCode.GOING_AWAY,
+        reason: str = "",
+    ) -> None:
         """
         Implementation of :meth:`close`.
 
         This calls :meth:`~asyncio.Server.close` on the underlying
         :class:`asyncio.Server` object to stop accepting new connections and
-        then closes open connections with close code 1001.
+        then closes open connections.
 
         """
         self.logger.info("server closing")
@@ -447,11 +459,13 @@ class Server:
         # details. This workaround can be removed when dropping Python < 3.11.
         await asyncio.sleep(0)
 
+        # After server.close(), handshake() closes OPENING connections with an
+        # HTTP 503 error.
+
         if close_connections:
-            # Close OPEN connections with close code 1001. After server.close(),
-            # handshake() closes OPENING connections with an HTTP 503 error.
+            # Close OPEN connections with code 1001 by default.
             close_tasks = [
-                asyncio.create_task(connection.close(1001))
+                asyncio.create_task(connection.close(code, reason))
                 for connection in self.handlers
                 if connection.protocol.state is not CONNECTING
             ]
@@ -540,7 +554,7 @@ class Server:
         await self.server.serve_forever()
 
     @property
-    def sockets(self) -> Iterable[socket.socket]:
+    def sockets(self) -> tuple[socket.socket, ...]:
         """
         See :attr:`asyncio.Server.sockets`.
 
@@ -644,7 +658,9 @@ class serve:
         close_timeout: Timeout for closing connections in seconds.
             :obj:`None` disables the timeout.
         max_size: Maximum size of incoming messages in bytes.
-            :obj:`None` disables the limit.
+            :obj:`None` disables the limit. You may pass a ``(max_message_size,
+            max_fragment_size)`` tuple to set different limits for messages and
+            fragments when you expect long messages sent in short fragments.
         max_queue: High-water mark of the buffer where frames are received.
             It defaults to 16 frames. The low-water mark defaults to ``max_queue
             // 4``. You may pass a ``(high, low)`` tuple to set the high-water
@@ -719,7 +735,7 @@ class serve:
         ping_timeout: float | None = 20,
         close_timeout: float | None = 10,
         # Limits
-        max_size: int | None = 2**20,
+        max_size: int | None | tuple[int | None, int | None] = 2**20,
         max_queue: int | None | tuple[int | None, int | None] = 16,
         write_limit: int | tuple[int, int | None] = 2**15,
         # Logging
@@ -832,7 +848,7 @@ class serve:
         self.server.wrap(server)
         return self.server
 
-    # ... = yield from serve(...) - remove when dropping Python < 3.10
+    # ... = yield from serve(...) - remove when dropping Python < 3.11
 
     __iter__ = __await__
 

@@ -8,16 +8,17 @@ from collections.abc import Sequence
 from typing import Any, Callable, Literal, TypeVar, cast
 
 from ..client import ClientProtocol
-from ..datastructures import Headers, HeadersLike
+from ..datastructures import HeadersLike
 from ..exceptions import InvalidProxyMessage, InvalidProxyStatus, ProxyError
 from ..extensions.base import ClientExtensionFactory
 from ..extensions.permessage_deflate import enable_client_permessage_deflate
-from ..headers import build_authorization_basic, build_host, validate_subprotocols
+from ..headers import validate_subprotocols
 from ..http11 import USER_AGENT, Response
 from ..protocol import CONNECTING, Event
+from ..proxy import Proxy, get_proxy, parse_proxy, prepare_connect_request
 from ..streams import StreamReader
-from ..typing import LoggerLike, Origin, Subprotocol
-from ..uri import Proxy, WebSocketURI, get_proxy, parse_proxy, parse_uri
+from ..typing import BytesLike, LoggerLike, Origin, Subprotocol
+from ..uri import WebSocketURI, parse_uri
 from .connection import Connection
 from .utils import Deadline
 
@@ -37,7 +38,7 @@ class ClientConnection(Connection):
         for message in websocket:
             process(message)
 
-    The iterator exits normally when the connection is closed with close code
+    The iterator exits normally when the connection is closed with code
     1000 (OK) or 1001 (going away) or without a close code. It raises a
     :exc:`~websockets.exceptions.ConnectionClosedError` when the connection is
     closed with any other code.
@@ -150,7 +151,7 @@ def connect(
     ping_timeout: float | None = 20,
     close_timeout: float | None = 10,
     # Limits
-    max_size: int | None = 2**20,
+    max_size: int | None | tuple[int | None, int | None] = 2**20,
     max_queue: int | None | tuple[int | None, int | None] = 16,
     # Logging
     logger: LoggerLike | None = None,
@@ -210,7 +211,9 @@ def connect(
         close_timeout: Timeout for closing the connection in seconds.
             :obj:`None` disables the timeout.
         max_size: Maximum size of incoming messages in bytes.
-            :obj:`None` disables the limit.
+            :obj:`None` disables the limit. You may pass a ``(max_message_size,
+            max_fragment_size)`` tuple to set different limits for messages and
+            fragments when you expect long messages sent in short fragments.
         max_queue: High-water mark of the buffer where frames are received.
             It defaults to 16 frames. The low-water mark defaults to ``max_queue
             // 4``. You may pass a ``(high, low)`` tuple to set the high-water
@@ -423,6 +426,17 @@ try:
     from python_socks import ProxyType
     from python_socks.sync import Proxy as SocksProxy
 
+except ImportError:
+
+    def connect_socks_proxy(
+        proxy: Proxy,
+        ws_uri: WebSocketURI,
+        deadline: Deadline,
+        **kwargs: Any,
+    ) -> socket.socket:
+        raise ImportError("connecting through a SOCKS proxy requires python-socks")
+
+else:
     SOCKS_PROXY_TYPES = {
         "socks5h": ProxyType.SOCKS5,
         "socks5": ProxyType.SOCKS5,
@@ -462,35 +476,6 @@ try:
         except Exception as exc:
             raise ProxyError("failed to connect to SOCKS proxy") from exc
 
-except ImportError:
-
-    def connect_socks_proxy(
-        proxy: Proxy,
-        ws_uri: WebSocketURI,
-        deadline: Deadline,
-        **kwargs: Any,
-    ) -> socket.socket:
-        raise ImportError("python-socks is required to use a SOCKS proxy")
-
-
-def prepare_connect_request(
-    proxy: Proxy,
-    ws_uri: WebSocketURI,
-    user_agent_header: str | None = None,
-) -> bytes:
-    host = build_host(ws_uri.host, ws_uri.port, ws_uri.secure, always_include_port=True)
-    headers = Headers()
-    headers["Host"] = build_host(ws_uri.host, ws_uri.port, ws_uri.secure)
-    if user_agent_header is not None:
-        headers["User-Agent"] = user_agent_header
-    if proxy.username is not None:
-        assert proxy.password is not None  # enforced by parse_proxy()
-        headers["Proxy-Authorization"] = build_authorization_basic(
-            proxy.username, proxy.password
-        )
-    # We cannot use the Request class because it supports only GET requests.
-    return f"CONNECT {host} HTTP/1.1\r\n".encode() + headers.serialize()
-
 
 def read_connect_response(sock: socket.socket, deadline: Deadline) -> Response:
     reader = StreamReader()
@@ -498,7 +483,7 @@ def read_connect_response(sock: socket.socket, deadline: Deadline) -> Response:
         reader.read_line,
         reader.read_exact,
         reader.read_to_eof,
-        include_body=False,
+        proxy=True,
     )
     try:
         while True:
@@ -630,10 +615,10 @@ class SSLSSLSocket:
         except ssl_module.SSLEOFError:
             return b""  # always ignore ragged EOFs
 
-    def send(self, data: bytes) -> int:
+    def send(self, data: BytesLike) -> int:
         return self.run_io(self.ssl_object.write, data)
 
-    def sendall(self, data: bytes) -> None:
+    def sendall(self, data: BytesLike) -> None:
         # adapted from ssl_module.SSLSocket.sendall()
         count = 0
         with memoryview(data) as view, view.cast("B") as byte_view:
