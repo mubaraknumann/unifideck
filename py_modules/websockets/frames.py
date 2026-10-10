@@ -7,9 +7,10 @@ import os
 import secrets
 import struct
 from collections.abc import Generator, Sequence
-from typing import Callable, Union
+from typing import Callable
 
 from .exceptions import PayloadTooBig, ProtocolError
+from .typing import BytesLike
 
 
 try:
@@ -118,9 +119,6 @@ OK_CLOSE_CODES = {
 }
 
 
-BytesLike = bytes, bytearray, memoryview
-
-
 @dataclasses.dataclass
 class Frame:
     """
@@ -140,7 +138,7 @@ class Frame:
     """
 
     opcode: Opcode
-    data: Union[bytes, bytearray, memoryview]
+    data: BytesLike
     fin: bool = True
     rsv1: bool = False
     rsv2: bool = False
@@ -149,60 +147,109 @@ class Frame:
     # Configure if you want to see more in logs. Should be a multiple of 3.
     MAX_LOG_SIZE = int(os.environ.get("WEBSOCKETS_MAX_LOG_SIZE", "75"))
 
+    DEFAULT_IS_TEXT = {OP_TEXT: True, OP_BINARY: False, OP_CLOSE: True}
+
     def __str__(self) -> str:
         """
         Return a human-readable representation of a frame.
 
+        This function is intended for logging and debugging. It doesn't aim to
+        support round-tripping because payloads can be too long for displaying
+        conveniently. Instead, it shows the beginning and the end. It's robust
+        to incorrect data.
+
+        It attempts to decode UTF-8 payloads whenever possible, even for binary
+        frames and control frames, because those frequently contain UTF-8 data.
+        It applies the same logic to continuation frames, because we don't know
+        if they continue a text frame or a binary frame.
+
         """
-        coding = None
+        expect_text = self.DEFAULT_IS_TEXT.get(self.opcode)
+        data_repr, is_text = self._data_repr()
+
+        data_type = "" if expect_text == is_text else ("text" if is_text else "binary")
         length = f"{len(self.data)} byte{'' if len(self.data) == 1 else 's'}"
         non_final = "" if self.fin else "continued"
+        metadata = ", ".join(filter(None, [data_type, length, non_final]))
 
-        if self.opcode is OP_TEXT:
-            # Decoding only the beginning and the end is needlessly hard.
-            # Decode the entire payload then elide later if necessary.
-            data = repr(bytes(self.data).decode())
-        elif self.opcode is OP_BINARY:
-            # We'll show at most the first 16 bytes and the last 8 bytes.
-            # Encode just what we need, plus two dummy bytes to elide later.
+        return f"{self.opcode.name} {data_repr} [{metadata}]"
+
+    def _data_repr(self) -> tuple[str, bool | None]:
+        """
+        Return a human-readable representation of the payload.
+
+        Also returns whether the payload is text.
+
+        The representation is elided to fit ``MAX_LOG_SIZE``.
+
+        This is a helper for the __str__ method.
+
+        """
+        if not self.data:
+            return "''", self.DEFAULT_IS_TEXT.get(self.opcode)
+
+        # Special case for close frames: parse close code and reason.
+        # Fall back to the standard case if the payload is malformed.
+
+        if self.opcode is OP_CLOSE:
+            try:
+                return str(Close.parse(self.data)), True
+            except (ProtocolError, UnicodeDecodeError):
+                pass
+
+        # Guess whether the payload is UTF-8 or binary, regardless of opcode, to
+        # display UTF-8 text in binary frames nicely and generally to be helpful
+        # and robust. Also support frames fragmented within UTF-8 sequences.
+
+        if len(self.data) > 4 * self.MAX_LOG_SIZE:
+            # Process only the start and the end, as the middle will be elided.
+            # Cast to bytes because self.data could be a memoryview.
+            data_start = bytes(self.data[: 8 * self.MAX_LOG_SIZE // 3])
+            data_end = bytes(self.data[-4 * self.MAX_LOG_SIZE // 3 :])
+            is_text = is_utf8_fragment(
+                data_start,
+                must_start_clean=self.opcode != OP_CONT,
+            ) and is_utf8_fragment(
+                data_end,
+                must_end_clean=self.fin,
+            )
+            if is_text:
+                data_repr = repr((data_start + data_end).decode(errors="replace"))
+
+        else:
+            # Cast to bytes because self.data could be a memoryview.
+            data = bytes(self.data)
+            is_text = is_utf8_fragment(
+                data,
+                must_start_clean=self.opcode != OP_CONT,
+                must_end_clean=self.fin,
+            )
+            if is_text:
+                data_repr = repr(data.decode(errors="replace"))
+
+        # When the payload is text (except perhaps for boundaries), we decoded
+        # enough in ``data_repr``. Now, do the same when the payload is binary.
+
+        if not is_text:
             binary = self.data
             if len(binary) > self.MAX_LOG_SIZE // 3:
                 cut = (self.MAX_LOG_SIZE // 3 - 1) // 3  # by default cut = 8
+                # Encode two dummy bytes to force eliding and adding an ellipsis.
                 binary = b"".join([binary[: 2 * cut], b"\x00\x00", binary[-cut:]])
-            data = " ".join(f"{byte:02x}" for byte in binary)
-        elif self.opcode is OP_CLOSE:
-            data = str(Close.parse(self.data))
-        elif self.data:
-            # We don't know if a Continuation frame contains text or binary.
-            # Ping and Pong frames could contain UTF-8.
-            # Attempt to decode as UTF-8 and display it as text; fallback to
-            # binary. If self.data is a memoryview, it has no decode() method,
-            # which raises AttributeError.
-            try:
-                data = repr(bytes(self.data).decode())
-                coding = "text"
-            except (UnicodeDecodeError, AttributeError):
-                binary = self.data
-                if len(binary) > self.MAX_LOG_SIZE // 3:
-                    cut = (self.MAX_LOG_SIZE // 3 - 1) // 3  # by default cut = 8
-                    binary = b"".join([binary[: 2 * cut], b"\x00\x00", binary[-cut:]])
-                data = " ".join(f"{byte:02x}" for byte in binary)
-                coding = "binary"
-        else:
-            data = "''"
+            data_repr = " ".join(f"{byte:02x}" for byte in binary)
 
-        if len(data) > self.MAX_LOG_SIZE:
+        # Elide the middle of the representation to fit the maximum log size.
+
+        if len(data_repr) > self.MAX_LOG_SIZE:
             cut = self.MAX_LOG_SIZE // 3 - 1  # by default cut = 24
-            data = data[: 2 * cut] + "..." + data[-cut:]
+            data_repr = data_repr[: 2 * cut] + "..." + data_repr[-cut:]
 
-        metadata = ", ".join(filter(None, [coding, length, non_final]))
-
-        return f"{self.opcode.name} {data} [{metadata}]"
+        return data_repr, is_text
 
     @classmethod
     def parse(
         cls,
-        read_exact: Callable[[int], Generator[None, None, bytes]],
+        read_exact: Callable[[int], Generator[None, None, bytes | bytearray]],
         *,
         mask: bool,
         max_size: int | None = None,
@@ -324,6 +371,7 @@ class Frame:
             output.write(mask_bytes)
 
         # Prepare the data.
+        data: BytesLike
         if mask:
             data = apply_mask(self.data, mask_bytes)
         else:
@@ -361,7 +409,7 @@ class Close:
 
     """
 
-    code: int
+    code: CloseCode | int
     reason: str
 
     def __str__(self) -> str:
@@ -383,7 +431,7 @@ class Close:
         return result
 
     @classmethod
-    def parse(cls, data: bytes) -> Close:
+    def parse(cls, data: BytesLike) -> Close:
         """
         Parse the payload of a close frame.
 
@@ -395,6 +443,8 @@ class Close:
             UnicodeDecodeError: If the reason isn't valid UTF-8.
 
         """
+        if isinstance(data, memoryview):
+            raise AssertionError("only compressed outgoing frames use memoryview")
         if len(data) >= 2:
             (code,) = struct.unpack("!H", data[:2])
             reason = data[2:].decode()
@@ -424,6 +474,78 @@ class Close:
         """
         if not (self.code in EXTERNAL_CLOSE_CODES or 3000 <= self.code < 5000):
             raise ProtocolError("invalid status code")
+
+
+def is_utf8_fragment(
+    data: bytes,
+    must_start_clean: bool = False,
+    must_end_clean: bool = False,
+) -> bool:
+    """Guess if data is a fragment of UTF-8 text."""
+    # Possible byte sequences for UTF-8 characters are:
+    # 0xxxxxxx
+    # 110xxxxx 10xxxxxx
+    # 1110xxxx 10xxxxxx 10xxxxxx
+    # 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+
+    # The algorithm determines ``start`` and ``end`` so that ``data[start:end]``
+    # must be a valid UTF-8 sequence for data to be a valid UTF-8 fragment.
+
+    start, end = 0, len(data)
+
+    if not must_start_clean:
+        # Remove continuation bytes from the beginning.
+        max_start = min(3, len(data))
+        while start < max_start:
+            byte = data[start]
+
+            # Continuation byte
+            if byte & 0b11000000 == 0b10000000:
+                start += 1
+                continue
+
+            break
+
+    if not must_end_clean:
+        # Remove a partial multibyte sequence from the end.
+        end -= 1  # index of the last byte
+        min_end = max(len(data) - 4, start)
+        while end >= min_end:
+            byte = data[end]
+            # Continuation byte
+            if byte & 0b11000000 == 0b10000000:
+                end -= 1
+                continue
+
+            # ASCII byte
+            if byte & 0b10000000 == 0b00000000:
+                seq_len = 1
+            # Leading byte of a 2-byte sequence
+            elif byte & 0b11100000 == 0b11000000:
+                seq_len = 2
+            # Leading byte of a 3-byte sequence
+            elif byte & 0b11110000 == 0b11100000:
+                seq_len = 3
+            # Leading byte of a 4-byte sequence
+            elif byte & 0b11111000 == 0b11110000:
+                seq_len = 4
+            # Invalid byte
+            else:
+                seq_len = 0
+
+            # Cut only when there's an incomplete sequence at the end.
+            if seq_len <= len(data) - end:
+                end = len(data)
+
+            break
+
+    try:
+        text = data[start:end].decode()
+    except UnicodeDecodeError:
+        return False
+    else:
+        # Non-printable characters signal binary data.
+        return "\\x" not in repr(text)
 
 
 # At the bottom to break import cycles created by type annotations.
