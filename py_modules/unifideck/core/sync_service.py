@@ -10,9 +10,9 @@ This module holds construction, the single-flight queue
 ``cancel``. The per-run execution lives in ``_SyncRunMixin``
 (``sync_run_mixin.py``), library-cache persistence in
 ``_SyncCacheMixin`` (``sync_cache_mixin.py``), read-only queries in
-``_SyncQueriesMixin``, and result aggregation in
-``_SyncResultsMixin`` — split for the 550-LOC volumetry cap; the
-public API surface is unchanged.
+``_SyncQueriesMixin``, result aggregation in ``_SyncResultsMixin``,
+and per-store scoping in ``_SyncScopeMixin`` — split for the 550-LOC
+volumetry cap.
 
 State retained across sync passes:
 
@@ -29,6 +29,7 @@ import asyncio
 import contextlib
 import logging
 import time
+from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -40,6 +41,8 @@ from .sync_finalize_mixin import _SyncFinalizeMixin
 from .sync_queries_mixin import _SyncQueriesMixin
 from .sync_results_mixin import _SyncResultsMixin
 from .sync_run_mixin import _SyncRunMixin
+from .sync_scope import normalize_stores
+from .sync_scope_mixin import _SyncScopeMixin
 from .types import Events, Game, SyncRequest, SyncResult
 
 if TYPE_CHECKING:
@@ -55,7 +58,7 @@ DEFAULT_COOLDOWN_MS = DEFAULT_COOLDOWN_SECONDS * 1000
 
 class SyncService(
     _SyncCacheMixin, _SyncRunMixin, _SyncFinalizeMixin,
-    _SyncQueriesMixin, _SyncResultsMixin,
+    _SyncQueriesMixin, _SyncResultsMixin, _SyncScopeMixin,
 ):
     """Single-flight multi-store library sync orchestrator.
 
@@ -117,6 +120,8 @@ class SyncService(
         self._cancel_event = asyncio.Event()
         self._all_games: dict[str, list[Game]] = {}
         self._last_sync_time: float | None = None
+        # Per-store "last fetched cleanly" stamps for the store rows.
+        self._store_sync_times: dict[str, float] = {}
         self._load_library_cache()
         self._current_store: str | None = None
         self._init_progress_tracking()
@@ -172,6 +177,7 @@ class SyncService(
         fetch_artwork: bool = True,
         resync_artwork: bool = False,
         source: str = "manual",
+        stores: Iterable[str] | None = None,
     ) -> SyncResult:
         """Run a full multi-store sync. Queues behind an in-flight sync.
 
@@ -191,6 +197,8 @@ class SyncService(
                 a fresh download.
             source: provenance string — ``"manual"`` (default),
                 ``"auth:<store>"``, ``"background"``, ``"scheduled"``.
+            stores: limit the run to these stores (``None`` = every
+                store); see ``core/sync_scope.py``.
 
         Returns:
             ``SyncResult`` from the full sync, or a queued-response when
@@ -201,6 +209,7 @@ class SyncService(
             source=source,
             fetch_artwork=fetch_artwork,
             resync_artwork=resync_artwork,
+            stores=normalize_stores(stores),
         )
         is_force = request.kind == "force"
         if force:
@@ -214,6 +223,7 @@ class SyncService(
                         fetch_artwork=fetch_artwork,
                         resync_artwork=resync_artwork,
                         is_force=is_force,
+                        stores=request.stores,
                     )
                 finally:
                     self._lock_acquired_at = None
@@ -269,6 +279,8 @@ class SyncService(
                         fetch_artwork=current.fetch_artwork,
                         resync_artwork=current.resync_artwork,
                         is_force=current.kind == "force",
+                        stores=current.stores,
+                        artwork_only=current.kind == "artwork",
                     )
                     result.source = current.source
                     # Drain anything queued during the run.
@@ -325,46 +337,6 @@ class SyncService(
         finishes.
         """
         return await self.sync_all(source=f"auth:{store}")
-
-    async def sync_single_store(
-        self, store_name: str,
-    ) -> tuple[bool, str | None]:
-        """Sync just one store and merge its result into the running library.
-
-        Used by the ``refresh-library`` URI verb. Unlike ``sync_all``,
-        doesn't hold the single-flight lock — the caller is responsible
-        for not racing a full sync. After fetching, runs the full dedup
-        pass over the merged state so cross-store consistency holds.
-
-        Returns:
-            ``(success_bool, optional_error_string)``.
-        """
-        store = self._registry.get_store(store_name)
-        if store is None:
-            logger.warning(
-                "[SyncService] refresh-library: unknown store %r", store_name,
-            )
-            return False, "unknown_store"
-        await self._bus.emit(
-            Events.SYNC_STARTED,
-            stores=[store_name],
-            scope="single",
-        )
-        await self._emit_progress(store_name, 0, 1, {})
-        games, err = await self._sync_one_store(store)
-        if self._all_games is None:
-            self._all_games = {}  # type: ignore[unreachable]  # registry-miss fallback
-        self._all_games[store_name] = games
-        self._last_sync_time = time.time()
-        self._save_library_cache()
-        await self._bus.emit(
-            Events.SYNC_COMPLETE,
-            games=self._flatten(self._all_games),
-            stores_synced=[store_name],
-            errors={store_name: err} if err else {},
-            duration_ms=0,
-        )
-        return err is None, err
 
     def _on_post_sync_phase(self, **kwargs: Any) -> None:
         """Handle POST_SYNC_PHASE_CHANGED (completion only).

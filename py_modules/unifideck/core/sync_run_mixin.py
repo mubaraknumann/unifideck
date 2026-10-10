@@ -2,7 +2,7 @@
 
 Extracted from ``core/sync_service.py`` to keep that file under the
 550-LOC volumetry cap. Owns the per-run orchestration: setup,
-per-store fetch loop, cancellation handling, and the single-store path.
+per-store fetch loop, and cancellation handling.
 
 Post-sync finalization (dedup + SYNC_COMPLETE, the phase set, and the
 watchdog) lives in ``_SyncFinalizeMixin`` (``sync_finalize_mixin.py``),
@@ -21,7 +21,7 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
-from .sync_availability import refresh_store_availability
+from .sync_scope import RunScope
 from .types import Events, Game, SyncResult
 
 if TYPE_CHECKING:
@@ -74,6 +74,16 @@ class _SyncRunMixin:
             total: int,
         ) -> SyncResult: ...
         def _flatten(self, libraries: dict[str, list[Game]]) -> list[Game]: ...
+        # Scope helpers live in ``_SyncScopeMixin``.
+        async def _available_in_scope(
+            self, stores: frozenset[str] | None,
+        ) -> list[StoreBase]: ...
+        def _library_for_run(
+            self,
+            fetched: dict[str, list[Game]],
+            stores: frozenset[str] | None,
+            artwork_only: bool,
+        ) -> dict[str, list[Game]]: ...
         # Post-sync finalize lives in ``_SyncFinalizeMixin``.
         async def _finalize_sync(
             self,
@@ -85,6 +95,7 @@ class _SyncRunMixin:
             fetch_artwork: bool = ...,
             resync_artwork: bool = ...,
             is_force: bool = ...,
+            scope: RunScope | None = ...,
         ) -> SyncResult: ...
 
     async def _run_sync(
@@ -93,6 +104,8 @@ class _SyncRunMixin:
         fetch_artwork: bool = True,
         resync_artwork: bool = False,
         is_force: bool = False,
+        stores: frozenset[str] | None = None,
+        artwork_only: bool = False,
     ) -> SyncResult:
         """Core sync loop — emits events + handles cancellation.
 
@@ -102,13 +115,54 @@ class _SyncRunMixin:
         delegated to a focused helper so this stays a flat read of
         the orchestration skeleton. The empty-store case is a
         legitimate state, not an error.
+
+        ``stores`` narrows the run to those stores (``None`` = all of
+        them); the rest of the library is carried over from the last
+        run — see ``core/sync_scope.py``. ``artwork_only`` skips the
+        fetch entirely and re-downloads artwork for the scoped games.
         """
-        started, available_stores = await self._setup_sync()
+        started, available_stores = await self._setup_sync(
+            stores, fetching=not artwork_only,
+        )
         total = len(available_stores)
         if total == 0:
-            return await self._sync_no_stores_shortcircuit()
+            return await self._sync_no_stores_shortcircuit(
+                scoped=stores is not None,
+            )
         libraries: dict[str, list[Game]] = {}
         errors: dict[str, str] = {}
+        if not artwork_only:
+            cancelled = await self._fetch_stores(
+                available_stores, libraries, errors, is_force,
+            )
+            if cancelled is not None:
+                return cancelled
+        self._current_store = None
+        return await self._finalize_guarded(
+            self._library_for_run(libraries, stores, artwork_only),
+            errors, total, started,
+            fetch_artwork=fetch_artwork or artwork_only,
+            resync_artwork=resync_artwork or artwork_only,
+            is_force=is_force,
+            scope=RunScope(
+                stores=stores, fetched=tuple(libraries),
+                artwork_only=artwork_only,
+            ),
+        )
+
+    async def _fetch_stores(
+        self,
+        available_stores: list[StoreBase],
+        libraries: dict[str, list[Game]],
+        errors: dict[str, str],
+        is_force: bool,
+    ) -> SyncResult | None:
+        """Fetch each store's library in turn, filling ``libraries``/``errors``.
+
+        Returns the cancelled result when the user cancels part-way,
+        otherwise ``None``.
+        """
+        total = len(available_stores)
         for idx, store in enumerate(available_stores):
             if self._cancel_event.is_set():
                 return await self._sync_cancelled_result(idx, total, libraries)
@@ -116,19 +170,14 @@ class _SyncRunMixin:
             await self._emit_progress(store.store_name, idx, total, libraries)
             games, err = await self._fetch_one(store, is_force)
             libraries[store.store_name] = games
+            self._progress.finish_store_fetch(store.store_name, len(games), err)
             if err is not None:
                 errors[store.store_name] = err
             if self._cancel_event.is_set():
                 return await self._sync_cancelled_result(
                     idx + 1, total, libraries,
                 )
-        self._current_store = None
-        return await self._finalize_guarded(
-            libraries, errors, total, started,
-            fetch_artwork=fetch_artwork,
-            resync_artwork=resync_artwork,
-            is_force=is_force,
-        )
+        return None
 
     async def _fetch_one(
         self, store: StoreBase, is_force: bool = False,
@@ -174,6 +223,7 @@ class _SyncRunMixin:
         fetch_artwork: bool,
         resync_artwork: bool,
         is_force: bool,
+        scope: RunScope,
     ) -> SyncResult:
         """``_finalize_sync`` wrapped in the cache-snapshot rollback guard.
 
@@ -188,6 +238,7 @@ class _SyncRunMixin:
                 fetch_artwork=fetch_artwork,
                 resync_artwork=resync_artwork,
                 is_force=is_force,
+                scope=scope,
             )
         except Exception:
             logger.exception(
@@ -196,12 +247,17 @@ class _SyncRunMixin:
             self._restore_cache_snapshot()
             raise
 
-    async def _setup_sync(self) -> tuple[float, list[StoreBase]]:
+    async def _setup_sync(
+        self, stores: frozenset[str] | None = None, *, fetching: bool = True,
+    ) -> tuple[float, list[StoreBase]]:
         """Reset cancel flag, snapshot the registry, emit SYNC_STARTED.
 
         Returns ``(started, available_stores)`` — monotonic start
         marker (consumed by ``_finalize_sync``) and the store snapshot
-        used as the progress denominator.
+        used as the progress denominator. ``stores`` narrows that
+        snapshot; a scoped run whose stores are all unavailable returns
+        an empty list *without* announcing a run, so the UI never sees a
+        sync start that has nothing to do.
         """
         self._cancel_event.clear()
         # Stand down any background size warm-up for the duration of the
@@ -229,41 +285,28 @@ class _SyncRunMixin:
         # compare against it to ignore a superseded run's late phase-done
         # (``core/sync_generation.py`` has the measured case).
         run_id = self._generation.begin()
-        await refresh_store_availability(self._registry)
-        available_stores = self._registry.available()
+        available_stores = await self._available_in_scope(stores)
+        if not available_stores and stores is not None:
+            return started, []
         store_names = [s.store_name for s in available_stores]
-        # Surface stores excluded from this sync. A dropped store never
-        # reaches its per-store "fetched N games" log, so without this a
-        # silently-skipped store (e.g. GOG after a transient availability
-        # probe blip) looks identical to "0 games" in an all-green log
-        # (UD-005).
-        dropped = [
-            s.store_name
-            for s in self._registry.all()
-            if s.store_name not in store_names
-        ]
-        if dropped:
-            logger.warning(
-                "[SyncService] stores excluded from sync "
-                "(not available): %s",
-                dropped,
-            )
         self._progress.start_fetching(len(available_stores))
+        self._progress.begin_stores(store_names, fetching=fetching)
         self._bus.set_sync_progress(self._progress)
-        await self._emit_sync_started(store_names, run_id)
+        await self._emit_sync_started(store_names, run_id, scoped=stores is not None)
         logger.info(
-            "[SyncService] sync starting (%d stores)", len(available_stores),
+            "[SyncService] sync starting (%d stores%s)",
+            len(available_stores), "" if fetching else ", artwork only",
         )
         return started, available_stores
 
     async def _emit_sync_started(
-        self, store_names: list[str], run_id: int,
+        self, store_names: list[str], run_id: int, *, scoped: bool = False,
     ) -> None:
         """Announce the run on both the ephemeral and durable channels."""
         await self._bus.emit(
             Events.SYNC_STARTED,
             stores=store_names,
-            scope="all",
+            scope="stores" if scoped else "all",
             # Authoritative post-sync phase set for the frontend to drain
             # before prompting the Steam restart — hardcoding it there
             # over-counted and the modal never fired (UD-006).
@@ -333,13 +376,29 @@ class _SyncRunMixin:
                 "[SyncService] populated app_id for %d games", filled,
             )
 
-    async def _sync_no_stores_shortcircuit(self) -> SyncResult:
+    async def _sync_no_stores_shortcircuit(
+        self, *, scoped: bool = False,
+    ) -> SyncResult:
         """Emit SYNC_COMPLETE with an empty payload and return.
 
         Used when the registry exposes zero available stores — a
         legitimate state (e.g. all stores offline), not an error. The
         empty SYNC_COMPLETE keeps any UI listener in sync with reality.
+
+        A scoped run is different: its stores are unavailable, not the
+        whole registry, and ``_setup_sync`` announced nothing. Emitting
+        an empty SYNC_COMPLETE there would hand the post-sync services
+        an empty library, so it returns quietly instead.
         """
+        if scoped:
+            logger.warning(
+                "[SyncService] requested stores are not available — "
+                "nothing to sync",
+            )
+            return SyncResult(
+                success=False, games=[], count=0, duration_ms=0,
+                error="stores_unavailable",
+            )
         logger.warning("[SyncService] no available stores — nothing to sync")
         await self._bus.emit(
             Events.SYNC_COMPLETE,

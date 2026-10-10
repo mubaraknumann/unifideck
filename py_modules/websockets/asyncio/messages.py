@@ -35,7 +35,7 @@ class SimpleQueue(Generic[T]):
         return len(self.queue)
 
     def put(self, item: T) -> None:
-        """Put an item into the queue."""
+        """Put an item into the queue without waiting."""
         self.queue.append(item)
         if self.get_waiter is not None and not self.get_waiter.done():
             self.get_waiter.set_result(None)
@@ -81,7 +81,8 @@ class Assembler:
 
     """
 
-    def __init__(
+    # coverage reports incorrectly: "line NN didn't jump to the function exit"
+    def __init__(  # pragma: no cover
         self,
         high: int | None = None,
         low: int | None = None,
@@ -154,7 +155,7 @@ class Assembler:
         # until get() fetches a complete message or is canceled.
 
         try:
-            # Fetch the first frame.
+            # First frame
             frame = await self.frames.get(not self.closed)
             self.maybe_resume()
             assert frame.opcode is OP_TEXT or frame.opcode is OP_BINARY
@@ -162,7 +163,7 @@ class Assembler:
                 decode = frame.opcode is OP_TEXT
             frames = [frame]
 
-            # Fetch subsequent frames for fragmented messages.
+            # Following frames, for fragmented messages
             while not frame.fin:
                 try:
                     frame = await self.frames.get(not self.closed)
@@ -178,7 +179,6 @@ class Assembler:
         finally:
             self.get_in_progress = False
 
-        # This converts frame.data to bytes when it's a bytearray.
         data = b"".join(frame.data for frame in frames)
         if decode:
             return data.decode()
@@ -229,7 +229,7 @@ class Assembler:
         # If get_iter() raises an exception e.g. in decoder.decode(),
         # get_in_progress remains set and the connection becomes unusable.
 
-        # Yield the first frame.
+        # First frame
         try:
             frame = await self.frames.get(not self.closed)
         except asyncio.CancelledError:
@@ -243,10 +243,9 @@ class Assembler:
             decoder = UTF8Decoder()
             yield decoder.decode(frame.data, frame.fin)
         else:
-            # Convert to bytes when frame.data is a bytearray.
-            yield bytes(frame.data)
+            yield frame.data
 
-        # Yield subsequent frames for fragmented messages.
+        # Following frames, for fragmented messages
         while not frame.fin:
             # We cannot handle asyncio.CancelledError because we don't buffer
             # previous fragments — we're streaming them. Canceling get_iter()
@@ -258,8 +257,7 @@ class Assembler:
             if decode:
                 yield decoder.decode(frame.data, frame.fin)
             else:
-                # Convert to bytes when frame.data is a bytearray.
-                yield bytes(frame.data)
+                yield frame.data
 
         self.get_in_progress = False
 
@@ -279,22 +277,22 @@ class Assembler:
 
     def maybe_pause(self) -> None:
         """Pause the writer if queue is above the high water mark."""
-        # Skip if flow control is disabled.
+        # Skip if flow control is disabled
         if self.high is None:
             return
 
-        # Check for "> high" to support high = 0.
+        # Check for "> high" to support high = 0
         if len(self.frames) > self.high and not self.paused:
             self.paused = True
             self.pause()
 
     def maybe_resume(self) -> None:
         """Resume the writer if queue is below the low water mark."""
-        # Skip if flow control is disabled.
+        # Skip if flow control is disabled
         if self.low is None:
             return
 
-        # Check for "<= low" to support low = 0.
+        # Check for "<= low" to support low = 0
         if len(self.frames) <= self.low and self.paused:
             self.paused = False
             self.resume()

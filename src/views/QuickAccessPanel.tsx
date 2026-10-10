@@ -5,8 +5,8 @@
  * which mixed sync state, account switch logic, downloads,
  * settings, language selection, and a custom tab switcher.
  * Maps each section to its dedicated component
- * (StoreConnections, LibrarySync, StorageSettings,
- * LanguageSelector, DownloadsTab).
+ * (StoreConnections, StorageSettings, LanguageSelector,
+ * DownloadsTab).
  *
  * Tab state is held in a module-level `persistentActiveTab`
  * so the last-viewed tab survives Quick-Access dismount /
@@ -52,7 +52,6 @@ import { Tabs, findClassModule } from "@decky/ui";
 import { useTranslation } from "react-i18next";
 import {
   StoreConnections,
-  LibrarySync,
   LanguageSelector,
   GameDetailsViewModeToggle,
   CollectionsToggle,
@@ -184,7 +183,6 @@ export const QuickAccessPanel: FC = () => {
             content: (
               <>
                 <StoreConnections />
-                <LibrarySync />
                 <LanguageSelector />
                 <GameDetailsViewModeToggle />
                 <CollectionsToggle />

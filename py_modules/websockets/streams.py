@@ -17,7 +17,7 @@ class StreamReader:
         self.buffer = bytearray()
         self.eof = False
 
-    def read_line(self, m: int) -> Generator[None, None, bytearray]:
+    def read_line(self, m: int) -> Generator[None, None, bytes]:
         """
         Read a LF-terminated line from the stream.
 
@@ -51,7 +51,7 @@ class StreamReader:
         del self.buffer[:n]
         return r
 
-    def read_exact(self, n: int) -> Generator[None, None, bytearray]:
+    def read_exact(self, n: int) -> Generator[None, None, bytes]:
         """
         Read a given number of bytes from the stream.
 
@@ -74,7 +74,7 @@ class StreamReader:
         del self.buffer[:n]
         return r
 
-    def read_to_eof(self, m: int) -> Generator[None, None, bytearray]:
+    def read_to_eof(self, m: int) -> Generator[None, None, bytes]:
         """
         Read all bytes from the stream.
 
@@ -112,7 +112,7 @@ class StreamReader:
             # tell if until either feed_data() or feed_eof() is called.
             yield
 
-    def feed_data(self, data: bytes | bytearray) -> None:
+    def feed_data(self, data: bytes) -> None:
         """
         Write data to the stream.
 

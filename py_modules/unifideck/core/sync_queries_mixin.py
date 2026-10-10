@@ -62,6 +62,11 @@ class _SyncQueriesMixin:
     # ``get_status`` delegates its ``to_dict()`` directly.
     _progress: Any  # :class:`unifideck.core.sync_progress.SyncProgress`
 
+    if TYPE_CHECKING:
+        # Provided by ``_SyncScopeMixin`` on the host.
+        def store_summary(self) -> dict[str, dict[str, Any]]: ...
+        def queued_scope(self) -> dict[str, Any] | None: ...
+
     def get_status(self) -> dict[str, Any]:
         """Return the ``SyncProgress.to_dict()`` enriched with status fields.
 
@@ -87,6 +92,10 @@ class _SyncQueriesMixin:
         # read the cooldown from the host; fall back to 5 seconds
         cooldown = getattr(self, "_cooldown_ms", 5000)
         result["cooldown_ms"] = cooldown if isinstance(cooldown, int) else 5000
+        # Idle per-store rows (game count + last synced) and the request
+        # queued behind the running one — both from ``_SyncScopeMixin``.
+        result["store_summary"] = self.store_summary()
+        result["queued"] = self.queued_scope()
         return result
 
     def get_all_games(self) -> list[Game]:

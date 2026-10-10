@@ -13,7 +13,7 @@ from ..exceptions import (
     PayloadTooBig,
     ProtocolError,
 )
-from ..typing import BytesLike, ExtensionName, ExtensionParameter
+from ..typing import ExtensionName, ExtensionParameter
 from .base import ClientExtensionFactory, Extension, ServerExtensionFactory
 
 
@@ -109,8 +109,6 @@ class PerMessageDeflate(Extension):
         if frame.opcode is frames.OP_CONT:
             if not self.decode_cont_data:
                 return frame
-            if frame.rsv1:
-                raise ProtocolError("RSV1 bit set in continuation frame")
             if frame.fin:
                 self.decode_cont_data = False
 
@@ -131,7 +129,6 @@ class PerMessageDeflate(Extension):
         # Uncompress data. Protect against zip bombs by preventing zlib from
         # decompressing more than max_length bytes (except when the limit is
         # disabled with max_size = None).
-        data: BytesLike
         if frame.fin and len(frame.data) < 2044:
             # Profiling shows that appending four bytes, which makes a copy, is
             # faster than calling decompress() again when data is less than 2kB.
@@ -142,11 +139,11 @@ class PerMessageDeflate(Extension):
         try:
             data = self.decoder.decompress(data, max_length)
             if self.decoder.unconsumed_tail:
+                assert max_size is not None  # help mypy
                 raise PayloadTooBig(None, max_size)
             if frame.fin and len(frame.data) >= 2044:
-                # In edge cases, flushing may yield data held back by max_size.
-                if self.decoder.decompress(_EMPTY_UNCOMPRESSED_BLOCK, 1):
-                    raise PayloadTooBig(None, max_size)
+                # This cannot generate additional data.
+                self.decoder.decompress(_EMPTY_UNCOMPRESSED_BLOCK)
         except zlib.error as exc:
             raise ProtocolError("decompression failed") from exc
 
@@ -185,7 +182,6 @@ class PerMessageDeflate(Extension):
                 )
 
         # Compress data.
-        data: BytesLike
         data = self.encoder.compress(frame.data) + self.encoder.flush(zlib.Z_SYNC_FLUSH)
         if frame.fin:
             # Sync flush generates between 5 or 6 bytes, ending with the bytes

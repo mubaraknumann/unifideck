@@ -143,6 +143,9 @@ class SyncStoreImpl {
         if (this._pendingPhases.size === 0) {
           this._update({ isSyncing: false, isCancelling: false });
           this._stopPolling();
+          // One last read so the store rows pick up their final state and
+          // the new per-store game counts / sync times.
+          void this._pollOnce();
           if (this._pendingRestart && this._observedActiveSync) {
             this._pendingRestart = false;
             try {
@@ -188,12 +191,13 @@ class SyncStoreImpl {
     this._unsubs.push(
       EventBusClient.subscribe("sync_cancelled", () => {
         this._pendingPhases.clear();
+        // Progress is refreshed, not cleared — see `notifySyncStarted`.
         this._update({
           isSyncing: false,
           isCancelling: false,
-          progress: null,
         });
         this._stopPolling();
+        void this._pollOnce();
       }),
     );
 
@@ -227,19 +231,30 @@ class SyncStoreImpl {
    *  (called from SyncContext before the RPC). */
   notifySyncStarted(): void {
     this._observedActiveSync = true;
+    // `progress` is kept rather than cleared: it also carries the idle
+    // per-store summary the store rows render, and clearing it made every
+    // row flash "not synced" until the poll below landed.
     this._update({
       isSyncing: true,
       isCancelling: false,
-      progress: null,
     });
     EventBusClient.bumpToFast();
     this._startPolling();
     void this._pollOnce();
   }
 
+  /**
+   * Read the backend status once, now. Used when the store rows mount
+   * and right after a row queues a request, so its "Queued" state and
+   * the idle game counts are current without waiting for an event.
+   */
+  refresh(): Promise<void> {
+    return this._pollOnce();
+  }
+
   /** Notify the store that a cancel was requested. */
   notifyCancelRequested(): void {
-    this._update({ isCancelling: true, progress: null });
+    this._update({ isCancelling: true });
   }
 
   /**

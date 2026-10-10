@@ -569,17 +569,6 @@ class Connect:
             if not old_wsuri.secure and new_wsuri.secure:
                 factory.keywords["secure"] = True
                 self._create_connection.keywords.setdefault("ssl", True)
-            # Strip credentials to avoid leaking them to a different origin.
-            extra_headers = factory.keywords.get("extra_headers")
-            if extra_headers is not None:  # pragma: no cover
-                factory.keywords["extra_headers"] = Headers(
-                    (
-                        (key, value)
-                        for key, value in Headers(extra_headers).raw_items()
-                        if key.lower()
-                        not in ["authorization", "cookie", "proxy-authorization"]
-                    )
-                )
             # Replace secure, host, and port arguments of the protocol factory.
             factory = functools.partial(
                 factory.func,
@@ -618,14 +607,16 @@ class Connect:
                     self.logger.info(
                         "connect failed; reconnecting in %.1f seconds: %s",
                         initial_delay,
-                        traceback.format_exception_only(exc)[0].strip(),
+                        # Remove first argument when dropping Python 3.9.
+                        traceback.format_exception_only(type(exc), exc)[0].strip(),
                     )
                     await asyncio.sleep(initial_delay)
                 else:
                     self.logger.info(
                         "connect failed again; retrying in %d seconds: %s",
                         int(backoff_delay),
-                        traceback.format_exception_only(exc)[0].strip(),
+                        # Remove first argument when dropping Python 3.9.
+                        traceback.format_exception_only(type(exc), exc)[0].strip(),
                     )
                     await asyncio.sleep(int(backoff_delay))
                 # Increase delay with truncated exponential backoff.
@@ -682,7 +673,7 @@ class Connect:
             else:
                 raise SecurityError("too many redirects")
 
-    # ... = yield from connect(...) - remove when dropping Python < 3.11
+    # ... = yield from connect(...) - remove when dropping Python < 3.10
 
     __iter__ = __await__
 

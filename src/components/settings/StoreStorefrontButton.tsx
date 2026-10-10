@@ -1,7 +1,7 @@
 /**
- * StoreStorefrontButton — the cart beside the sign-out button in
- * `StoreConnections` rows. Opens that store's shop with the session the
- * user already has.
+ * StoreStorefrontButton — "Open store", one of the full-width actions in
+ * an expanded `StoreConnections` row. Opens that store's shop with the
+ * session the user already has.
  *
  * Shown ONLY when the store is connected. `isConnected` arrives as a
  * prop rather than being re-derived from `status` here, so the cart and
@@ -10,10 +10,8 @@
  * next to a "Sign in" button would be nonsense: there is no session to
  * shop with.
  *
- * Geometry is copied verbatim from `StoreAuthButton`, including the
- * `width: fit-content` + `minWidth: unset` pair that stops
- * `DialogButton` from stretching to fill the row. The focus ring lives
- * in `storeConnections.css.ts`, rendered once by the parent.
+ * Sized like every other row action by `.unifideck-store-action` in
+ * `storeConnections.css.ts`, rendered once by the parent.
  */
 import { FC, useCallback, useState } from "react";
 import { DialogButton } from "@decky/ui";
@@ -78,20 +76,11 @@ export const StoreStorefrontButton: FC<Props> = ({
   return (
     <DialogButton
       disabled={busy || opening}
-      className="unifideck-store-shop-button"
+      className="unifideck-store-action unifideck-store-shop-button"
       onClick={() => void open()}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "4px 10px",
-        fontSize: 10,
-        height: 28,
-        width: "fit-content",
-        minWidth: "unset",
-      }}
     >
-      <FiShoppingCart size={12} />
+      <FiShoppingCart />
+      {t("storeConnections.openStore")}
     </DialogButton>
   );
 };

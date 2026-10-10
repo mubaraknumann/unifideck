@@ -139,10 +139,6 @@
     "locales": ["es-ES"],
     "reason": "'Error' is the Spanish word."
   },
-  "librarySync.error": {
-    "locales": ["es-ES"],
-    "reason": "'Error' is the Spanish word."
-  },
 
   "downloads.title": {
     "locales": ["de-DE", "nl-NL", "pt-BR"],
