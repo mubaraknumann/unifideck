@@ -149,7 +149,7 @@
     "uploadBlockedEmpty": "{{game}}의 클라우드 업로드를 건너뛰었습니다. 로컬 저장 파일을 찾을 수 없습니다"
   },
   "storeConnections": {
-    "title": "스토어 연동",
+    "title": "스토어",
     "epicGames": "Epic Games",
     "gog": "GOG",
     "amazonGames": "Amazon Games",
@@ -162,7 +162,6 @@
     "storefrontOpening": "{{store}} 상점을 여는 중...",
     "storefrontFailed": "{{store}} 상점을 열 수 없습니다",
     "allStores": "모든 스토어",
-    "notConnected": "연결되지 않음",
     "notSynced": "아직 동기화되지 않음",
     "gameCount": "게임 {{count}}개",
     "gameCount_other": "게임 {{count}}개",

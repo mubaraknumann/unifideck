@@ -149,7 +149,7 @@
     "uploadBlockedEmpty": "Subida a la nube omitida para {{game}}: no se encontraron guardados locales"
   },
   "storeConnections": {
-    "title": "CONEXIONES DE TIENDAS",
+    "title": "TIENDAS",
     "epicGames": "Epic Games",
     "gog": "GOG",
     "amazonGames": "Amazon Games",
@@ -162,7 +162,6 @@
     "storefrontOpening": "Abriendo la tienda de {{store}}...",
     "storefrontFailed": "No se pudo abrir la tienda de {{store}}",
     "allStores": "Todas las tiendas",
-    "notConnected": "No conectada",
     "notSynced": "Aún no sincronizada",
     "gameCount": "{{count}} juego",
     "gameCount_other": "{{count}} juegos",

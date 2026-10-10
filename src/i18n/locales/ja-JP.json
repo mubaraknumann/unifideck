@@ -149,7 +149,7 @@
     "uploadBlockedEmpty": "{{game}} のクラウドアップロードをスキップしました。ローカルのセーブが見つかりません"
   },
   "storeConnections": {
-    "title": "ストア連携",
+    "title": "ストア",
     "epicGames": "Epic Games",
     "gog": "GOG",
     "amazonGames": "Amazon Games",
@@ -162,7 +162,6 @@
     "storefrontOpening": "{{store}} ストアを開いています...",
     "storefrontFailed": "{{store}} ストアを開けませんでした",
     "allStores": "すべてのストア",
-    "notConnected": "未接続",
     "notSynced": "未同期",
     "gameCount": "{{count}} 本のゲーム",
     "gameCount_other": "{{count}} 本のゲーム",

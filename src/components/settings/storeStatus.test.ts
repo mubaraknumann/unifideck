@@ -7,7 +7,6 @@
 import { describe, it, expect } from "vitest";
 import type { TFunction } from "i18next";
 import {
-  formatAgo,
   formatAllStoresStatus,
   formatStoreStatus,
   isQueued,
@@ -18,15 +17,11 @@ import type { StoreSyncRow } from "../../types/syncProgress";
 const t = ((key: string, values?: Record<string, unknown>) =>
   values ? `${key}${JSON.stringify(values)}` : key) as unknown as TFunction;
 
-const NOW = 1_700_000_000_000;
-
 function input(over: Partial<StoreStatusInput> = {}): StoreStatusInput {
   return {
     connected: true,
     queued: false,
     recentlyFinished: false,
-    now: NOW,
-    language: "en-US",
     ...over,
   };
 }
@@ -43,12 +38,12 @@ function row(over: Partial<StoreSyncRow>): StoreSyncRow {
 }
 
 describe("formatStoreStatus", () => {
-  it("says not connected before anything else", () => {
+  it("leaves a signed-out store blank, whatever else applies", () => {
     const line = formatStoreStatus(
       t,
       input({ connected: false, row: row({ state: "error" }), queued: true }),
     );
-    expect(line.text).toBe("storeConnections.notConnected");
+    expect(line).toEqual({ text: "", tone: "normal" });
   });
 
   it("shows fetch counts while a store's library is fetched", () => {
@@ -99,7 +94,7 @@ describe("formatStoreStatus", () => {
     );
     expect(
       formatStoreStatus(t, input({ row: done, summary: { count: 3, synced_at: null } })).text,
-    ).toBe("storeConnections.notSynced");
+    ).toBe('storeConnections.gameCount{"count":3}');
   });
 
   it("shows Cancelled only right after the run is cancelled", () => {
@@ -113,32 +108,16 @@ describe("formatStoreStatus", () => {
     expect(formatStoreStatus(t, input({ queued: true })).text).toBe("storeConnections.queued");
   });
 
-  it("shows the game count and how long ago when idle", () => {
-    const line = formatStoreStatus(
-      t,
-      input({ summary: { count: 340, synced_at: NOW / 1000 - 2 * 3600 } }),
-    );
-    expect(line.text).toBe(
-      `storeConnections.gameCount{"count":340} · ${formatAgo(NOW / 1000 - 2 * 3600, NOW, "en-US")}`,
-    );
-    expect(line.tone).toBe("normal");
+  it("shows the game count when idle", () => {
+    const line = formatStoreStatus(t, input({ summary: { count: 340, synced_at: 1 } }));
+    expect(line).toEqual({
+      text: 'storeConnections.gameCount{"count":340}',
+      tone: "normal",
+    });
   });
 
   it("says not synced yet without a summary", () => {
     expect(formatStoreStatus(t, input()).text).toBe("storeConnections.notSynced");
-  });
-});
-
-describe("formatAgo", () => {
-  it("picks the largest whole unit", () => {
-    expect(formatAgo(NOW / 1000 - 10, NOW, "en-US")).toBe("now");
-    expect(formatAgo(NOW / 1000 - 5 * 60, NOW, "en-US")).toMatch(/5 min/);
-    expect(formatAgo(NOW / 1000 - 2 * 3600, NOW, "en-US")).toMatch(/2 hr/);
-    expect(formatAgo(NOW / 1000 - 1 * 86400, NOW, "en-US")).toBe("yesterday");
-  });
-
-  it("falls back for an unknown language tag", () => {
-    expect(() => formatAgo(NOW / 1000 - 60, NOW, "not a tag")).not.toThrow();
   });
 });
 

@@ -149,7 +149,7 @@
     "uploadBlockedEmpty": "Envoi vers le cloud ignoré pour {{game}}. Aucune sauvegarde locale trouvée"
   },
   "storeConnections": {
-    "title": "CONNEXIONS AUX BOUTIQUES",
+    "title": "BOUTIQUES",
     "epicGames": "Epic Games",
     "gog": "GOG",
     "amazonGames": "Amazon Games",
@@ -162,7 +162,6 @@
     "storefrontOpening": "Ouverture de la boutique {{store}}...",
     "storefrontFailed": "Impossible d'ouvrir la boutique {{store}}",
     "allStores": "Toutes les boutiques",
-    "notConnected": "Non connectée",
     "notSynced": "Pas encore synchronisée",
     "gameCount": "{{count}} jeu",
     "gameCount_other": "{{count}} jeux",
