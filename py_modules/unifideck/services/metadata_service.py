@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 import aiohttp
 
 from unifideck.core.sync_generation import run_id_of
+from unifideck.core.sync_scope import scoped_games
 from unifideck.core.types import Game
 from unifideck.core.types.events import Events
 from unifideck.event_bus.event_bus_devex import auto_wire, subscribe
@@ -146,7 +147,9 @@ class MetadataService(_SteamMetadataMixin):
         releases, the frontend gets its RPC response, and the
         enrichment quietly progresses in the background.
         """
-        games = kwargs.get("games", [])
+        # Only the stores this run covers (``core/sync_scope.py``); the
+        # payload's ``games`` is always the whole library.
+        games = scoped_games(kwargs.get("games", []), kwargs)
         # Cancel any prior enrichment still running. Two syncs
         # back-to-back (or a sync that was cancelled mid-enrich)
         # would otherwise leave the old task ticking
@@ -180,7 +183,11 @@ class MetadataService(_SteamMetadataMixin):
         self._enrichment_task = asyncio.create_task(
             self._run_enrichment(
                 games, is_force=is_force,
-                skip=bool(kwargs.get("skip_chain")),
+                # An artwork-only run has no metadata work; the phase still
+                # announces itself done so the chain hands off to Artwork.
+                skip=bool(
+                    kwargs.get("skip_chain") or kwargs.get("artwork_only"),
+                ),
             ),
             name="metadata-enrichment",
         )
@@ -216,6 +223,7 @@ class MetadataService(_SteamMetadataMixin):
             progress = self._sync_progress()
             if progress is not None:
                 progress.start_metadata(total)
+                progress.begin_store_phase("metadata", games)
             logger.info(
                 "[MetadataService] background enrichment started "
                 "for %d games (force=%s)",
@@ -266,7 +274,7 @@ class MetadataService(_SteamMetadataMixin):
         if progress is None:
             return
         for g in complete_games:
-            await progress.increment_steam(g.title)
+            await progress.increment_steam(g.title, g.store)
             await progress.increment_unifidb(g.title)
 
     async def _enrich_pending(
@@ -415,7 +423,7 @@ class MetadataService(_SteamMetadataMixin):
                     )
             progress = self._sync_progress()
             if progress is not None:
-                await progress.increment_steam(game.title)
+                await progress.increment_steam(game.title, game.store)
                 await progress.increment_unifidb(game.title)
 
     async def _served_from_cache(

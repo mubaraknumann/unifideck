@@ -112,9 +112,11 @@ an RPC mixin calls into:
 | `sync_queries_mixin.py`  | Per-game lookups against a synced library      |
 | `sync_results_mixin.py`  | Assembles the per-store result envelope        |
 | `sync_finalize_mixin.py` | Post-sync reconcile and cleanup                |
-| `sync_progress.py`       | Phase/percentage model behind the sync bar     |
+| `sync_progress.py`       | Phase/percentage model and per-store rows      |
 | `sync_availability.py`   | Whether a store can be synced right now        |
 | `sync_generation.py`     | Run ids; skips a repeat post-sync chain        |
+| `sync_scope.py`          | Which stores a run covers; scoped library merge |
+| `sync_scope_mixin.py`    | Per-store sync entry points and status         |
 
 ### Layer 3 — `stores/shared/`
 
@@ -173,7 +175,7 @@ The `Plugin` class in `main.py` is composed from the RPC mixin classes enumerate
 | Mixin                      | Surface (representative)                                                        |
 | -------------------------- | ------------------------------------------------------------------------------- |
 | `StoreRPCMixin`            | `check_store_status`, `get_store_infos`, `store_auth`, `connect_gamevault`, `connect_gamevault_local`, `clear_store_auths` |
-| `SyncRPCMixin`             | `sync_libraries`, `force_sync_libraries`, `get_game_info`, `get_sync_progress`   |
+| `SyncRPCMixin`             | `sync_store_libraries`, `resync_store_artwork`, `get_game_info`, `get_sync_progress` |
 | `DownloadRPCMixin`         | `install_game`, `uninstall_game`, `update_game`, `cancel_download`, `get_download_queue`, `get_available_updates` |
 | `StorageRPCMixin`          | `get_storage_locations`, `get_browseable_devices`, `set_custom_install_path`    |
 | `LaunchRPCMixin`           | `notify_game_launched`, `notify_game_stopped`, `get_launch_failures`             |

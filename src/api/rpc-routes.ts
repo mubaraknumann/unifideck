@@ -34,8 +34,8 @@ export const rpcRoutes = {
   getItchAuthShortcutContext: "get_itch_auth_shortcut_context",
   getCompatToolForGame: "get_compat_tool_for_game",
   // Library sync (SyncRPCMixin)
-  syncLibraries: "sync_libraries",
-  forceSyncLibraries: "force_sync_libraries",
+  syncStoreLibraries: "sync_store_libraries",
+  resyncStoreArtwork: "resync_store_artwork",
   cancelSync: "cancel_sync",
   requestAuthSync: "request_auth_sync",
   getSyncProgress: "get_sync_progress",

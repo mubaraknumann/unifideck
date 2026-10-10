@@ -300,6 +300,29 @@ class ArtworkService(_EventHandlersMixin):
             return False
         return set(attempted.get("missing") or ()) == target
 
+    def _clear_resync_cache(self) -> None:
+        """Clear the SGDB attempt caches so resync refetches all games.
+
+        Without this, games whose missing-kind set is unchanged are
+        skipped; the ``force`` fetch below also bypasses the per-kind
+        on-disk check so every game gets a fresh download. Also clears
+        the legacy ``sgdb_fetch`` namespace so old installs upgrading
+        from the timestamp-cooldown era don't keep stale entries.
+        """
+        cache = getattr(self, "_cache", None)
+        if cache is None:
+            return
+        for namespace in ("artwork_attempts", "sgdb_fetch"):
+            try:
+                cache.clear(namespace)
+            except Exception:
+                logger.exception(
+                    "[ArtworkService] failed to clear %s cache", namespace,
+                )
+        logger.info(
+            "[ArtworkService] resync_artwork=True — cleared SGDB attempt caches",
+        )
+
     def _flush_artwork_caches(self) -> None:
         """Persist the batch's deferred attempts-cache writes."""
         try:

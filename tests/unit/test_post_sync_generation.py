@@ -24,6 +24,7 @@ which is a worse failure than the one being fixed.
 """
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import pytest
@@ -57,6 +58,7 @@ class _Svc(ss.SyncService):
         self._generation = SyncGeneration()
         self._post_sync_pending: set[str] = set()
         self._all_games = {}
+        self._chain_idle = asyncio.Event()
         self.backfills = 0
 
     def _spawn_size_backfill(self) -> None:

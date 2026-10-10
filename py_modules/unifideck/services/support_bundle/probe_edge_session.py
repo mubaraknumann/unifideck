@@ -25,7 +25,7 @@ a running Edge never sees a lock.
 from __future__ import annotations
 
 import contextlib
-import datetime
+import datetime as dt
 import logging
 import pwd
 import shutil
@@ -62,7 +62,7 @@ _MAX_LINE_CHARS = 300
 _FLATPAK_TIMEOUT = 15.0
 
 #: Chromium stores times as microseconds since 1601-01-01 UTC.
-_CHROME_EPOCH = datetime.datetime(1601, 1, 1, tzinfo=datetime.UTC)
+_CHROME_EPOCH = dt.datetime(1601, 1, 1, tzinfo=dt.UTC)
 
 
 def edge_session_block(data_dir: str | None) -> dict[str, Any]:
@@ -95,7 +95,7 @@ def _chrome_time(value: int | None) -> str:
     if not value:
         return ""
     try:
-        moment = _CHROME_EPOCH + datetime.timedelta(microseconds=int(value))
+        moment = _CHROME_EPOCH + dt.timedelta(microseconds=int(value))
     except (OverflowError, ValueError):
         return ""
     return moment.strftime("%Y-%m-%dT%H:%MZ")
@@ -107,7 +107,7 @@ def _file_facts(path: Path) -> dict[str, Any]:
         st = path.stat()
     except OSError:
         return {"exists": False}
-    written = datetime.datetime.fromtimestamp(st.st_mtime, tz=datetime.UTC)
+    written = dt.datetime.fromtimestamp(st.st_mtime, tz=dt.UTC)
     return {"exists": True, "size": st.st_size, "mtime": written.strftime("%Y-%m-%dT%H:%M:%SZ")}
 
 

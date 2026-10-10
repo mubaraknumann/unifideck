@@ -10,9 +10,9 @@ This module holds construction, the single-flight queue
 ``cancel``. The per-run execution lives in ``_SyncRunMixin``
 (``sync_run_mixin.py``), library-cache persistence in
 ``_SyncCacheMixin`` (``sync_cache_mixin.py``), read-only queries in
-``_SyncQueriesMixin``, and result aggregation in
-``_SyncResultsMixin`` — split for the 550-LOC volumetry cap; the
-public API surface is unchanged.
+``_SyncQueriesMixin``, result aggregation in ``_SyncResultsMixin``,
+and per-store scoping in ``_SyncScopeMixin`` — split for the 550-LOC
+volumetry cap.
 
 State retained across sync passes:
 
@@ -29,6 +29,7 @@ import asyncio
 import contextlib
 import logging
 import time
+from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -40,6 +41,8 @@ from .sync_finalize_mixin import _SyncFinalizeMixin
 from .sync_queries_mixin import _SyncQueriesMixin
 from .sync_results_mixin import _SyncResultsMixin
 from .sync_run_mixin import _SyncRunMixin
+from .sync_scope import normalize_stores
+from .sync_scope_mixin import _SyncScopeMixin
 from .types import Events, Game, SyncRequest, SyncResult
 
 if TYPE_CHECKING:
@@ -55,7 +58,7 @@ DEFAULT_COOLDOWN_MS = DEFAULT_COOLDOWN_SECONDS * 1000
 
 class SyncService(
     _SyncCacheMixin, _SyncRunMixin, _SyncFinalizeMixin,
-    _SyncQueriesMixin, _SyncResultsMixin,
+    _SyncQueriesMixin, _SyncResultsMixin, _SyncScopeMixin,
 ):
     """Single-flight multi-store library sync orchestrator.
 
@@ -114,9 +117,14 @@ class SyncService(
         # from another task doesn't wait for the in-flight sync.
         self._request_lock = asyncio.Lock()
         self._pending_request: SyncRequest | None = None
+        # True while one ``_enqueue`` call owns the queue and is working
+        # through it; every other request merges into ``_pending_request``.
+        self._draining = False
         self._cancel_event = asyncio.Event()
         self._all_games: dict[str, list[Game]] = {}
         self._last_sync_time: float | None = None
+        # Per-store "last fetched cleanly" stamps for the store rows.
+        self._store_sync_times: dict[str, float] = {}
         self._load_library_cache()
         self._current_store: str | None = None
         self._init_progress_tracking()
@@ -140,6 +148,11 @@ class SyncService(
         # phases are pre-listed; others register at bootstrap.
         self._registered_phases: set[str] = {"artwork", "metadata"}
         self._watchdog_task: asyncio.Task[None] | None = None
+        # Clear while a run's post-sync chain is still working. The queue
+        # waits on it, so a queued run starts only once the previous one has
+        # fully finished — not just its fetch.
+        self._chain_idle = asyncio.Event()
+        self._chain_idle.set()
         # In-flight per-store fetch task, held so :meth:`cancel` can
         # interrupt a slow ``store.get_library()`` mid-await.
         self._current_store_task: (
@@ -172,6 +185,7 @@ class SyncService(
         fetch_artwork: bool = True,
         resync_artwork: bool = False,
         source: str = "manual",
+        stores: Iterable[str] | None = None,
     ) -> SyncResult:
         """Run a full multi-store sync. Queues behind an in-flight sync.
 
@@ -191,6 +205,8 @@ class SyncService(
                 a fresh download.
             source: provenance string — ``"manual"`` (default),
                 ``"auth:<store>"``, ``"background"``, ``"scheduled"``.
+            stores: limit the run to these stores (``None`` = every
+                store); see ``core/sync_scope.py``.
 
         Returns:
             ``SyncResult`` from the full sync, or a queued-response when
@@ -201,6 +217,7 @@ class SyncService(
             source=source,
             fetch_artwork=fetch_artwork,
             resync_artwork=resync_artwork,
+            stores=normalize_stores(stores),
         )
         is_force = request.kind == "force"
         if force:
@@ -214,34 +231,32 @@ class SyncService(
                         fetch_artwork=fetch_artwork,
                         resync_artwork=resync_artwork,
                         is_force=is_force,
+                        stores=request.stores,
                     )
                 finally:
                     self._lock_acquired_at = None
         return await self._enqueue(request)
 
     async def _enqueue(self, request: SyncRequest) -> SyncResult:
-        """Queue or run a :class:`SyncRequest`. Merges if a sync is in flight.
+        """Queue a :class:`SyncRequest`; runs queued requests one at a time.
 
-        Two paths:
+        Every request merges into ``_pending_request`` (force wins, flags OR,
+        store sets union). The first caller owns the queue and works through
+        it in :meth:`_drain_queue`; the rest get a "queued" result with
+        ``restart_pending=True``. A login mid-sync folds in the same way.
 
-        * **Lock free** — acquire it, run ``_run_sync``, then drain any
-          request enqueued during the run (recursing to run it too).
-        * **Lock held** — merge into ``_pending_request`` (force wins,
-          flags OR together) and return a "queued" :class:`SyncResult`
-          with ``restart_pending=True``.
-
-        The merge step is what makes auth-chained syncs work — login
-        finishes mid-sync, the post-auth request folds into the queue
-        and runs automatically once the current sync completes.
+        A queued run starts only once the previous run has *fully* finished,
+        post-sync chain included. Starting it when the fetch released the
+        lock made its chain cancel the previous one part-way, which with
+        per-store runs left the earlier store's metadata and artwork undone.
         """
-        if self._lock.locked():
-            async with self._request_lock:
-                merged = (
-                    self._pending_request.merge(request)
-                    if self._pending_request is not None
-                    else request
-                )
-                self._pending_request = merged
+        async with self._request_lock:
+            self._pending_request = (
+                self._pending_request.merge(request)
+                if self._pending_request is not None
+                else request
+            )
+        if self._draining or self._lock.locked():
             held_for = (
                 f"{time.monotonic() - self._lock_acquired_at:.1f}s"
                 if self._lock_acquired_at is not None
@@ -260,30 +275,45 @@ class SyncService(
                 restart_pending=True,
                 source=request.source,
             )
-        async with self._lock:
-            self._lock_acquired_at = time.monotonic()
-            try:
-                current = request
-                while True:
+        self._draining = True
+        try:
+            return await self._drain_queue()
+        finally:
+            self._draining = False
+
+    async def _drain_queue(self) -> SyncResult:
+        """Run queued requests until the queue is empty; return the last result.
+
+        Waits for the previous run's post-sync chain *outside* the lock, so
+        install-state flips (which take the lock) are not held up for the
+        minutes an artwork pass can take.
+        """
+        result = SyncResult(success=True, games=[], count=0, duration_ms=0)
+        # Only a queued request waits for the chain: with nothing queued the
+        # caller gets its result as soon as its own fetch is done.
+        while self._pending_request is not None:
+            await self._chain_idle.wait()
+            current = await self._take_pending()
+            if current is None:  # cancelled while waiting
+                return result
+            logger.info(
+                "[SyncService] starting queued sync (source=%s, kind=%s)",
+                current.source, current.kind,
+            )
+            async with self._lock:
+                self._lock_acquired_at = time.monotonic()
+                try:
                     result = await self._run_sync(
                         fetch_artwork=current.fetch_artwork,
                         resync_artwork=current.resync_artwork,
                         is_force=current.kind == "force",
+                        stores=current.stores,
+                        artwork_only=current.kind == "artwork",
                     )
-                    result.source = current.source
-                    # Drain anything queued during the run.
-                    async with self._request_lock:
-                        next_req = self._pending_request
-                        self._pending_request = None
-                    if next_req is None:
-                        return result
-                    logger.info(
-                        "[SyncService] draining queued sync (source=%s, kind=%s)",
-                        next_req.source, next_req.kind,
-                    )
-                    current = next_req
-            finally:
-                self._lock_acquired_at = None
+                finally:
+                    self._lock_acquired_at = None
+            result.source = current.source
+        return result
 
     def _resolve_cooldown_ms(self) -> int:
         """Read ``sync.cooldown_seconds`` from config, default 5s.
@@ -326,46 +356,6 @@ class SyncService(
         """
         return await self.sync_all(source=f"auth:{store}")
 
-    async def sync_single_store(
-        self, store_name: str,
-    ) -> tuple[bool, str | None]:
-        """Sync just one store and merge its result into the running library.
-
-        Used by the ``refresh-library`` URI verb. Unlike ``sync_all``,
-        doesn't hold the single-flight lock — the caller is responsible
-        for not racing a full sync. After fetching, runs the full dedup
-        pass over the merged state so cross-store consistency holds.
-
-        Returns:
-            ``(success_bool, optional_error_string)``.
-        """
-        store = self._registry.get_store(store_name)
-        if store is None:
-            logger.warning(
-                "[SyncService] refresh-library: unknown store %r", store_name,
-            )
-            return False, "unknown_store"
-        await self._bus.emit(
-            Events.SYNC_STARTED,
-            stores=[store_name],
-            scope="single",
-        )
-        await self._emit_progress(store_name, 0, 1, {})
-        games, err = await self._sync_one_store(store)
-        if self._all_games is None:
-            self._all_games = {}  # type: ignore[unreachable]  # registry-miss fallback
-        self._all_games[store_name] = games
-        self._last_sync_time = time.time()
-        self._save_library_cache()
-        await self._bus.emit(
-            Events.SYNC_COMPLETE,
-            games=self._flatten(self._all_games),
-            stores_synced=[store_name],
-            errors={store_name: err} if err else {},
-            duration_ms=0,
-        )
-        return err is None, err
-
     def _on_post_sync_phase(self, **kwargs: Any) -> None:
         """Handle POST_SYNC_PHASE_CHANGED (completion only).
 
@@ -405,6 +395,8 @@ class SyncService(
                 self._spawn_size_backfill()
                 self._record_chain_complete()
             self._bus.set_sync_progress(None)
+            # The run is fully finished; the next queued one may start.
+            self._chain_idle.set()
 
     def resume_size_backfill(self) -> None:
         """Restart an interrupted size warm-up at plugin boot.
@@ -525,9 +517,18 @@ class SyncService(
         Returns ``False`` immediately if no sync is running; otherwise
         ``True`` — the running code finds out via ``_cancel_event``
         and/or ``progress.status`` and exits at its next checkpoint.
+
+        Covers the post-sync chain too, not just the fetch, and drops any
+        queued request: Cancel stops syncing rather than skipping ahead to
+        the next queued store.
         """
-        if not self._lock.locked():
+        if not self._lock.locked() and self._chain_idle.is_set():
             return False
+        self._pending_request = None
+        # Metadata and compat do not announce a phase cancelled by the
+        # user, so the pending set would never drain; release the queue
+        # here instead of leaving it to the 30-minute watchdog.
+        self._chain_idle.set()
         self._cancel_event.set()
         # Mark progress cancelled so the post-sync service loops see it
         # at their next iteration (essential for cancellation mid-post-

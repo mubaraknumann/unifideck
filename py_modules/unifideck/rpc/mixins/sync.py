@@ -36,46 +36,36 @@ class SyncRPCMixin(CleanupRPCMixin):
     sync_service: Any
     config: Any
 
-    async def sync_libraries(
-        self, fetch_artwork: bool = True, **kw: Any,
-    ) -> Any:
-        """Trigger a full library sync across every store.
+    async def sync_store_libraries(self, stores: Any = None) -> Any:
+        """Re-fetch the libraries of ``stores`` — one store row, or all.
+
+        Drives a store row's "Sync games" button (one store) and "Sync
+        all games" (``None``). Bypasses each store's own library cache,
+        since the user asked for it by name, and queues behind any
+        in-flight sync instead of being refused.
 
         Args:
-            fetch_artwork: when ``False``, skip the artwork
-                download phase entirely. Used by background /
-                scheduled syncs that only need a fresh game list.
-
-        The underlying service method is ``sync_all`` (an earlier
-        version called ``sync`` which doesn't exist on
-        :class:`SyncService` — the RPC raised ``AttributeError``).
-        """
-        return await self.sync_service.sync_all(
-            fetch_artwork=fetch_artwork, **kw,
-        )
-
-    async def force_sync_libraries(
-        self, resync_artwork: bool = False, **kw: Any,
-    ) -> Any:
-        """Like ``sync_libraries`` but bypasses per-store cache TTLs.
-
-        Used for "force refresh" — when the cache hasn't
-        expired but the library is known to have changed.
-
-        Args:
-            resync_artwork: when ``True``, ArtworkService clears
-                its SGDB failure-cooldown cache and bypasses the
-                ``has_artwork`` on-disk skip so every game gets a
-                fresh download. Wired end-to-end via the
-                SYNC_COMPLETE event payload.
-            **kw: forwarded with ``force=True`` added.
+            stores: list of store ids, or ``None`` for every store.
 
         Returns:
             Sync-outcome dict.
         """
-        return await self.sync_service.sync_all(
-            force=True, resync_artwork=resync_artwork, **kw,
-        )
+        return await self.sync_service.sync_stores(stores)
+
+    async def resync_store_artwork(self, stores: Any = None) -> Any:
+        """Re-download artwork for ``stores``' games — one store row, or all.
+
+        Drives "Sync images" on a store row and "Sync all images". No
+        library is fetched: the games come from the last sync. Every
+        artwork kind is downloaded again, replacing what is on disk.
+
+        Args:
+            stores: list of store ids, or ``None`` for every store.
+
+        Returns:
+            Sync-outcome dict.
+        """
+        return await self.sync_service.resync_artwork(stores)
 
     async def get_sync_progress(self) -> Any:
         """Return the full sync snapshot: in-flight progress + status.

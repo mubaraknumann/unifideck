@@ -98,15 +98,32 @@ def find_unreferenced_keys(source_keys: set[str]) -> list[str]:
     Generous by design: a key survives if its full dotted form OR its last
     segment appears in the haystack, so runtime-composed keys such as
     ``t(`errors.download.${code}`)`` are not reported.
+
+    A plural form (``gameCount_other``) is reached exactly when its base key
+    is: code calls ``t("…gameCount", {count})`` and i18next picks the
+    suffixed form itself, so the suffixed spelling never appears anywhere.
     """
     haystack = _reference_haystack()
     unreferenced = []
     for key in sorted(source_keys):
-        leaf = key.rsplit(".", 1)[-1]
-        if key in haystack or leaf in haystack:
+        base = _plural_base(key)
+        leaf = base.rsplit(".", 1)[-1]
+        if base in haystack or leaf in haystack:
             continue
         unreferenced.append(key)
     return unreferenced
+
+
+#: i18next plural suffixes (``Intl.PluralRules`` categories).
+PLURAL_SUFFIXES = ("_zero", "_one", "_two", "_few", "_many", "_other")
+
+
+def _plural_base(key: str) -> str:
+    """``a.b_other`` → ``a.b``; any other key is returned unchanged."""
+    for suffix in PLURAL_SUFFIXES:
+        if key.endswith(suffix) and len(key) > len(suffix):
+            return key[: -len(suffix)]
+    return key
 
 
 #: Keyword arguments whose literal value is an i18n key the frontend renders.

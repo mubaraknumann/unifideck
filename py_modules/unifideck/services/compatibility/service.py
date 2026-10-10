@@ -29,6 +29,7 @@ import aiohttp
 from unifideck.compatibility import CompatLibrary
 from unifideck.compatibility.library import needs_refetch
 from unifideck.core.sync_generation import UNTAGGED_RUN_ID, run_id_of
+from unifideck.core.sync_scope import scoped_games
 from unifideck.core.types import Game
 from unifideck.core.types.events import Events
 from unifideck.event_bus.event_bus_devex import auto_wire, subscribe
@@ -138,7 +139,8 @@ class CompatibilityService:
         # Audit register item 41; found by the new subscribe-side arm of
         # validate_event_schemas.py.
         sync_kwargs = kwargs.get("sync_kwargs") or {}
-        games = sync_kwargs.get("games") or []
+        # Only the stores this run covers (``core/sync_scope.py``).
+        games = scoped_games(sync_kwargs.get("games") or [], sync_kwargs)
         is_force = bool(sync_kwargs.get("is_force"))
         prior = self._enrichment_task
         if prior is not None and not prior.done():
@@ -147,7 +149,11 @@ class CompatibilityService:
             self._run_enrichment(
                 games, is_force=is_force,
                 run_id=run_id_of(sync_kwargs),
-                skip=bool(sync_kwargs.get("skip_chain")),
+                # Artwork-only runs leave compat ratings alone.
+                skip=bool(
+                    sync_kwargs.get("skip_chain")
+                    or sync_kwargs.get("artwork_only"),
+                ),
             ),
             name="compatibility-enrichment",
         )
@@ -186,6 +192,7 @@ class CompatibilityService:
                 return
             if progress is not None:
                 progress.start_compat(total)
+                progress.begin_store_phase("compat", games)
             skipped, pending = (
                 ([], list(games)) if is_force
                 else self._partition_games(games)
@@ -263,7 +270,7 @@ class CompatibilityService:
         if progress is None:
             return
         for g in skipped:
-            await progress.increment_compat(g.title)
+            await progress.increment_compat(g.title, g.store)
 
     async def _fetch_pending(
         self,
@@ -386,7 +393,7 @@ class CompatibilityService:
                     game.title, e,
                 )
             if progress is not None:
-                await progress.increment_compat(game.title)
+                await progress.increment_compat(game.title, game.store)
 
     async def _drain(
         self, tasks: list[asyncio.Task[None]], progress: Any | None, total: int,

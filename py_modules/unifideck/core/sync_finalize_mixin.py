@@ -17,9 +17,12 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
+from .sync_scope import RunScope, scoped_games
 from .types import Events, Game, SyncResult
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from unifideck.core.sync_generation import SyncGeneration
     from unifideck.core.sync_progress import SyncProgress
     from unifideck.event_bus import EventBus
@@ -48,6 +51,10 @@ class _SyncFinalizeMixin:
     _generation: SyncGeneration
     _watchdog_task: asyncio.Task[None] | None
     _cache_snapshot: dict[str, dict[str, Any]] | None
+    _chain_idle: asyncio.Event
+    # Whether the last finalized run covered only part of the library's
+    # work; read at the drain site to decide whether to record the chain.
+    _last_run_partial: bool = False
 
     if TYPE_CHECKING:
         # Sibling-mixin methods composed onto the host SyncService.
@@ -62,6 +69,9 @@ class _SyncFinalizeMixin:
             duration_ms: int,
             total: int,
         ) -> SyncResult: ...
+        def _record_store_sync_times(
+            self, fetched: Iterable[str], errors: dict[str, str],
+        ) -> None: ...
 
     async def _finalize_sync(
         self,
@@ -73,6 +83,7 @@ class _SyncFinalizeMixin:
         fetch_artwork: bool = True,
         resync_artwork: bool = False,
         is_force: bool = False,
+        scope: RunScope | None = None,
     ) -> SyncResult:
         """Compute duration, dedup, persist state, emit SYNC_COMPLETE.
 
@@ -84,11 +95,15 @@ class _SyncFinalizeMixin:
                 SYNC_COMPLETE payload; treated as ``force``.
             is_force: forwarded so ShortcutService UPDATEs (not just
                 KEEPs) existing shortcuts.
+            scope: what the run covered. ``libraries`` is always the
+                whole library; ``scope.fetched`` is the part this run
+                fetched. ``None`` means a full fetch of ``libraries``.
 
         Side effects: updates ``self._all_games`` and
         ``self._last_sync_time``.
         """
         duration_ms = int((time.monotonic() - started) * 1000)
+        scope = scope or RunScope(fetched=tuple(libraries))
         self._populate_app_ids(libraries)
         self._all_games = libraries
         total_games = sum(len(g) for g in libraries.values())
@@ -97,29 +112,39 @@ class _SyncFinalizeMixin:
             libraries, total_games,
             is_force=is_force, resync_artwork=resync_artwork,
         )
-        self._arm_artwork_phase(fetch_artwork, total_games)
-        self._last_sync_time = time.time()
-        self._arm_watchdog()
+        self._last_run_partial = scope.is_partial
         # _aggregate_results (via _maybe_annotate_duplicate_groups) mutates
         # the Game objects backing `libraries`/`self._all_games` in place
-        # (dedupe_group_id, edition_label). The cache save MUST come after
-        # it, not before — saving first persisted the pre-annotation state,
-        # so a Decky/plugin restart reloaded stale unannotated games from
-        # disk even though the just-finished sync's in-memory RPC responses
-        # were correct until the next restart silently lost the annotation.
+        # (dedupe_group_id, edition_label). The cache save in `_persist_run`
+        # MUST come after it, not before — saving first persisted the
+        # pre-annotation state, so a Decky/plugin restart reloaded stale
+        # unannotated games from disk even though the just-finished sync's
+        # in-memory RPC responses were correct until the next restart
+        # silently lost the annotation.
         result = self._aggregate_results(libraries, errors, duration_ms, total)
-        self._save_library_cache()
+        self._arm_artwork_phase(
+            fetch_artwork, _scoped_count(result.games, scope),
+        )
+        self._persist_run(scope, errors)
         await self._emit_complete(
             result, libraries, errors, duration_ms, total_games,
             fetch_artwork=fetch_artwork,
             resync_artwork=resync_artwork,
             is_force=is_force,
             skip_chain=skip_chain,
+            scope=scope,
         )
         # Successful finalize — release the snapshot so the GC can
         # reclaim it before the post-sync phases fill caches afresh.
         self._cache_snapshot = None
         return result
+
+    def _persist_run(self, scope: RunScope, errors: dict[str, str]) -> None:
+        """Stamp the run, save the library cache, arm the watchdog."""
+        self._last_sync_time = time.time()
+        self._record_store_sync_times(scope.fetched, errors)
+        self._save_library_cache()
+        self._arm_watchdog()
 
     def _record_chain_complete(self) -> None:
         """Remember what the just-finished post-sync chain covered.
@@ -128,7 +153,13 @@ class _SyncFinalizeMixin:
         chain that was cancelled part-way would let the next identical run
         skip work that never actually happened — which is precisely the
         state that left thirteen Ubisoft games with no artwork.
+
+        A partial run (one store, or artwork only) is not recorded either:
+        its chain skipped the other stores' games, so the library-wide
+        "nothing changed" conclusion would not hold for them.
         """
+        if self._last_run_partial:
+            return
         self._generation.record_chain_complete(
             frozenset(self._all_games.keys()),
             sum(len(g) for g in self._all_games.values()),
@@ -174,6 +205,9 @@ class _SyncFinalizeMixin:
         the emit, lets the frontend's polling loop see the transition.
         """
         self._post_sync_pending = set(self._registered_phases)
+        if self._post_sync_pending:
+            # Held until the last phase reports done (or cancel/watchdog).
+            self._chain_idle.clear()
         if fetch_artwork:
             self._progress.start_artwork(total_games)
         else:
@@ -207,8 +241,10 @@ class _SyncFinalizeMixin:
         resync_artwork: bool,
         is_force: bool,
         skip_chain: bool = False,
+        scope: RunScope | None = None,
     ) -> None:
         """Emit SYNC_COMPLETE (UI) + LIBRARY_SYNC_COMPLETED (activity log)."""
+        scope = scope or RunScope(fetched=tuple(libraries))
         await self._bus.emit(
             Events.SYNC_COMPLETE,
             games=result.games,
@@ -222,7 +258,11 @@ class _SyncFinalizeMixin:
             # removed rather than left unread: keeping it would invite the
             # next reader to re-adopt a rule that deleted a signed-out
             # store's entire library (audit §3.5, finding B).
-            stores_synced=list(libraries.keys()),
+            #
+            # For a scoped run ``games`` is still the whole library but
+            # only the fetched stores are named here, so the other stores'
+            # shortcuts are kept as they are (``core/sync_scope.py``).
+            stores_synced=list(scope.fetched),
             errors=errors,
             duration_ms=duration_ms,
             fetch_artwork=fetch_artwork,
@@ -239,6 +279,11 @@ class _SyncFinalizeMixin:
             # install-state flips change what belongs in shortcuts.vdf
             # without changing the store set or the game count.
             skip_chain=skip_chain,
+            # The stores the post-sync phases work through (``None`` = all)
+            # and whether metadata / compat should stand aside for an
+            # artwork-only run. Read via ``core/sync_scope.scope_of``.
+            scope_stores=_scope_list(scope),
+            artwork_only=scope.artwork_only,
         )
         await self._bus.emit(
             Events.LIBRARY_SYNC_COMPLETED,
@@ -282,3 +327,15 @@ class _SyncFinalizeMixin:
             if self._progress.status != "cancelled":
                 self._progress.mark_complete()
             self._bus.set_sync_progress(None)
+            self._chain_idle.set()
+
+
+
+def _scoped_count(games: list[Game], scope: RunScope) -> int:
+    """How many of ``games`` the run's post-sync phases will walk."""
+    return len(scoped_games(games, {"scope_stores": _scope_list(scope)}))
+
+
+def _scope_list(scope: RunScope) -> list[str] | None:
+    """A run's store scope as a JSON-friendly list (``None`` = every store)."""
+    return sorted(scope.stores) if scope.stores is not None else None
