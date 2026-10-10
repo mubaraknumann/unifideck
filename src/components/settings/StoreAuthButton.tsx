@@ -1,10 +1,10 @@
 /**
- * StoreAuthButton — compact connect / disconnect button used in
- * `StoreConnections` per-store rows.
+ * StoreAuthButton — Sign in / Sign out, one of the full-width actions in
+ * an expanded `StoreConnections` row.
  *
- * Two visual states: disconnected (standard button with the
- * "authenticate" label) and connected (red background with a
- * logout icon; hover/focus inverts to white-on-red).
+ * Two visual states: disconnected (standard button labelled "Sign in")
+ * and connected (red, logout icon + "Sign out"; hover/focus inverts to
+ * white-on-red).
  *
  * **A button is always rendered.** This used to return null for
  * `"checking"` / `"error"`, which made the whole row blank whenever a
@@ -48,30 +48,17 @@ export const StoreAuthButton: FC<Props> = ({
   // `StoreConnections`. They used to be an inline `<style>` here, which
   // meant the same block was parsed once per store row.
   return (
-    <>
-      <DialogButton
-        disabled={busy}
-        className={`unifideck-store-auth-button ${
-          isConnected ? "connected" : "disconnected"
-        }`}
-        onClick={() => (isConnected ? onDisconnect(store) : onConnect(store))}
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "4px 10px",
-          fontSize: 10,
-          height: 28,
-          width: "fit-content",
-          minWidth: "unset",
-        }}
-      >
-        {isConnected ? (
-          <FiLogOut size={12} />
-        ) : (
-          t("storeConnections.authenticate")
-        )}
-      </DialogButton>
-    </>
+    <DialogButton
+      disabled={busy}
+      className={`unifideck-store-action unifideck-store-auth-button ${
+        isConnected ? "connected" : "disconnected"
+      }`}
+      onClick={() => (isConnected ? onDisconnect(store) : onConnect(store))}
+    >
+      {isConnected && <FiLogOut />}
+      {isConnected
+        ? t("storeConnections.signOut")
+        : t("storeConnections.authenticate")}
+    </DialogButton>
   );
 };

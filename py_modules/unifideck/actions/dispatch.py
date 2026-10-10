@@ -94,8 +94,11 @@ def _dispatch_refresh_library(action: Any,
     if sync_service is None:
         raise RpcError("service_unavailable", service="sync_service")
     store = action.args[0]
+    # A one-store run through the normal queue: it waits for an in-flight
+    # sync instead of racing it, and runs the post-sync phases for that
+    # store's games.
     _spawn_background(
-        sync_service.sync_single_store(store),
+        sync_service.sync_all(stores=[store], source=f"refresh:{store}"),
         name=f"refresh-library-{store}",
     )
 

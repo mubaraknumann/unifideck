@@ -23,13 +23,12 @@ from ..exceptions import (
 )
 from ..extensions.base import ClientExtensionFactory
 from ..extensions.permessage_deflate import enable_client_permessage_deflate
-from ..headers import validate_subprotocols
+from ..headers import build_authorization_basic, build_host, validate_subprotocols
 from ..http11 import USER_AGENT, Response
 from ..protocol import CONNECTING, Event
-from ..proxy import Proxy, get_proxy, parse_proxy, prepare_connect_request
 from ..streams import StreamReader
 from ..typing import LoggerLike, Origin, Subprotocol
-from ..uri import WebSocketURI, parse_uri
+from ..uri import Proxy, WebSocketURI, get_proxy, parse_proxy, parse_uri
 from .compatibility import TimeoutError, asyncio_timeout
 from .connection import Connection
 
@@ -51,7 +50,7 @@ class ClientConnection(Connection):
         async for message in websocket:
             await process(message)
 
-    The iterator exits normally when the connection is closed with code
+    The iterator exits normally when the connection is closed with close code
     1000 (OK) or 1001 (going away) or without a close code. It raises a
     :exc:`~websockets.exceptions.ConnectionClosedError` when the connection is
     closed with any other code.
@@ -237,9 +236,7 @@ class connect:
         close_timeout: Timeout for closing the connection in seconds.
             :obj:`None` disables the timeout.
         max_size: Maximum size of incoming messages in bytes.
-            :obj:`None` disables the limit. You may pass a ``(max_message_size,
-            max_fragment_size)`` tuple to set different limits for messages and
-            fragments when you expect long messages sent in short fragments.
+            :obj:`None` disables the limit.
         max_queue: High-water mark of the buffer where frames are received.
             It defaults to 16 frames. The low-water mark defaults to ``max_queue
             // 4``. You may pass a ``(high, low)`` tuple to set the high-water
@@ -317,7 +314,7 @@ class connect:
         ping_timeout: float | None = 20,
         close_timeout: float | None = 10,
         # Limits
-        max_size: int | None | tuple[int | None, int | None] = 2**20,
+        max_size: int | None = 2**20,
         max_queue: int | None | tuple[int | None, int | None] = 16,
         write_limit: int | tuple[int, int | None] = 2**15,
         # Logging
@@ -529,17 +526,6 @@ class connect:
                     f"with an explicit host or port"
                 )
 
-            # Strip credentials to avoid leaking them to a different origin.
-            if self.additional_headers is not None:
-                self.additional_headers = Headers(
-                    (
-                        (key, value)
-                        for key, value in Headers(self.additional_headers).raw_items()
-                        if key.lower()
-                        not in ["authorization", "cookie", "proxy-authorization"]
-                    )
-                )
-
         return new_uri
 
     # ... = await connect(...)
@@ -591,7 +577,7 @@ class connect:
             # Re-raise exception with an informative error message.
             raise TimeoutError("timed out during opening handshake") from exc
 
-    # ... = yield from connect(...) - remove when dropping Python < 3.11
+    # ... = yield from connect(...) - remove when dropping Python < 3.10
 
     __iter__ = __await__
 
@@ -641,7 +627,8 @@ class connect:
                 self.logger.info(
                     "connect failed; reconnecting in %.1f seconds: %s",
                     delay,
-                    traceback.format_exception_only(exc)[0].strip(),
+                    # Remove first argument when dropping Python 3.9.
+                    traceback.format_exception_only(type(exc), exc)[0].strip(),
                 )
                 await asyncio.sleep(delay)
                 continue
@@ -684,16 +671,6 @@ try:
     from python_socks import ProxyType
     from python_socks.async_.asyncio import Proxy as SocksProxy
 
-except ImportError:
-
-    async def connect_socks_proxy(
-        proxy: Proxy,
-        ws_uri: WebSocketURI,
-        **kwargs: Any,
-    ) -> socket.socket:
-        raise ImportError("connecting through a SOCKS proxy requires python-socks")
-
-else:
     SOCKS_PROXY_TYPES = {
         "socks5h": ProxyType.SOCKS5,
         "socks5": ProxyType.SOCKS5,
@@ -732,6 +709,34 @@ else:
         except Exception as exc:
             raise ProxyError("failed to connect to SOCKS proxy") from exc
 
+except ImportError:
+
+    async def connect_socks_proxy(
+        proxy: Proxy,
+        ws_uri: WebSocketURI,
+        **kwargs: Any,
+    ) -> socket.socket:
+        raise ImportError("python-socks is required to use a SOCKS proxy")
+
+
+def prepare_connect_request(
+    proxy: Proxy,
+    ws_uri: WebSocketURI,
+    user_agent_header: str | None = None,
+) -> bytes:
+    host = build_host(ws_uri.host, ws_uri.port, ws_uri.secure, always_include_port=True)
+    headers = Headers()
+    headers["Host"] = build_host(ws_uri.host, ws_uri.port, ws_uri.secure)
+    if user_agent_header is not None:
+        headers["User-Agent"] = user_agent_header
+    if proxy.username is not None:
+        assert proxy.password is not None  # enforced by parse_proxy()
+        headers["Proxy-Authorization"] = build_authorization_basic(
+            proxy.username, proxy.password
+        )
+    # We cannot use the Request class because it supports only GET requests.
+    return f"CONNECT {host} HTTP/1.1\r\n".encode() + headers.serialize()
+
 
 class HTTPProxyConnection(asyncio.Protocol):
     def __init__(
@@ -749,7 +754,7 @@ class HTTPProxyConnection(asyncio.Protocol):
             self.reader.read_line,
             self.reader.read_exact,
             self.reader.read_to_eof,
-            proxy=True,
+            include_body=False,
         )
 
         loop = asyncio.get_running_loop()

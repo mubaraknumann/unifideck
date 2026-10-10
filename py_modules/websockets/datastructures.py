@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import re
 from collections.abc import Iterable, Iterator, Mapping, MutableMapping
-from typing import Any, Protocol
+from typing import Any, Protocol, Union
 
 
 __all__ = [
@@ -23,10 +22,6 @@ class MultipleValuesError(LookupError):
         if len(self.args) == 1:
             return repr(self.args[0])
         return super().__str__()
-
-
-# Obsolete line folding for header values is not supported.
-is_valid_header_value = re.compile(r"[\x09\x20-\x7e\x80-\xff]*").fullmatch
 
 
 class Headers(MutableMapping[str, str]):
@@ -112,8 +107,6 @@ class Headers(MutableMapping[str, str]):
             raise MultipleValuesError(key)
 
     def __setitem__(self, key: str, value: str) -> None:
-        if not is_valid_header_value(str(value)):
-            raise InvalidHeaderValue(key, value)
         self._dict.setdefault(key.lower(), []).append(value)
         self._list.append((key, value))
 
@@ -165,16 +158,6 @@ class Headers(MutableMapping[str, str]):
         """
         return iter(self._list)
 
-    # Internal methods
-
-    def set_insecure(self, key: str, value: str) -> None:
-        """
-        Set a header without validating its value.
-
-        """
-        self._dict.setdefault(key.lower(), []).append(value)
-        self._list.append((key, value))
-
 
 # copy of _typeshed.SupportsKeysAndGetItem.
 class SupportsKeysAndGetItem(Protocol):  # pragma: no cover
@@ -188,9 +171,13 @@ class SupportsKeysAndGetItem(Protocol):  # pragma: no cover
     def __getitem__(self, key: str) -> str: ...
 
 
-HeadersLike = (
-    Headers | Mapping[str, str] | Iterable[tuple[str, str]] | SupportsKeysAndGetItem
-)
+# Change to Headers | Mapping[str, str] | ... when dropping Python < 3.10.
+HeadersLike = Union[
+    Headers,
+    Mapping[str, str],
+    Iterable[tuple[str, str]],
+    SupportsKeysAndGetItem,
+]
 """
 Types accepted where :class:`Headers` is expected.
 
@@ -198,7 +185,3 @@ In addition to :class:`Headers` itself, this includes dict-like types where both
 keys and values are :class:`str`.
 
 """
-
-
-# At the bottom to break an import cycle.
-from .exceptions import InvalidHeaderValue  # noqa: E402

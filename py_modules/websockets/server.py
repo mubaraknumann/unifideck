@@ -65,10 +65,8 @@ class ServerProtocol(Protocol):
             signature as the :meth:`select_subprotocol` method, including a
             :class:`ServerProtocol` instance as first argument.
         state: Initial state of the WebSocket connection.
-        max_size: Maximum size of incoming messages in bytes.
-            :obj:`None` disables the limit. You may pass a ``(max_message_size,
-            max_fragment_size)`` tuple to set different limits for messages and
-            fragments when you expect long messages sent in short fragments.
+        max_size: Maximum size of incoming messages in bytes;
+            :obj:`None` disables the limit.
         logger: Logger for this connection;
             defaults to ``logging.getLogger("websockets.server")``;
             see the :doc:`logging guide <../../topics/logging>` for details.
@@ -89,7 +87,7 @@ class ServerProtocol(Protocol):
             | None
         ) = None,
         state: State = CONNECTING,
-        max_size: int | None | tuple[int | None, int | None] = 2**20,
+        max_size: int | None = 2**20,
         logger: LoggerLike | None = None,
     ) -> None:
         super().__init__(

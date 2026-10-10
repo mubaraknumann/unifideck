@@ -4,6 +4,7 @@ import enum
 import logging
 import uuid
 from collections.abc import Generator
+from typing import Union
 
 from .exceptions import (
     ConnectionClosed,
@@ -28,7 +29,7 @@ from .frames import (
 )
 from .http11 import Request, Response
 from .streams import StreamReader
-from .typing import BytesLike, LoggerLike, Origin, Subprotocol
+from .typing import LoggerLike, Origin, Subprotocol
 
 
 __all__ = [
@@ -38,7 +39,8 @@ __all__ = [
     "SEND_EOF",
 ]
 
-Event = Request | Response | Frame
+# Change to Request | Response | Frame when dropping Python < 3.10.
+Event = Union[Request, Response, Frame]
 """Events that :meth:`~Protocol.events_received` may return."""
 
 
@@ -75,10 +77,8 @@ class Protocol:
     Args:
         side: :attr:`~Side.CLIENT` or :attr:`~Side.SERVER`.
         state: Initial state of the WebSocket connection.
-        max_size: Maximum size of incoming messages in bytes.
-            :obj:`None` disables the limit. You may pass a ``(max_message_size,
-            max_fragment_size)`` tuple to set different limits for messages and
-            fragments when you expect long messages sent in short fragments.
+        max_size: Maximum size of incoming messages in bytes;
+            :obj:`None` disables the limit.
         logger: Logger for this connection; depending on ``side``,
             defaults to ``logging.getLogger("websockets.client")``
             or ``logging.getLogger("websockets.server")``;
@@ -91,7 +91,7 @@ class Protocol:
         side: Side,
         *,
         state: State = OPEN,
-        max_size: tuple[int | None, int | None] | int | None = 2**20,
+        max_size: int | None = 2**20,
         logger: LoggerLike | None = None,
     ) -> None:
         # Unique identifier. For logs.
@@ -114,14 +114,11 @@ class Protocol:
         self.state = state
 
         # Maximum size of incoming messages in bytes.
-        if isinstance(max_size, int) or max_size is None:
-            self.max_message_size, self.max_fragment_size = max_size, None
-        else:
-            self.max_message_size, self.max_fragment_size = max_size
+        self.max_size = max_size
 
         # Current size of incoming message in bytes. Only set while reading a
         # fragmented message i.e. a data frames with the FIN bit not set.
-        self.current_size: int | None = None
+        self.cur_size: int | None = None
 
         # True while sending a fragmented message i.e. a data frames with the
         # FIN bit not set.
@@ -254,7 +251,7 @@ class Protocol:
 
     # Public methods for receiving data.
 
-    def receive_data(self, data: bytes | bytearray) -> None:
+    def receive_data(self, data: bytes) -> None:
         """
         Receive data from the network.
 
@@ -291,7 +288,7 @@ class Protocol:
 
     # Public methods for sending events.
 
-    def send_continuation(self, data: BytesLike, fin: bool) -> None:
+    def send_continuation(self, data: bytes, fin: bool) -> None:
         """
         Send a `Continuation frame`_.
 
@@ -315,7 +312,7 @@ class Protocol:
         self.expect_continuation_frame = not fin
         self.send_frame(Frame(OP_CONT, data, fin))
 
-    def send_text(self, data: BytesLike, fin: bool = True) -> None:
+    def send_text(self, data: bytes, fin: bool = True) -> None:
         """
         Send a `Text frame`_.
 
@@ -338,7 +335,7 @@ class Protocol:
         self.expect_continuation_frame = not fin
         self.send_frame(Frame(OP_TEXT, data, fin))
 
-    def send_binary(self, data: BytesLike, fin: bool = True) -> None:
+    def send_binary(self, data: bytes, fin: bool = True) -> None:
         """
         Send a `Binary frame`_.
 
@@ -361,7 +358,7 @@ class Protocol:
         self.expect_continuation_frame = not fin
         self.send_frame(Frame(OP_BINARY, data, fin))
 
-    def send_close(self, code: CloseCode | int | None = None, reason: str = "") -> None:
+    def send_close(self, code: int | None = None, reason: str = "") -> None:
         """
         Send a `Close frame`_.
 
@@ -397,7 +394,7 @@ class Protocol:
         self.close_sent = close
         self.state = CLOSING
 
-    def send_ping(self, data: BytesLike) -> None:
+    def send_ping(self, data: bytes) -> None:
         """
         Send a `Ping frame`_.
 
@@ -413,7 +410,7 @@ class Protocol:
             raise InvalidState(f"connection is {self.state.name.lower()}")
         self.send_frame(Frame(OP_PING, data))
 
-    def send_pong(self, data: BytesLike) -> None:
+    def send_pong(self, data: bytes) -> None:
         """
         Send a `Pong frame`_.
 
@@ -429,7 +426,7 @@ class Protocol:
             raise InvalidState(f"connection is {self.state.name.lower()}")
         self.send_frame(Frame(OP_PONG, data))
 
-    def fail(self, code: CloseCode | int, reason: str = "") -> None:
+    def fail(self, code: int, reason: str = "") -> None:
         """
         `Fail the WebSocket connection`_.
 
@@ -581,19 +578,12 @@ class Protocol:
                     # connection isn't closed cleanly.
                     raise EOFError("unexpected end of stream")
 
-                max_size = None
-
-                if self.max_message_size is not None:
-                    if self.current_size is None:
-                        max_size = self.max_message_size
-                    else:
-                        max_size = self.max_message_size - self.current_size
-
-                if self.max_fragment_size is not None:
-                    if max_size is None:
-                        max_size = self.max_fragment_size
-                    else:
-                        max_size = min(max_size, self.max_fragment_size)
+                if self.max_size is None:
+                    max_size = None
+                elif self.cur_size is None:
+                    max_size = self.max_size
+                else:
+                    max_size = self.max_size - self.cur_size
 
                 # During a normal closure, execution ends here on the next
                 # iteration of the loop after receiving a close frame. At
@@ -623,7 +613,7 @@ class Protocol:
             self.parser_exc = exc
 
         except PayloadTooBig as exc:
-            exc.set_current_size(self.current_size)
+            exc.set_current_size(self.cur_size)
             self.fail(CloseCode.MESSAGE_TOO_BIG, str(exc))
             self.parser_exc = exc
 
@@ -674,18 +664,18 @@ class Protocol:
 
         """
         if frame.opcode is OP_TEXT or frame.opcode is OP_BINARY:
-            if self.current_size is not None:
+            if self.cur_size is not None:
                 raise ProtocolError("expected a continuation frame")
             if not frame.fin:
-                self.current_size = len(frame.data)
+                self.cur_size = len(frame.data)
 
         elif frame.opcode is OP_CONT:
-            if self.current_size is None:
+            if self.cur_size is None:
                 raise ProtocolError("unexpected continuation frame")
             if frame.fin:
-                self.current_size = None
+                self.cur_size = None
             else:
-                self.current_size += len(frame.data)
+                self.cur_size += len(frame.data)
 
         elif frame.opcode is OP_PING:
             # 5.5.2. Ping: "Upon receipt of a Ping frame, an endpoint MUST
@@ -706,7 +696,7 @@ class Protocol:
                 assert self.close_sent is not None
                 self.close_rcvd_then_sent = False
 
-            if self.current_size is not None:
+            if self.cur_size is not None:
                 raise ProtocolError("incomplete fragmented message")
 
             # 5.5.1 Close: "If an endpoint receives a Close frame and did

@@ -5,8 +5,6 @@ import hashlib
 import secrets
 import sys
 
-from .typing import BytesLike
-
 
 __all__ = ["accept_key", "apply_mask"]
 
@@ -35,7 +33,7 @@ def accept_key(key: str) -> str:
     return base64.b64encode(sha1).decode()
 
 
-def apply_mask(data: BytesLike, mask: bytes | bytearray) -> bytes:
+def apply_mask(data: bytes, mask: bytes) -> bytes:
     """
     Apply masking to the data of a WebSocket message.
 
@@ -46,10 +44,6 @@ def apply_mask(data: BytesLike, mask: bytes | bytearray) -> bytes:
     """
     if len(mask) != 4:
         raise ValueError("mask must contain 4 bytes")
-
-    # Python 3.15+ requires C-contiguous buffers for int.from_bytes().
-    if isinstance(data, memoryview) and not data.c_contiguous:
-        data = bytes(data)
 
     data_int = int.from_bytes(data, sys.byteorder)
     mask_repeated = mask * (len(data) // 4) + mask[: len(data) % 4]
