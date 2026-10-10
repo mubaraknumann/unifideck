@@ -1,8 +1,9 @@
 /**
  * StoreConnections — one row per store, plus an "All stores" row.
  *
- * Each row shows the store's icon (green when connected, white when
- * not), its localised name and one line of status text, and expands to
+ * Each row shows the store's icon (white when signed in, grey when not —
+ * the only signed-out cue, the status text stays blank), its localised
+ * name and one line of status text, and expands to
  * full-width actions: Sync games, Sync images, Open store, Sign in/out.
  * "All stores" expands to Sync all games, Sync all images and Cancel.
  *
@@ -170,7 +171,7 @@ const StoreRow: FC<RowProps & { storeId: StoreId; displayName: string }> = ({
   onToggle,
   canSync,
 }) => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { status, busy, connect, disconnect } = useStoreAuth(storeId);
   const sync = useSync();
   const isConnected = status === "connected";
@@ -183,8 +184,6 @@ const StoreRow: FC<RowProps & { storeId: StoreId; displayName: string }> = ({
     summary: sync.progress?.store_summary?.[storeId],
     queued,
     recentlyFinished,
-    now: Date.now(),
-    language: i18n.language,
   });
   // Another store's run does not block this row: a press queues behind it.
   const inRun =
@@ -198,7 +197,7 @@ const StoreRow: FC<RowProps & { storeId: StoreId; displayName: string }> = ({
           <StoreIcon
             store={storeId}
             size="18px"
-            color={isConnected ? "#4ade80" : "#fff"}
+            color={isConnected ? "#fff" : "#8b929a"}
           />
         }
         label={displayName}

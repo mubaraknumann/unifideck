@@ -20,8 +20,9 @@ export const STORE_ROW_CSS = `
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 40px;
-  padding-block: 4px;
+  /* Compact, but still a comfortable touch target. */
+  min-height: 34px;
+  padding-block: 2px;
   padding-inline: 6px;
   border-radius: 4px;
   cursor: pointer;
@@ -71,14 +72,14 @@ export const STORE_ROW_CSS = `
   transform: rotate(0deg);
 }
 
-/* Actions sit under the row, indented to line up with the store name. */
+/* Actions sit under the row with the same side margins as the row itself,
+   and a little room above the first button. */
 .unifideck-store-row-actions {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding-block: 4px 10px;
-  padding-inline-start: 32px;
-  padding-inline-end: 6px;
+  padding-block: 10px;
+  padding-inline: 6px;
 }
 .unifideck-store-row-actions .unifideck-store-action {
   display: flex;

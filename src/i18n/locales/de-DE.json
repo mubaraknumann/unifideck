@@ -150,7 +150,7 @@
     "uploadSkippedBody": "Noch keine lokalen Spielstände zum Hochladen für {{game}}."
   },
   "storeConnections": {
-    "title": "STORE-VERBINDUNGEN",
+    "title": "STORES",
     "epicGames": "Epic Games",
     "gog": "GOG",
     "amazonGames": "Amazon Games",
@@ -163,7 +163,6 @@
     "storefrontOpening": "{{store}}-Shop wird geöffnet ...",
     "storefrontFailed": "{{store}}-Shop konnte nicht geöffnet werden",
     "allStores": "Alle Stores",
-    "notConnected": "Nicht verbunden",
     "notSynced": "Noch nicht synchronisiert",
     "gameCount": "{{count}} Spiel",
     "gameCount_other": "{{count}} Spiele",

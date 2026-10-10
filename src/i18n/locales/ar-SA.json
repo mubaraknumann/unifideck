@@ -150,7 +150,7 @@
     "uploadSkippedBody": "لا توجد حفظ محلي للرفع بعد لـ {{game}}."
   },
   "storeConnections": {
-    "title": "ربط المتاجر",
+    "title": "المتاجر",
     "epicGames": "Epic Games",
     "gog": "GOG",
     "amazonGames": "Amazon Games",
@@ -163,7 +163,6 @@
     "storefrontOpening": "جارٍ فتح متجر {{store}}...",
     "storefrontFailed": "تعذّر فتح متجر {{store}}",
     "allStores": "جميع المتاجر",
-    "notConnected": "غير متصل",
     "notSynced": "لم تتم المزامنة بعد",
     "gameCount": "{{count}} لعبة",
     "gameCount_other": "{{count}} ألعاب",

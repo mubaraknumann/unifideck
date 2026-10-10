@@ -150,7 +150,7 @@
     "uploadSkippedBody": "Поки немає локальних збережень для завантаження для {{game}}."
   },
   "storeConnections": {
-    "title": "ПІДКЛЮЧЕННЯ МАГАЗИНІВ",
+    "title": "МАГАЗИНИ",
     "epicGames": "Epic Games",
     "gog": "GOG",
     "amazonGames": "Amazon Games",
@@ -163,7 +163,6 @@
     "storefrontOpening": "Відкриття магазину {{store}}...",
     "storefrontFailed": "Не вдалося відкрити магазин {{store}}",
     "allStores": "Усі магазини",
-    "notConnected": "Не підключено",
     "notSynced": "Ще не синхронізовано",
     "gameCount": "{{count}} гра",
     "gameCount_other": "{{count}} ігор",

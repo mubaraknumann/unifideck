@@ -150,7 +150,7 @@
     "toastErrorBody": "Failed to resolve conflict"
   },
   "storeConnections": {
-    "title": "STORE CONNECTIONS",
+    "title": "STORES",
     "epicGames": "Epic Games",
     "gog": "GOG",
     "amazonGames": "Amazon Games",
@@ -163,7 +163,6 @@
     "storefrontOpening": "Opening the {{store}} store...",
     "storefrontFailed": "Could not open the {{store}} store",
     "allStores": "All stores",
-    "notConnected": "Not connected",
     "notSynced": "Not synced yet",
     "gameCount": "{{count}} game",
     "gameCount_other": "{{count}} games",

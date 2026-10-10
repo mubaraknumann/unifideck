@@ -150,7 +150,7 @@
     "uploadSkippedBody": "Ancora nessun salvataggio locale da caricare per {{game}}."
   },
   "storeConnections": {
-    "title": "CONNESSIONI NEGOZIO",
+    "title": "NEGOZI",
     "epicGames": "Epic Games",
     "gog": "GOG",
     "amazonGames": "Amazon Games",
@@ -163,7 +163,6 @@
     "storefrontOpening": "Apertura dello store {{store}}...",
     "storefrontFailed": "Impossibile aprire lo store {{store}}",
     "allStores": "Tutti i negozi",
-    "notConnected": "Non connesso",
     "notSynced": "Non ancora sincronizzato",
     "gameCount": "{{count}} gioco",
     "gameCount_other": "{{count}} giochi",

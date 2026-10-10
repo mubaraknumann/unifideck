@@ -150,7 +150,7 @@
     "uploadSkippedBody": "Nog geen lokale saves om te uploaden voor {{game}}."
   },
   "storeConnections": {
-    "title": "WINKELVERBINDINGEN",
+    "title": "WINKELS",
     "epicGames": "Epic Games",
     "gog": "GOG",
     "amazonGames": "Amazon Games",
@@ -163,7 +163,6 @@
     "storefrontOpening": "{{store}}-winkel wordt geopend...",
     "storefrontFailed": "Kan de {{store}}-winkel niet openen",
     "allStores": "Alle winkels",
-    "notConnected": "Niet verbonden",
     "notSynced": "Nog niet gesynchroniseerd",
     "gameCount": "{{count}} spel",
     "gameCount_other": "{{count}} spellen",

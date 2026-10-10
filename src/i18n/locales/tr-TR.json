@@ -150,7 +150,7 @@
     "uploadSkippedBody": "{{game}} için henüz yüklenecek yerel kayıt yok."
   },
   "storeConnections": {
-    "title": "MAĞAZA BAĞLANTILARI",
+    "title": "MAĞAZALAR",
     "epicGames": "Epic Games",
     "gog": "GOG",
     "amazonGames": "Amazon Games",
@@ -163,7 +163,6 @@
     "storefrontOpening": "{{store}} mağazası açılıyor...",
     "storefrontFailed": "{{store}} mağazası açılamadı",
     "allStores": "Tüm mağazalar",
-    "notConnected": "Bağlı değil",
     "notSynced": "Henüz senkronize edilmedi",
     "gameCount": "{{count}} oyun",
     "gameCount_other": "{{count}} oyun",

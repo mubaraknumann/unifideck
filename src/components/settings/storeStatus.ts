@@ -4,7 +4,7 @@
  * Pure, so the rules live in one tested place and the rows stay layout
  * only. A store row reads, in order of precedence:
  *
- *   1. `Not connected`        — signed out; nothing else applies.
+ *   1. blank                  — signed out; the grey icon says so.
  *   2. its row in the current run (`SyncProgress.stores[id]`):
  *        queued  → `Queued`
  *        active  → `Games 41/120` while fetching, `Images 62%` after
@@ -12,7 +12,7 @@
  *        error   → `Sync failed` (stays until the next run)
  *        done / cancelled → `Done` / `Cancelled` briefly, then idle
  *   3. a queued request that names it → `Queued`
- *   4. idle → `340 games · 2 hr. ago`, or `Not synced yet`
+ *   4. idle → `340 games`, or `Not synced yet`
  *
  * `detail` is the longer form for the expanded row: full counts while a
  * phase runs, or the error message after a failure.
@@ -38,9 +38,6 @@ export interface StoreStatusInput {
   queued: boolean;
   /** The row turned `done` / `cancelled` moments ago, so say so. */
   recentlyFinished: boolean;
-  /** Current time, unix ms. */
-  now: number;
-  language: string;
 }
 
 /** i18n key for each phase's label. Explicit, so every key is greppable. */
@@ -58,36 +55,6 @@ export function isQueued(
 ): boolean {
   if (!queued) return false;
   return queued.stores === null || queued.stores.includes(store);
-}
-
-/** A unix-seconds timestamp as "2 hr. ago" in `language`. */
-export function formatAgo(
-  syncedAtSecs: number,
-  now: number,
-  language: string,
-): string {
-  const secs = Math.round(syncedAtSecs - now / 1000);
-  const abs = Math.abs(secs);
-  const [value, unit]: [number, Intl.RelativeTimeFormatUnit] =
-    abs < 60
-      ? [0, "second"]
-      : abs < 3600
-      ? [Math.round(secs / 60), "minute"]
-      : abs < 86400
-      ? [Math.round(secs / 3600), "hour"]
-      : [Math.round(secs / 86400), "day"];
-  try {
-    return new Intl.RelativeTimeFormat(language, {
-      numeric: "auto",
-      style: "short",
-    }).format(value, unit);
-  } catch {
-    // An unknown language tag throws; fall back to the runtime default.
-    return new Intl.RelativeTimeFormat(undefined, {
-      numeric: "auto",
-      style: "short",
-    }).format(value, unit);
-  }
 }
 
 function phaseLabel(t: TFunction, phase: StoreSyncPhase): string {
@@ -112,12 +79,13 @@ function activeLine(t: TFunction, row: StoreSyncRow): StoreStatusLine {
 
 function idleLine(t: TFunction, input: StoreStatusInput): StoreStatusLine {
   const { summary } = input;
-  if (!summary || summary.synced_at === null) {
+  if (!summary) {
     return { text: t("storeConnections.notSynced"), tone: "normal" };
   }
-  const games = t("storeConnections.gameCount", { count: summary.count });
-  const ago = formatAgo(summary.synced_at, input.now, input.language);
-  return { text: `${games} · ${ago}`, tone: "normal" };
+  return {
+    text: t("storeConnections.gameCount", { count: summary.count }),
+    tone: "normal",
+  };
 }
 
 function runLine(
@@ -157,7 +125,7 @@ export function formatStoreStatus(
   input: StoreStatusInput,
 ): StoreStatusLine {
   if (!input.connected) {
-    return { text: t("storeConnections.notConnected"), tone: "normal" };
+    return { text: "", tone: "normal" };
   }
   const fromRun = input.row ? runLine(t, input.row, input) : null;
   if (fromRun) return fromRun;

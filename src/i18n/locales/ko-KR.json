@@ -150,7 +150,7 @@
     "uploadSkippedBody": "{{game}}에 업로드할 로컬 저장 파일이 아직 없습니다."
   },
   "storeConnections": {
-    "title": "스토어 연동",
+    "title": "스토어",
     "epicGames": "Epic Games",
     "gog": "GOG",
     "amazonGames": "Amazon Games",
@@ -163,7 +163,6 @@
     "storefrontOpening": "{{store}} 상점을 여는 중...",
     "storefrontFailed": "{{store}} 상점을 열 수 없습니다",
     "allStores": "모든 스토어",
-    "notConnected": "연결되지 않음",
     "notSynced": "아직 동기화되지 않음",
     "gameCount": "게임 {{count}}개",
     "gameCount_other": "게임 {{count}}개",

@@ -150,7 +150,7 @@
     "toastErrorBody": "無法解決存檔衝突"
   },
   "storeConnections": {
-    "title": "商店連結",
+    "title": "商店",
     "epicGames": "Epic Games",
     "gog": "GOG",
     "amazonGames": "Amazon Games",
@@ -163,7 +163,6 @@
     "storefrontOpening": "正在開啟 {{store}} 商店...",
     "storefrontFailed": "無法開啟 {{store}} 商店",
     "allStores": "所有商店",
-    "notConnected": "未連線",
     "notSynced": "尚未同步",
     "gameCount": "{{count}} 款遊戲",
     "gameCount_other": "{{count}} 款遊戲",

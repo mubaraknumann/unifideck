@@ -140,6 +140,10 @@
     "reason": "'Error' is the Spanish word."
   },
 
+  "storeConnections.title": {
+    "locales": ["de-DE"],
+    "reason": "'Stores' is the loanword the German strings already use ('Alle Stores', 'Store öffnen')."
+  },
   "downloads.title": {
     "locales": ["de-DE", "nl-NL", "pt-BR"],
     "reason": "'Downloads' is the established plural in German, Dutch and Brazilian Portuguese."

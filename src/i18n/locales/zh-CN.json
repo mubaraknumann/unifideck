@@ -150,7 +150,7 @@
     "uploadSkippedBody": "{{game}} 暂无可上传的本地存档。"
   },
   "storeConnections": {
-    "title": "商店连接",
+    "title": "商店",
     "epicGames": "Epic Games",
     "gog": "GOG",
     "amazonGames": "Amazon Games",
@@ -163,7 +163,6 @@
     "storefrontOpening": "正在打开 {{store}} 商店...",
     "storefrontFailed": "无法打开 {{store}} 商店",
     "allStores": "所有商店",
-    "notConnected": "未连接",
     "notSynced": "尚未同步",
     "gameCount": "{{count}} 款游戏",
     "gameCount_other": "{{count}} 款游戏",

@@ -13,6 +13,6 @@
   "deckpass": "ssap",
   "deckkey": "-i ${env:HOME}/.ssh/id_rsa",
   "deckdir": "/home/deck",
-  "pluginname": "Unifideck",
+  "pluginname": "unifideck.dev.feature-store-rows.g7117ca08",
   "python.analysis.extraPaths": ["./py_modules"]
 }
