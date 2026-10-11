@@ -10,7 +10,9 @@ status. This mixin owns that surface:
 * the scope helpers the run loop calls (which available stores a run
   covers, and which library it hands to finalize);
 * the per-store summary ``get_status`` reports while nothing is running
-  (game count + when the store last synced) and the queued scope.
+  (game count + when the store last synced) and the queued scope;
+* the ``STORE_LIBRARY_READY`` handler that re-runs a sync when a store
+  finishes a read the per-store cap stopped waiting for.
 
 Scoping rules themselves live in ``core/sync_scope.py``. Split out of
 ``sync_service.py`` / ``sync_run_mixin.py`` for the 550-LOC cap; all
@@ -28,9 +30,10 @@ from typing import TYPE_CHECKING, Any
 
 from .sync_availability import refresh_store_availability
 from .sync_scope import merge_scoped_libraries, normalize_stores
-from .types import Game, SyncRequest, SyncResult
+from .types import Events, Game, SyncRequest, SyncResult
 
 if TYPE_CHECKING:
+    from unifideck.event_bus import EventBus
     from unifideck.stores import StoreRegistry
     from unifideck.stores.shared.store_base import StoreBase
 
@@ -47,9 +50,38 @@ class _SyncScopeMixin:
     _store_sync_times: dict[str, float]
     _pending_request: SyncRequest | None
     _request_lock: asyncio.Lock
+    _bus: EventBus
 
     if TYPE_CHECKING:
         async def _enqueue(self, request: SyncRequest) -> SyncResult: ...
+        async def sync_all(
+            self,
+            *,
+            force: bool = ...,
+            fetch_artwork: bool = ...,
+            resync_artwork: bool = ...,
+            source: str = ...,
+        ) -> SyncResult: ...
+
+    def _subscribe_store_library_ready(self) -> None:
+        """Sync again when a store finishes a read a sync stopped waiting for."""
+        self._library_ready_syncs: set[asyncio.Task[SyncResult]] = set()
+        self._bus.on(Events.STORE_LIBRARY_READY, self._on_store_library_ready)
+
+    async def _on_store_library_ready(self, **kwargs: Any) -> None:
+        """Queue the sync and return: awaiting it here would hold the bus.
+
+        ``sync_all`` queues behind a sync already running, so this never
+        races one.
+        """
+        store = str(kwargs.get("store") or "")
+        logger.info("[SyncService] %s library ready — queueing a sync", store)
+        task = asyncio.create_task(
+            self.sync_all(source=f"library_ready:{store}"),
+            name=f"sync-library-ready-{store}",
+        )
+        self._library_ready_syncs.add(task)
+        task.add_done_callback(self._library_ready_syncs.discard)
 
     async def sync_stores(
         self, stores: Iterable[Any] | None = None, *, source: str = "manual",
