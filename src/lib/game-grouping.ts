@@ -27,6 +27,7 @@ export const STORE_PRIORITY: StoreId[] = [
   "battlenet",
   "microsoft",
   "gamevault",
+  "romm",
   "itch",
 ];
 

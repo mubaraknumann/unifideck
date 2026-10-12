@@ -16,6 +16,14 @@
     "locales": "*",
     "reason": "Company name. Unchanged in every supported language."
   },
+  "deckTabs.romm": {
+    "locales": "*",
+    "reason": "Product name of the self-hosted RomM server. The project ships no localised name, so every locale keeps the original."
+  },
+  "romm.downloadDirPlaceholder": {
+    "locales": "*",
+    "reason": "A filesystem path and nothing else."
+  },
   "deckTabs.gamevault": {
     "locales": "*",
     "reason": "Product name of the self-hosted GameVault server. It is not a descriptive phrase, and the project ships no localised name, so every locale keeps the Latin-script original — including ar-SA, which transliterates no other store name either."

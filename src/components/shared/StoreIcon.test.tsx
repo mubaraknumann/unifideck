@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import type { ReactElement } from "react";
 import { StoreIcon } from "./StoreIcon";
 import { GameVaultIcon } from "./GameVaultIcon";
+import { RomMIcon } from "./RomMIcon";
+import { iconSpecFromElement } from "../../lib/steam-bridge/store-icon-spec";
 
 /** Calling an FC directly returns `ReactNode`, so name the shape we assert on. */
 type PathEl = ReactElement<{
@@ -21,6 +23,17 @@ type SvgEl = ReactElement<{
 }>;
 
 describe("StoreIcon", () => {
+  it("renders RomMIcon for romm store, and the ribbon can read its shapes", () => {
+    const element = StoreIcon({ store: "romm", size: 20 }) as ReactElement<{
+      size: number;
+    }>;
+    expect(element.type).toBe(RomMIcon);
+    expect(element.props.size).toBe(20);
+    const spec = iconSpecFromElement(RomMIcon({}));
+    expect(spec?.viewBox).toBe("0 0 2000 2000");
+    expect(spec?.nodes.map((n) => n.tag)).toEqual(["path", "path"]);
+  });
+
   it("renders GameVaultIcon for gamevault store", () => {
     const element = StoreIcon({
       store: "gamevault",

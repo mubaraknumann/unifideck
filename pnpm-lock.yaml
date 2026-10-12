@@ -25,6 +25,9 @@ importers:
       tslib:
         specifier: ^2.7.0
         version: 2.8.1
+      uqr:
+        specifier: 0.1.3
+        version: 0.1.3
     devDependencies:
       "@decky/rollup":
         specifier: ^1.0.2
@@ -4161,6 +4164,12 @@ packages:
     peerDependencies:
       browserslist: ">= 4.21.0"
 
+  uqr@0.1.3:
+    resolution:
+      {
+        integrity: sha512-0rjE8iEJe4YmT9TOhwsZtqCMRLc5DXZUI2UEYUUg63ikBkqqE5EYWaI0etFe/5KUcmcYwLih2RND1kq+hrUJXA==,
+      }
+
   uri-js@4.4.1:
     resolution:
       {
@@ -7021,6 +7030,8 @@ snapshots:
       browserslist: 4.28.1
       escalade: 3.2.0
       picocolors: 1.1.1
+
+  uqr@0.1.3: {}
 
   uri-js@4.4.1:
     dependencies:
