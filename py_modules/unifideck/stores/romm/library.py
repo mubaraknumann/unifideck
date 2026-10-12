@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime
 from typing import Any
+from urllib.parse import urljoin, urlsplit
 
 from unifideck.core.types import Game
 
@@ -44,6 +45,26 @@ def _parse_page(data: Any) -> tuple[list[dict[str, Any]], int | None]:
 
 def _text(value: Any) -> str:
     return value.strip() if isinstance(value, str) else ""
+
+
+def _cover_url(item: dict[str, Any], server_url: str) -> str | None:
+    for field in ("path_cover_large", "path_cover_small", "url_cover"):
+        candidate = _text(item.get(field))
+        if not candidate:
+            continue
+        try:
+            parts = urlsplit(candidate)
+            if parts.netloc and not parts.scheme:
+                continue
+            # RomM's resource paths start with '/', but a reverse proxy may
+            # mount the whole server under a prefix in the configured URL.
+            url = urljoin(f"{server_url}/", candidate if parts.scheme else candidate.lstrip("/"))
+            parts = urlsplit(url)
+            if parts.scheme in ("http", "https") and parts.hostname and not (parts.username or parts.password):
+                return url
+        except ValueError:
+            continue
+    return None
 
 
 class RomMCatalog:
@@ -145,7 +166,7 @@ class RomMCatalog:
             _text(item.get("name")) or _text(item.get("fs_name_no_ext"))
             or _text(item.get("fs_name")) or f"RomM {rom_id}"
         )
-        cover = _text(item.get("url_cover")) or None
+        cover = _cover_url(item, server_url)
         meta = item.get("metadatum")
         release = epoch_to_iso_date(meta.get("first_release_date")) if isinstance(meta, dict) else None
         size = item.get("fs_size_bytes")
@@ -153,6 +174,8 @@ class RomMCatalog:
             "platform_slug": item.get("platform_slug"),
             "prefer_native": item.get("platform_slug") == "linux",
         }
+        if cover:
+            metadata["cover_url"] = cover
         if release:
             metadata["release_date"] = release
         if isinstance(size, int) and not isinstance(size, bool) and size >= 0:
