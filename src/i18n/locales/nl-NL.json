@@ -696,7 +696,8 @@
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
     "gamevault": "GameVault",
-    "itch": "itch.io"
+    "itch": "itch.io",
+    "romm": "RomM"
   },
   "unifiedLibrary": {
     "error": "Unifideck-fout",
@@ -1232,6 +1233,36 @@
     "errorUsernameRequired": "Voer uw gebruikersnaam in",
     "errorPasswordRequired": "Voer uw wachtwoord in",
     "errorConnection": "Verbinding met GameVault-server mislukt"
+  },
+  "romm": {
+    "connectTitle": "Verbinden met RomM",
+    "connect": "Verbinden",
+    "connecting": "Verbinden…",
+    "cancel": "Annuleren",
+    "finish": "Voltooien",
+    "intro": "Meld je aan bij je RomM-server. Alleen Linux- en Windows-games worden geïmporteerd.",
+    "serverUrl": "Server-URL",
+    "token": "Client-API-token",
+    "tokenDescription": "Vereist roms.read en platforms.read.",
+    "verifySsl": "SSL-certificaat verifiëren",
+    "verifySslDescription": "Uitschakelen voor zelfondertekende certificaten",
+    "downloadDir": "Archiefdownloadmap",
+    "downloadDirDescription": "Tijdelijke map voor archiefdownloads. Leeg laten voor de standaard.",
+    "downloadDirPlaceholder": "~/.local/share/unifideck/romm_downloads",
+    "browse": "Bladeren…",
+    "platformsTitle": "Platformen kiezen",
+    "platformsIntro": "Kies welke platformversies je van deze server wilt importeren.",
+    "errorServerUrlRequired": "Voer de server-URL in",
+    "errorNoPlatforms": "Deze server heeft geen Linux- of Windows-platformen",
+    "errorSelectOne": "Selecteer minstens één platform",
+    "errorConnection": "Verbinden met de RomM-server mislukt",
+    "useToken": "Gebruik een API-token",
+    "errorTokenRequired": "Voer een API-token in",
+    "pairingTitle": "Koppelen met RomM",
+    "pairingIntro": "Scan met je telefoon, meld je aan bij RomM en keur dit apparaat goed. Je telefoon moet de server kunnen bereiken.",
+    "pairingQrLabel": "QR-code voor RomM-koppeling",
+    "waitingApproval": "Wachten op goedkeuring…",
+    "pairingExpiry": "Deze code verloopt over {{minutes}} minuten. Maak daarna opnieuw verbinding."
   },
   "gameStoreSwitcher": {
     "defaultEdition": "Standaardeditie"

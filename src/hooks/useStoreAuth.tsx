@@ -32,6 +32,7 @@ import { AuthDispatcher } from "../services/auth/AuthDispatcher";
 import { ChromiumInstallModal } from "../components/modals/ChromiumInstallModal";
 import { STORE_VISUALS } from "../types/store";
 import { connectGameVault } from "../lib/gamevault-connect";
+import { connectRomM } from "../lib/romm-connect";
 import type { AuthResult, StoreId } from "../types/api";
 
 /**
@@ -125,19 +126,23 @@ export function useStoreAuth(store: StoreId): UseStoreAuthResult {
   const storeName = STORE_VISUALS[store]?.display_name ?? store;
 
   const connect = useCallback(async (): Promise<AuthResult | null> => {
-    // GameVault is the only store whose sign-in is a form rather than a
-    // browser OAuth or a Steam auth shortcut, and since local-vault mode it
-    // is a short modal chain rather than a single dialog. AuthDispatcher
-    // coordinates exactly the handshake this store does not have, so the
-    // flow takes the modal route before the dispatcher is ever asked. The
-    // chain itself lives in ``connectGameVault``; everything after it —
-    // notifyConnected, the toasts, the post-login sync, the AuthResult shape
-    // — is kept in step with the dispatcher path below by hand, so the two
+    // GameVault and RomM are the only stores whose sign-in is a form or a
+    // pairing dialog rather than browser OAuth or a Steam auth shortcut, and
+    // since local-vault mode GameVault is a short modal chain rather than a
+    // single dialog. AuthDispatcher coordinates exactly the handshake these
+    // stores do not have, so the flow takes the modal route before the
+    // dispatcher is ever asked. Each chain lives in its own module
+    // (``connectGameVault``, ``connectRomM``); everything after it
+    // (notifyConnected, the toasts, the post-login sync, the AuthResult shape)
+    // is kept in step with the dispatcher path below by hand, so the two
     // cannot report success differently. That is not free: the sync kick was
     // missing here for exactly that reason, and a freshly connected GameVault
     // showed nothing until the user pressed Sync themselves.
-    if (store === "gamevault") {
-      const result = await connectGameVault({ setBusy });
+    if (store === "gamevault" || store === "romm") {
+      const result =
+        store === "gamevault"
+          ? await connectGameVault({ setBusy })
+          : await connectRomM({ setBusy });
       if (result === null) return null;
       if (result.success) {
         auth.notifyConnected(store);

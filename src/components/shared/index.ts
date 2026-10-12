@@ -16,3 +16,4 @@ export { StoreIcon } from "./StoreIcon";
 export { GameGrid } from "./GameGrid";
 export { SteamControllerIcon, SteamGearIcon } from "./SteamIcons";
 export { GameVaultIcon } from "./GameVaultIcon";
+export { RomMIcon } from "./RomMIcon";

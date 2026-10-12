@@ -16,6 +16,7 @@ import {
 } from "react-icons/si";
 import { FaGamepad, FaSteam, FaXbox } from "react-icons/fa";
 import { GameVaultIcon } from "./GameVaultIcon";
+import { RomMIcon } from "./RomMIcon";
 import type { StoreId } from "../../types/api";
 
 /**
@@ -35,6 +36,7 @@ const STORE_ICONS: Record<StoreId, StoreGlyph> = {
   ubisoft: SiUbisoft,
   battlenet: SiBattledotnet,
   gamevault: GameVaultIcon,
+  romm: RomMIcon,
   itch: SiItchdotio,
 };
 

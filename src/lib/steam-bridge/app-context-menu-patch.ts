@@ -34,6 +34,7 @@ const SUPPORTED_STORES = new Set([
   "amazon",
   "epic",
   "gamevault",
+  "romm",
   "itch",
 ]);
 

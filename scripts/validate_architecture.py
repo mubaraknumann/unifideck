@@ -510,6 +510,11 @@ SHARED_HELPERS: dict[str, str] = {
     # Launch-target scorer for stores with no launch manifest. Promoted from
     # stores/gamevault/exe_finder.py when itch.io became its second consumer.
     "find_executable": "stores/shared/launch_target.py",
+    # Archive-store pipeline, promoted from stores/gamevault when RomM became
+    # its second consumer.
+    "extract_archive": "stores/shared/archive.py",
+    "stream_to_file": "stores/shared/archive_download.py",
+    "safe_dir_name": "stores/shared/archive_download.py",
     # GOG's and Ubisoft's ``get_installed_path`` bodies were byte-identical;
     # Amazon's was the same shape on a different key. Audit register item 48.
     "install_path_from_record": "stores/shared/installed_path.py",

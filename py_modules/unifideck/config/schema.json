@@ -159,6 +159,9 @@
         },
         "itch": {
           "$ref": "#/$defs/itchStore"
+        },
+        "romm": {
+          "$ref": "#/$defs/rommStore"
         }
       }
     },
@@ -1006,6 +1009,21 @@
         "stall_timeout_seconds": {
           "type": "integer",
           "minimum": 60
+        }
+      }
+    },
+    "rommStore": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "config_file": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "default_install_root": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "download_dir": {
+          "$ref": "#/$defs/nonEmptyString"
         }
       }
     },

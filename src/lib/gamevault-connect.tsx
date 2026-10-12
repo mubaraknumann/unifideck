@@ -1,10 +1,10 @@
 /**
  * GameVault sign-in — the modal chain, and the one promise it settles.
  *
- * GameVault is the only store whose sign-in is a form rather than a browser
- * OAuth or a Steam auth shortcut, so it takes the modal route before
- * `AuthDispatcher` is ever asked (the dispatcher coordinates a handshake
- * that does not exist here, and has no case for a credential form).
+ * GameVault's sign-in is a form rather than a browser OAuth or a Steam auth
+ * shortcut, so it takes the modal route before `AuthDispatcher` is ever asked
+ * (the dispatcher coordinates a handshake that does not exist here, and has no
+ * case for a credential form).
  *
  * With two modes there are now up to two modals in a row — the chooser, then
  * one of two forms — and either can be dismissed. That is what this module

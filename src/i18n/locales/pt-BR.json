@@ -696,7 +696,8 @@
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
     "gamevault": "GameVault",
-    "itch": "itch.io"
+    "itch": "itch.io",
+    "romm": "RomM"
   },
   "unifiedLibrary": {
     "error": "Erro do Unifideck",
@@ -1232,6 +1233,36 @@
     "errorUsernameRequired": "Por favor, insira seu nome de usuário",
     "errorPasswordRequired": "Por favor, insira sua senha",
     "errorConnection": "Falha ao conectar ao servidor GameVault"
+  },
+  "romm": {
+    "connectTitle": "Conectar ao RomM",
+    "connect": "Conectar",
+    "connecting": "Conectando…",
+    "cancel": "Cancelar",
+    "finish": "Concluir",
+    "intro": "Entre no seu servidor RomM. Somente jogos de Linux e Windows são importados.",
+    "serverUrl": "URL do servidor",
+    "token": "Token de API do cliente",
+    "tokenDescription": "Requer roms.read e platforms.read.",
+    "verifySsl": "Verificar certificado SSL",
+    "verifySslDescription": "Desativar para certificados autoassinados",
+    "downloadDir": "Diretório de download de arquivos",
+    "downloadDirDescription": "Diretório temporário para downloads de arquivos. Deixe vazio para usar o padrão.",
+    "downloadDirPlaceholder": "~/.local/share/unifideck/romm_downloads",
+    "browse": "Procurar…",
+    "platformsTitle": "Escolher plataformas",
+    "platformsIntro": "Escolha quais versões de plataforma importar deste servidor.",
+    "errorServerUrlRequired": "Por favor, insira a URL do servidor",
+    "errorNoPlatforms": "Este servidor não tem plataformas Linux nem Windows",
+    "errorSelectOne": "Selecione pelo menos uma plataforma",
+    "errorConnection": "Falha ao conectar ao servidor RomM",
+    "useToken": "Usar um token de API",
+    "errorTokenRequired": "Insira um token de API",
+    "pairingTitle": "Parear com RomM",
+    "pairingIntro": "Leia com seu celular, entre no RomM e autorize este dispositivo. O celular precisa ter acesso ao servidor.",
+    "pairingQrLabel": "Código QR de pareamento com RomM",
+    "waitingApproval": "Aguardando autorização…",
+    "pairingExpiry": "Expira em {{minutes}} minutos. Se expirar, conecte novamente."
   },
   "gameStoreSwitcher": {
     "defaultEdition": "Edição padrão"

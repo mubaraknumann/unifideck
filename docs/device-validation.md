@@ -815,3 +815,24 @@ code paths, so run all three.
 | DV-PR5 | Sync, and during the metadata phase toggle "Group duplicates" twice. Then start "Delete all Unifideck data" while a sync runs | Grouping ends consistent (no game both hidden and shown as a sibling); after the delete and a Steam restart, no library comes back from `library_cache.json` | ( ) | **DESTRUCTIVE**: the delete wipes the library, ask first |
 | DV-PR6 | Open the page of a game owned on two stores, install the other copy from another page, return | The store switcher on the open page shows the new install state without leaving the page | ( ) | |
 | DV-PR7 | Reload the plugin five times (Decky reload), then in the SharedJSContext console (`steam-debug`, command-line API on) run `getEventListeners(window)["unifideck:group-duplicates-change"].length` | `1`, not `6` | ( ) | |
+
+## DV-ROMM: the RomM store
+
+These checks need a RomM server and a Steam Deck running the **built** plugin.
+API probes established pairing and token behavior, but do not verify the
+Deck UI. Every row below remains unrun.
+
+| ID | Step | Expected | Status | Evidence |
+|---|---|---|---|---|
+| DV-ROMM1 | Pair by scanning the QR code on a phone, approve in RomM, then disconnect | QR opens the same server with the code filled in; automatic sync starts only after approval and final variant choice; config is mode 0600 without password or device code; disconnect clears local config only | ( ) | |
+| DV-ROMM2 | Connect with a pasted token (scopes `roms.read`, `platforms.read`), then disconnect | Works; the token is still valid afterwards | ( ) | |
+| DV-ROMM3 | Deny a pairing, let another expire, then retry; disconnect while offline | Denial/expiry stays inline; retry gets a new code in the same modal; offline disconnect clears local state without a revocation warning | ( ) | |
+| DV-ROMM4 | Dismiss during pairing, after the platform step, and while approval is slow to return | No local connection or sync; a late approved token may remain in RomM and must be removed there | ( ) | |
+| DV-ROMM5 | Select platforms with a controller; sync | Defaults are all selected; a one-platform server shows no checkboxes; only Linux and Windows games appear | ( ) | |
+| DV-ROMM6 | Install a game from an uploaded ZIP and one from a server directory | Both install with the same layout, complete files | ( ) | |
+| DV-ROMM7 | Launch a native game and a Windows game | Native launches directly; Windows launches through the Proton path | ( ) | |
+| DV-ROMM8 | Install to an SD card; cancel one install mid-download | Installs; cancel removes only the staging and partial output | ( ) | |
+| DV-ROMM9 | Open a GameVault game installed before this change | It still launches, its executable override survives, and uninstall works | ( ) | |
+| DV-ROMM10 | Look at covers before and after install; a game with no Steam match | Covers show; the RomM release date appears. Record whether the cover URL needed authentication | ( ) | |
+| DV-ROMM11 | Capture Logs after connecting | The bundle holds no RomM token or password | ( ) | |
+| DV-ROMM12 | Read the form in a non-English language | Labels fit and read correctly; translations are machine-drafted and need a native-speaker review | ( ) | |

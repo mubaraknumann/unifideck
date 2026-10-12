@@ -6,8 +6,7 @@ sibling mixins, all composed onto ``Plugin`` in ``main.py``:
 * library and sync — ``SyncRPCMixin``;
 * install and update — ``DownloadRPCMixin``;
 * auth-shortcut context (``get_<store>_auth_shortcut_context``,
-  ``get_compat_tool_for_game``) — ``AuthShortcutsRPCMixin``, split
-  out to keep this file under the 200 LOC ceiling.
+  ``get_compat_tool_for_game``) in ``AuthShortcutsRPCMixin``.
 
 Composition is flat: every mixin is a base of ``Plugin`` and reaches
 its dependencies through ``self``. There is no handler-group layer and
@@ -19,6 +18,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any
+from urllib.parse import urlsplit
 
 from ._compat_payload import active_track, slim_cache_entry
 
@@ -33,7 +33,7 @@ class StoreRPCMixin:
         """Run one step of a store's auth flow.
 
         Forwards to ``registry.auth_action`` which knows the
-        per-store wiring. Every store now authenticates through the
+        per-store wiring. Most stores authenticate through the
         Steam-shortcut / launcher flow (``"start"`` kicks the backend
         prep; the launcher captures credentials and the session
         monitor emits ``STORE_AUTH_COMPLETE``), so the only actions
@@ -78,10 +78,8 @@ class StoreRPCMixin:
         else on purpose: its old ``"complete"`` + ``{code}`` kwargs channel
         was removed with Ubisoft's API login, and re-opening a generic
         passthrough so one store can smuggle credentials through it would
-        undo that for every store. GameVault is the only connector whose
-        sign-in is a form rather than a browser or a Steam shortcut — it does
-        not go through ``AuthDispatcher`` on the frontend either — so the one
-        flow that needs a payload gets one named, typed entry point.
+        undo that for every store. GameVault and RomM instead expose named,
+        typed connection routes for their form and pairing flows.
 
         Args:
             server_url: base URL of the user's GameVault server.
@@ -160,6 +158,66 @@ class StoreRPCMixin:
             getattr(result, "error", None),
         )
         return result
+
+    async def connect_romm(
+        self,
+        attempt_id: str,
+        server_url: str,
+        token: str,
+        verify_ssl: bool = True,
+        download_dir: str = "",
+    ) -> Any:
+        """Start pairing or validate a pasted token; commit nothing.
+
+        Tokens and device codes are never logged or returned.
+        """
+        # Host only: the URL is not validated yet and may embed credentials.
+        try:
+            host = urlsplit(server_url).hostname or "?"
+        except ValueError:
+            host = "?"
+        logger.info(
+            "[StoreAuth:romm] connect host=%s method=%s verify_ssl=%s",
+            host, "token" if token else "pairing", verify_ssl,
+        )
+        result = await self.registry.auth_action(
+            "romm", "start",
+            attempt_id=attempt_id, server_url=server_url, token=token,
+            verify_ssl=verify_ssl,
+            download_dir=download_dir,
+        )
+        logger.info(
+            "[StoreAuth:romm] connect success=%s error_code=%s",
+            getattr(result, "success", None), getattr(result, "error_code", None),
+        )
+        return result
+
+    async def poll_romm_pairing(self, attempt_id: str) -> Any:
+        """Check whether the user approved the pairing; returns no secrets."""
+        return await self.registry.auth_action("romm", "poll", attempt_id=attempt_id)
+
+    async def complete_romm_connection(
+        self, attempt_id: str, excluded_fs_slugs: list[str],
+    ) -> Any:
+        """Commit the attempt with the user's platform-variant exclusions."""
+        result = await self.registry.auth_action(
+            "romm", "complete",
+            attempt_id=attempt_id, excluded_fs_slugs=excluded_fs_slugs,
+        )
+        logger.info(
+            "[StoreAuth:romm] complete success=%s error_code=%s",
+            getattr(result, "success", None), getattr(result, "error_code", None),
+        )
+        return result
+
+    async def cancel_romm_connection(self, attempt_id: str) -> Any:
+        """Discard an attempt locally.
+
+        Deleting the saved connection is part of it: the attempt may already
+        have committed one, and a cancel that fails to remove the config file
+        reports that failure rather than claiming the attempt was abandoned.
+        """
+        return await self.registry.auth_action("romm", "cancel", attempt_id=attempt_id)
 
     async def check_store_status(self) -> Any:
         """Probe every registered store for its current login state.

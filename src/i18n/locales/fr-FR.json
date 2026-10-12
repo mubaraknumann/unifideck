@@ -696,7 +696,8 @@
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
     "gamevault": "GameVault",
-    "itch": "itch.io"
+    "itch": "itch.io",
+    "romm": "RomM"
   },
   "unifiedLibrary": {
     "error": "Erreur Unifideck",
@@ -1232,6 +1233,36 @@
     "errorUsernameRequired": "Veuillez entrer votre nom d'utilisateur",
     "errorPasswordRequired": "Veuillez entrer votre mot de passe",
     "errorConnection": "Échec de la connexion au serveur GameVault"
+  },
+  "romm": {
+    "connectTitle": "Se connecter à RomM",
+    "connect": "Connecter",
+    "connecting": "Connexion…",
+    "cancel": "Annuler",
+    "finish": "Terminer",
+    "intro": "Connectez-vous à votre serveur RomM. Seuls les jeux Linux et Windows sont importés.",
+    "serverUrl": "URL du serveur",
+    "token": "Jeton d’API client",
+    "tokenDescription": "Nécessite roms.read et platforms.read.",
+    "verifySsl": "Vérifier le certificat SSL",
+    "verifySslDescription": "Désactiver pour les certificats auto-signés",
+    "downloadDir": "Répertoire de téléchargement d'archives",
+    "downloadDirDescription": "Répertoire temporaire pour les téléchargements d'archives. Laisser vide pour utiliser le répertoire par défaut.",
+    "downloadDirPlaceholder": "~/.local/share/unifideck/romm_downloads",
+    "browse": "Parcourir…",
+    "platformsTitle": "Choisir les plateformes",
+    "platformsIntro": "Choisissez les versions de plateforme à importer depuis ce serveur.",
+    "errorServerUrlRequired": "Veuillez entrer l'URL du serveur",
+    "errorNoPlatforms": "Ce serveur n’a aucune plateforme Linux ou Windows",
+    "errorSelectOne": "Sélectionnez au moins une plateforme",
+    "errorConnection": "Échec de la connexion au serveur RomM",
+    "useToken": "Utiliser un jeton API",
+    "errorTokenRequired": "Saisissez un jeton API",
+    "pairingTitle": "Associer à RomM",
+    "pairingIntro": "Scannez avec votre téléphone, connectez-vous à RomM et autorisez cet appareil. Le téléphone doit pouvoir accéder au serveur.",
+    "pairingQrLabel": "Code QR d’association à RomM",
+    "waitingApproval": "En attente d’autorisation…",
+    "pairingExpiry": "Ce code expire dans {{minutes}} minutes. S’il expire, reconnectez-vous."
   },
   "gameStoreSwitcher": {
     "defaultEdition": "Édition standard"

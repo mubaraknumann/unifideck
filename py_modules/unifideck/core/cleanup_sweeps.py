@@ -41,6 +41,7 @@ _AUTH_DATA_CANDIDATES = (
     "~/.local/share/unifideck/epic_auth_url.txt",
     "~/.local/share/unifideck/amazon_auth_url.txt",
     "~/.local/share/unifideck/ubisoft_upc_session.txt",
+    "~/.local/share/unifideck/romm_config.json",
 )
 
 # Folders whose every file is a credential. Emptied, never removed: the

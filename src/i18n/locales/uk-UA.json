@@ -696,7 +696,8 @@
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
     "gamevault": "GameVault",
-    "itch": "itch.io"
+    "itch": "itch.io",
+    "romm": "RomM"
   },
   "unifiedLibrary": {
     "error": "Помилка Unifideck",
@@ -1232,6 +1233,36 @@
     "errorUsernameRequired": "Будь ласка, введіть ім'я користувача",
     "errorPasswordRequired": "Будь ласка, введіть пароль",
     "errorConnection": "Не вдалося підключитися до сервера GameVault"
+  },
+  "romm": {
+    "connectTitle": "Підключення до RomM",
+    "connect": "Підключити",
+    "connecting": "Підключення…",
+    "cancel": "Скасувати",
+    "finish": "Готово",
+    "intro": "Увійдіть на свій сервер RomM. Імпортуються лише ігри для Linux і Windows.",
+    "serverUrl": "URL сервера",
+    "token": "Токен клієнтського API",
+    "tokenDescription": "Потрібні roms.read і platforms.read.",
+    "verifySsl": "Перевіряти SSL-сертифікат",
+    "verifySslDescription": "Вимкніть для самопідписаних сертифікатів",
+    "downloadDir": "Директорія завантаження архівів",
+    "downloadDirDescription": "Тимчасова директорія для завантаження архівів. Залиште порожнім для використання за замовчуванням.",
+    "downloadDirPlaceholder": "~/.local/share/unifideck/romm_downloads",
+    "browse": "Огляд…",
+    "platformsTitle": "Вибір платформ",
+    "platformsIntro": "Виберіть, які версії платформ імпортувати з цього сервера.",
+    "errorServerUrlRequired": "Будь ласка, введіть URL сервера",
+    "errorNoPlatforms": "На цьому сервері немає платформ Linux чи Windows",
+    "errorSelectOne": "Виберіть принаймні одну платформу",
+    "errorConnection": "Не вдалося підключитися до сервера RomM",
+    "useToken": "Використати API-токен",
+    "errorTokenRequired": "Введіть API-токен",
+    "pairingTitle": "Сполучення з RomM",
+    "pairingIntro": "Відскануйте телефоном, увійдіть в RomM і підтвердьте пристрій. Телефон має мати доступ до сервера.",
+    "pairingQrLabel": "QR-код сполучення з RomM",
+    "waitingApproval": "Очікування підтвердження…",
+    "pairingExpiry": "Код закінчується через {{minutes}} хв. Після закінчення підключіться знову."
   },
   "gameStoreSwitcher": {
     "defaultEdition": "Стандартне видання"

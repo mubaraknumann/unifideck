@@ -16,6 +16,7 @@ const ALL_STORE_IDS: StoreId[] = [
   "ubisoft",
   "battlenet",
   "gamevault",
+  "romm",
   "itch",
 ];
 

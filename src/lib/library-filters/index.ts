@@ -43,6 +43,7 @@ export type StoreSlug =
   | "battlenet"
   | "microsoft"
   | "gamevault"
+  | "romm"
   | "itch";
 
 export type FilterType =
@@ -939,6 +940,7 @@ export async function loadUnifideckCache(): Promise<void> {
       battlenet: 0,
       microsoft: 0,
       gamevault: 0,
+      romm: 0,
       itch: 0,
     };
     for (const g of games ?? []) {

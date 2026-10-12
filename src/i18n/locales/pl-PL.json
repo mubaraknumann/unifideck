@@ -696,7 +696,8 @@
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
     "gamevault": "GameVault",
-    "itch": "itch.io"
+    "itch": "itch.io",
+    "romm": "RomM"
   },
   "unifiedLibrary": {
     "error": "Błąd Unifideck",
@@ -1232,6 +1233,36 @@
     "errorUsernameRequired": "Podaj swoją nazwę użytkownika",
     "errorPasswordRequired": "Podaj swoje hasło",
     "errorConnection": "Nie udało się połączyć z serwerem GameVault"
+  },
+  "romm": {
+    "connectTitle": "Połącz z RomM",
+    "connect": "Połącz",
+    "connecting": "Łączenie…",
+    "cancel": "Anuluj",
+    "finish": "Zakończ",
+    "intro": "Zaloguj się na swoim serwerze RomM. Importowane są tylko gry na Linuksa i Windows.",
+    "serverUrl": "URL serwera",
+    "token": "Token API klienta",
+    "tokenDescription": "Wymaga roms.read i platforms.read.",
+    "verifySsl": "Weryfikuj certyfikat SSL",
+    "verifySslDescription": "Wyłącz dla certyfikatów samopodpisanych",
+    "downloadDir": "Katalog pobierania archiwów",
+    "downloadDirDescription": "Tymczasowy katalog dla pobieranych archiwów. Zostaw puste, aby użyć domyślnego.",
+    "downloadDirPlaceholder": "~/.local/share/unifideck/romm_downloads",
+    "browse": "Przeglądaj…",
+    "platformsTitle": "Wybierz platformy",
+    "platformsIntro": "Wybierz, które wersje platform zaimportować z tego serwera.",
+    "errorServerUrlRequired": "Podaj URL serwera",
+    "errorNoPlatforms": "Ten serwer nie ma platform Linux ani Windows",
+    "errorSelectOne": "Wybierz co najmniej jedną platformę",
+    "errorConnection": "Nie udało się połączyć z serwerem RomM",
+    "useToken": "Użyj tokena API",
+    "errorTokenRequired": "Wprowadź token API",
+    "pairingTitle": "Sparuj z RomM",
+    "pairingIntro": "Zeskanuj telefonem, zaloguj się do RomM i zatwierdź urządzenie. Telefon musi mieć dostęp do serwera.",
+    "pairingQrLabel": "Kod QR parowania z RomM",
+    "waitingApproval": "Oczekiwanie na zatwierdzenie…",
+    "pairingExpiry": "Kod wygaśnie za {{minutes}} minut. Po wygaśnięciu połącz się ponownie."
   },
   "gameStoreSwitcher": {
     "defaultEdition": "Edycja standardowa"
