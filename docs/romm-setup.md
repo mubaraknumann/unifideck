@@ -84,9 +84,21 @@ entries. RomM's metadata may give them identical names: for example, Lighthouse
 and BanjoRecomp builds can both appear as **Banjo-Kazooie**.
 
 Unifideck does not currently provide variant labels or a selector. To tell those
-entries apart in Steam, give them distinct names on the RomM server.
+entries apart in Steam, give them distinct names or cover art on the RomM server.
 
-For entries already in Steam, use **Force Sync** to refresh their names.
+For entries already in Steam, use **Force Sync** to refresh their names. Choose
+**Resync Artwork** to replace existing covers, or **Keep Artwork** to update
+names without replacing covers.
+
+## Artwork
+
+For missing portrait covers, Unifideck tries your selected RomM cover first.
+Other artwork comes from SteamGridDB or Steam. Ordinary sync preserves artwork
+already on the Deck, including any you customized in Steam.
+
+To replace existing covers, use **Force Sync → Resync Artwork**. This affects
+all stores and overwrites manual artwork changes. If new covers do not appear,
+restart Steam after artwork processing finishes.
 
 ## Disconnecting or changing servers
 
