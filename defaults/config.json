@@ -141,6 +141,11 @@
       "download_dir": "~/.local/share/unifideck/gamevault_downloads",
       "default_vault_dir": "~/Games/UnifideckVault"
     },
+    "romm": {
+      "config_file": "~/.local/share/unifideck/romm_config.json",
+      "default_install_root": "~/Games/RomM",
+      "download_dir": "~/.local/share/unifideck/romm_downloads"
+    },
     "itch": {
       "butler_db": "~/.local/share/unifideck/butler/butler.db",
       "default_install_root": "~/Games/itch",

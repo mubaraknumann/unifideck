@@ -24,7 +24,7 @@ import re
 # (pinned by ``test_launch_options_store_pattern``): a store missing here
 # has every one of its shortcuts swept as an orphan right after its sync.
 STORE_ID_PATTERN = re.compile(
-    r"\b(epic|gog|amazon|ubisoft|battlenet|microsoft|gamevault|itch|ea):"
+    r"\b(epic|gog|amazon|ubisoft|battlenet|microsoft|gamevault|itch|ea|romm):"
     r"([a-zA-Z0-9][a-zA-Z0-9._-]*)",
 )
 

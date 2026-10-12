@@ -62,7 +62,7 @@ BROWSER_STOREFRONT_STORES = frozenset({"epic", "gog", "amazon", "microsoft", "it
 
 #: Stores whose launcher runs the games.map ``exe`` itself (through umu), so an
 #: exe override is that column (``rpc/mixins/executable.py``).
-EXE_OVERRIDE_DIRECT_STORES = frozenset({"gog", "amazon", "gamevault", "itch", "ea"})
+EXE_OVERRIDE_DIRECT_STORES = frozenset({"gog", "amazon", "gamevault", "itch", "ea", "romm"})
 
 #: Stores where the user can pick another launch exe ("Change executable…" on
 #: the game's menu): the direct-launch stores, plus Epic, whose override is the

@@ -28,7 +28,7 @@ interface AuthContextValue {
   statuses: StatusMap;
   loading: boolean;
   startAuth: (store: StoreId) => Promise<AuthResult | null>;
-  logout: (store: StoreId) => Promise<void>;
+  logout: (store: StoreId) => Promise<Result | null>;
   logoutAll: () => Promise<void>;
   /** Called by useStoreAuth after AuthDispatcher reports
    *  success — bypasses EventBus race by setting status
@@ -64,9 +64,7 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
   );
 
   const logout = useCallback(
-    async (store: StoreId) => {
-      await logoutMut.mutate(store, "logout");
-    },
+    (store: StoreId) => logoutMut.mutate(store, "logout"),
     [logoutMut],
   );
 

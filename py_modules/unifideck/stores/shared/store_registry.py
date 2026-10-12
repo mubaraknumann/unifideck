@@ -339,6 +339,11 @@ class StoreRegistry:
         try:
             if action == "start":
                 return await store.start_auth(**kwargs)
+            if action == "poll":
+                poll = getattr(store, "poll_auth", None)
+                if poll is None:
+                    return Result(success=False, error="This store does not support auth polling")
+                return cast("Result", await poll(**kwargs))
             if action == "complete":
                 return await store.complete_auth(**kwargs)
             if action == "logout":
@@ -359,12 +364,12 @@ class StoreRegistry:
                 cancel = getattr(store, "cancel_auth", None)
                 if cancel is None:
                     return Result(success=True)
-                return cast("Result", await cancel())
+                return cast("Result", await cancel(**kwargs))
             return Result(
                 success=False,
                 error=(
                     f"Unknown auth action: '{action}'. "
-                    f"Valid: start, complete, logout, status, cancel"
+                    f"Valid: start, poll, complete, logout, status, cancel"
                 ),
             )
         except StoreError as e:

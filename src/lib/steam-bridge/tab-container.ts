@@ -102,15 +102,21 @@ export function getUnifideckTabs(): UnifideckTab[] {
       filters: [{ type: "store", params: { store: "gamevault" } }],
     },
     {
+      id: "unifideck-romm",
+      title: t("deckTabs.romm"),
+      position: 11,
+      filters: [{ type: "store", params: { store: "romm" } }],
+    },
+    {
       id: "unifideck-itch",
       title: t("deckTabs.itch"),
-      position: 11,
+      position: 12,
       filters: [{ type: "store", params: { store: "itch" } }],
     },
     {
       id: "unifideck-ea",
       title: t("deckTabs.ea"),
-      position: 12,
+      position: 13,
       filters: [{ type: "store", params: { store: "ea" } }],
     },
     {
@@ -118,7 +124,7 @@ export function getUnifideckTabs(): UnifideckTab[] {
       // before it takes its number and this one moves down.
       id: "unifideck-nonsteam",
       title: t("deckTabs.nonSteam"),
-      position: 13,
+      position: 14,
       filters: [{ type: "nonSteam", params: {} }],
     },
   ];
@@ -399,6 +405,7 @@ type ConnectableStore =
   | "battlenet"
   | "microsoft"
   | "gamevault"
+  | "romm"
   | "itch"
   | "ea";
 
@@ -413,6 +420,7 @@ class TabManager {
     battlenet: 0,
     microsoft: 0,
     gamevault: 0,
+    romm: 0,
     itch: 0,
     ea: 0,
   };
@@ -483,6 +491,7 @@ class TabManager {
       "unifideck-battlenet": "battlenet",
       "unifideck-microsoft": "microsoft",
       "unifideck-gamevault": "gamevault",
+      "unifideck-romm": "romm",
       "unifideck-itch": "itch",
       "unifideck-ea": "ea",
     };
