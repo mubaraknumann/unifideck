@@ -1,14 +1,4 @@
-"""GameVault library reading — the shared overlay, plus the remote catalog.
-
-:class:`GameVaultLibraryReader` is mode-agnostic: it asks a
-:class:`~.sources.CatalogSource` what games exist and overlays what is
-installed on this device. The dangerous rule — a failed read must raise, not
-return a short list — lives here so both modes obey it by construction rather
-than by each remembering to.
-
-:class:`RemoteCatalog` is the source for a self-hosted server. The local one
-is :class:`~.local_catalog.LocalVaultCatalog`.
-"""
+"""GameVault remote catalog reader."""
 
 from __future__ import annotations
 
@@ -21,8 +11,6 @@ from .filename import leaf_name, parse_archive_name, strip_source_tags
 
 if TYPE_CHECKING:
     from .auth import GameVaultAuth
-    from .install import GameVaultInstaller
-    from .sources import CatalogSource
 
 logger = logging.getLogger(__name__)
 
@@ -39,51 +27,6 @@ class GameVaultFetchError(RuntimeError):
     the reconcile acts on, and acting on a failed fetch is what removes a
     user's shortcuts.
     """
-
-
-class GameVaultLibraryReader:
-    """Turns a catalog into a library, with install state overlaid."""
-
-    def __init__(
-        self, installer: GameVaultInstaller, catalog: CatalogSource,
-    ) -> None:
-        self._installer = installer
-        self._catalog = catalog
-
-    async def get_library(self, *, force: bool = False) -> list[Game]:
-        """Every owned game, or raise if the catalog could not be read.
-
-        **Never returns a short list on failure.** A store that answers a
-        sync with fewer games than the user has is indistinguishable from
-        one whose library shrank, and the shortcut reconcile believes it:
-        the missing games' shortcuts get swept. A catalog that cannot answer
-        therefore raises :class:`GameVaultFetchError`, which
-        ``GameVaultStore.get_library`` turns into ``None`` — the documented
-        "could not answer" signal that leaves the existing shortcuts alone.
-
-        This matters for both modes and for the same reason. Remote talks to
-        a home server that is offline routinely; local reads a folder that
-        may be on an SD card that has not mounted yet.
-        """
-        del force  # neither catalog caches; accepted for interface parity
-        games = await self._catalog.fetch()
-        for game in games:
-            install_info = self._installer.get_install_info(game.store_game_id)
-            if install_info:
-                game.installed = True
-                game.install_path = install_info.get("install_path")
-                # ``exe_path`` is deliberately NOT carried. The launch target
-                # is written once, at install time, and after that it belongs
-                # to the user: a GameVault archive is whatever its owner
-                # uploaded, so the auto-detected executable is a guess more
-                # often than for any other store, and Change Executable is
-                # the fix. Reconcile only overwrites a games.map row when the
-                # synced game carries an exe — so by carrying none, a sync can
-                # never revert that choice. (Epic and Amazon behave the same
-                # way; GOG carries one because it must discover installs it
-                # did not perform.)
-        logger.info("[GameVaultLibrary] %d game(s) resolved", len(games))
-        return games
 
 
 class RemoteCatalog:
