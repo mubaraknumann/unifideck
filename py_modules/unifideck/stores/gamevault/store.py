@@ -3,13 +3,13 @@
 ``GameVaultStore`` wires one pipeline to one pair of sources:
 
 * :class:`GameVaultAuth`           — the config file, and remote sign-in.
-* :class:`GameVaultLibraryReader`  — catalog → library, install state overlaid.
-* :class:`GameVaultInstaller`      — acquire → extract → register.
+* :class:`ArchiveLibraryReader`    — catalog → library, install state overlaid.
+* :class:`ArchiveInstaller`        — acquire → extract → register.
 
 A GameVault library is either a **self-hosted server** or a **folder of
 archives on this device**, and that choice is the only thing that varies. It
 is expressed once, in :meth:`_build_pipeline`, by picking which
-:class:`~.sources.CatalogSource` and :class:`~.sources.ArchiveSource` to hand
+:class:`~unifideck.stores.shared.archive_source.CatalogSource` and :class:`~unifideck.stores.shared.archive_source.ArchiveSource` to hand
 to the two collaborators above. Every method below is then single-path — no
 ``if self._auth.is_local`` in install, uninstall, library, size or executable
 resolution — which is the property that keeps the two modes from drifting
@@ -37,25 +37,20 @@ from typing import TYPE_CHECKING, Any
 
 from unifideck.core.types import (
     AuthResult,
-    Events,
     Game,
-    InstallResult,
     Result,
     StoreInfo,
 )
+from unifideck.stores.shared.archive_install import ArchiveInstaller
+from unifideck.stores.shared.archive_library import ArchiveLibraryReader
+from unifideck.stores.shared.archive_source import ArchiveSource, CatalogSource
+from unifideck.stores.shared.archive_store import ArchiveStoreMixin
 from unifideck.stores.shared.store_base import StoreBase
 
 from .auth import MODE_LOCAL, GameVaultAuth
-from .install import GameVaultInstaller
-from .library import GameVaultLibraryReader, RemoteCatalog
+from .library import RemoteCatalog
 from .local_catalog import LocalVaultCatalog
-from .sources import (
-    ArchiveSource,
-    CatalogSource,
-    LocalArchiveSource,
-    ProgressCallback,
-    RemoteArchiveSource,
-)
+from .sources import LocalArchiveSource, RemoteArchiveSource
 
 if TYPE_CHECKING:
     from unifideck.config import ConfigManager
@@ -72,7 +67,7 @@ _DEFAULT_DOWNLOAD_DIR = "~/.local/share/unifideck/gamevault_downloads"
 _DEFAULT_VAULT_DIR = "~/Games/UnifideckVault"
 
 
-class GameVaultStore(StoreBase):
+class GameVaultStore(ArchiveStoreMixin, StoreBase):
     """GameVault connector — self-hosted server, or a local vault folder."""
 
     # NOTE: no per-store ``sync_timeout``. Nothing reads one — the sync
@@ -156,10 +151,10 @@ class GameVaultStore(StoreBase):
         # does — ``useInstallFlow`` runs the shared storage picker before
         # every install, for every store — so this is the fallback, not the
         # setting.
-        self._installer = GameVaultInstaller(
-            source=source, default_install_root=self._default_install_root,
+        self._installer = ArchiveInstaller(
+            store="gamevault", source=source, default_install_root=self._default_install_root,
         )
-        self._library_reader = GameVaultLibraryReader(
+        self._library_reader = ArchiveLibraryReader(
             installer=self._installer, catalog=catalog,
         )
 
@@ -239,69 +234,3 @@ class GameVaultStore(StoreBase):
             # every time an SD card was slow to mount.
             logger.exception("[GameVaultStore] get_library failed")
             return None
-
-    async def install_game(
-        self,
-        game_id: str,
-        base_path: str | None = None,
-        progress_cb: ProgressCallback | None = None,
-        **kwargs: Any,
-    ) -> InstallResult:
-        return await self._installer.install_game(
-            game_id,
-            install_path=base_path or kwargs.get("install_path"),
-            progress_callback=progress_cb or kwargs.get("progress_callback"),
-        )
-
-    async def uninstall_game(self, game_id: str, **kwargs: Any) -> Result:
-        """Remove the game, then announce it like every other store does.
-
-        ``GAME_UNINSTALLED`` is what ``ShortcutService`` subscribes to in
-        order to flip the shortcut back to "not installed" while keeping it
-        (and its appid, artwork and playtime) in place. Emitting it here —
-        rather than having the uninstall RPC call ``mark_uninstalled``
-        directly — keeps GameVault on the same path as GOG, Epic, Amazon,
-        Ubisoft and Battle.net, instead of adding a second mechanism that
-        would fire twice for all of them.
-        """
-        result = await self._installer.uninstall_game(game_id)
-        if result.success:
-            await self._emit(
-                Events.GAME_UNINSTALLED,
-                store=STORE_NAME,
-                game_id=game_id,
-            )
-        return result
-
-    async def update_game(self, game_id: str, **kwargs: Any) -> InstallResult:
-        """Re-install the game (GameVault has no delta updates)."""
-        return await self.install_game(game_id, **kwargs)
-
-    async def check_for_updates(self) -> list[str]:
-        """GameVault does not expose an update API in either mode."""
-        return []
-
-    async def get_installed_path(self, game_id: str) -> str | None:
-        """Install dir per our own marker, or ``None`` if not installed.
-
-        The hook every store implements. It matters more here than
-        elsewhere: it is what lets Change Executable resolve a directory when
-        the games.map row is missing, which for this store is the situation
-        the picker exists for.
-        """
-        info = self._installer.get_install_info(game_id)
-        path = (info or {}).get("install_path")
-        return path if isinstance(path, str) and path else None
-
-    async def get_game_size(self, game_id: str) -> int | None:
-        return await self._installer.get_game_size(game_id)
-
-    # ── Extra helpers called by main.py (backward-compat surface) ──
-
-    def _get_install_info(self, game_id: str) -> dict[str, Any] | None:
-        """Return the persisted install marker dict for *game_id*."""
-        return self._installer.get_install_info(game_id)
-
-    async def get_installed(self) -> dict[str, dict[str, Any]]:
-        """Return {game_id: install_info} for all installed GameVault games."""
-        return self._installer.get_installed()
