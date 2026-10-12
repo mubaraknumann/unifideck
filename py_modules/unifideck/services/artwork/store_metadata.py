@@ -443,12 +443,20 @@ async def fetch_store_urls(
     if store == "epic":
         payload = await epic_metadata(store_game_id)
         return cast("dict[str, str]", payload.get("urls", {}))
+    if store == "romm":
+        return romm_cover_urls(extras or {})
     if store == "ubisoft":
         return cast("dict[str, str]", ubisoft_metadata(extras or {}).get("urls", {}))
     if store == "microsoft":
         payload = await microsoft_metadata(store_game_id, timeout)
         return cast("dict[str, str]", payload.get("urls", {}))
     return {}
+
+
+def romm_cover_urls(extras: dict[str, Any]) -> dict[str, str]:
+    """The catalog-resolved, user-selected cover belongs only in the portrait slot."""
+    cover = extras.get("cover_url")
+    return {"grid": cover} if isinstance(cover, str) and cover else {}
 
 
 def itch_fallback_urls(extras: dict[str, Any]) -> dict[str, str]:
