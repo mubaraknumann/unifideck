@@ -74,8 +74,10 @@ A bare `.exe` that is not in an archive is not installed, and setup programs
 are not run for you. The downloaded file is deleted once the game is unpacked,
 and uninstalling removes only the installed copy, not the game on your server.
 
-When Linux and Windows versions have exactly the same name, Unifideck imports
-the Linux version.
+Unifideck prefers the Linux version when IGDB or ScreenScraper IDs identify
+a matching Windows game. Any mismatch between IDs from the same provider
+keeps the entries separate. If no IDs can be compared, it falls back to an
+exact name match.
 
 ## Game variants
 
