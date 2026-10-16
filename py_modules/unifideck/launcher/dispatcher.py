@@ -12,7 +12,7 @@ from unifideck.core.types.results import Result
 
 from .argv_options import env_overrides_from, parse_argv, promote_env_tokens
 from .browser_games import BrowserTarget, browser_target, cached_game
-from .types.context import LaunchContext
+from .types.context import CompanionExecutable, LaunchContext
 from .types.errors import GameNotFoundError, LauncherError
 from .types.exit_codes import ExitCode
 from .wrapper_prefix_probe import wrapper_prefix_is_populated
@@ -327,6 +327,14 @@ def _browser_context(
     )
 
 
+def _resolve_companion_executables(
+    store: str, game_id: str,
+) -> tuple[CompanionExecutable, ...]:
+    """Per-game companion executables — see ``companion_config``."""
+    from .companion_config import resolve_companion_executables
+    return resolve_companion_executables(store, game_id, _resolve_plugin_dir())
+
+
 def _game_context(
     store: str, game_id: str, exe: str, work_dir: str, raw_options: str,
     app_id: int = 0,
@@ -353,6 +361,7 @@ def _game_context(
         auth_store=None,
         steam_app_id=str(app_id) if app_id else None,
         bypass_circuit_breaker=_resolve_bypass_flag(store, game_id),
+        companion_executables=_resolve_companion_executables(store, game_id),
     )
 
 def _detect_special_action() -> tuple[str | None, str | None, bool]:

@@ -406,7 +406,9 @@
       "installingBattlenetMessage": "Otwieranie Battle.net. Naciśnij tam Zainstaluj, aby rozpocząć pobieranie {{gameTitle}}.",
       "wrapperOpening": "Otwieranie {{client}}",
       "nativeExitedEarlyTitle": "Gra zamknęła się zaraz po uruchomieniu",
-      "nativeExitedEarly": "Wersja na Linuksa zakończyła działanie z kodem {{code}} w ciągu kilku sekund. Jej wyjście zapisano w {{log}}. Dołącz pakiet Capture Logs do zgłoszenia."
+      "nativeExitedEarly": "Wersja na Linuksa zakończyła działanie z kodem {{code}} w ciągu kilku sekund. Jej wyjście zapisano w {{log}}. Dołącz pakiet Capture Logs do zgłoszenia.",
+      "launchWarning": "Ostrzeżenie o uruchamianiu",
+      "companionStartFailed": "Nie można uruchomić programu towarzyszącego dla {{game_key}}. Sama gra uruchomiła się normalnie."
     },
     "updateComplete": "Aktualizacja zakończona!",
     "updateCompleteMessage": "Gra {{title}} została zaktualizowana.",
@@ -798,6 +800,19 @@
       "subtitle": "Wybierz plik uruchamiający tę grę (np. pomiń launcher i uruchom grę bezpośrednio). Katalog roboczy oraz zapisy w chmurze nie zostaną naruszone.",
       "title": "Zmień plik wykonywalny. {{game}}",
       "unavailable": "Nie można odczytać folderu tej gry."
+    },
+    "companions": {
+      "menuItem": "Programy towarzyszące…",
+      "title": "Programy towarzyszące — {{game}}",
+      "subtitle": "Dodatkowe programy (trainery, narzędzia do oszustw, narzędzia pomocnicze) uruchamiane razem z tą grą w tym samym prefiksie Protona. Program towarzyszący, który się nie uruchomi, nigdy nie blokuje gry.",
+      "add": "Dodaj…",
+      "delayHint": "Zawsze stosowane jest minimalne opóźnienie 10s — uruchomienie przy pierwszym starcie gry mogłoby w przeciwnym razie spowodować jej awarię.",
+      "empty": "Nie dodano jeszcze żadnych programów towarzyszących.",
+      "delaySeconds": "Opóźnienie: {{seconds}}s",
+      "added": "Dodano program towarzyszący",
+      "addFailed": "Nie udało się dodać programu towarzyszącego",
+      "removed": "Usunięto program towarzyszący",
+      "removeFailed": "Nie udało się usunąć programu towarzyszącego"
     }
   },
   "playMeta": {

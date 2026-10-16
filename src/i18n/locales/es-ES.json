@@ -406,7 +406,9 @@
       "installingBattlenetMessage": "Abriendo Battle.net. Pulsa Instalar allí para empezar la descarga de {{gameTitle}}.",
       "wrapperOpening": "Abriendo {{client}}",
       "nativeExitedEarlyTitle": "El juego se cerró nada más iniciarse",
-      "nativeExitedEarly": "La versión para Linux terminó con el código {{code}} en pocos segundos. Su salida se guardó en {{log}}. Incluye un paquete de Capture Logs al informar de esto."
+      "nativeExitedEarly": "La versión para Linux terminó con el código {{code}} en pocos segundos. Su salida se guardó en {{log}}. Incluye un paquete de Capture Logs al informar de esto.",
+      "launchWarning": "Advertencia de inicio",
+      "companionStartFailed": "No se pudo iniciar un programa complementario para {{game_key}}. El juego se inició con normalidad."
     },
     "updateComplete": "¡Actualización completada!",
     "updateCompleteMessage": "{{title}} ha sido actualizado.",
@@ -798,6 +800,19 @@
       "subtitle": "Elige qué archivo inicia este juego (por ejemplo, omitir un lanzador y ejecutar el juego directamente). El directorio de trabajo y los guardados en la nube no se verán afectados.",
       "title": "Cambiar ejecutable. {{game}}",
       "unavailable": "No se pudo leer la carpeta de este juego."
+    },
+    "companions": {
+      "menuItem": "Programas complementarios…",
+      "title": "Programas complementarios — {{game}}",
+      "subtitle": "Programas adicionales (trainers, herramientas de trucos, utilidades) que se inician junto a este juego en el mismo prefijo de Proton. Un complementario que falle nunca bloquea el juego.",
+      "add": "Añadir…",
+      "delayHint": "Siempre se aplica un retardo mínimo de 10s: iniciarlo junto al primerísimo arranque del juego podría hacerlo fallar.",
+      "empty": "Aún no se han añadido programas complementarios.",
+      "delaySeconds": "Retardo: {{seconds}}s",
+      "added": "Complementario añadido",
+      "addFailed": "No se pudo añadir el programa complementario",
+      "removed": "Complementario eliminado",
+      "removeFailed": "No se pudo eliminar el programa complementario"
     }
   },
   "playMeta": {
