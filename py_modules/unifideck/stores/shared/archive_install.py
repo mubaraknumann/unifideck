@@ -48,11 +48,25 @@ logger = logging.getLogger(__name__)
 _MAX_DIR_ATTEMPTS = 20
 
 
+def _holds_foreign_files(candidate: Path, own_path: str | None) -> bool:
+    """True if *candidate* is occupied and is not the recorded install."""
+    if own_path is not None and str(candidate) == own_path:
+        return False
+    if candidate.is_symlink():
+        return True
+    if not candidate.exists():
+        return False
+    if not candidate.is_dir():
+        return True
+    return any(candidate.iterdir())
+
+
 def _free_game_dir(
     target_dir: Path,
     dir_name: str,
     game_id: str,
     store: str,
+    own_path: str | None = None,
 ) -> Path:
     """A directory under *target_dir* that no other store's install owns.
 
@@ -63,8 +77,15 @@ def _free_game_dir(
     target as orphaned and deletes the directory, which is how a real device
     lost this extraction four times in one evening.
 
-    Uniquifies rather than failing. The user asked for an install and there is
-    a correct place to put it; refusing would just make them rename files.
+    A directory that already holds files is skipped unless it is this game's
+    own previous install (*own_path*): extracting into it would mix the
+    archive with files we did not put there, and uninstall would later delete
+    them all.
+
+    Uses a distinct name rather than taking the plain one, because the user
+    asked for an install and there is a correct place to put it. Gives up
+    after ``_MAX_DIR_ATTEMPTS`` candidate names; that many occupied folders
+    means leftovers or damaged state, not a popular title.
 
     Blocking (reads games.map, stats directories) — call from a thread.
     """
@@ -78,7 +99,7 @@ def _free_game_dir(
         foreign = foreign_installs_under(
             candidate, owner_key=f"{store}:{game_id}",
         )
-        if not foreign:
+        if not foreign and not _holds_foreign_files(candidate, own_path):
             if candidate != first:
                 logger.info(
                     "[ArchiveInstaller] %s is owned by another store; "
@@ -86,18 +107,10 @@ def _free_game_dir(
                 )
             return candidate
         logger.warning(
-            "[ArchiveInstaller] %s holds install(s) for %s; trying the "
-            "next name", candidate, ", ".join(sorted(foreign)),
+            "[ArchiveInstaller] %s is not free (%s); trying the next name",
+            candidate, ", ".join(sorted(foreign)) or "holds other files",
         )
-    # Every candidate was taken, which means something is badly wrong with
-    # games.map rather than with this install. Fall back to the plain name so
-    # the install still happens; the ownership guard in ``uninstall_game``
-    # still protects the user's archive.
-    logger.error(
-        "[ArchiveInstaller] no free directory near %s after %d tries; "
-        "using it anyway", first, _MAX_DIR_ATTEMPTS,
-    )
-    return first
+    raise RuntimeError("No unowned installation directory is available")
 
 
 class ArchiveInstaller:
@@ -137,8 +150,11 @@ class ArchiveInstaller:
             if progress_callback:
                 await progress_callback({"phase": "extracting"})
 
+            previous = self._records.load(game_id) or {}
+            own_path = previous.get("install_path")
             game_dir = await asyncio.to_thread(
                 _free_game_dir, target_dir, acquired.dir_name, game_id, self._store,
+                own_path if isinstance(own_path, str) else None,
             )
             # Remember whether this run is the one that brings the directory
             # into existence. Only then may a cancellation delete it: an
