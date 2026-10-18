@@ -4,6 +4,11 @@ Exercised through a fake ``ArchiveSource`` so these tests cover the pipeline
 itself rather than a transport: the store namespace, the normalization hook,
 cancellation that must not remove what it did not create, and the library
 overlay that must not reintroduce a guessed executable.
+
+The ownership cases are the ones this file exists for: a directory another
+store's install owns, a folder holding files no store recorded, the same
+folder claimed mid-extraction, and a re-install that must reuse its own
+directory rather than acquire a second one.
 """
 from __future__ import annotations
 
@@ -75,16 +80,16 @@ async def test_normalization_runs_once_in_worker_thread(tmp_path, source):
     assert (Path(result.install_path) / "normalized.txt").read_text() == "normalized"
 
 
-async def test_uninstall_preserves_foreign_owner(tmp_path, source, games_map):
+async def test_exhausted_directory_candidates_does_not_use_foreign_target(tmp_path, source, games_map):
     from unifideck.stores.shared.archive_install import ArchiveInstaller
-    installer = ArchiveInstaller(store="romm", source=source, default_install_root=str(tmp_path / "games"))
+    root = tmp_path / "games"
+    names = ["My Game", "My Game (RomM)"] + [f"My Game (RomM {n})" for n in range(2, 20)]
+    games_map.write_text("".join(f"gog:{n}={root / name}/Game.exe\t{root / name}\t-1\n" for n, name in enumerate(names)))
+    installer = ArchiveInstaller(store="romm", source=source, default_install_root=str(root))
     result = await installer.install_game("42")
-    path = Path(result.install_path)
-    games_map.write_text(f"gog:other={path}/Game.exe\t{path}\t-1\n")
-    removed = await installer.uninstall_game("42")
-    assert not removed.success
-    assert (path / "Game.exe").read_bytes() == b"MZfixture"
-    assert installer.get_install_info("42") is not None
+    assert not result.success
+    assert not (root / "My Game" / "Game.exe").exists()
+    assert installer.get_install_info("42") is None
 
 
 async def test_cancel_preserves_new_foreign_owner(tmp_path, source, games_map, monkeypatch):
@@ -125,3 +130,25 @@ async def test_sync_does_not_reintroduce_guessed_executable(tmp_path, source):
     assert game.installed
     assert not game.exe_path
     assert "exe_path" not in game.metadata
+
+
+async def test_install_skips_a_directory_holding_unowned_files(tmp_path, source):
+    from unifideck.stores.shared.archive_install import ArchiveInstaller
+    root = tmp_path / "games"
+    (root / "My Game").mkdir(parents=True)
+    (root / "My Game" / "mine.txt").write_text("keep")
+    installer = ArchiveInstaller(store="romm", source=source, default_install_root=str(root))
+
+    result = await installer.install_game("42")
+
+    assert result.success
+    assert result.install_path != str(root / "My Game")
+    assert (root / "My Game" / "mine.txt").read_text() == "keep"
+
+
+async def test_reinstall_reuses_the_games_own_directory(tmp_path, source):
+    from unifideck.stores.shared.archive_install import ArchiveInstaller
+    installer = ArchiveInstaller(store="romm", source=source, default_install_root=str(tmp_path / "games"))
+    first = await installer.install_game("42")
+    second = await installer.install_game("42")
+    assert second.install_path == first.install_path
