@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { indexOfFirstNonXboxOneTagged, storePriorityRank, STORE_PRIORITY } from "./game-grouping";
+import {
+  compareByDefaultRank,
+  firstByDefaultRank,
+  indexOfFirstNonXboxOneTagged,
+  readDefaultRank,
+  storePriorityRank,
+  STORE_PRIORITY,
+} from "./game-grouping";
 import type { StoreId } from "../types/api";
 
 // Every `StoreId` member, kept in sync by hand with `types/api.ts` —
@@ -50,5 +57,36 @@ describe("indexOfFirstNonXboxOneTagged", () => {
 
   it("returns -1 when every candidate is Xbox One tagged or untitled", () => {
     expect(indexOfFirstNonXboxOneTagged(["Enlisted Xbox One", undefined])).toBe(-1);
+  });
+});
+
+describe("default rank", () => {
+  it("reads only finite non-negative numbers", () => {
+    expect(readDefaultRank({ default_rank: 2 })).toBe(2);
+    expect(readDefaultRank({ default_rank: 0 })).toBe(0);
+    for (const bad of [undefined, null, "1", Number.NaN, Number.POSITIVE_INFINITY, -1]) {
+      expect(readDefaultRank({ default_rank: bad })).toBeUndefined();
+    }
+    expect(readDefaultRank(undefined)).toBeUndefined();
+    expect(readDefaultRank({})).toBeUndefined();
+  });
+
+  it("compares lower first, ranked before unranked, ties as zero", () => {
+    expect(compareByDefaultRank({ defaultRank: 0 }, { defaultRank: 1 })).toBeLessThan(0);
+    expect(compareByDefaultRank({ defaultRank: 5 }, {})).toBeLessThan(0);
+    expect(compareByDefaultRank({}, { defaultRank: 5 })).toBeGreaterThan(0);
+    expect(compareByDefaultRank({}, {})).toBe(0);
+    expect(compareByDefaultRank({ defaultRank: 2 }, { defaultRank: 2 })).toBe(0);
+  });
+
+  it("picks the lowest rank and the earliest among equals", () => {
+    expect(firstByDefaultRank([])).toBeUndefined();
+    type Item = { id: string; defaultRank?: number };
+    const items: Item[] = [{ id: "a" }, { id: "b", defaultRank: 1 }, { id: "c", defaultRank: 0 }];
+    expect(firstByDefaultRank(items)?.id).toBe("c");
+    expect(firstByDefaultRank<Item>([{ id: "a" }, { id: "b" }])?.id).toBe("a");
+    expect(
+      firstByDefaultRank<Item>([{ id: "a", defaultRank: 1 }, { id: "b", defaultRank: 1 }])?.id,
+    ).toBe("a");
   });
 });
