@@ -29,7 +29,12 @@ import {
   overviewCompatCategory,
 } from "../steam-bridge/compat-packed";
 import { invalidateGameSize } from "../game-size-cache";
-import { STORE_PRIORITY, indexOfFirstNonXboxOneTagged } from "../game-grouping";
+import {
+  STORE_PRIORITY,
+  indexOfFirstNonXboxOneTagged,
+  readDefaultRank,
+} from "../game-grouping";
+import { readDisambiguators } from "../variant-labels";
 import { isGroupDuplicatesEnabled } from "../group-duplicates-setting";
 import { bumpGameStateVersion } from "../game-state-version";
 import type { SteamAppOverview } from "../../types/steam";
@@ -77,6 +82,12 @@ interface UnifideckCacheEntry {
   title?: string;
   dedupeGroupId?: string;
   editionLabel?: string;
+  /** Strings that tell this copy apart from same-store siblings
+   *  (`metadata.disambiguators`). */
+  disambiguators?: string[];
+  /** The store's preference among its own copies (`metadata.default_rank`,
+   *  lower wins). */
+  defaultRank?: number;
   /** Real Steam AppID of a native copy of this title the user already
    *  owns — NOT the same as `steamAppId` above (that's a metadata-
    *  spoofing match to the Steam *store catalog*, unrelated to whether
@@ -114,6 +125,8 @@ export interface GroupSibling {
   store: StoreSlug;
   title: string;
   editionLabel?: string;
+  disambiguators?: string[];
+  defaultRank?: number;
 }
 
 /** Reverse index: ``dedupe_group_id`` → every sibling appId in that
@@ -182,6 +195,8 @@ export function getGroupSiblings(appId: number): GroupSibling[] {
             store: entry.store,
             title: entry.title ?? "",
             editionLabel: entry.editionLabel,
+            disambiguators: entry.disambiguators,
+            defaultRank: entry.defaultRank,
           },
         ];
   return [...ownCopies, ...steamEntries];
@@ -404,6 +419,8 @@ export interface UnifideckGameInput {
   title?: string;
   dedupeGroupId?: string;
   editionLabel?: string;
+  disambiguators?: string[];
+  defaultRank?: number;
   steamOwnedAppId?: number;
   steamOwnedEditionLabel?: string;
   steamVersions?: SteamVersion[];
@@ -505,6 +522,8 @@ export function updateUnifideckCache(games: UnifideckGameInput[]): void {
       title: g.title,
       dedupeGroupId: g.dedupeGroupId,
       editionLabel: g.editionLabel,
+      disambiguators: g.disambiguators,
+      defaultRank: g.defaultRank,
       steamOwnedAppId: g.steamOwnedAppId,
       steamOwnedEditionLabel: g.steamOwnedEditionLabel,
       steamVersions: g.steamVersions,
@@ -526,6 +545,8 @@ export function updateUnifideckCache(games: UnifideckGameInput[]): void {
         store: g.store,
         title: g.title ?? "",
         editionLabel: g.editionLabel,
+        disambiguators: g.disambiguators,
+        defaultRank: g.defaultRank,
       });
       groupBuilders.set(g.dedupeGroupId, siblings);
 
@@ -550,6 +571,8 @@ export function updateSingleGameStatus(g: UnifideckGameInput): void {
     title: existing?.title ?? g.title,
     dedupeGroupId: existing?.dedupeGroupId ?? g.dedupeGroupId,
     editionLabel: existing?.editionLabel ?? g.editionLabel,
+    disambiguators: existing?.disambiguators ?? g.disambiguators,
+    defaultRank: existing?.defaultRank ?? g.defaultRank,
     steamOwnedAppId: existing?.steamOwnedAppId ?? g.steamOwnedAppId,
     steamOwnedEditionLabel:
       existing?.steamOwnedEditionLabel ?? g.steamOwnedEditionLabel,
@@ -884,6 +907,8 @@ function _switcherSignature(g: UnifideckGameInput): string {
   return [
     g.dedupeGroupId ?? "",
     g.editionLabel ?? "",
+    (g.disambiguators ?? []).join("\u0001"),
+    g.defaultRank ?? "",
     g.steamOwnedAppId ?? "",
     g.steamOwnedEditionLabel ?? "",
     (g.steamVersions ?? []).map((v) => v.appId).join(","),
@@ -957,6 +982,8 @@ export async function loadUnifideckCache(): Promise<void> {
         title: g.title,
         dedupeGroupId: g.dedupe_group_id ?? undefined,
         editionLabel: g.edition_label ?? undefined,
+        disambiguators: readDisambiguators(g.metadata),
+        defaultRank: readDefaultRank(g.metadata),
         steamOwnedAppId: g.steam_owned_app_id ?? undefined,
         steamOwnedEditionLabel: g.steam_owned_edition_label ?? undefined,
         steamVersions: _steamVersionsFromRow(g),

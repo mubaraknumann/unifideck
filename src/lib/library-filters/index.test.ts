@@ -839,3 +839,96 @@ describe("several owned Steam versions of one game", () => {
     }
   });
 });
+
+describe("store-supplied variant metadata reaches group siblings", () => {
+  const variantRow = (
+    appId: number,
+    metadata: Record<string, unknown> | undefined,
+    group: string | null = "variants",
+  ) => ({
+    app_id: appId,
+    store: "gamevault",
+    installed: false,
+    store_game_id: String(appId),
+    dedupe_group_id: group,
+    metadata,
+  });
+
+  beforeEach(async () => {
+    mockCall.mockReset();
+    mockCall.mockResolvedValueOnce([]);
+    await loadUnifideckCache();
+    unifideckGameCache.clear();
+    mockCall.mockReset();
+  });
+
+  it("carries disambiguators and default_rank from each row's metadata", async () => {
+    mockCall.mockResolvedValueOnce([
+      variantRow(601, { disambiguators: ["Linux", "Ghostship"], default_rank: 0 }),
+      variantRow(602, { disambiguators: ["Linux", "sm64coopdx"], default_rank: 1 }),
+    ]);
+    await loadUnifideckCache();
+    const siblings = getGroupSiblings(601);
+    expect(siblings.find((s) => s.appId === 601)).toMatchObject({
+      disambiguators: ["Linux", "Ghostship"],
+      defaultRank: 0,
+    });
+    expect(siblings.find((s) => s.appId === 602)).toMatchObject({
+      disambiguators: ["Linux", "sm64coopdx"],
+      defaultRank: 1,
+    });
+  });
+
+  it("leaves both fields undefined for rows without the metadata keys", async () => {
+    mockCall.mockResolvedValueOnce([variantRow(601, undefined), variantRow(602, {})]);
+    await loadUnifideckCache();
+    expect(getGroupSiblings(601)).toHaveLength(2);
+    for (const s of getGroupSiblings(601)) {
+      expect(s.disambiguators).toBeUndefined();
+      expect(s.defaultRank).toBeUndefined();
+    }
+  });
+
+  it("treats malformed metadata as absent", async () => {
+    mockCall.mockResolvedValueOnce([
+      variantRow(601, { disambiguators: "Linux", default_rank: "0" }),
+      variantRow(602, { disambiguators: [1, null], default_rank: Number.NaN }),
+    ]);
+    await loadUnifideckCache();
+    expect(getGroupSiblings(601)).toHaveLength(2);
+    for (const s of getGroupSiblings(601)) {
+      expect(s.disambiguators).toBeUndefined();
+      expect(s.defaultRank).toBeUndefined();
+    }
+  });
+
+  it("bumps the detail-page version when disambiguators change, not on an identical reload", async () => {
+    const rows = (entry: string) => [
+      variantRow(601, { disambiguators: [entry] }),
+      variantRow(602, { disambiguators: ["other"] }),
+    ];
+    mockCall.mockResolvedValueOnce(rows("Linux"));
+    await loadUnifideckCache();
+    const before = getGameStateVersion(601);
+
+    mockCall.mockResolvedValueOnce(rows("Linux"));
+    await loadUnifideckCache();
+    expect(getGameStateVersion(601)).toBe(before);
+
+    mockCall.mockResolvedValueOnce(rows("Windows"));
+    await loadUnifideckCache();
+    expect(getGameStateVersion(601)).toBeGreaterThan(before);
+  });
+
+  it("carries the fields on the own-copy fallback beside a Steam-owned copy", async () => {
+    mockCall.mockResolvedValueOnce([
+      {
+        ...variantRow(701, { disambiguators: ["Linux"], default_rank: 0 }, null),
+        steam_owned_app_id: 4242,
+      },
+    ]);
+    await loadUnifideckCache();
+    const own = getGroupSiblings(701).find((s) => s.appId === 701);
+    expect(own).toMatchObject({ disambiguators: ["Linux"], defaultRank: 0 });
+  });
+});
