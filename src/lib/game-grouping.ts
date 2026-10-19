@@ -48,16 +48,16 @@ export function storePriorityRank(store: StoreId): number {
  *  store; it never affects grouping. */
 const XBOX_ONE_ONLY_TAG = /\bxbox\s+one(?:\s+(?:edition|version))?\s*$/i;
 
-/** Index of the first candidate whose title ISN'T tagged "Xbox One"-only,
- *  or `-1` when every candidate is (or none has a title to check — a
- *  titleless entry never outranks a real one, so it's treated the same as
- *  "tagged"). An unsuffixed title or an explicit "Series X|S" release both
- *  outrank the older console's tag: the Series X|S copy plays on both
- *  consoles and reads as the more current listing. */
-export function indexOfFirstNonXboxOneTagged(
-  titles: (string | undefined)[],
-): number {
-  return titles.findIndex((t) => t != null && !XBOX_ONE_ONLY_TAG.test(t));
+/** The items whose title isn't tagged "Xbox One"-only. A titleless item counts
+ *  as tagged, since it never outranks a real title. An unsuffixed or
+ *  "Series X|S" title outranks the older console's tag: the Series X|S copy
+ *  plays on both consoles and reads as the more current listing. */
+export function nonXboxOneTagged<T extends { title?: string }>(
+  items: readonly T[],
+): T[] {
+  return items.filter(
+    (i) => i.title != null && !XBOX_ONE_ONLY_TAG.test(i.title),
+  );
 }
 
 /** A member that may carry the rank its store gave it (`metadata.default_rank`,
@@ -99,4 +99,17 @@ export function firstByDefaultRank<T extends HasDefaultRank>(
     if (best === undefined || compareByDefaultRank(item, best) < 0) best = item;
   }
   return best;
+}
+
+/** The switcher's listing order: store priority, then members without an
+ *  edition label, then rank. Ties keep their incoming order. */
+export function sortByStoreAndRank<
+  T extends { store: StoreId; editionLabel?: string; defaultRank?: number },
+>(siblings: readonly T[]): T[] {
+  return [...siblings].sort(
+    (a, b) =>
+      storePriorityRank(a.store) - storePriorityRank(b.store) ||
+      Number(a.editionLabel != null) - Number(b.editionLabel != null) ||
+      compareByDefaultRank(a, b),
+  );
 }

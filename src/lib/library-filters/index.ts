@@ -31,7 +31,8 @@ import {
 import { invalidateGameSize } from "../game-size-cache";
 import {
   STORE_PRIORITY,
-  indexOfFirstNonXboxOneTagged,
+  firstByDefaultRank,
+  nonXboxOneTagged,
   readDefaultRank,
 } from "../game-grouping";
 import { readDisambiguators } from "../variant-labels";
@@ -348,13 +349,19 @@ function hideAsDuplicateOnInstalledTab(appId: number): boolean {
 function pickGroupPrimary(
   candidates: UnifideckGameInput[],
 ): UnifideckGameInput {
-  const installed = candidates.find((c) => c.isInstalled);
-  if (installed) return installed;
+  const firstInstalled = candidates.find((c) => c.isInstalled);
+  if (firstInstalled) {
+    return firstByDefaultRank(
+      candidates.filter(
+        (c) => c.isInstalled && c.store === firstInstalled.store,
+      ),
+    )!;
+  }
   for (const store of STORE_PRIORITY) {
     const matches = candidates.filter((c) => c.store === store);
     if (matches.length > 0) {
-      const index = indexOfFirstNonXboxOneTagged(matches.map((c) => c.title));
-      return index === -1 ? matches[0] : matches[index];
+      const untagged = nonXboxOneTagged(matches);
+      return firstByDefaultRank(untagged.length > 0 ? untagged : matches)!;
     }
   }
   return candidates[0];
