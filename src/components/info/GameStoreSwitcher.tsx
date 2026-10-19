@@ -42,7 +42,7 @@ import { Dropdown, type SingleDropdownOption } from "@decky/ui";
 import { StoreIcon } from "../shared/StoreIcon";
 import { navigateToApp } from "../../lib/steam-bridge";
 import { appIdsMatch, type GroupSibling } from "../../lib/library-filters";
-import { storePriorityRank } from "../../lib/game-grouping";
+import { sortByStoreAndRank } from "../../lib/game-grouping";
 import type { StoreId } from "../../types/api";
 
 /** SteamOS's global top bar (search field, notifications, battery, clock,
@@ -91,22 +91,6 @@ function optionLabel(sibling: GroupSibling): ReactElement {
   );
 }
 
-/** Same `STORE_PRIORITY` order `game-grouping`/`library-filters` use to pick
- *  a duplicate group's default (primary) tile — keeps the dropdown's listed
- *  order consistent with "which copy is the default" elsewhere, and pins
- *  Steam first every time since it leads that list unconditionally.
- *
- *  Uses {@link storePriorityRank} rather than a raw `indexOf` comparator —
- *  see its docstring: a store missing from `STORE_PRIORITY` must sort
- *  LAST, not first. */
-function sortByStorePriority(siblings: GroupSibling[]): GroupSibling[] {
-  return [...siblings].sort(
-    (a, b) =>
-      storePriorityRank(a.store) - storePriorityRank(b.store) ||
-      Number(a.editionLabel != null) - Number(b.editionLabel != null),
-  );
-}
-
 export const GameStoreSwitcher: FC<Props> = ({ appId, siblings }) => {
   if (siblings.length < 2) return null;
 
@@ -120,7 +104,7 @@ export const GameStoreSwitcher: FC<Props> = ({ appId, siblings }) => {
   const current = siblings.find((s) => appIdsMatch(s.appId, appId));
   const selectedOption = current?.appId ?? appId;
 
-  const options: SingleDropdownOption[] = sortByStorePriority(siblings).map(
+  const options: SingleDropdownOption[] = sortByStoreAndRank(siblings).map(
     (sibling) => ({
       data: sibling.appId,
       label: optionLabel(sibling),

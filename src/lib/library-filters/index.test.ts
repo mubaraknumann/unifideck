@@ -960,3 +960,90 @@ describe("store-supplied variant metadata reaches group siblings", () => {
     expect(own).toMatchObject({ disambiguators: ["Linux"], defaultRank: 0 });
   });
 });
+
+describe("rank decides among same-store group members", () => {
+  beforeEach(() => {
+    unifideckGameCache.clear();
+    validThirdPartyCache.clear();
+    setGroupDuplicatesEnabled(true);
+  });
+
+  const member = (
+    appId: number,
+    extra: Partial<UnifideckGameInput> = {},
+  ): UnifideckGameInput => ({
+    appId,
+    store: "epic",
+    isInstalled: false,
+    dedupeGroupId: "g",
+    ...extra,
+  });
+
+  it("makes the better-ranked uninstalled member the primary", () => {
+    updateUnifideckCache([member(1, { defaultRank: 1 }), member(2, { defaultRank: 0 })]);
+    expect(isHiddenDuplicate(2)).toBe(false);
+    expect(isHiddenDuplicate(1)).toBe(true);
+  });
+
+  it("makes the better-ranked installed member the primary", () => {
+    updateUnifideckCache([
+      member(1, { isInstalled: true, defaultRank: 1 }),
+      member(2, { isInstalled: true, defaultRank: 0 }),
+    ]);
+    expect(isHiddenDuplicate(2)).toBe(false);
+    expect(isHiddenDuplicate(1)).toBe(true);
+  });
+
+  it("lets an installed member with a worse rank beat an uninstalled better one", () => {
+    updateUnifideckCache([
+      member(1, { defaultRank: 0 }),
+      member(2, { isInstalled: true, defaultRank: 9 }),
+    ]);
+    expect(isHiddenDuplicate(2)).toBe(false);
+    expect(isHiddenDuplicate(1)).toBe(true);
+  });
+
+  it("still prefers the untagged member over a better-ranked Xbox One one", () => {
+    updateUnifideckCache([
+      member(1, { title: "Enlisted Xbox One", defaultRank: 0 }),
+      member(2, { title: "Enlisted", defaultRank: 5 }),
+    ]);
+    expect(isHiddenDuplicate(2)).toBe(false);
+    expect(isHiddenDuplicate(1)).toBe(true);
+  });
+
+  it("keeps the first installed copy across stores, whatever their ranks", () => {
+    updateUnifideckCache([
+      member(1, { store: "epic", isInstalled: true, defaultRank: 9 }),
+      member(2, { store: "gamevault", isInstalled: true, defaultRank: 0 }),
+    ]);
+    expect(isHiddenDuplicate(1)).toBe(false);
+    expect(isHiddenDuplicate(2)).toBe(true);
+  });
+
+  it("ranks among installed copies of the same store as the first installed one", () => {
+    updateUnifideckCache([
+      member(1, { store: "epic", isInstalled: true, defaultRank: 5 }),
+      member(2, { store: "gamevault", isInstalled: true, defaultRank: 0 }),
+      member(3, { store: "epic", isInstalled: true, defaultRank: 1 }),
+    ]);
+    expect(isHiddenDuplicate(3)).toBe(false);
+    expect(isHiddenDuplicate(1)).toBe(true);
+    expect(isHiddenDuplicate(2)).toBe(true);
+  });
+
+  it("keeps catalog order when nothing is ranked", () => {
+    updateUnifideckCache([member(1), member(2)]);
+    expect(isHiddenDuplicate(1)).toBe(false);
+    expect(isHiddenDuplicate(2)).toBe(true);
+  });
+
+  it("decides by store priority before rank across stores", () => {
+    updateUnifideckCache([
+      member(1, { store: "amazon", defaultRank: 0 }),
+      member(2, { store: "epic", defaultRank: 9 }),
+    ]);
+    expect(isHiddenDuplicate(2)).toBe(false);
+    expect(isHiddenDuplicate(1)).toBe(true);
+  });
+});

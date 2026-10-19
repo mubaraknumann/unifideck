@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   compareByDefaultRank,
   firstByDefaultRank,
-  indexOfFirstNonXboxOneTagged,
+  nonXboxOneTagged,
+  sortByStoreAndRank,
   readDefaultRank,
   storePriorityRank,
   STORE_PRIORITY,
@@ -49,14 +50,60 @@ describe("storePriorityRank", () => {
   });
 });
 
-describe("indexOfFirstNonXboxOneTagged", () => {
-  it("prefers the Series X|S or unsuffixed title over an Xbox One tag", () => {
-    expect(indexOfFirstNonXboxOneTagged(["NHL 24 Xbox One", "NHL 24 Xbox Series X|S"])).toBe(1);
-    expect(indexOfFirstNonXboxOneTagged(["Enlisted Xbox One", "Enlisted"])).toBe(1);
+describe("nonXboxOneTagged", () => {
+  it("keeps the Series X|S or unsuffixed title and drops an Xbox One tag", () => {
+    const pick = (titles: (string | undefined)[]) =>
+      nonXboxOneTagged(titles.map((title) => ({ title }))).map((i) => i.title);
+    expect(pick(["NHL 24 Xbox One", "NHL 24 Xbox Series X|S"])).toEqual(["NHL 24 Xbox Series X|S"]);
+    expect(pick(["Enlisted Xbox One", "Enlisted"])).toEqual(["Enlisted"]);
   });
 
-  it("returns -1 when every candidate is Xbox One tagged or untitled", () => {
-    expect(indexOfFirstNonXboxOneTagged(["Enlisted Xbox One", undefined])).toBe(-1);
+  it("drops a title-less item and returns [] when every candidate is tagged or untitled", () => {
+    expect(nonXboxOneTagged([{ title: "Enlisted Xbox One" }, { title: undefined }])).toEqual([]);
+  });
+});
+
+describe("sortByStoreAndRank", () => {
+  type S = { id: string; store: StoreId; editionLabel?: string; defaultRank?: number };
+  const ids = (list: S[]) => sortByStoreAndRank(list).map((s) => s.id);
+
+  it("lists the better rank first within one store", () => {
+    expect(
+      ids([
+        { id: "a", store: "epic", defaultRank: 1 },
+        { id: "b", store: "epic", defaultRank: 0 },
+      ]),
+    ).toEqual(["b", "a"]);
+  });
+
+  it("keeps store priority ahead of rank", () => {
+    const first = STORE_PRIORITY[0];
+    const last = STORE_PRIORITY[STORE_PRIORITY.length - 1];
+    expect(
+      ids([
+        { id: "a", store: last, defaultRank: 0 },
+        { id: "b", store: first, defaultRank: 5 },
+      ]),
+    ).toEqual(["b", "a"]);
+  });
+
+  it("keeps edition-less-first ahead of rank", () => {
+    expect(
+      ids([
+        { id: "a", store: "epic", editionLabel: "Deluxe", defaultRank: 0 },
+        { id: "b", store: "epic", defaultRank: 3 },
+      ]),
+    ).toEqual(["b", "a"]);
+  });
+
+  it("keeps unranked members in their original order", () => {
+    expect(
+      ids([
+        { id: "a", store: "epic" },
+        { id: "b", store: "epic" },
+        { id: "c", store: "epic" },
+      ]),
+    ).toEqual(["a", "b", "c"]);
   });
 });
 
