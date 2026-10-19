@@ -920,6 +920,34 @@ describe("store-supplied variant metadata reaches group siblings", () => {
     expect(getGameStateVersion(601)).toBeGreaterThan(before);
   });
 
+  it("bumps every sibling's version when only one member's variant data changes", async () => {
+    const rows = (entry: string) => [
+      variantRow(601, { disambiguators: ["Linux"] }),
+      variantRow(602, { disambiguators: [entry] }),
+    ];
+    mockCall.mockResolvedValueOnce(rows("Windows"));
+    await loadUnifideckCache();
+    const before601 = getGameStateVersion(601);
+
+    mockCall.mockResolvedValueOnce(rows("Ghostship"));
+    await loadUnifideckCache();
+    expect(getGameStateVersion(601)).toBeGreaterThan(before601);
+  });
+
+  it("bumps the Steam-owned page when a group member's variant data changes", async () => {
+    const rows = (entry: string) => [
+      { ...variantRow(701, { disambiguators: [entry] }), steam_owned_app_id: 4242 },
+      variantRow(702, { disambiguators: ["Linux"] }),
+    ];
+    mockCall.mockResolvedValueOnce(rows("Windows"));
+    await loadUnifideckCache();
+    const before = getGameStateVersion(4242);
+
+    mockCall.mockResolvedValueOnce(rows("Ghostship"));
+    await loadUnifideckCache();
+    expect(getGameStateVersion(4242)).toBeGreaterThan(before);
+  });
+
   it("carries the fields on the own-copy fallback beside a Steam-owned copy", async () => {
     mockCall.mockResolvedValueOnce([
       {

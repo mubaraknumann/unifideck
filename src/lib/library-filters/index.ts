@@ -932,14 +932,29 @@ let lastSwitcherSignatures: Map<number, string> = new Map();
  *  no-op sync (identical signatures), which is the common case per
  *  `_chain_is_redundant`'s reconcile-only fast path on the backend. */
 function _bumpDetailPageVersionsOnChange(inputs: UnifideckGameInput[]): void {
+  // Every member's switcher lists the whole group, so a change to any member
+  // must refresh all of them, and any Steam page shown beside them.
+  const ownSignatures = inputs.map(_switcherSignature);
+  const groupSignatures = new Map<string, string[]>();
+  inputs.forEach((g, i) => {
+    if (g.dedupeGroupId === undefined) return;
+    const members = groupSignatures.get(g.dedupeGroupId) ?? [];
+    members.push(`${g.appId}\u0002${ownSignatures[i]}`);
+    groupSignatures.set(g.dedupeGroupId, members);
+  });
+
   const nextSignatures = new Map<number, string>();
-  for (const g of inputs) {
-    const signature = _switcherSignature(g);
+  inputs.forEach((g, i) => {
+    const members =
+      g.dedupeGroupId === undefined ? [] : groupSignatures.get(g.dedupeGroupId)!;
+    const signature = `${ownSignatures[i]}\u0003${[...members].sort().join("\u0004")}`;
     nextSignatures.set(g.appId, signature);
     if (lastSwitcherSignatures.get(g.appId) !== signature) {
       bumpGameStateVersion(g.appId);
+      if (g.steamOwnedAppId !== undefined) bumpGameStateVersion(g.steamOwnedAppId);
+      for (const v of g.steamVersions ?? []) bumpGameStateVersion(v.appId);
     }
-  }
+  });
   // An appId that dropped out of the library entirely (uninstalled +
   // swept) has nothing left to bump, so only forward-changes matter —
   // no action needed for keys present in the old map but not the new
