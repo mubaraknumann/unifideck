@@ -59,3 +59,44 @@ export function indexOfFirstNonXboxOneTagged(
 ): number {
   return titles.findIndex((t) => t != null && !XBOX_ONE_ONLY_TAG.test(t));
 }
+
+/** A member that may carry the rank its store gave it (`metadata.default_rank`,
+ *  lower wins). It only breaks ties between a store's own members. */
+export interface HasDefaultRank {
+  defaultRank?: number;
+}
+
+/** A store's `default_rank` from a row's `metadata`. Anything other than a
+ *  finite number >= 0 reads as unranked. */
+export function readDefaultRank(
+  metadata: Record<string, unknown> | undefined,
+): number | undefined {
+  const value = metadata?.default_rank;
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? value
+    : undefined;
+}
+
+/** Orders by ascending rank, with unranked members last. Equal ranks compare
+ *  as 0, so a stable sort keeps their order. */
+export function compareByDefaultRank(
+  a: HasDefaultRank,
+  b: HasDefaultRank,
+): number {
+  const left = a.defaultRank ?? Number.POSITIVE_INFINITY;
+  const right = b.defaultRank ?? Number.POSITIVE_INFINITY;
+  if (left === right) return 0;
+  return left < right ? -1 : 1;
+}
+
+/** The lowest-ranked item, or the earliest among equals; `undefined` for an
+ *  empty list. With no ranks at all it is the first item. */
+export function firstByDefaultRank<T extends HasDefaultRank>(
+  items: readonly T[],
+): T | undefined {
+  let best: T | undefined;
+  for (const item of items) {
+    if (best === undefined || compareByDefaultRank(item, best) < 0) best = item;
+  }
+  return best;
+}
