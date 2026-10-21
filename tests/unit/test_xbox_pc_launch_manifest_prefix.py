@@ -202,3 +202,73 @@ async def test_prepare_prefix_failure_is_prefix_failed(tmp_path: Path) -> None:
         )
     assert err.value.reason == "prefix_failed"
     assert "proton went wrong" in err.value.detail
+
+
+# ── WinRT classes a prefix from an older runtime lacks ───────────────
+
+DISPATCHER_QUEUE_FEATURE = "coremessaging-dispatcherqueue-v1"
+CONTROLLER_SECTION = (
+    "[Software\\\\Microsoft\\\\WindowsRuntime\\\\ActivatableClassId\\\\"
+    "Windows.System.DispatcherQueueController] 1786134204\n"
+)
+
+
+def test_missing_activatable_classes_reads_system_reg(tmp_path: Path) -> None:
+    runtime = Runtime(tmp_path, [DISPATCHER_QUEUE_FEATURE], {})
+    assert prefix_mod.missing_activatable_classes(Runtime(tmp_path), tmp_path) == []
+    expected = [("Windows.System.DispatcherQueue", "coremessaging.dll")]
+    assert prefix_mod.missing_activatable_classes(runtime, tmp_path) == expected
+    # The controller's key shares the prefix of the queue's; it does not count.
+    (tmp_path / "system.reg").write_text(CONTROLLER_SECTION)
+    assert prefix_mod.missing_activatable_classes(runtime, tmp_path) == expected
+    (tmp_path / "system.reg").write_text(
+        CONTROLLER_SECTION.replace("DispatcherQueueController", "DispatcherQueue")
+    )
+    assert prefix_mod.missing_activatable_classes(runtime, tmp_path) == []
+
+
+def _recording_proton(root: Path, *, rc: int) -> Runtime:
+    """A runtime whose ``proton`` appends its argv to ``calls.jsonl`` and exits ``rc``."""
+    root.mkdir(parents=True)
+    proton = root / "proton"
+    proton.write_text("\n".join([
+        f"#!{sys.executable}",
+        "import json, os, pathlib, sys",
+        "data = pathlib.Path(os.environ['STEAM_COMPAT_DATA_PATH'])",
+        "with (data / 'calls.jsonl').open('a') as f: f.write(json.dumps(sys.argv[1:]) + '\\n')",
+        "print('reg went wrong')",
+        f"sys.exit({rc})",
+    ]) + "\n")
+    proton.chmod(0o755)
+    return Runtime(root, [DISPATCHER_QUEUE_FEATURE], {})
+
+
+@pytest.mark.asyncio
+async def test_register_activatable_classes_runs_reg_add_once(tmp_path: Path) -> None:
+    runtime = _recording_proton(tmp_path / "runtime", rc=0)
+    compat = tmp_path / "pfx"
+    compat.mkdir()
+    env = {"STEAM_COMPAT_DATA_PATH": str(compat), "PATH": os.environ["PATH"]}
+    await prefix_mod._register_activatable_classes(runtime, compat, env, 30.0)
+    calls = [json.loads(line) for line in (compat / "calls.jsonl").read_text().splitlines()]
+    assert calls == [[
+        "run", "reg", "add",
+        "HKLM\\Software\\Microsoft\\WindowsRuntime\\ActivatableClassId\\Windows.System.DispatcherQueue",
+        "/v", "DllPath", "/t", "REG_SZ", "/d", "C:\\windows\\system32\\coremessaging.dll", "/f",
+    ]]
+    # Once Wine has saved the key, nothing runs.
+    (compat / "system.reg").write_text(CONTROLLER_SECTION.replace("DispatcherQueueController", "DispatcherQueue"))
+    await prefix_mod._register_activatable_classes(runtime, compat, env, 30.0)
+    assert len((compat / "calls.jsonl").read_text().splitlines()) == 1
+
+
+@pytest.mark.asyncio
+async def test_register_activatable_classes_failure_is_prefix_failed(tmp_path: Path) -> None:
+    runtime = _recording_proton(tmp_path / "runtime", rc=1)
+    compat = tmp_path / "pfx"
+    compat.mkdir()
+    env = {"STEAM_COMPAT_DATA_PATH": str(compat), "PATH": os.environ["PATH"]}
+    with pytest.raises(XboxPcLaunchError) as err:
+        await prefix_mod._register_activatable_classes(runtime, compat, env, 30.0)
+    assert err.value.reason == "prefix_failed"
+    assert "Windows.System.DispatcherQueue" in err.value.detail and "reg went wrong" in err.value.detail
