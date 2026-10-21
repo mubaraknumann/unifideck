@@ -4,10 +4,12 @@ The order of a sync is :func:`classify` (entitlements and plans to titles),
 then :func:`merge_with_xcloud`, then :func:`installed_floor`, then the shared
 install overlay. Three rules hold throughout:
 
-- **Never merge by title.** A PC title joins an xCloud row only on an exact
+- **One row per Xbox game.** A PC title joins an xCloud row on an exact
   (upper-cased) product id: the install target first, then the entitlement.
-  Title-only matches get their own row, and game grouping puts the two side
-  by side.
+  A title left over joins an xCloud row of the same game by name, under the
+  narrow rule in :mod:`.title_pairs` (platform words ignored, editions
+  kept, unique pairs only). The rest get their own row, and game grouping
+  puts them side by side.
 - **Never re-key a tile.** :class:`StickyIds` remembers which
   ``store_game_id`` each entitlement and target id was listed under, so a
   change of id case or of install target keeps the same shortcut.
@@ -32,6 +34,7 @@ from .entitlements import (
     plan_id_of,
 )
 from .package_plan import MissingProductError, Plan, PlanError, PlanProducts, build_plan
+from .title_pairs import pair_by_title
 
 META_KEY = "xbox_pc"
 META_VERSION = 1
@@ -222,6 +225,8 @@ class StickyIds:
     def __init__(self, ids: Mapping[str, str] | None = None) -> None:
         self._ids = {k.upper(): v for k, v in (ids or {}).items()
                      if isinstance(k, str) and isinstance(v, str) and v}
+        #: Keys whose id comes from an install record, not just a past sync.
+        self._pinned: set[str] = set()
 
     @classmethod
     def from_sources(cls, remembered: Mapping[str, str], records: Iterable[Mapping[str, Any]]) -> StickyIds:
@@ -229,9 +234,18 @@ class StickyIds:
         sticky = cls(remembered)
         for record in records:
             sgid = record.get("storeGameId")
-            if isinstance(sgid, str) and sgid:
-                sticky.remember(str(record.get("productId") or ""), sgid)
+            key = str(record.get("productId") or "")
+            if isinstance(sgid, str) and sgid and key:
+                sticky.remember(key, sgid)
+                sticky._pinned.add(key.upper())
         return sticky
+
+    def pinned(self, *keys: str) -> str | None:
+        """The id an install record fixed for the first such key, or None."""
+        for key in keys:
+            if key and key.upper() in self._pinned:
+                return self._ids.get(key.upper())
+        return None
 
     def lookup(self, *keys: str) -> str | None:
         """The id of the first key that has one."""
@@ -305,13 +319,23 @@ def merge_with_xcloud(
     With no titles the xCloud list comes back unchanged.
     """
     claims, unmatched = _claim(xcloud, titles)
+    pairs = pair_by_title(xcloud, set(range(len(xcloud))) - set(claims), unmatched)
+    named = {row: unmatched[t] for row, t in pairs.items()}
+    taken = set(pairs.values())
+    unmatched = [t for i, t in enumerate(unmatched) if i not in taken]
     rows: list[Game] = []
     for i, game in enumerate(xcloud):
         title = claims.get(i)
-        if title is None:
+        if title is not None:
+            sgid = sticky.lookup(title.entitlement_id, title.target_id) or game.store_game_id
+        elif i in named:
+            # A name pair keeps the xCloud tile, unless the PC game is
+            # installed: its record, prefix and games.map row use that id.
+            title = named[i]
+            sgid = sticky.pinned(title.entitlement_id, title.target_id) or game.store_game_id
+        else:
             rows.append(game)
             continue
-        sgid = sticky.lookup(title.entitlement_id, title.target_id) or game.store_game_id
         rows.append(_merged(game, title, sgid, market))
     used = {g.store_game_id for g in rows}
     for title in unmatched:

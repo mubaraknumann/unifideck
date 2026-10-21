@@ -176,7 +176,7 @@ validated on a device), one Microsoft row can be any of three things:
 | Row | Tags | Where it comes from |
 |---|---|---|
 | Streamed only | `xcloud`, `browser` | the xCloud catalog, as above |
-| Merged | `xcloud`, `browser`, `xbox_pc` | a title in both the xCloud catalog and the user's Xbox PC library, matched by exact product id (never by title) |
+| Merged | `xcloud`, `browser`, `xbox_pc` | a title in both the xCloud catalog and the user's Xbox PC library, matched by exact product id, or by name when only platform words differ (`pc_library/title_pairs.py`; editions stay apart) |
 | PC-only | `xbox_pc` | a PC title xCloud does not carry |
 
 The PC rows come from our own `xodus-cli` build (`stores/microsoft/pc_library/`).

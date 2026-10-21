@@ -46,12 +46,62 @@ def test_merge_on_exact_id_keeps_the_xcloud_key_and_tags() -> None:
     assert row.metadata[GAME_PASS_KEY] is True
 
 
-def test_never_merge_by_title() -> None:
-    rows = merge_with_xcloud([_xcloud("9NBLGGH4PNC7", "Halo")],
-                             [_title("9AAAAAAAAAAA", title="Halo")], StickyIds(), "US")
-    assert [r.store_game_id for r in rows] == ["9NBLGGH4PNC7", "9AAAAAAAAAAA"]
-    assert rows[0].tags == [GameTag.XCLOUD, GameTag.BROWSER]
-    assert rows[1].tags == [GameTag.XBOX_PC]
+def test_the_same_game_under_two_ids_is_one_row_on_the_xcloud_tile() -> None:
+    """PC Game Pass often lists its own PC product: one Xbox game, not two."""
+    rows = merge_with_xcloud([_xcloud("9NBLGGH4PNC7", "Wolfenstein: The New Order")],
+                             [_title("9AAAAAAAAAAA", title="Wolfenstein: The New Order (PC)")],
+                             StickyIds({"9AAAAAAAAAAA": "9AAAAAAAAAAA"}), "US")
+    assert len(rows) == 1
+    row = rows[0]
+    # The existing xCloud tile is kept, even over a remembered PC-only id.
+    assert row.store_game_id == "9NBLGGH4PNC7"
+    assert row.tags == [GameTag.XCLOUD, GameTag.BROWSER, GameTag.XBOX_PC]
+    assert row.metadata["browser_url"].endswith("9NBLGGH4PNC7"), "Stream opens the xCloud product"
+    assert row.metadata["xbox_pc"]["target_id"] == "9AAAAAAAAAAA", "Install uses the PC product"
+
+
+def test_an_installed_pc_game_keeps_its_id_when_paired_by_name() -> None:
+    sticky = StickyIds.from_sources({}, [{"productId": "9AAAAAAAAAAA", "storeGameId": "9AAAAAAAAAAA"}])
+    rows = merge_with_xcloud([_xcloud("c4z7qm8fsxm2", "Hellblade: Senua's Sacrifice")],
+                             [_title("9AAAAAAAAAAA", title="Hellblade: Senua's Sacrifice")], sticky, "US")
+    assert [r.store_game_id for r in rows] == ["9AAAAAAAAAAA"]
+    assert rows[0].metadata["browser_url"].endswith("c4z7qm8fsxm2")
+
+
+def test_editions_stay_apart_and_unrelated_names_never_pair() -> None:
+    rows = merge_with_xcloud(
+        [_xcloud("9NBLGGH4PNC7", "Fallout 3"), _xcloud("9NBLGGH4PNC8", "Halo")],
+        [_title("9AAAAAAAAAAA", title="Fallout 3: Game of the Year Edition"),
+         _title("9BBBBBBBBBBB", title="Halo 2")],
+        StickyIds(), "US")
+    assert [r.store_game_id for r in rows] == [
+        "9NBLGGH4PNC7", "9NBLGGH4PNC8", "9AAAAAAAAAAA", "9BBBBBBBBBBB"]
+    assert all(GameTag.XBOX_PC not in r.tags for r in rows[:2])
+
+
+def test_a_name_pair_must_be_unique() -> None:
+    # Two PC titles with one name: neither pairs.
+    rows = merge_with_xcloud([_xcloud("9NBLGGH4PNC7", "Prey")],
+                             [_title("9AAAAAAAAAAA", title="Prey (PC)"), _title("9BBBBBBBBBBB", title="Prey")],
+                             StickyIds(), "US")
+    assert len(rows) == 3
+    # Two plain xCloud rows with one name: the PC title pairs with neither.
+    rows = merge_with_xcloud([_xcloud("9NBLGGH4PNC7", "Prey"), _xcloud("9NBLGGH4PNC8", "Prey")],
+                             [_title("9AAAAAAAAAAA", title="Prey")], StickyIds(), "US")
+    assert len(rows) == 3
+
+
+def test_the_plainest_xcloud_sku_wins_then_series_xs() -> None:
+    rows = merge_with_xcloud(
+        [_xcloud("9NBLGGH4PNC7", "The Crew Motorfest - Xbox One"),
+         _xcloud("9NBLGGH4PNC8", "The Crew Motorfest - Xbox Series X|S")],
+        [_title("9AAAAAAAAAAA", title="The Crew Motorfest")], StickyIds(), "US")
+    assert [GameTag.XBOX_PC in r.tags for r in rows] == [False, True]
+    rows = merge_with_xcloud(
+        [_xcloud("9NBLGGH4PNC7", "Goat Simulator 3: Xbox One Edition"),
+         _xcloud("9NBLGGH4PNC8", "Goat Simulator 3")],
+        [_title("9AAAAAAAAAAA", title="Goat Simulator 3: Windows Edition")], StickyIds(), "US")
+    assert [GameTag.XBOX_PC in r.tags for r in rows] == [False, True]
 
 
 def test_target_match_wins_over_entitlement_match() -> None:
