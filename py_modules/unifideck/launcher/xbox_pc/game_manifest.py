@@ -2,9 +2,9 @@
 
 An Xbox PC game folder holds ``MicrosoftGame.config`` (the GDK package
 manifest) and, once the download is complete, ``.xodus-streaming.msixvc``.
-The manifest names the launch executable, the declared languages and the
-VC++ dependency. GDK titles are authored on Windows, so the manifest's
-file name casing varies (I-010).
+The manifest names the launch executable, the declared languages, the
+VC++ dependency and the processor architecture. GDK titles are authored on
+Windows, so the manifest's file name casing varies (I-010).
 
 Port of the spike's ``inspect_game`` (``xbox-pc-spike/launch/launch.py``).
 Stdlib only, Python 3.10 safe.
@@ -40,6 +40,10 @@ class GameInfo:
     vc_redist_encrypted: bool
     eac: str | None
     container_ready: bool
+    #: ``<ProcessorArchitecture>``, lower-case (``x86`` for a 32-bit game),
+    #: or None when the manifest does not say. The executables are
+    #: encrypted on disk, so their PE header cannot be read instead.
+    architecture: str | None = None
 
     @property
     def exe_name(self) -> str:
@@ -127,6 +131,20 @@ def _identity(nodes: list[Element], root: Path) -> tuple[str, str | None, str | 
     )
 
 
+def _executable(nodes: list[Element]) -> str:
+    """The launch executable the manifest names. Raises ``not_downloaded``."""
+    exe_node = _first(nodes, "Executable")
+    executable = exe_node.get("Name") if exe_node is not None else None
+    if not executable:
+        raise XboxPcLaunchError("not_downloaded", "the manifest names no executable")
+    return executable
+
+
+def _architecture(nodes: list[Element]) -> str | None:
+    """``<ProcessorArchitecture>`` lower-cased, or None when absent."""
+    return _text(_first(nodes, "ProcessorArchitecture")).lower() or None
+
+
 def _parse_manifest(root: Path) -> list[Element]:
     """Every node of the folder's manifest. Raises ``not_downloaded``."""
     config = find_ci(root, MANIFEST_NAME)
@@ -148,19 +166,16 @@ def inspect_game(directory: Path) -> GameInfo:
     """
     root = directory.resolve()
     nodes = _parse_manifest(root)
-    exe_node = _first(nodes, "Executable")
-    executable = exe_node.get("Name") if exe_node is not None else None
-    if not executable:
-        raise XboxPcLaunchError("not_downloaded", "the manifest names no executable")
     title, store_id, title_id = _identity(nodes, root)
     return GameInfo(
         path=root,
         title=title,
-        executable=executable,
+        executable=_executable(nodes),
         store_id=store_id,
         title_id=title_id,
         locales=_locales(nodes),
         vc_redist_encrypted=_vc_redist_encrypted(nodes, root),
         eac=_eac_dir(root),
         container_ready=(root / CONTAINER_NAME).is_file(),
+        architecture=_architecture(nodes),
     )

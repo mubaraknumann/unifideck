@@ -273,12 +273,16 @@ class XboxPcSignIn:
 
     # ── Start ───────────────────────────────────────────────────────
 
-    async def start(self) -> dict[str, Any]:
-        """Start a sign-in. ``{pending, launch_shortcut, reason}``."""
+    async def start(self, *, connect: bool = False) -> dict[str, Any]:
+        """Start a sign-in. ``{pending, launch_shortcut, reason}``.
+
+        ``connect``: this sign-in is the Microsoft sign-in (Xbox PC on, one
+        sign-in), so no earlier Microsoft (OAuth) sign-in is required.
+        """
         if self.running or self._ms_auth_busy():
             return _refused("auth_in_progress")
         try:
-            reason = await self._precheck()
+            reason = await self._precheck(connect)
             if reason is not None:
                 return _refused(reason)
             port = await self._take_lock_and_port()
@@ -296,12 +300,12 @@ class XboxPcSignIn:
         logger.info("%s started; waiting for the auth window", _LOG)
         return {"pending": True, "launch_shortcut": "microsoft", "reason": None}
 
-    async def _precheck(self) -> str | None:
+    async def _precheck(self, connect: bool = False) -> str | None:
         try:
             await self._cli.backend()
         except XodusCliError as e:
             return e.code
-        if not await self._tokens.load():
+        if not connect and not await self._tokens.load():
             return "microsoft_sign_in_required"
         edge = self._edge()
         if edge is None:
@@ -466,6 +470,8 @@ class XboxPcSignIn:
 
     async def _chain_gamertag(self) -> str | None:
         try:
+            # Reload first: with the one sign-in this is the new Xodus ticket.
+            await self._tokens.load()
             chain = await self._tokens.build_chain()
         except Exception as e:
             logger.info("%s Unifideck gamertag unreadable: %s", _LOG, type(e).__name__)

@@ -138,7 +138,12 @@ export async function signInXboxPc(): Promise<boolean> {
     }
     appId = launched.app_id ?? launched.appId;
   }
-  const outcome = signInOutcome(await waitForSignIn(appId, before));
+  return finishSignIn(await waitForSignIn(appId, before));
+}
+
+/** Toast how a sign-in ended, and resync Microsoft when it worked. */
+function finishSignIn(status: XboxPcStatus | null): boolean {
+  const outcome = signInOutcome(status);
   if (!outcome?.ok) {
     toastXboxPcError("toasts.xboxPcSignInFailed", outcome?.error);
     return false;

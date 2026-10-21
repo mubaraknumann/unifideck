@@ -55,8 +55,19 @@ def test_reads_manifest_case_insensitively(tmp_path: Path) -> None:
     assert game.locales == ("en-US", "fr-FR")
     assert game.vc_redist_encrypted
     assert not game.container_ready
+    assert game.architecture is None
     (tmp_path / ".xodus-streaming.msixvc").write_bytes(b"")
     assert inspect_game(tmp_path).container_ready
+
+
+def test_reads_the_processor_architecture(tmp_path: Path) -> None:
+    # Alan Wake's American Nightmare: a 64-bit launcher for a 32-bit game.
+    (tmp_path / "MicrosoftGame.config").write_text(CONFIG.replace(
+        "</Game>",
+        "<DesktopRegistration><ProcessorArchitecture> X86 </ProcessorArchitecture>"
+        "</DesktopRegistration></Game>",
+    ))
+    assert inspect_game(tmp_path).architecture == "x86"
 
 
 def test_plain_redist_is_not_encrypted(tmp_path: Path) -> None:

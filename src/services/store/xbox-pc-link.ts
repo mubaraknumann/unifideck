@@ -9,8 +9,12 @@
  *
  *   1. install the components (our Xodus build and runtime) if missing,
  *      or update them in the background when the source has a newer build;
- *   2. run the Xodus sign-in in the same Edge profile. It is single sign-on:
- *      no password, at most an Authenticator approval (I-009).
+ *   2. sign in to Xbox PC, once, if Microsoft was connected the old way
+ *      (OAuth) before the toggle was on.
+ *
+ * With the toggle on, connecting Microsoft in Store Connections IS the Xbox
+ * PC sign-in (backend `single_signin`), and xCloud runs on its ticket: one
+ * sign-in, one window.
  *
  * It runs when the toggle turns on, after a Microsoft connect, and at boot
  * (components only: an Edge window never opens unasked at startup).
@@ -77,8 +81,11 @@ async function ensureComponents(status: XboxPcStatus): Promise<boolean> {
 async function link(signIn: boolean): Promise<boolean> {
   await xboxPcStore.refetch();
   const status = current();
-  if (!status?.enabled || !status.xcloud_signed_in) return false;
+  if (!status?.enabled) return false;
+  // The components first, even before Microsoft is connected: with Xbox PC
+  // on, connecting Microsoft IS the Xbox PC sign-in, which needs them.
   if (!(await ensureComponents(status))) return false;
+  if (!current()?.xcloud_signed_in) return false;
   let account = current()?.account.state;
   if (account === "unknown") {
     await xboxPcStore.refresh();
@@ -86,6 +93,8 @@ async function link(signIn: boolean): Promise<boolean> {
   }
   if (account && LINKED.has(account)) return true;
   if (!signIn || account === "signing_in") return false;
+  // Microsoft was connected the old way (OAuth, before the toggle was on):
+  // one Xbox PC sign-in, once. From then on it is the only sign-in.
   return signInXboxPc();
 }
 

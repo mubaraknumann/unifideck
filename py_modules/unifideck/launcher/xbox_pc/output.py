@@ -56,6 +56,10 @@ _FAILURE_MARKERS: tuple[tuple[str, tuple[str, ...]], ...] = (
 )
 
 
+#: What Wine prints when a process dies on an exception it did not handle.
+_CRASH_MARKER = "wine: unhandled exception"
+
+
 def redact(line: str) -> str:
     """``line`` with every token-shaped run replaced by ``[redacted]``."""
     return _SECRET_RE.sub("[redacted]", line)
@@ -78,6 +82,15 @@ def classify_failure(tail: str) -> str:
         if any(marker in lowered for marker in markers):
             return reason
     return "launch_failed"
+
+
+def game_crashed(tail: str) -> bool:
+    """Whether the output shows a Wine process crashing.
+
+    ``xodus-cli`` exits 0 after the game crashed, so its exit code cannot
+    tell (I-035).
+    """
+    return _CRASH_MARKER in tail.lower()
 
 
 class OutputSink:

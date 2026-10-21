@@ -18,6 +18,7 @@ from unifideck.launcher.xbox_pc.output import (
     OutputSink,
     classify_failure,
     filter_line,
+    game_crashed,
 )
 
 
@@ -103,3 +104,12 @@ def test_tail_keeps_the_last_200_lines() -> None:
 ])
 def test_classify_failure(tail: str, reason: str) -> None:
     assert classify_failure(tail) == reason
+
+
+def test_game_crashed() -> None:
+    assert game_crashed(
+        "err:vulkan:vkCreateInstance Exception 0xc0000005 in Unix call.\n"
+        "wine: Unhandled exception 0xc0000417 in thread f4 at address 7996AF3E (thread 00f4), "
+        "starting debugger...",
+    )
+    assert not game_crashed("game running\nerr:hid:get_container_id_for_usb_udev_device")

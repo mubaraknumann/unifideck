@@ -219,6 +219,42 @@ async def test_a_long_run_returns_its_exit_code(world: dict[str, Any]) -> None:
     assert await session_mod.XboxPcLaunch(_ctx(), _deps(world)).run() == 3
 
 
+def _runner_arch() -> str:
+    text = (game_prefix_root(PID) / "unifideck-xbox-wine").read_text()
+    return next(line for line in text.splitlines() if line.startswith("export WINEARCH="))
+
+
+@pytest.mark.asyncio
+async def test_a_32_bit_game_runs_in_new_wow64(world: dict[str, Any]) -> None:
+    await session_mod.XboxPcLaunch(_ctx(), _deps(world)).run()
+    assert _runner_arch() == "export WINEARCH='win64'"
+    config = world["game"] / "MicrosoftGame.config"
+    config.write_text(CONFIG.replace(
+        "</Game>",
+        "<DesktopRegistration><ProcessorArchitecture>x86</ProcessorArchitecture></DesktopRegistration></Game>",
+    ))
+    await session_mod.XboxPcLaunch(_ctx(), _deps(world)).run()
+    assert _runner_arch() == "export WINEARCH='wow64'"
+
+
+_WINE_CRASH = "wine: Unhandled exception 0xc0000417 in thread f4, starting debugger..."
+
+
+@pytest.mark.asyncio
+async def test_a_crash_soon_after_the_start_is_reported(world: dict[str, Any]) -> None:
+    # I-035: xodus-cli exits 0 after the game crashed.
+    world["base"]["FAKE_PRINT"] = _WINE_CRASH
+    with pytest.raises(XboxPcLaunchError) as err:
+        await session_mod.XboxPcLaunch(_ctx(), _deps(world)).run()
+    assert err.value.reason == "game_crashed"
+
+
+@pytest.mark.asyncio
+async def test_a_crash_after_a_real_session_returns_its_exit_code(world: dict[str, Any]) -> None:
+    world["base"]["FAKE_PRINT"] = _WINE_CRASH
+    assert await session_mod.XboxPcLaunch(_ctx(), _deps(world, crash_window_s=0.0)).run() == 0
+
+
 @pytest.mark.asyncio
 async def test_an_undeclared_language_is_a_notice_not_a_refusal(world: dict[str, Any]) -> None:
     notices: list[tuple[str, Any]] = []

@@ -125,7 +125,8 @@ class XBLChainMixin:
             and time.time() < cached.expires_at - _USER_TOKEN_MARGIN_SECONDS
         ):
             return cached
-        prefer_d = self._config.uses_device_code
+        # A Xodus ticket is a login.live.com MBI_SSL ticket: ``t=`` goes first.
+        prefer_d = self._config.uses_device_code and not getattr(self, "_using_ticket", False)
         try:
             resp = await asyncio.get_event_loop().run_in_executor(
                 None,

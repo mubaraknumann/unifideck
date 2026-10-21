@@ -17,6 +17,10 @@
 5. ``_supervise`` waits for it. A cancel (Steam's Stop) runs the staged
    stop; a second cancel forces it. ``_teardown`` always runs.
 
+``xodus-cli`` exits 0 even when the game crashed. A Wine crash soon after
+the start is therefore judged from the output and reported as
+``game_crashed``, so the user does not just see nothing happen (I-035).
+
 Anything the launcher process alone cannot resolve (the Steam root and
 libraries, the window env, the UI language, the game log, toasts) comes in
 through :class:`LaunchDeps`, so this package stays stdlib only. The
@@ -46,7 +50,7 @@ from .environment import build_game_env, clean_env, pick_locale
 from .errors import LANGUAGE_UNAVAILABLE_KEY, XboxPcLaunchError
 from .game_manifest import GameInfo, inspect_game
 from .layout import ActiveComponents, credential_dir, validate_pid
-from .output import OutputSink, classify_failure
+from .output import OutputSink, classify_failure, game_crashed
 from .prefix import prepare_prefix
 from .prefix_checks import installed_eac_runtime, vc_runtime_problem
 from .record_lookup import find_install_record
@@ -73,7 +77,9 @@ class LaunchDeps:
     ``window_env`` is the Steam identity block, or None when the shortcut's
     app id is unknown (the inherited ``SteamGameId`` is then kept).
     ``notify`` shows a non-error notice; ``on_spawned`` runs once the game
-    process exists.
+    process exists. A Wine crash within ``crash_window_s`` of the start is
+    reported as ``game_crashed``. A crash after that is often a crash on
+    quit after a real session, and gets no toast.
     """
 
     steam_root: Path | None
@@ -82,6 +88,7 @@ class LaunchDeps:
     language: str | None = None
     log_file: IO[str] | None = None
     fast_fail_s: float = 10.0
+    crash_window_s: float = 120.0
     base_env: Mapping[str, str] = field(default_factory=lambda: dict(os.environ))
     notify: Notify | None = None
     on_spawned: Callable[[], Awaitable[None]] | None = None
@@ -137,8 +144,11 @@ class XboxPcLaunch:
     def _judge_exit(self, rc: int, elapsed: float) -> int:
         """``rc``, or the classified refusal when the run died at once."""
         logger.info("[xbox_pc] xodus-cli exited %d after %.0fs", rc, elapsed)
+        tail = self._sink.tail()
         if rc != 0 and elapsed < self._deps.fast_fail_s:
-            raise XboxPcLaunchError(classify_failure(self._sink.tail()), f"exit {rc}")
+            raise XboxPcLaunchError(classify_failure(tail), f"exit {rc}")
+        if elapsed < self._deps.crash_window_s and game_crashed(tail):
+            raise XboxPcLaunchError("game_crashed", f"exit {rc} after {elapsed:.0f}s")
         return rc
 
     # ── 1. preflight ─────────────────────────────────────────────────
@@ -205,8 +215,9 @@ class XboxPcLaunch:
             raise XboxPcLaunchError("not_downloaded", "no .xodus-streaming.msixvc")
         self._game = game
         logger.info(
-            "[xbox_pc] game %s (%s), exe %s, eac %s",
-            game.title, game.store_id or plan.pid, game.executable, game.eac or "none",
+            "[xbox_pc] game %s (%s), exe %s, arch %s, eac %s",
+            game.title, game.store_id or plan.pid, game.executable,
+            game.architecture or "unknown", game.eac or "none",
         )
         await asyncio.to_thread(self._sweep, plan)
         compat_root = game_prefix_root(plan.pid)
@@ -235,6 +246,7 @@ class XboxPcLaunch:
             raise XboxPcLaunchError("eac_runtime_missing", game.eac)
         self._runner = await asyncio.to_thread(
             write_runner, runtime, compat_root, eac_runtime=eac,
+            wow64=game.architecture == "x86",
         )
 
     async def _notify_prefix(self) -> None:

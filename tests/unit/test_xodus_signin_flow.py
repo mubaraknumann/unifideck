@@ -267,3 +267,12 @@ async def test_leftover_auth_window_is_closed_first(env: dict[str, Path]) -> Non
     await signin.start()
     assert edge.prepared == 1
     await _finish(signin)
+
+
+async def test_connect_needs_no_earlier_microsoft_sign_in(env: dict[str, Path]) -> None:
+    """The one sign-in: with Xbox PC on, this sign-in is the Microsoft sign-in."""
+    signin, *_ = _make(env, tokens=FakeTokens(loaded=False))
+    assert (await signin.start())["reason"] == "microsoft_sign_in_required"
+    result = await signin.start(connect=True)
+    assert result == {"pending": True, "launch_shortcut": "microsoft", "reason": None}
+    await _finish(signin)

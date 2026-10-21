@@ -432,6 +432,7 @@
       "xboxPcEacRuntimeMissing": "{{game_key}} 使用 EasyAntiCheat。請從 Steam 收藏庫中安裝「Proton EasyAntiCheat Runtime」，然後再試一次。",
       "xboxPcLicenseDenied": "Microsoft 未為此帳戶授予 {{game_key}} 的授權。",
       "xboxPcLaunchFailed": "無法啟動 {{game_key}}（{{reason}}）。詳細資訊請查看紀錄檔。",
+      "xboxPcGameCrashed": "{{game_key}} 在啟動時當機。請查看記錄檔以了解詳細資訊。",
       "xboxPcDisabled": "{{game_key}} 是 Xbox PC 遊戲。請在 Unifideck 設定中開啟 Xbox PC 遊戲後再遊玩。",
       "xboxPcNotInstalled": "{{game_key}} 尚未安裝，且 Xbox Cloud Gaming 不提供此遊戲。請從其遊戲頁面安裝。",
       "xboxPcLanguageUnavailable": "{{game_key}} 不包含 {{language}}。遊戲將以其預設語言啟動。",

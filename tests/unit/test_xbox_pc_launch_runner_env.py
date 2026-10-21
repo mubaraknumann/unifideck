@@ -16,7 +16,12 @@ from unifideck.launcher.xbox_pc.environment import (
     pick_locale,
 )
 from unifideck.launcher.xbox_pc.output import redact
-from unifideck.launcher.xbox_pc.runner import NO_WAIT_FLAG, STOP_FLAG, write_runner
+from unifideck.launcher.xbox_pc.runner import (
+    NO_WAIT_FLAG,
+    STOP_FLAG,
+    nvidia_driver_loaded,
+    write_runner,
+)
 from unifideck.launcher.xbox_pc.runtime import Runtime
 
 _PATH = {"PATH": "/usr/bin:/bin"}
@@ -92,7 +97,7 @@ def test_runner_keeps_the_users_dll_overrides_and_library_path(tmp_path: Path) -
     (root / "files/bin/wine").write_text(
         f'#!/bin/sh\necho "overrides=$WINEDLLOVERRIDES ld=$LD_LIBRARY_PATH" >> {calls}\n',
     )
-    runner = write_runner(Runtime(root), tmp_path)
+    runner = write_runner(Runtime(root), tmp_path, nvapi=True)
     subprocess.run([str(runner), NO_WAIT_FLAG, "x"], check=True, env=_PATH)
     line = calls.read_text()
     assert "overrides=dxgi=n;d3d11=n;d3d10core=n;d3d9=n;d3d12=n;d3d12core=n ld=" in line
@@ -151,3 +156,45 @@ def test_known_app_id_overrides_and_user_options_win(tmp_path: Path) -> None:
     assert env["XODUS_SOCKET"] == "/run/x.sock"
     assert env["WINEDEBUG"] == "fixme-all"
     assert env["WINEUSERLOCALE"] == "en-US"
+
+
+def test_runner_runs_a_32_bit_game_in_new_wow64(tmp_path: Path) -> None:
+    # I-038: under win64 a 32-bit game gets a 32-bit Unix side, which ran
+    # out of address space and clamped the Steam app id to 2147483647.
+    root = tmp_path / "runtime"
+    calls = tmp_path / "calls"
+    _fake_wine(root, calls)
+    (root / "files/bin/wine").write_text(f'#!/bin/sh\necho "arch=$WINEARCH" >> {calls}\n')
+    subprocess.run([str(write_runner(Runtime(root), tmp_path)), NO_WAIT_FLAG, "x"], check=True, env=_PATH)
+    assert calls.read_text() == "arch=win64\n"
+    calls.unlink()
+    runner = write_runner(Runtime(root), tmp_path, wow64=True)
+    subprocess.run([str(runner), NO_WAIT_FLAG, "x"], check=True, env=_PATH)
+    assert calls.read_text() == "arch=wow64\n"
+
+
+def test_runner_disables_nvapi_without_an_nvidia_driver(tmp_path: Path) -> None:
+    # Alan Wake's American Nightmare asks NVAPI for the SLI state every
+    # frame; with no NVIDIA GPU each call opened a Vulkan instance.
+    root = tmp_path / "runtime"
+    calls = tmp_path / "calls"
+    _fake_wine(root, calls)
+    runner = write_runner(Runtime(root), tmp_path, nvapi=False)
+    subprocess.run([str(runner), NO_WAIT_FLAG, "x"], check=True,
+                   env={**_PATH, "WINEDLLOVERRIDES": "nvapi=n"})
+    assert "d3d12core=n;nvapi=d;nvapi64=d;nvofapi64=d;nvapi=n eac=" in calls.read_text(), (
+        "ours disable NVAPI and the user's own override comes last, so it wins"
+    )
+    calls.unlink()
+    subprocess.run([str(write_runner(Runtime(root), tmp_path, nvapi=True)), NO_WAIT_FLAG, "x"],
+                   check=True, env=_PATH)
+    assert "nvapi=d" not in calls.read_text()
+
+
+def test_nvidia_driver_loaded(tmp_path: Path) -> None:
+    modules = tmp_path / "modules"
+    modules.write_text("amdgpu 16384 0 - Live 0x0\nsnd 8192 1 amdgpu, Live 0x0\n")
+    assert not nvidia_driver_loaded(modules)
+    modules.write_text("nvidia_drm 8192 0 - Live 0x0\nnvidia 16384 1 nvidia_drm, Live 0x0\n")
+    assert nvidia_driver_loaded(modules)
+    assert nvidia_driver_loaded(tmp_path / "missing"), "unknown keeps NVAPI, Proton's default"

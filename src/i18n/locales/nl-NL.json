@@ -423,6 +423,7 @@
       "xboxPcEacRuntimeMissing": "{{game_key}} gebruikt EasyAntiCheat. Installeer \"Proton EasyAntiCheat Runtime\" uit je Steam-bibliotheek en probeer het opnieuw.",
       "xboxPcLicenseDenied": "Microsoft heeft op dit account geen licentie voor {{game_key}} verleend.",
       "xboxPcLaunchFailed": "Kan {{game_key}} niet starten ({{reason}}). Bekijk de logboeken voor details.",
+      "xboxPcGameCrashed": "{{game_key}} is tijdens het starten gecrasht. Bekijk de logs voor details.",
       "xboxPcDisabled": "{{game_key}} is een Xbox PC-game. Schakel Xbox PC-games in de Unifideck-instellingen in om het te spelen.",
       "xboxPcNotInstalled": "{{game_key}} is niet geïnstalleerd en wordt niet aangeboden door Xbox Cloud Gaming. Installeer het via de gamepagina.",
       "xboxPcLanguageUnavailable": "{{game_key}} bevat geen {{language}}. Het start in zijn eigen standaardtaal.",

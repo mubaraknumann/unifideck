@@ -61,7 +61,7 @@ beforeEach(() => {
 });
 
 describe("linkXboxPc", () => {
-  it("does nothing with the toggle off or Microsoft disconnected", async () => {
+  it("does nothing with the toggle off; no sign-in without Microsoft", async () => {
     h.set(status({ enabled: false }));
     expect(await linkXboxPc()).toBe(false);
     h.set(status({ xcloud_signed_in: false }));
@@ -100,6 +100,17 @@ describe("linkXboxPc", () => {
   it("does not sign a linked account in again", async () => {
     h.set(status({ account: { state: "unverified" } }));
     expect(await linkXboxPc()).toBe(true);
+    expect(h.signIn).not.toHaveBeenCalled();
+  });
+
+  it("installs the components before Microsoft is connected", async () => {
+    h.set(status({ xcloud_signed_in: false, runtime: { state: "missing" } }));
+    h.store.installRuntime.mockImplementation(async () => {
+      h.set(status({ xcloud_signed_in: false, runtime: { state: "installed" } }));
+      return { ok: true, data: { started: true } };
+    });
+    expect(await linkXboxPc()).toBe(false);
+    expect(h.store.installRuntime).toHaveBeenCalledTimes(1);
     expect(h.signIn).not.toHaveBeenCalled();
   });
 

@@ -33,8 +33,9 @@ from .ownership import MicrosoftOwnershipReader, OwnedFetch
 from .pc_library.library import PC_ONLY, XboxPcLibrary, has_pc_rows
 from .session_health import SessionHealth
 from .tokens import MicrosoftTokenManager, TokenState
-from .xodus import auto_components
+from .xodus import auto_components, single_signin
 from .xodus.store_hooks import XboxPcStoreHooks
+from .xodus.ticket import XodusTicket
 from .xodus.xbox_pc import XboxPc
 
 if TYPE_CHECKING:
@@ -138,6 +139,11 @@ class MicrosoftStore(BrowserAuthRebuildMixin, StoreBase):
             xcloud_signed_in=lambda: self._cached_available,
             market_hint=lambda: self._last_market,
         )
+        # The one sign-in: with Xbox PC on, the Microsoft ticket comes from
+        # the Xodus credential. Its sign-out drops the cached ticket.
+        ticket = XodusTicket(self._xbox_pc.cli, self._xbox_pc.enabled)
+        self._tokens.xodus_ticket = ticket
+        self._xbox_pc.sign_out_listeners.append(ticket.forget)
 
     def _build_xbox_pc_parts(self, bus: EventBus, cache: CacheManager) -> None:
         """The PC library and the install hooks, over the one ``XboxPc``."""
@@ -209,7 +215,16 @@ class MicrosoftStore(BrowserAuthRebuildMixin, StoreBase):
         await self._xbox_pc.shutdown()
 
     async def _token_poll_loop(self) -> None:
-        """Internal loop: refresh (if stale) every poll interval."""
+        """Internal loop: refresh (if stale) every poll interval.
+
+        It checks the sign-in once at start. Until then the cached answer
+        reads "signed out", and the Xbox PC install refused with "connect
+        Microsoft first" after every restart (ISSUES.md I-036).
+        """
+        try:
+            await self.is_available()
+        except Exception:
+            logger.exception("[MicrosoftStore] startup sign-in check failed")
         while True:
             try:
                 await asyncio.sleep(self.TOKEN_POLL_INTERVAL_SECONDS)
@@ -294,6 +309,10 @@ class MicrosoftStore(BrowserAuthRebuildMixin, StoreBase):
                 metadata={"needs_2fa": False},
             )
         EdgeBrowser.ensure_controller_permissions()
+        if self._xbox_pc.enabled():
+            # One sign-in: with Xbox PC on, connecting Microsoft is the Xbox
+            # PC sign-in, and xCloud runs on its ticket (``xodus/ticket.py``).
+            return await single_signin.start_connect(self._xbox_pc, self._bus)
         if self._ms_config.uses_device_code:
             return cast("AuthResult", await self._device_auth.start_auth())
         if self._auth is None:

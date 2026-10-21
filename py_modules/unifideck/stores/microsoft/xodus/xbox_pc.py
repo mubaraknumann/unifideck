@@ -198,6 +198,8 @@ class XboxPc:
         #: Called after an explicit Xodus sign-out (the PC library clears its
         #: titles). A listener may be sync or async.
         self.sign_out_listeners: list[Callable[[], Awaitable[None] | None]] = []
+        #: Told the account view once a sign-in has ended and been re-read.
+        self.sign_in_listeners: list[Callable[[dict[str, Any]], None]] = []
         self._throttle = _Throttle(self._emit_state, EMIT_INTERVAL_S)
 
     # ── Config ──────────────────────────────────────────────────────
@@ -467,22 +469,21 @@ class XboxPc:
         finally:
             self._settling_sign_in = False
             self.notify()
+            for listener in list(self.sign_in_listeners):
+                listener(self._account_view())
 
     @property
     def sign_in_running(self) -> bool:
         """Whether the Xodus sign-in is running (``MicrosoftStore.start_auth`` refuses then)."""
         return self._signin.running
 
-    async def start_sign_in(self) -> dict[str, Any]:
-        """``{pending, launch_shortcut, reason, status}``.
+    async def start_sign_in(self, *, connect: bool = False) -> dict[str, Any]:
+        """``{pending, launch_shortcut, reason, status}``; ``status`` may already show the end.
 
-        ``status`` is the snapshot taken once the sign-in started. A sign-in
-        that already ended shows its outcome there, which the throttled
-        event might never carry.
-        """
+        ``connect``: this is the Microsoft sign-in itself (no OAuth sign-in needed first)."""
         if not self.enabled():
             return {"pending": False, "launch_shortcut": None, "reason": "xbox_pc_disabled"}
-        result = await self._signin.start()
+        result = await self._signin.start(connect=connect)
         self.notify()
         return {**result, "status": self._snapshot()}
 
