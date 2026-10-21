@@ -155,6 +155,9 @@ def test_known_app_id_overrides_and_user_options_win(tmp_path: Path) -> None:
     assert env["XODUS_LOG"] == "debug"
     assert env["XODUS_SOCKET"] == "/run/x.sock"
     assert env["WINEDEBUG"] == "fixme-all"
+    assert env["VKD3D_DEBUG"] == env["VKD3D_SHADER_DEBUG"] == "err", (
+        "at warn vkd3d wrote several lines per shader while the game compiled"
+    )
     assert env["WINEUSERLOCALE"] == "en-US"
 
 
@@ -174,8 +177,7 @@ def test_runner_runs_a_32_bit_game_in_new_wow64(tmp_path: Path) -> None:
 
 
 def test_runner_disables_nvapi_without_an_nvidia_driver(tmp_path: Path) -> None:
-    # Alan Wake's American Nightmare asks NVAPI for the SLI state every
-    # frame; with no NVIDIA GPU each call opened a Vulkan instance.
+    # I-035: with no NVIDIA GPU each NVAPI call opens a Vulkan instance.
     root = tmp_path / "runtime"
     calls = tmp_path / "calls"
     _fake_wine(root, calls)
@@ -198,3 +200,23 @@ def test_nvidia_driver_loaded(tmp_path: Path) -> None:
     modules.write_text("nvidia_drm 8192 0 - Live 0x0\nnvidia 16384 1 nvidia_drm, Live 0x0\n")
     assert nvidia_driver_loaded(modules)
     assert nvidia_driver_loaded(tmp_path / "missing"), "unknown keeps NVAPI, Proton's default"
+
+
+def test_runner_keeps_the_vkd3d_shader_cache_in_the_prefix(tmp_path: Path) -> None:
+    # Without it vkd3d-proton wrote its cache into the temporary launch
+    # view, which is deleted when the game ends: every launch started cold.
+    root = tmp_path / "runtime"
+    calls = tmp_path / "calls"
+    _fake_wine(root, calls)
+    (root / "files/bin/wine").write_text(f'#!/bin/sh\necho "cache=$VKD3D_SHADER_CACHE_PATH" >> {calls}\n')
+    compat = tmp_path / "prefix"
+    compat.mkdir()
+    runner = write_runner(Runtime(root), compat)
+    assert (compat / "vkd3d-proton").is_dir()
+    subprocess.run([str(runner), NO_WAIT_FLAG, "x"], check=True, env=_PATH)
+    windows = "Z:" + str(compat / "vkd3d-proton").replace("/", "\\")
+    assert calls.read_text() == f"cache={windows}\n"
+    calls.unlink()
+    subprocess.run([str(runner), NO_WAIT_FLAG, "x"], check=True,
+                   env={**_PATH, "VKD3D_SHADER_CACHE_PATH": "Z:\\mine"})
+    assert calls.read_text() == "cache=Z:\\mine\n", "a user's cache path wins"

@@ -9,6 +9,9 @@ Built in this order, so a later step wins over an earlier one:
    tokens.
 2. Wine and vkd3d log levels. ``WINEDEBUG=fixme-all`` silences the fixme
    class; Nexus's ``-fixme`` names a channel and silences nothing (I-020).
+   vkd3d logs errors only: at ``warn`` it writes several lines per shader
+   compile, which piles up while a game is compiling (I-039). Proton's own
+   default is ``none``.
 3. The game language, when the game declares it.
 4. ``XODUS_CONTENT_ROOTS`` for installed DLC folders.
 5. The Xodus env (``argv.build_env``): ``XODUS_CREDENTIAL_DIR`` and quiet logs.
@@ -44,8 +47,8 @@ _OWN_PREFIX = "UNIFIDECK_"
 
 _LOG_LEVELS = {
     "WINEDEBUG": "fixme-all",
-    "VKD3D_DEBUG": "warn",
-    "VKD3D_SHADER_DEBUG": "warn",
+    "VKD3D_DEBUG": "err",
+    "VKD3D_SHADER_DEBUG": "err",
 }
 _LOCALE_VARS = (
     "LANG", "LC_ALL", "LC_MESSAGES", "LC_CTYPE", "LC_TIME", "LC_COLLATE",

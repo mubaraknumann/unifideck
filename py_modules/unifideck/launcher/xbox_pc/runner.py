@@ -23,19 +23,24 @@ A 32-bit game runs with ``WINEARCH=wow64`` (I-038). The runtime ships
 its Unix side (the Vulkan driver, gamescope's WSI layer, winex11) is 32-bit
 too and shares the game's 4 GB address space. A 32-bit ``strtol`` turns a
 shortcut app id above 2147483647 into 2147483647, so in Gaming Mode
-gamescope gave Alan Wake's American Nightmare's window to another app and
-the game stayed behind the loading screen. With ``wow64`` the Unix side is
-64-bit, and its memory stays out of the game's address space. The runtime's own ``proton`` script does the same
-for ``PROTON_USE_WOW64=1``.
+gamescope gives the window to another app and the game stays behind the
+loading screen. With ``wow64`` the Unix side is 64-bit, and its memory stays
+out of the game's address space. The runtime's own ``proton`` script does
+the same for ``PROTON_USE_WOW64=1``.
 
 NVAPI is disabled unless the host runs an NVIDIA driver (I-035). The prefix
 is made by the runtime's ``proton`` script, which installs dxvk-nvapi, but
 the game runs without that script. On a Windows PC with an AMD GPU there is
-no ``nvapi.dll``, and games expect that. Alan Wake's American Nightmare asks
-NVAPI for the SLI state every frame. With no NVIDIA GPU each call opened a
-new DXGI factory, so a new Vulkan instance: the game ran at about 17 frames
-a second and then crashed. Proton disables NVAPI for that game by Steam app
-id on the same ``/proc/modules`` check.
+no ``nvapi.dll``, and games expect that. With no NVIDIA GPU, each NVAPI call
+opens a new DXGI factory and so a new Vulkan instance: a game that asks
+NVAPI every frame slows down and then runs out of memory. Proton disables
+NVAPI per game on the same ``/proc/modules`` check.
+
+vkd3d-proton keeps its shader cache in ``<compat_root>/vkd3d-proton``
+(I-039). Without ``VKD3D_SHADER_CACHE_PATH`` it writes
+``vkd3d-proton.cache`` next to the executable, which is inside the
+temporary launch view that ``xodus-cli`` deletes when the game ends. A
+Direct3D 12 game would then recompile its shaders on every launch.
 
 Stdlib only, Python 3.10 safe.
 """
@@ -57,6 +62,7 @@ _HTTP2_OVERRIDES = ";winhttp=b;libnghttp2=n"
 _NO_NVAPI_OVERRIDES = ";nvapi=d;nvapi64=d;nvofapi64=d"
 _NVIDIA_MODULES = frozenset({"nvidia", "nouveau", "nova"})
 _LIB_ARCHES = ("x86_64-linux-gnu", "aarch64-linux-gnu", "i386-linux-gnu")
+SHADER_CACHE_DIR = "vkd3d-proton"
 
 
 def shell_quote(value: str | Path) -> str:
@@ -120,6 +126,22 @@ def _exports(
     ]
 
 
+def _shader_cache(compat_root: Path) -> list[str]:
+    """Create the vkd3d-proton cache folder; the lines that point the game at it.
+
+    vkd3d-proton is a Windows DLL, so the path is given on drive ``Z:``.
+    A ``VKD3D_SHADER_CACHE_PATH`` the user set wins.
+    """
+    cache = compat_root / SHADER_CACHE_DIR
+    cache.mkdir(exist_ok=True)
+    windows_path = "Z:" + str(cache).replace("/", "\\")
+    return [
+        'if [ -z "${VKD3D_SHADER_CACHE_PATH:-}" ]; then',
+        f"  export VKD3D_SHADER_CACHE_PATH={shell_quote(windows_path)}",
+        "fi",
+    ]
+
+
 def _modes(runtime: Runtime) -> list[str]:
     """The stop, no-wait and normal run modes."""
     q = shell_quote
@@ -162,7 +184,11 @@ def write_runner(
         host_libraries = _HOST_LIBS_FEATURE in runtime.features
     if nvapi is None:
         nvapi = nvidia_driver_loaded()
-    lines = ["#!/bin/sh", *_exports(runtime, compat_root, host_libraries, wow64, nvapi)]
+    lines = [
+        "#!/bin/sh",
+        *_exports(runtime, compat_root, host_libraries, wow64, nvapi),
+        *_shader_cache(compat_root),
+    ]
     if eac_runtime is not None:
         lines += [
             'if [ -z "${PROTON_EAC_RUNTIME:-}" ]; then',

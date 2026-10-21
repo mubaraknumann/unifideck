@@ -61,7 +61,7 @@ def test_reads_manifest_case_insensitively(tmp_path: Path) -> None:
 
 
 def test_reads_the_processor_architecture(tmp_path: Path) -> None:
-    # Alan Wake's American Nightmare: a 64-bit launcher for a 32-bit game.
+    # A 64-bit launcher for a 32-bit game still declares x86.
     (tmp_path / "MicrosoftGame.config").write_text(CONFIG.replace(
         "</Game>",
         "<DesktopRegistration><ProcessorArchitecture> X86 </ProcessorArchitecture>"
