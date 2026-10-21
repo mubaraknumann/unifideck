@@ -154,8 +154,24 @@ async def test_a_refusal_toasts_its_key_and_emits_no_launch(monkeypatch: pytest.
     assert stage["i18n_params"]["reason"] == "eac_runtime_missing"
     assert "game_key" in stage["i18n_params"]
     assert "/secret/path" not in str(stage)
+    assert stage["action"] == {
+        "verb": "open-url", "args": ["steam://install/1826330"],
+        "i18n_label_key": "toasts.actions.installFromSteam",
+    }
     assert Events.GAME_LAUNCHED.value not in bus.names()
     assert Events.GAME_STOPPED.value not in bus.names()
+
+
+@pytest.mark.asyncio
+async def test_a_refusal_without_a_fix_offers_no_action(monkeypatch: pytest.MonkeyPatch) -> None:
+    _fake_launch(monkeypatch, error=XboxPcLaunchError("anticheat_unsupported"))
+    svc = _svc()
+    await xbox_pc_game.run_xbox_pc_game(svc, _ctx(), RuntimeState())
+    bus = svc._bus
+    assert isinstance(bus, _Bus)
+    assert bus.stage_keys()[-1] == "toasts.launcher.xboxPcAntiCheatUnsupported"
+    stage = next(kw for _ev, kw in bus.events if kw.get("i18n_key") == bus.stage_keys()[-1])
+    assert "action" not in stage
 
 
 @pytest.mark.asyncio

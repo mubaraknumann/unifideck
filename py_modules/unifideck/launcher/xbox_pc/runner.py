@@ -168,14 +168,16 @@ def write_runner(
     compat_root: Path,
     *,
     eac_runtime: Path | None = None,
+    battleye_runtime: Path | None = None,
     host_libraries: bool | None = None,
     wow64: bool = False,
     nvapi: bool | None = None,
 ) -> Path:
     """Write ``<compat_root>/unifideck-xbox-wine`` (0700) atomically and return it.
 
-    ``eac_runtime`` is Steam's Proton EasyAntiCheat Runtime folder, when
-    installed. A ``PROTON_EAC_RUNTIME`` the user set wins over it.
+    ``eac_runtime`` and ``battleye_runtime`` are Steam's Proton
+    EasyAntiCheat and BattlEye Runtime folders, when installed. A
+    ``PROTON_EAC_RUNTIME`` or ``PROTON_BATTLEYE_RUNTIME`` the user set wins.
     ``wow64`` is for a 32-bit game and ``nvapi`` keeps NVAPI; None checks
     the host for an NVIDIA driver (see the module docstring for both). A
     user's ``nvapi=n`` launch option still wins.
@@ -189,12 +191,13 @@ def write_runner(
         *_exports(runtime, compat_root, host_libraries, wow64, nvapi),
         *_shader_cache(compat_root),
     ]
-    if eac_runtime is not None:
-        lines += [
-            'if [ -z "${PROTON_EAC_RUNTIME:-}" ]; then',
-            f"  export PROTON_EAC_RUNTIME={shell_quote(eac_runtime)}",
-            "fi",
-        ]
+    for name, folder in (("PROTON_EAC_RUNTIME", eac_runtime), ("PROTON_BATTLEYE_RUNTIME", battleye_runtime)):
+        if folder is not None:
+            lines += [
+                f'if [ -z "${{{name}:-}}" ]; then',
+                f"  export {name}={shell_quote(folder)}",
+                "fi",
+            ]
     lines += _modes(runtime)
     runner = compat_root / RUNNER_NAME
     temporary = runner.with_name(f"{runner.name}.tmp-{os.getpid()}")

@@ -35,7 +35,7 @@ def _fake_wine(root: Path, calls: Path) -> None:
         script = bin_dir / name
         script.write_text(
             f'#!/bin/sh\necho "{name} $* prefix=$WINEPREFIX overrides=$WINEDLLOVERRIDES'
-            f' eac=$PROTON_EAC_RUNTIME" >> {calls}\n',
+            f' eac=$PROTON_EAC_RUNTIME battleye=$PROTON_BATTLEYE_RUNTIME" >> {calls}\n',
         )
         script.chmod(0o755)
 
@@ -88,6 +88,21 @@ def test_runner_exports_the_eac_runtime_unless_the_user_set_one(tmp_path: Path) 
     subprocess.run([str(runner), NO_WAIT_FLAG, "x"], check=True,
                    env={**_PATH, "PROTON_EAC_RUNTIME": "/mine"})
     assert "eac=/mine" in calls.read_text()
+
+
+def test_runner_exports_the_battleye_runtime_unless_the_user_set_one(tmp_path: Path) -> None:
+    root = tmp_path / "runtime"
+    calls = tmp_path / "calls"
+    _fake_wine(root, calls)
+    battleye = tmp_path / "be rt's"
+    runner = write_runner(Runtime(root), tmp_path, battleye_runtime=battleye)
+    subprocess.run([str(runner), NO_WAIT_FLAG, "x"], check=True, env=_PATH)
+    text = calls.read_text()
+    assert f"battleye={battleye}" in text and "eac= " in text
+    calls.unlink()
+    subprocess.run([str(runner), NO_WAIT_FLAG, "x"], check=True,
+                   env={**_PATH, "PROTON_BATTLEYE_RUNTIME": "/mine"})
+    assert "battleye=/mine" in calls.read_text()
 
 
 def test_runner_keeps_the_users_dll_overrides_and_library_path(tmp_path: Path) -> None:

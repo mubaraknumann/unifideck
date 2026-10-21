@@ -420,7 +420,10 @@
       "xboxPcAlreadyRunning": "{{game_key}} قيد التشغيل بالفعل.",
       "xboxPcPrefixFailed": "تعذر تجهيز بيئة تشغيل Wine للعبة {{game_key}}. راجع السجلات للتفاصيل.",
       "xboxPcVcRedistMissing": "تحتاج {{game_key}} إلى مكتبة Visual C++ للتشغيل، ولا يمكن تثبيتها لهذه اللعبة بعد.",
-      "xboxPcEacRuntimeMissing": "تستخدم {{game_key}} نظام EasyAntiCheat. ثبّت \"Proton EasyAntiCheat Runtime\" من مكتبة Steam، ثم حاول مرة أخرى.",
+      "xboxPcEacRuntimeMissing": "يلزم EAC",
+      "xboxPcBattlEyeRuntimeMissing": "يلزم BattlEye",
+      "xboxPcAntiCheatUnsupported": "EAC بلا Linux",
+      "xboxPcRestartLoop": "تكرار التشغيل",
       "xboxPcLicenseDenied": "لم تمنح Microsoft ترخيصاً للعبة {{game_key}} على هذا الحساب.",
       "xboxPcLaunchFailed": "تعذر تشغيل {{game_key}} ({{reason}}). راجع السجلات للتفاصيل.",
       "xboxPcGameCrashed": "تعطّلت {{game_key}} أثناء التشغيل. راجع السجلات لمزيد من التفاصيل.",
@@ -450,7 +453,8 @@
       "openStorageManager": "تفريغ مساحة",
       "signInToStore": "تسجيل الدخول",
       "retrySync": "إعادة المحاولة",
-      "retryLibrarySync": "تحديث المكتبة"
+      "retryLibrarySync": "تحديث المكتبة",
+      "installFromSteam": "من Steam"
     },
     "library": {
       "_comment": "Toasts emitted by SyncService when a per-store library sync fails. The retry button triggers a fire-and-forget refresh via the unifideck://refresh-library/<store> verb; the user doesn't wait for the result inline, the Library view picks it up through its SYNC_PROGRESS subscription.",

@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import hashlib
+import itertools
 import json
 import os
 import shutil
@@ -492,6 +493,52 @@ async def test_refuses_an_eac_game_without_steams_eac_runtime(world: dict[str, A
     (world["game"] / "EasyAntiCheat").mkdir()
     (world["game"] / "EasyAntiCheat" / "Settings.json").write_text("{}")
     assert await _reason(world) == "eac_runtime_missing"
+
+
+@pytest.mark.asyncio
+async def test_refuses_a_battleye_game_without_steams_battleye_runtime(world: dict[str, Any]) -> None:
+    (world["game"] / "BattlEye").mkdir()
+    (world["game"] / "BattlEye" / "BEService_x64.exe").write_bytes(b"")
+    assert await _reason(world) == "battleye_runtime_missing"
+
+
+# ── restart loop (I-044) ─────────────────────────────────────────────
+
+_EAC_LOG = "drive_c/users/steamuser/AppData/Roaming/EasyAntiCheat/269/loader.log"
+
+
+async def _loop_reason(world: dict[str, Any], on_poll: Any = None) -> str:
+    """Run a launch whose game restarts on every poll; the reason it ends with."""
+    world["base"]["FAKE_SLEEP"] = "60"
+    pids = itertools.count(1000)
+
+    def restarting() -> dict[int, str]:
+        if on_poll is not None:
+            on_poll()
+        return {next(pids): "balatro.exe"}
+
+    deps = _deps(world, list_processes=restarting, restart_poll_s=0.01)
+    with pytest.raises(XboxPcLaunchError) as err:
+        await asyncio.wait_for(session_mod.XboxPcLaunch(_ctx(), deps).run(), timeout=30)
+    assert world["out"].exists(), "the game ran before the loop was seen"
+    with component_locks.game_lock(PID) as held:
+        assert held
+    return err.value.reason
+
+
+@pytest.mark.asyncio
+async def test_a_game_that_keeps_restarting_is_stopped(world: dict[str, Any]) -> None:
+    assert await _loop_reason(world) == "restart_loop"
+
+
+@pytest.mark.asyncio
+async def test_a_loop_after_eac_refused_its_linux_client_says_so(world: dict[str, Any]) -> None:
+    def eac_refuses() -> None:
+        log = game_prefix_root(PID) / _EAC_LOG
+        log.parent.mkdir(parents=True, exist_ok=True)
+        log.write_text("GET /api/v1/games/269/client/wine64/download/\n[EAC Callback] Code 915. x\n")
+
+    assert await _loop_reason(world, eac_refuses) == "anticheat_unsupported"
 
 
 @pytest.mark.asyncio

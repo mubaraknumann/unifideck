@@ -38,7 +38,7 @@ import time
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import IO, Any
+from typing import IO, Any, NoReturn
 
 from unifideck.launcher.proton.infrastructure.prefix_layout import game_prefix_root
 from unifideck.launcher.types.context import LaunchContext
@@ -52,8 +52,16 @@ from .game_manifest import GameInfo, inspect_game
 from .layout import ActiveComponents, credential_dir, validate_pid
 from .output import OutputSink, classify_failure, game_crashed
 from .prefix import prepare_prefix
-from .prefix_checks import installed_eac_runtime, vc_runtime_problem
+from .prefix_checks import installed_battleye_runtime, installed_eac_runtime, vc_runtime_problem
 from .record_lookup import find_install_record
+from .restart_watch import (
+    POLL_S,
+    ListProcesses,
+    RestartCounter,
+    eac_linux_client_refused,
+    game_processes,
+    watch_restarts,
+)
 from .runner import write_runner
 from .runtime import Runtime, load_backend, load_runtime
 from .service_session import ServiceSession, sessions_dir
@@ -79,7 +87,9 @@ class LaunchDeps:
     ``notify`` shows a non-error notice; ``on_spawned`` runs once the game
     process exists. A Wine crash within ``crash_window_s`` of the start is
     reported as ``game_crashed``. A crash after that is often a crash on
-    quit after a real session, and gets no toast.
+    quit after a real session, and gets no toast. ``list_processes`` lists
+    the game's running processes for the restart watch (None reads
+    ``/proc``), polled every ``restart_poll_s``.
     """
 
     steam_root: Path | None
@@ -92,6 +102,8 @@ class LaunchDeps:
     base_env: Mapping[str, str] = field(default_factory=lambda: dict(os.environ))
     notify: Notify | None = None
     on_spawned: Callable[[], Awaitable[None]] | None = None
+    list_processes: ListProcesses | None = None
+    restart_poll_s: float = POLL_S
 
 
 @dataclass(frozen=True)
@@ -124,6 +136,8 @@ class XboxPcLaunch:
         self._pump: asyncio.Future[None] | None = None
         self._tag_stop: Any = None
         self._spawned_at: float | None = None
+        self._spawned_wall: float = 0.0
+        self._compat_root: Path | None = None
 
     async def run(self) -> int:
         """Launch, wait for the game, clean up. Raises :class:`XboxPcLaunchError`."""
@@ -221,6 +235,7 @@ class XboxPcLaunch:
         )
         await asyncio.to_thread(self._sweep, plan)
         compat_root = game_prefix_root(plan.pid)
+        self._compat_root = compat_root
         await self._prepare_prefix(plan, compat_root)
         if game.vc_redist_encrypted:
             problem = await asyncio.to_thread(vc_runtime_problem, compat_root)
@@ -244,8 +259,11 @@ class XboxPcLaunch:
         eac = installed_eac_runtime(self._deps.steam_libraries)
         if game.eac and eac is None:
             raise XboxPcLaunchError("eac_runtime_missing", game.eac)
+        battleye = installed_battleye_runtime(self._deps.steam_libraries)
+        if game.battleye and battleye is None:
+            raise XboxPcLaunchError("battleye_runtime_missing", game.battleye)
         self._runner = await asyncio.to_thread(
-            write_runner, runtime, compat_root, eac_runtime=eac,
+            write_runner, runtime, compat_root, eac_runtime=eac, battleye_runtime=battleye,
             wow64=game.architecture == "x86",
         )
 
@@ -309,6 +327,7 @@ class XboxPcLaunch:
         except OSError as err:
             raise XboxPcLaunchError("launch_failed", f"xodus-cli did not start: {err}") from err
         self._spawned_at = time.monotonic()
+        self._spawned_wall = time.time()
         self._pump = asyncio.ensure_future(self._sink.pump(self._proc.stdout, source="game"))
         if self._deps.on_spawned is not None:
             await self._deps.on_spawned()
@@ -316,17 +335,49 @@ class XboxPcLaunch:
     # ── 5. supervise and teardown ────────────────────────────────────
 
     async def _supervise(self) -> int:
-        """Wait for ``xodus-cli``. A cancel stops the game in stages."""
+        """Wait for ``xodus-cli``. A cancel stops the game in stages.
+
+        A game that keeps restarting itself is force-stopped and reported
+        (``restart_watch``): left alone it would never end.
+        """
         proc, game, runner = self._proc, self._game, self._runner
         assert proc is not None and game is not None and runner is not None
+        stopper = StagedStopper(
+            proc, runner=runner, exe_name=game.exe_name, env=clean_env(self._deps.base_env),
+        )
+        exited = asyncio.ensure_future(proc.wait())
+        looping = asyncio.ensure_future(self._watch_restarts(game))
         try:
-            return await proc.wait()
+            await asyncio.wait({exited, looping}, return_when=asyncio.FIRST_COMPLETED)
         except asyncio.CancelledError:
             logger.info("[xbox_pc] stop requested; closing the game")
-            stopper = StagedStopper(
-                proc, runner=runner, exe_name=game.exe_name, env=clean_env(self._deps.base_env),
-            )
+            exited.cancel()
             await stop_gracefully(stopper)
+        finally:
+            looping.cancel()
+        if not exited.done():
+            exited.cancel()
+            await self._end_loop(stopper, looping.result())
+        return exited.result()
+
+    async def _end_loop(self, stopper: StagedStopper, name: str) -> NoReturn:
+        """Force-stop a game whose ``name`` restarts in a loop, and say why."""
+        logger.warning("[xbox_pc] %s keeps restarting itself; stopping the game", name)
+        await stopper.force()
+        raise XboxPcLaunchError(self._loop_reason(), f"{name} restarted in a loop")
+
+    async def _watch_restarts(self, game: GameInfo) -> str:
+        """The name of an executable of ``game`` that restarts in a loop."""
+        install_dir = game.path.parent
+        list_processes = self._deps.list_processes or (lambda: game_processes(install_dir))
+        return await watch_restarts(list_processes, RestartCounter(), self._deps.restart_poll_s)
+
+    def _loop_reason(self) -> str:
+        """``anticheat_unsupported`` when EAC said so, else ``restart_loop``."""
+        prefix = self._compat_root
+        if prefix is not None and eac_linux_client_refused(prefix, self._spawned_wall):
+            return "anticheat_unsupported"
+        return "restart_loop"
 
     async def _teardown(self, plan: _Plan) -> None:
         """Stop everything this launch started. Never raises.

@@ -5,8 +5,11 @@ Two checks, both read-only:
 * **VC++.** A game that ships an *encrypted* ``vc_redist.x64.exe`` cannot
   have it installed by the runner in v1, so the prefix must already hold
   VC++ 14.44.35211.0 or newer (Nexus ``game-dependencies.ts``).
-* **EasyAntiCheat.** An EAC game needs Steam's own "Proton EasyAntiCheat
-  Runtime". It is used when installed and never downloaded here.
+* **EasyAntiCheat and BattlEye.** A game with either needs Steam's own
+  "Proton EasyAntiCheat Runtime" or "Proton BattlEye Runtime". It is used
+  when installed and never downloaded here. The runtime's ``ntdll`` reads
+  ``PROTON_EAC_RUNTIME`` and ``PROTON_BATTLEYE_RUNTIME`` itself, so the
+  runner only has to export them.
 
 Stdlib only, Python 3.10 safe.
 """
@@ -19,6 +22,13 @@ from pathlib import Path
 VC_REDIST_VERSION = "14.44.35211.0"
 EAC_RUNTIME_DIR = "steamapps/common/Proton EasyAntiCheat Runtime"
 _EAC_FILES = ("easyanticheat_x64.dll", "easyanticheat_x64.so")
+BATTLEYE_RUNTIME_DIR = "steamapps/common/Proton BattlEye Runtime"
+#: Where the runtime's ntdll looks under ``PROTON_BATTLEYE_RUNTIME``.
+_BATTLEYE_LIB_DIR = "v1/lib64/wine"
+
+#: Steam app ids of the two runtimes, for ``steam://install/<id>``.
+EAC_RUNTIME_APPID = 1826330
+BATTLEYE_RUNTIME_APPID = 1161040
 
 _VC_SECTION_RE = re.compile(
     r"^\[Software\\\\Microsoft\\\\VisualStudio\\\\14\.0\\\\VC\\\\Runtimes\\\\x64\](?:\s|$)",
@@ -73,5 +83,14 @@ def installed_eac_runtime(libraries: Iterable[Path]) -> Path | None:
     for library in sorted(set(libraries)):
         root = library / EAC_RUNTIME_DIR
         if all((root / "v2" / "lib64" / name).is_file() for name in _EAC_FILES):
+            return root
+    return None
+
+
+def installed_battleye_runtime(libraries: Iterable[Path]) -> Path | None:
+    """Steam's Proton BattlEye Runtime in any library, or None."""
+    for library in sorted(set(libraries)):
+        root = library / BATTLEYE_RUNTIME_DIR
+        if (root / _BATTLEYE_LIB_DIR).is_dir():
             return root
     return None

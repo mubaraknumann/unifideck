@@ -33,6 +33,7 @@ async def emit_launch_error_toast(
     *,
     i18n_key: str,
     extra_params: dict[str, Any] | None = None,
+    action: dict[str, Any] | None = None,
     tag: str,
 ) -> None:
     """Deliver one terminal-failure toast for the current launch.
@@ -59,6 +60,7 @@ async def emit_launch_error_toast(
     Args:
         i18n_key: the locale key to render.
         extra_params: interpolation values beyond ``game_key``.
+        action: a one-tap fix, in ``emit_stage``'s ``action`` shape.
         tag: log prefix, so a delivery failure names its caller.
     """
     from unifideck.launcher.game_title import resolve_title
@@ -73,6 +75,7 @@ async def emit_launch_error_toast(
             severity="error",
             duration_ms=_ERROR_TOAST_MS,
             i18n_params={"game_key": title, **(extra_params or {})},
+            action=action,
         )
     except Exception as e:
         logger.warning("[%s] Failed to emit error toast: %s", tag, e)

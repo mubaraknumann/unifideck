@@ -19,6 +19,7 @@ from unifideck.launcher.xbox_pc.errors import XboxPcLaunchError
 from unifideck.launcher.xbox_pc.game_manifest import inspect_game
 from unifideck.launcher.xbox_pc.prefix_checks import (
     VC_REDIST_VERSION,
+    installed_battleye_runtime,
     installed_eac_runtime,
     installed_vc_runtime,
     vc_runtime_problem,
@@ -68,6 +69,41 @@ def test_reads_the_processor_architecture(tmp_path: Path) -> None:
         "</DesktopRegistration></Game>",
     ))
     assert inspect_game(tmp_path).architecture == "x86"
+
+
+def test_finds_eac_at_the_game_root(tmp_path: Path) -> None:
+    (tmp_path / "MicrosoftGame.config").write_text(CONFIG)
+    (tmp_path / "EasyAntiCheat").mkdir()
+    (tmp_path / "EasyAntiCheat" / "Settings.json").write_text("{}")
+    assert inspect_game(tmp_path).eac == "EasyAntiCheat"
+
+
+def test_finds_eac_next_to_the_executable_with_launcher_settings(tmp_path: Path) -> None:
+    # Some titles keep EAC beside the exe, with Settings.json under Launcher/.
+    (tmp_path / "MicrosoftGame.config").write_text(CONFIG)
+    launcher = tmp_path / "game/binaries/WinGDK/easyanticheat/Launcher"
+    launcher.mkdir(parents=True)
+    (launcher / "Settings.json").write_text("{}")
+    assert inspect_game(tmp_path).eac == "game/binaries/WinGDK/easyanticheat"
+
+
+def test_eac_folder_without_settings_is_not_eac(tmp_path: Path) -> None:
+    (tmp_path / "MicrosoftGame.config").write_text(CONFIG)
+    (tmp_path / "Game/Binaries/WinGDK/EasyAntiCheat").mkdir(parents=True)
+    (tmp_path / "EasyAntiCheat").mkdir()
+    assert inspect_game(tmp_path).eac is None
+
+
+def test_finds_battleye_next_to_the_executable(tmp_path: Path) -> None:
+    (tmp_path / "MicrosoftGame.config").write_text(CONFIG)
+    assert inspect_game(tmp_path).battleye is None
+    folder = tmp_path / "Game/Binaries/WinGDK/battleye"
+    folder.mkdir(parents=True)
+    assert inspect_game(tmp_path).battleye is None
+    (folder / "BEClient_x64.dll").write_bytes(b"\x00enc")
+    game = inspect_game(tmp_path)
+    assert game.battleye == "Game/Binaries/WinGDK/battleye"
+    assert game.eac is None
 
 
 def test_plain_redist_is_not_encrypted(tmp_path: Path) -> None:
@@ -140,6 +176,14 @@ def test_eac_runtime_found_only_when_complete(tmp_path: Path) -> None:
     assert installed_eac_runtime([tmp_path / "lib1"]) is None
     (lib64 / "easyanticheat_x64.so").write_bytes(b"")
     assert installed_eac_runtime([tmp_path / "lib0", tmp_path / "lib1"]) == lib64.parent.parent
+
+
+def test_battleye_runtime_found_by_its_wine_folder(tmp_path: Path) -> None:
+    root = tmp_path / "lib1/steamapps/common/Proton BattlEye Runtime"
+    root.mkdir(parents=True)
+    assert installed_battleye_runtime([tmp_path / "lib1"]) is None
+    (root / "v1/lib64/wine").mkdir(parents=True)
+    assert installed_battleye_runtime([tmp_path / "lib0", tmp_path / "lib1"]) == root
 
 
 # ── prefix creation with a fake proton ───────────────────────────────

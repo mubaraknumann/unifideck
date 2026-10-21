@@ -21,6 +21,7 @@ from unifideck.launcher.xbox_pc.errors import (
     GAME_ARGS_IGNORED_KEY,
     STARTING_KEY,
     XboxPcLaunchError,
+    toast_action,
     toast_key,
 )
 
@@ -44,7 +45,7 @@ async def _refuse(svc: LauncherService, ctx: LaunchContext, err: XboxPcLaunchErr
     logger.warning("[LauncherService] Xbox PC launch refused: %s", err)
     await emit_launch_error_toast(
         svc, ctx, i18n_key=toast_key(err.reason),
-        extra_params={"reason": err.reason}, tag=_TAG,
+        extra_params={"reason": err.reason}, action=toast_action(err.reason), tag=_TAG,
     )
     code = f"xbox_pc_{err.reason}"
     return Result(success=False, error=code, error_code=code, store=ctx.store)

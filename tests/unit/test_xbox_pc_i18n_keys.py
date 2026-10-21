@@ -67,13 +67,32 @@ def test_every_backend_key_is_in_english() -> None:
     assert missing == []
 
 
+#: Toasts kept to :data:`_SHORT_MAX` characters so the toast does not cut
+#: them off. They leave out the title: the player just pressed Play on it.
+_SHORT_KEYS = {
+    errors.REASON_TOAST_KEYS["eac_runtime_missing"],
+    errors.REASON_TOAST_KEYS["battleye_runtime_missing"],
+    errors.REASON_TOAST_KEYS["anticheat_unsupported"],
+    errors.REASON_TOAST_KEYS["restart_loop"],
+    errors.INSTALL_FROM_STEAM_KEY,
+}
+_SHORT_MAX = 15
+
+
 def test_launcher_strings_name_the_game() -> None:
     """``emit_launch_error_toast`` fills ``{{game_key}}`` with the title."""
     en = _locale("en-US")
-    for key in _launcher_keys():
+    for key in _launcher_keys() - _SHORT_KEYS:
         assert "{{game_key}}" in str(_lookup(en, key)), key
     assert "{{reason}}" in str(_lookup(en, errors.LAUNCH_FAILED_KEY))
     assert "{{language}}" in str(_lookup(en, errors.LANGUAGE_UNAVAILABLE_KEY))
+
+
+@pytest.mark.parametrize("locale", sorted(p.stem for p in LOCALES.glob("*.json")))
+def test_short_toasts_fit(locale: str) -> None:
+    tree = _locale(locale)
+    too_long = {key: _lookup(tree, key) for key in _SHORT_KEYS if len(_lookup(tree, key)) > _SHORT_MAX}
+    assert too_long == {}
 
 
 @pytest.mark.parametrize(
@@ -90,7 +109,7 @@ def test_every_backend_key_is_translated(locale: str) -> None:
 )
 def test_translations_keep_the_launcher_placeholders(locale: str) -> None:
     data = _locale(locale)
-    for key in _launcher_keys():
+    for key in _launcher_keys() - _SHORT_KEYS:
         value = _lookup(data, key)
         if isinstance(value, str):
             assert "{{game_key}}" in value, f"{locale}: {key}"

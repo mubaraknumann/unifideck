@@ -11,6 +11,7 @@ sync or a reset replaced meanwhile, and runs one at a time.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import threading
 from typing import Any
 
@@ -78,7 +79,7 @@ def test_bus_handlers_are_coroutines() -> None:
     owned-titles RPC's refresh; a coroutine runs on the loop."""
     host = _subscribed(_Host())
     for handler in host._bus.handlers.values():
-        assert asyncio.iscoroutinefunction(handler)
+        assert inspect.iscoroutinefunction(handler)
 
 
 def _game(app_id: int, title: str) -> Game:

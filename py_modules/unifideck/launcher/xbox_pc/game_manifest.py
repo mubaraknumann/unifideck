@@ -23,6 +23,11 @@ MANIFEST_NAME = "MicrosoftGame.config"
 CONTAINER_NAME = ".xodus-streaming.msixvc"
 _VC_REDIST = "Engine/Extras/Redist/en-us/vc_redist.x64.exe"
 _EAC_DIRS = ("EasyAntiCheat", "EasyAntiCheat_EOS")
+_EAC_MARKERS = (["Settings.json"], ["Launcher", "Settings.json"])
+_BATTLEYE_DIRS = ("BattlEye",)
+_BATTLEYE_MARKERS = (
+    ["BEClient_x64.dll"], ["BEClient.dll"], ["BEService_x64.exe"], ["BEService.exe"],
+)
 _LOCALE_RE = re.compile(r"[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*")
 _HEX_RE = re.compile(r"[0-9A-Fa-f]+")
 
@@ -44,6 +49,8 @@ class GameInfo:
     #: or None when the manifest does not say. The executables are
     #: encrypted on disk, so their PE header cannot be read instead.
     architecture: str | None = None
+    #: The game's BattlEye folder relative to ``path``, or None.
+    battleye: str | None = None
 
     @property
     def exe_name(self) -> str:
@@ -110,11 +117,38 @@ def _vc_redist_encrypted(nodes: list[Element], root: Path) -> bool:
     return _needs_vc(nodes) and vc_path.is_file() and not _begins_with_mz(vc_path)
 
 
-def _eac_dir(root: Path) -> str | None:
-    """The game's EasyAntiCheat folder name, or None."""
-    for name in _EAC_DIRS:
-        if (root / name / "Settings.json").is_file():
-            return name
+def _find_ci_path(root: Path, parts: list[str]) -> Path | None:
+    """``root`` joined with ``parts``, each matched in any casing, or None."""
+    current = root
+    for part in parts:
+        found = find_ci(current, part)
+        if found is None:
+            return None
+        current = found
+    return current
+
+
+def _anticheat_dir(
+    root: Path, executable: str, names: tuple[str, ...], markers: tuple[list[str], ...],
+) -> str | None:
+    """An anti-cheat folder of the game, relative to ``root``, or None.
+
+    The folder is one of ``names``, at the game root or next to the launch
+    executable, and holds one of ``markers`` (paths inside it), all in any
+    casing. EasyAntiCheat keeps ``Settings.json`` either directly or in
+    ``Launcher/``. A missed folder runs the anti-cheat without Steam's
+    Proton runtime for it, and an EAC game then restarts itself without end
+    (I-044).
+    """
+    exe_parts = [p for p in re.split(r"[\\/]", executable) if p][:-1]
+    for base in dict.fromkeys(filter(None, (root, _find_ci_path(root, exe_parts)))):
+        for name in names:
+            folder = find_ci(base, name)
+            if folder is None:
+                continue
+            found = (_find_ci_path(folder, parts) for parts in markers)
+            if any(path is not None and path.is_file() for path in found):
+                return folder.relative_to(root).as_posix()
     return None
 
 
@@ -167,15 +201,17 @@ def inspect_game(directory: Path) -> GameInfo:
     root = directory.resolve()
     nodes = _parse_manifest(root)
     title, store_id, title_id = _identity(nodes, root)
+    executable = _executable(nodes)
     return GameInfo(
         path=root,
         title=title,
-        executable=_executable(nodes),
+        executable=executable,
         store_id=store_id,
         title_id=title_id,
         locales=_locales(nodes),
         vc_redist_encrypted=_vc_redist_encrypted(nodes, root),
-        eac=_eac_dir(root),
+        eac=_anticheat_dir(root, executable, _EAC_DIRS, _EAC_MARKERS),
         container_ready=(root / CONTAINER_NAME).is_file(),
         architecture=_architecture(nodes),
+        battleye=_anticheat_dir(root, executable, _BATTLEYE_DIRS, _BATTLEYE_MARKERS),
     )

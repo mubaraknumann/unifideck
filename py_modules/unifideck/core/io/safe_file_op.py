@@ -28,8 +28,8 @@ try/except/log/return ; complexity is back to single digits.
 
 from __future__ import annotations
 
-import asyncio
 import functools
+import inspect
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any, TypeVar
@@ -102,13 +102,13 @@ def safe_file_op(
     def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
         """Pick async or sync wrapper based on ``fn``'s nature.
 
-        ``asyncio.iscoroutinefunction`` is checked at
+        ``inspect.iscoroutinefunction`` is checked at
         decoration time (not call time) so wrapper
         selection is one-shot per decorated function — no
         per-call overhead.
         """
         fname = getattr(fn, "__name__", repr(fn))
-        if asyncio.iscoroutinefunction(fn):
+        if inspect.iscoroutinefunction(fn):
 
             @functools.wraps(fn)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:

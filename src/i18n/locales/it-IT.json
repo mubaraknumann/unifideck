@@ -420,7 +420,10 @@
       "xboxPcAlreadyRunning": "{{game_key}} è già in esecuzione.",
       "xboxPcPrefixFailed": "Impossibile preparare il prefisso Wine per {{game_key}}. Controlla i log per dettagli.",
       "xboxPcVcRedistMissing": "{{game_key}} richiede il runtime Visual C++, che non può ancora essere installato per questo gioco.",
-      "xboxPcEacRuntimeMissing": "{{game_key}} usa EasyAntiCheat. Installa \"Proton EasyAntiCheat Runtime\" dalla tua libreria di Steam, poi riprova.",
+      "xboxPcEacRuntimeMissing": "Serve EAC",
+      "xboxPcBattlEyeRuntimeMissing": "Serve BattlEye",
+      "xboxPcAntiCheatUnsupported": "EAC senza Linux",
+      "xboxPcRestartLoop": "Riavvio a loop",
       "xboxPcLicenseDenied": "Microsoft non ha concesso una licenza per {{game_key}} su questo account.",
       "xboxPcLaunchFailed": "Impossibile avviare {{game_key}} ({{reason}}). Controlla i log per dettagli.",
       "xboxPcGameCrashed": "{{game_key}} si è arrestato in modo anomalo all'avvio. Controlla i log per i dettagli.",
@@ -450,7 +453,8 @@
       "openStorageManager": "Libera spazio",
       "signInToStore": "Accedi",
       "retrySync": "Riprova",
-      "retryLibrarySync": "Aggiorna libreria"
+      "retryLibrarySync": "Aggiorna libreria",
+      "installFromSteam": "Da Steam"
     },
     "library": {
       "_comment": "Toasts emitted by SyncService when a per-store library sync fails. The retry button triggers a fire-and-forget refresh via the unifideck://refresh-library/<store> verb; the user doesn't wait for the result inline, the Library view picks it up through its SYNC_PROGRESS subscription.",
