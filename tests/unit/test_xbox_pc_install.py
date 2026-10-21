@@ -136,6 +136,8 @@ async def test_install_lands_in_the_install_root(env: dict[str, Any]) -> None:
     marker = json.loads((root / ".unifideck_manifest.json").read_text())
     assert marker["store"] == "microsoft" and marker["store_id"] == PID
     assert progress and progress[-1]["percentage"] == 100.0
+    # "Preparing download" from the very first step, never "Downloading 0%".
+    assert progress[0] == {"phase": "starting"}
 
 
 async def test_a_row_id_other_than_the_product_id(env: dict[str, Any]) -> None:

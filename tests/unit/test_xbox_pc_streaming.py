@@ -42,10 +42,13 @@ async def _run(proc: FakeProc) -> tuple[streaming.StreamOutcome, list[dict[str, 
 async def test_a_clean_run_completes(kills: list[int]) -> None:
     outcome, sent = await _run(FakeProc(FakeStdout(happy_stdout())))
     assert outcome.succeeded and outcome.terminal == "complete"
-    assert sent[0]["phase"] == "preparing" and sent[-1]["phase"] == "verifying"
+    # The complete record sends no phase: the row stays on "finalizing" until
+    # the worker marks it complete.
+    assert sent[0]["phase"] == "starting" and sent[-2]["phase"] == "finalizing"
+    assert "phase" not in sent[-1]
     # The 50% record lands within a second of the first downloading one, so
     # the throttle drops it; the phase changes and the end always go out.
-    assert [u["phase"] for u in sent].count("downloading") == 1
+    assert [u.get("phase") for u in sent].count("downloading") == 1
     assert sent[-1]["percentage"] == 100.0
     assert kills == []
 

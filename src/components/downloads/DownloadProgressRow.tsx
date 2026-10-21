@@ -7,15 +7,21 @@
  *   ──────────────────  (4 px bar, slide-anim while indeterminate)
  *   404 MB / 564 MB         19.6 MB/s · ETA 00:00:08
  *
- * Indeterminate phases (``extracting`` / ``verifying``) hide
- * the byte counter and show the localized phase label (the i18n
- * fallback) so the user still has a textual signal.
+ * Indeterminate phases (``starting``, ``extracting``, ``verifying``,
+ * ``finalizing`` and the others in ``lib/download-phase``) hide the
+ * byte counter and show a localized detail line so the user still
+ * has a textual signal.
  */
 import { FC, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import type { DownloadItem, DownloadPhase } from "../../types/downloads";
+import type { DownloadItem } from "../../types/downloads";
 import type { StoreId } from "../../types/api";
 import { STORE_VISUALS } from "../../types/store";
+import {
+  detailKey,
+  isIndeterminate,
+  statusLabelKey,
+} from "../../lib/download-phase";
 import { formatBytes } from "../play/PlayMeta";
 import { injectPlayFocusStyles } from "../play/play.css";
 
@@ -36,15 +42,6 @@ function formatEta(secs: number): string {
   return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
 }
 
-function isIndeterminate(phase: DownloadPhase | undefined): boolean {
-  return (
-    phase === "extracting" ||
-    phase === "verifying" ||
-    phase === "manual" ||
-    phase === "preparing"
-  );
-}
-
 /**
  * Display name of the vendor client driving a `manual` install.
  *
@@ -55,27 +52,6 @@ function isIndeterminate(phase: DownloadPhase | undefined): boolean {
  */
 function clientName(store: StoreId | undefined): string {
   return (store && STORE_VISUALS[store]?.display_name) || "";
-}
-
-function statusLabelKey(
-  status: DownloadItem["status"],
-  phase: DownloadPhase | undefined,
-  prev: boolean,
-): string {
-  // Wrapper-store (vendor-client-driven) installs: no real download — show
-  // a dedicated label and let the indeterminate path render the detail.
-  if (phase === "manual") return "downloadsTab.installingViaClientLabel";
-  if (phase === "preparing") return "downloadsTab.preparingLabel";
-  if (phase === "extracting") return "downloadsTab.extractingLabel";
-  if (phase === "verifying") return "downloadsTab.verifyingLabel";
-  if (status === "queued") {
-    return prev
-      ? "downloadsTab.updateQueuedLabel"
-      : "downloadsTab.downloadQueuedLabel";
-  }
-  return prev
-    ? "downloadsTab.downloadingUpdateLabel"
-    : "downloadsTab.downloadingLabel";
 }
 
 export const DownloadProgressRow: FC<Props> = ({
@@ -102,17 +78,10 @@ export const DownloadProgressRow: FC<Props> = ({
   // of hardcoded English that was deliberately never displayed; it carried
   // from nine producers through the queue item to this component and was
   // deleted end to end (audit register item 45).
-  const phase = download.download_phase;
-  const detail =
-    phase === "preparing"
-      ? t("downloadsTab.preparingMessage")
-      : phase === "extracting"
-      ? t("downloadsTab.extractingMessage")
-      : phase === "verifying"
-      ? t("downloadsTab.verifyingMessage", { pct: pct.toFixed(1) })
-      : phase === "manual"
-      ? t("downloadsTab.installingViaClientMessage", { client })
-      : t("downloadsTab.finalizingInstallation");
+  const detail = t(detailKey(download.download_phase), {
+    pct: pct.toFixed(1),
+    client,
+  });
 
   return (
     <div

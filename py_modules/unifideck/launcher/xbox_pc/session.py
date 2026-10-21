@@ -53,7 +53,7 @@ from .record_lookup import find_install_record
 from .runner import write_runner
 from .runtime import Runtime, load_backend, load_runtime
 from .service_session import ServiceSession, sessions_dir
-from .stop import StagedStopper, kill_and_reap
+from .stop import StagedStopper, kill_and_reap, stop_gracefully
 from .sweep import sweep_launch_views, sweep_sessions
 
 logger = logging.getLogger(__name__)
@@ -314,12 +314,7 @@ class XboxPcLaunch:
             stopper = StagedStopper(
                 proc, runner=runner, exe_name=game.exe_name, env=clean_env(self._deps.base_env),
             )
-            try:
-                await stopper.staged()
-            except asyncio.CancelledError:
-                logger.info("[xbox_pc] second stop request; forcing")
-                await stopper.force()
-            raise
+            await stop_gracefully(stopper)
 
     async def _teardown(self, plan: _Plan) -> None:
         """Stop everything this launch started. Never raises.

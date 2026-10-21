@@ -76,6 +76,7 @@ class XboxPcUpdater:
         blocked = await steps.ready_code(self._xbox_pc)
         if blocked:
             raise InstallError(blocked)
+        await steps.report_starting(progress_cb)
         record, root, game_dir = await asyncio.to_thread(located_record, game_id)
         await steps.check_backend(self._cli)
         with game_lock(str(record["productId"])) as held:

@@ -40,7 +40,16 @@ export type DownloadPhase =
   // run the full first-run prefix init (createprefix + redistributables) and
   // pull cloud saves before completing. No %/speed/ETA — rendered as an
   // indeterminate "Setting up game…" state.
-  | "preparing";
+  | "preparing"
+  // Before the first byte (Xbox PC): the store checks the license and reads
+  // the package's file list. There is no total yet, so no %/speed/ETA.
+  // Rendered as an indeterminate "Preparing download…" state. It is not
+  // "preparing": nothing builds a prefix or syncs saves at this point.
+  | "starting"
+  // After the last byte (Xbox PC): the store writes out the finished
+  // package. Not a file check, so not "verifying". Rendered as an
+  // indeterminate "Finalizing…" state.
+  | "finalizing";
 
 /**
  * Where the game install lives. `internal` = eMMC, `custom` =

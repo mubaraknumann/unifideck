@@ -26,8 +26,10 @@ import contextlib
 import logging
 import os
 import signal
+import time
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import NoReturn
 
 from .runner import NO_WAIT_FLAG, STOP_FLAG
 
@@ -37,6 +39,9 @@ CLOSE_GRACE_S = 15.0
 SIGINT_GRACE_S = 5.0
 HELPER_TIMEOUT_S = 10.0
 FORCE_STEP_S = 1.0
+#: Steam's Stop sends SIGINT and SIGTERM within milliseconds. Signals this
+#: close together are one Stop, not "stop, then force" (ISSUES.md I-034).
+PAIRED_STOP_S = 1.0
 
 
 async def wait_exit(proc: asyncio.subprocess.Process, timeout_s: float) -> bool:
@@ -154,3 +159,31 @@ class StagedStopper:
             if await wait_exit(self._proc, FORCE_STEP_S):
                 return
         logger.warning("[xbox_pc.stop] xodus-cli survived SIGKILL (pid %d)", self._proc.pid)
+
+
+async def stop_gracefully(stopper: StagedStopper, paired_s: float = PAIRED_STOP_S) -> NoReturn:
+    """Run the staged stop; a later Stop request forces it.
+
+    The caller was just cancelled once. Further cancels within ``paired_s``
+    belong to the same Stop and are absorbed; one after that forces the stop.
+    Always ends with the caller cancelled again, as the first Stop asked.
+    """
+    first = time.monotonic()
+    staged = asyncio.ensure_future(stopper.staged())
+    while not staged.done():
+        try:
+            await asyncio.wait({staged})
+        except asyncio.CancelledError:
+            if time.monotonic() - first < paired_s:
+                logger.info("[xbox_pc.stop] stop signal pair; still closing the game")
+                continue
+            logger.info("[xbox_pc.stop] second stop request; forcing")
+            staged.cancel()
+            await asyncio.wait({staged})
+            await stopper.force()
+            break
+    if staged.done() and not staged.cancelled() and staged.exception() is not None:
+        logger.warning("[xbox_pc.stop] staged stop failed: %s", staged.exception())
+        await stopper.force()
+    raise asyncio.CancelledError
+

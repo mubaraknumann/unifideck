@@ -161,6 +161,16 @@ async def holding_components() -> AsyncIterator[ActiveComponents]:
         holder.__exit__(None, None, None)
 
 
+async def report_starting(progress_cb: ProgressCallback) -> None:
+    """Show "Preparing download" from the first step.
+
+    Resolving the package and starting the CLI take a few seconds before its
+    first progress record; without this the row reads "Downloading 0.0%".
+    """
+    if progress_cb is not None:
+        await progress_cb({"phase": "starting"})
+
+
 async def stream_into(
     cli: XodusCliLike, pid: str, game_dir: Path, market: str, content_id: str,
     progress_cb: ProgressCallback,

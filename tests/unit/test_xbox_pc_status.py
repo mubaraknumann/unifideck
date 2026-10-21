@@ -332,3 +332,44 @@ async def test_rpc_proxy(tmp_path: Path) -> None:
     assert (await missing.get_xbox_pc_status())["available"] is False
     with pytest.raises(RpcError):
         await missing.install_xbox_pc_runtime()
+
+
+async def test_components_install_and_update_by_themselves_when_microsoft_connects(
+    tmp_path: Path,
+) -> None:
+    """I-029: the frontend's boot step ran before Microsoft was known to be
+    signed in, so a newer build never installed. The backend now does it."""
+    from unifideck.stores.microsoft.xodus import auto_components
+
+    out = make_source(tmp_path)
+    facade, config, _ = _facade(tmp_path, str(out))
+    await auto_components.ensure_components(facade)
+    assert (await facade.status())["runtime"]["state"] == "missing", "toggle off: nothing"
+    config.data[XBOX_PC_ENABLED_KEY] = True
+    await auto_components.ensure_components(facade)
+    assert (await _wait_installed(facade))["runtime"]["version"] == "0.1.0"
+    make_source(tmp_path, version="0.2.0")
+    await auto_components.ensure_components(facade)
+    assert (await _wait_installed(facade))["runtime"]["version"] == "0.2.0", "outdated: updated"
+    await facade.shutdown()
+
+
+async def test_a_failed_install_is_not_retried_on_every_sign_in_check(tmp_path: Path) -> None:
+    from unifideck.stores.microsoft.xodus import auto_components
+
+    out = make_source(tmp_path, bad_sum=True)
+    facade, config, _ = _facade(tmp_path, str(out))
+    config.data[XBOX_PC_ENABLED_KEY] = True
+    await auto_components.ensure_components(facade)
+    assert (await _wait_installed(facade))["runtime"]["state"] == "failed"
+    started: list[int] = []
+    original = facade.install_components
+
+    async def counting() -> dict[str, Any]:
+        started.append(1)
+        return await original()
+
+    facade.install_components = counting  # type: ignore[method-assign]
+    await auto_components.ensure_components(facade)
+    assert started == []
+    await facade.shutdown()

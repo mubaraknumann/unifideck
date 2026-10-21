@@ -317,6 +317,12 @@ class XboxPc:
             await self._refresh_account(force=True)
         return self._snapshot()
 
+    async def refresh_components(self) -> dict[str, Any]:
+        """Probe the components against the source again; no account check."""
+        await self._probe()
+        self.notify()
+        return self._snapshot()
+
     async def refresh_status(self) -> dict[str, Any]:
         """Probe the components and ask Xodus about the account again."""
         await self._probe()

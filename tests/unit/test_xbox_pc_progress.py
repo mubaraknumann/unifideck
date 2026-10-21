@@ -47,13 +47,33 @@ def test_phases_map_to_the_queue_phases() -> None:
     for seq, phase in enumerate(("initializing", "metadata", "downloading", "finalizing")):
         clock.now += 0.1
         seen.append(mapper.feed(_line(seq, phase, 0, 10 if phase != "initializing" else None)))
-    assert [u["phase"] for u in seen if u] == ["preparing", "preparing", "downloading", "verifying"]
+    assert [u["phase"] for u in seen if u] == ["starting", "starting", "downloading", "finalizing"]
+
+
+def test_nothing_before_the_first_byte_reads_as_prefix_setup() -> None:
+    # "preparing" is the post-download prefix setup and cloud-save sync of
+    # the other stores. The license check and the package read are neither,
+    # and the user saw "Setting up game..." before a single byte arrived.
+    mapper, clock, _ = _mapper()
+    for seq, phase in enumerate(("initializing", "metadata", "downloading", "finalizing")):
+        clock.now += 0.1
+        update = mapper.feed(_line(seq, phase, 0, 10))
+        assert update is not None and update["phase"] != "preparing"
+
+
+@pytest.mark.parametrize("terminal", ["complete", "failed"])
+def test_a_terminal_record_keeps_the_phase_it_ended_in(terminal: str) -> None:
+    mapper, _, _ = _mapper()
+    mapper.feed(_line(0, "initializing"))
+    update = mapper.feed(_line(1, terminal))
+    assert update is not None and "phase" not in update
+    assert mapper.terminal == terminal
 
 
 def test_no_percentage_before_the_total_is_known() -> None:
     mapper, _, _ = _mapper()
     update = mapper.feed(_line(0, "metadata"))
-    assert update == {"phase": "preparing", "speed_bps": 0.0}
+    assert update == {"phase": "starting", "speed_bps": 0.0}
 
 
 def test_bytes_speed_and_eta_once_downloading() -> None:

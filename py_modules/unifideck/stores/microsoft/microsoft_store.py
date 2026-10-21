@@ -33,6 +33,7 @@ from .ownership import MicrosoftOwnershipReader, OwnedFetch
 from .pc_library.library import PC_ONLY, XboxPcLibrary, has_pc_rows
 from .session_health import SessionHealth
 from .tokens import MicrosoftTokenManager, TokenState
+from .xodus import auto_components
 from .xodus.store_hooks import XboxPcStoreHooks
 from .xodus.xbox_pc import XboxPc
 
@@ -257,10 +258,17 @@ class MicrosoftStore(BrowserAuthRebuildMixin, StoreBase):
         return self._set_available(True)
 
     def _set_available(self, available: bool) -> bool:
-        """Cache the answer; the Xbox PC status shows it, so tell it on a flip."""
+        """Cache the answer; the Xbox PC status shows it, so tell it on a flip.
+
+        A flip to signed in also brings the Xbox PC components up to date
+        (``auto_components``): this is the first moment the backend knows
+        Microsoft is connected, which the frontend's boot step cannot wait for.
+        """
         if available != self._cached_available:
             self._cached_available = available
             self._xbox_pc.notify()
+            if available:
+                auto_components.schedule(self._xbox_pc)
         return available
 
     async def start_auth(self, **kwargs: Any) -> AuthResult:

@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 
 from unifideck.launcher.xbox_pc.runner import NO_WAIT_FLAG, STOP_FLAG
-from unifideck.launcher.xbox_pc.stop import StagedStopper, run_helper, wait_exit
+from unifideck.launcher.xbox_pc.stop import StagedStopper, run_helper, stop_gracefully, wait_exit
 
 #: A "game" that exits 0 on SIGUSR1 (our WM_CLOSE) and, if ``ignore_int``,
 #: survives SIGINT. It writes its pid so the runner can find it.
@@ -98,26 +98,50 @@ async def test_a_stubborn_game_is_forced_and_its_group_is_gone(tmp_path: Path) -
         os.killpg(proc.pid, 0)
 
 
+def _supervise(stopper: StagedStopper) -> asyncio.Future[None]:
+    """The session's pattern: run until cancelled, then ``stop_gracefully``."""
+    async def supervise() -> None:
+        try:
+            await asyncio.sleep(3600)
+        except asyncio.CancelledError:
+            await stop_gracefully(stopper)
+    return asyncio.ensure_future(supervise())
+
+
 @pytest.mark.asyncio
-async def test_a_second_cancel_forces_the_stop(tmp_path: Path) -> None:
-    """The session's pattern: cancel during ``staged`` jumps to ``force``."""
+async def test_steams_signal_pair_is_one_stop_and_the_game_closes_gracefully(tmp_path: Path) -> None:
+    """I-034: Steam sends SIGINT and SIGTERM together; that is not "stop, then force"."""
+    proc = await _start_game(tmp_path, ignore_int=False)
+    stopper = StagedStopper(proc, runner=_runner(tmp_path, closes=True), exe_name="Game.exe",
+                            env=dict(os.environ), close_grace_s=5, sigint_grace_s=5)
+    task = _supervise(stopper)
+    await asyncio.sleep(0.2)
+    task.cancel()
+    await asyncio.sleep(0.01)
+    task.cancel()
+    done, _ = await asyncio.wait({task}, timeout=10)
+    assert task in done and task.cancelled()
+    assert proc.returncode == 0, "closed by WM_CLOSE, not killed"
+    assert STOP_FLAG not in _log(tmp_path)
+
+
+@pytest.mark.asyncio
+async def test_a_later_second_stop_forces_it(tmp_path: Path) -> None:
     proc = await _start_game(tmp_path, ignore_int=True)
     stopper = StagedStopper(proc, runner=_runner(tmp_path, closes=False), exe_name="Game.exe",
                             env=dict(os.environ), close_grace_s=30, sigint_grace_s=30)
-
-    async def supervise() -> None:
-        try:
-            await stopper.staged()
-        except asyncio.CancelledError:
-            await stopper.force()
-            raise
-
-    task = asyncio.ensure_future(supervise())
-    await asyncio.sleep(0.5)
+    task = _supervise(stopper)
+    await asyncio.sleep(0.2)
+    task.cancel()
+    await asyncio.sleep(0.2)
+    task.cancel()  # still the same Stop: absorbed
+    await asyncio.sleep(1.2)
+    assert proc.returncode is None, "the paired signal did not force it"
     task.cancel()
     done, _ = await asyncio.wait({task}, timeout=10)
     assert task in done and task.cancelled()
     assert proc.returncode == -signal.SIGKILL
+    assert STOP_FLAG in _log(tmp_path)
 
 
 @pytest.mark.asyncio

@@ -36,13 +36,24 @@ ProgressCallback = Callable[[dict[str, Any]], Awaitable[None]] | None
 TERMINAL_PHASES = frozenset({"complete", "failed"})
 
 #: The CLI's phase, as the download queue's ``download_phase``.
-QUEUE_PHASE = {
-    "initializing": "preparing",
-    "metadata": "preparing",
+#:
+#: ``initializing`` (credential and license checks) and ``metadata`` (reading
+#: the package's file layout) come before the first byte, so they are
+#: ``starting``. They are not ``preparing``: the frontend shows that phase as
+#: the prefix setup and cloud-save sync other stores run after the download,
+#: and nothing here builds a prefix. ``finalizing`` writes out the finished
+#: package, which is not a file check, so it is not ``verifying``.
+#:
+#: A terminal record maps to None and sends no phase. The row then keeps the
+#: phase of the step it ended in. On success the worker marks it complete,
+#: and on failure the history shows which step died.
+QUEUE_PHASE: dict[str, str | None] = {
+    "initializing": "starting",
+    "metadata": "starting",
     "downloading": "downloading",
-    "finalizing": "verifying",
-    "complete": "verifying",
-    "failed": "verifying",
+    "finalizing": "finalizing",
+    "complete": None,
+    "failed": None,
 }
 
 #: Phases that print nothing for long stretches: credential checks before
@@ -63,11 +74,12 @@ def queue_payload(record: ProgressRecord) -> dict[str, Any]:
 
     The percentage, byte counts and ETA are sent only once ``totalBytes``
     is known. A total of 0 (an update with nothing to fetch) reads as 100%.
+    A terminal record carries no ``phase`` (see ``QUEUE_PHASE``).
     """
-    payload: dict[str, Any] = {
-        "phase": QUEUE_PHASE[record.phase],
-        "speed_bps": float(record.bytes_per_second),
-    }
+    payload: dict[str, Any] = {"speed_bps": float(record.bytes_per_second)}
+    phase = QUEUE_PHASE[record.phase]
+    if phase is not None:
+        payload["phase"] = phase
     total = record.total_bytes
     if total is None:
         return payload

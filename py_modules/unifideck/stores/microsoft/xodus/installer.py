@@ -237,6 +237,7 @@ class XboxPcInstaller:
         blocked = await self.precondition(game_id)
         if blocked:
             raise InstallError(blocked)
+        await steps.report_starting(progress_cb)
         if not base_path:
             raise InstallError("install_path_not_found")
         target = self.target(game_id)
