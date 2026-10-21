@@ -52,6 +52,7 @@ import { Tabs, findClassModule } from "@decky/ui";
 import { useTranslation } from "react-i18next";
 import {
   StoreConnections,
+  XboxPcSection,
   LibrarySync,
   LanguageSelector,
   GameDetailsViewModeToggle,
@@ -184,6 +185,7 @@ export const QuickAccessPanel: FC = () => {
             content: (
               <>
                 <StoreConnections />
+                <XboxPcSection />
                 <LibrarySync />
                 <LanguageSelector />
                 <GameDetailsViewModeToggle />

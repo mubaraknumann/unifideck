@@ -76,6 +76,8 @@ _DENY_PARTS: tuple[str, ...] = (
     "heroic_gogdl",
     # umu runtime trees — hundreds of MB of pressure-vessel payload.
     "steamrt*",
+    # Xodus sign-in files (``xbox_pc/credentials/``), stored in plain text.
+    "credentials",
 )
 
 

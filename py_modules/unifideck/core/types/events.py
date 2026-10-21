@@ -145,6 +145,19 @@ class Events(StrEnum):
     # at all, which was also wrong — the frontend one is live.
     STORE_REGISTERED = "store_registered"
 
+    # Xbox PC (owned and Game Pass PC titles through our own Xodus build).
+    # One snapshot event: the payload is the whole status that the
+    # ``get_xbox_pc_status`` RPC returns, so a subscriber replaces its copy
+    # instead of merging. Emitted by the ``XboxPc`` facade on every change
+    # (toggle, component install progress and result, sign-in), throttled
+    # to two per second. Consumed by src/stores/xbox-pc-store.ts. In
+    # STALE_ON_RELOAD_EVENTS: a replayed snapshot from a prior session would
+    # overwrite the fresh one that the store fetches on start.
+    # Payload fields: available (bool), enabled (bool), notice_version
+    #   (int), notice_ack_version (int), xcloud_signed_in (bool), runtime
+    #   (dict), account (dict), library (dict)
+    XBOX_PC_STATE_CHANGED = "xbox_pc_state_changed"
+
     # Game lifecycle
     # No GAME_INSTALLED counterpart: install completion is
     # ``DOWNLOAD_COMPLETE`` (worker) → ``mark_installed`` →

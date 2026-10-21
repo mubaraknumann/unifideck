@@ -18,6 +18,7 @@ import { downloadStore } from "./stores/download-store";
 import { syncStore } from "./stores/sync-store";
 import { authStore } from "./stores/auth-store";
 import { storeInfoStore } from "./stores/store-info-store";
+import { xboxPcStore } from "./stores/xbox-pc-store";
 /**
  * Handles captured during bootstrap that {@link runTeardown}
  * must dispose on plugin unload. Currently the lifetime
@@ -113,6 +114,11 @@ export function runTeardown(handles: TeardownHandles): void {
     storeInfoStore.stop();
   } catch (e) {
     console.warn("[Teardown] storeInfoStore stop failed:", e);
+  }
+  try {
+    xboxPcStore.stop();
+  } catch (e) {
+    console.warn("[Teardown] xboxPcStore stop failed:", e);
   }
   for (const [name, dispose] of Object.entries(DISPOSERS)) {
     try {

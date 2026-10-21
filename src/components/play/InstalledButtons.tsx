@@ -23,8 +23,8 @@ import { useGameInfo } from "../../hooks/useGameInfo";
 import { useGameActions } from "../../hooks/useGameActions";
 import { useGameUpdate } from "../../hooks/useGameUpdate";
 import { useToast } from "../../hooks/useToast";
+import { friendlyDownloadError } from "../../lib/download-errors";
 import { SteamBridge } from "../../lib/steam-bridge";
-import { openNativeAppManageMenu } from "../../utils/nativeAppMenu";
 import { UninstallConfirmModal } from "../modals/UninstallConfirmModal";
 import { UpdateAvailableModal } from "../modals/UpdateAvailableModal";
 import { CloudSaveButton } from "./CloudSaveButton";
@@ -38,6 +38,7 @@ import {
   iconBtnClass,
   controllerBtnClass,
 } from "./PlayMeta";
+import { openControllerConfig, openGearMenu } from "./steamAppDialogs";
 
 interface Props {
   appId: number;
@@ -45,26 +46,6 @@ interface Props {
 }
 
 const defaultBridge = new SteamBridge();
-function openControllerConfig(appId: number): void {
-  (
-    window as unknown as {
-      SteamClient?: {
-        Apps?: { ShowControllerConfigurator?: (id: number) => void };
-      };
-    }
-  ).SteamClient?.Apps?.ShowControllerConfigurator?.(appId);
-}
-
-function openAppSettings(appId: number): void {
-  (
-    window as unknown as {
-      SteamClient?: {
-        Apps?: { OpenAppSettingsDialog?: (id: number, page: string) => void };
-      };
-    }
-  ).SteamClient?.Apps?.OpenAppSettingsDialog?.(appId, "general");
-}
-
 export const InstalledButtons: FC<Props> = ({
   appId,
   bridge = defaultBridge,
@@ -150,7 +131,14 @@ export const InstalledButtons: FC<Props> = ({
         gameTitle={game.title}
         onConfirm={async (deletePrefix) => {
           const r = await actions.uninstall(appId, deletePrefix);
-          if (r?.success) toast.success(t("toasts.uninstallDone"));
+          if (r.success) {
+            toast.success(t("toasts.uninstallDone"));
+          } else {
+            toast.error(
+              t("toasts.uninstallFailed"),
+              friendlyDownloadError(r.error, t),
+            );
+          }
         }}
         closeModal={() => {}}
       />,
@@ -240,13 +228,7 @@ export const InstalledButtons: FC<Props> = ({
         <DialogButton
           className={iconBtnClass()}
           style={iconBtnStyle}
-          onClick={(e) => {
-            // Open Steam's native app menu (Manage / Properties / …),
-            // matching the native gear; fall back to Properties directly.
-            if (!openNativeAppManageMenu(e?.currentTarget as HTMLElement)) {
-              openAppSettings(appId);
-            }
-          }}
+          onClick={(e) => openGearMenu(e?.currentTarget as HTMLElement, appId)}
           aria-label={t("playButton.appSettings")}
         >
           <SteamGearIcon />

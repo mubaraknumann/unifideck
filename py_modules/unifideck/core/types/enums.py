@@ -56,6 +56,11 @@ class GameTag(StrEnum):
     # bundle game). Install opens the claim page first; the next sync after
     # the claim drops the tag.
     CLAIM_REQUIRED = "claim_required"
+    # A Microsoft title that Unifideck can install and run on this device
+    # through its own Xodus build (owned or Game Pass). A fact about the
+    # title: every installed row carries it, even with the feature off, so
+    # the row stays playable and uninstallable. See ``launcher/xbox_pc``.
+    XBOX_PC = "xbox_pc"
     DLC = "dlc"
     BETA = "beta"
     DEMO = "demo"

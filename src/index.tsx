@@ -45,6 +45,7 @@ import { downloadStore } from "./stores/download-store";
 import { syncStore } from "./stores/sync-store";
 import { authStore } from "./stores/auth-store";
 import { storeInfoStore } from "./stores/store-info-store";
+import { xboxPcStore } from "./stores/xbox-pc-store";
 import { runTeardown, type TeardownHandles } from "./teardown";
 // Eager translation load — Decky's UI mounts before any
 // async work resolves, so we kick this off at module import.
@@ -142,6 +143,7 @@ export default definePlugin(() => {
   syncSignedOutTabs();
   handles.groupDuplicatesRefresh = attachGroupDuplicatesRefresh();
   storeInfoStore.start();
+  xboxPcStore.start();
   downloadStore.start();
   syncStore.start();
   // Boot-time event listener — handles STORE_ERROR, LAUNCHER_STAGE,

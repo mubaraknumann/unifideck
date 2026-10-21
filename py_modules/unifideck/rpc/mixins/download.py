@@ -286,7 +286,11 @@ class DownloadRPCMixin:
         # uninstall returns success without deleting anything; nile likewise
         # leaves our manifest marker (a stub dir) behind. The marker proves
         # the folder is ours, so this only ever removes a dir we created.
-        await asyncio.to_thread(marker_sweep.sweep_game, store, game_id)
+        # Never after an Xbox PC refusal: it refuses a running game's folder.
+        from unifideck.launcher.xbox_pc.layout import is_xodus_store
+
+        if getattr(result, "success", False) or not is_xodus_store(store):
+            await asyncio.to_thread(marker_sweep.sweep_game, store, game_id)
         # One prefix deletion for every store, so a new store cannot forget
         # it (GameVault did). Only after a successful uninstall: a game whose
         # files are still there still launches and keeps its saves in the

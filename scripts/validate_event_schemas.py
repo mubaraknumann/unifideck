@@ -133,6 +133,12 @@ CANONICAL_SCHEMA: dict[str, set[str]] = {
     "SYNC_STARTED":                 {"registered_phases", "run_id", "scope", "stores"},
     "BATTLENET_INSTALL_LAUNCH_REQUESTED": {"store_game_id"},
     "UBISOFT_INSTALL_LAUNCH_REQUESTED": {"store_game_id"},
+    # The whole Xbox PC status snapshot, the same shape the
+    # ``get_xbox_pc_status`` RPC returns.
+    "XBOX_PC_STATE_CHANGED": {
+        "account", "available", "enabled", "library", "notice_ack_version",
+        "notice_version", "runtime", "xcloud_signed_in",
+    },
 }
 
 # Events with a single owning subsystem, as a path prefix relative to
@@ -146,10 +152,16 @@ CANONICAL_SCHEMA: dict[str, set[str]] = {
 # emitting DOWNLOAD_* is a duplicate by construction, and its "complete"
 # fires before the worker has run prefix warmup. Audit item #4.
 EMITTER_OWNERS: dict[str, str] = {
-    f"DOWNLOAD_{name}": "services/download/"
-    for name in (
-        "QUEUED", "STARTED", "PROGRESS", "COMPLETE", "FAILED", "CANCELLED",
-    )
+    **{
+        f"DOWNLOAD_{name}": "services/download/"
+        for name in (
+            "QUEUED", "STARTED", "PROGRESS", "COMPLETE", "FAILED", "CANCELLED",
+        )
+    },
+    # A snapshot event: a second emitter would send a partial status that
+    # the frontend store takes for the whole thing. The ``XboxPc`` facade
+    # is the one sender.
+    "XBOX_PC_STATE_CHANGED": "stores/microsoft/xodus/",
 }
 
 

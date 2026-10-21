@@ -21,6 +21,7 @@ refreshed while offline.
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 
 from unifideck.stores.microsoft.microsoft_store import MicrosoftStore
 from unifideck.stores.microsoft.session_health import SessionHealth
@@ -75,6 +76,8 @@ def _store(tokens: _FakeTokens, *, config_valid: bool = True) -> MicrosoftStore:
     store._bus = _Bus()
     store._health = SessionHealth(store._bus, tokens)
     store._poll_task = None
+    store._cached_available = False
+    store._xbox_pc = SimpleNamespace(notify=lambda: None)  # type: ignore[assignment]
     return store
 
 

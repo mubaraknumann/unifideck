@@ -63,6 +63,18 @@ def test_microsoft_title_missing_from_the_cache_is_still_a_stream(cache: Any) ->
     assert target is not None and target.kind == "stream" and target.url.endswith("/ABC")
 
 
+def test_pc_only_xbox_title_is_not_a_stream(cache: Any) -> None:
+    cache({"microsoft": [{"store_game_id": "9PK087LNGJC5", "tags": ["xbox_pc"], "metadata": {}}]})
+    assert browser_target("microsoft", "9PK087LNGJC5") is None
+
+
+def test_merged_xbox_pc_title_without_install_still_streams(cache: Any) -> None:
+    url = "https://www.xbox.com/play/launch/9PK087LNGJC5"
+    cache({"microsoft": [{"store_game_id": "9PK087LNGJC5", "tags": ["xcloud", "browser", "xbox_pc"],
+                          "metadata": {"browser_url": url}}]})
+    assert browser_target("microsoft", "9PK087LNGJC5") == BrowserTarget(url=url, kind="stream")
+
+
 def test_unreadable_cache_means_no_record(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     bad = tmp_path / "library_cache.json"
     bad.write_text("{not json")

@@ -20,6 +20,7 @@ import {
   fetchGameInfoCached,
   fetchWithRetry,
   type RetryOptions,
+  xboxPcOf,
 } from "./useGameInfo";
 import type { Game } from "../types/api";
 
@@ -137,5 +138,19 @@ describe("fetchWithRetry", () => {
 
     await expect(fetchWithRetry(attempt, clock)).rejects.toThrow();
     expect(attempt).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("xboxPcOf", () => {
+  it("reads metadata.xbox_pc when it carries a state", () => {
+    const info = { v: 1, state: "ready", product_id: "9PK087LNGJC5" };
+    expect(xboxPcOf({ metadata: { xbox_pc: info } })).toBe(info);
+  });
+
+  it("ignores rows without it, or with a malformed one", () => {
+    expect(xboxPcOf({})).toBeUndefined();
+    expect(xboxPcOf({ metadata: { browser_url: "x" } })).toBeUndefined();
+    expect(xboxPcOf({ metadata: { xbox_pc: { v: 1 } } })).toBeUndefined();
+    expect(xboxPcOf({ metadata: { xbox_pc: "ready" } })).toBeUndefined();
   });
 });

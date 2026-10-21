@@ -60,6 +60,11 @@ export type AuthShortcutConfig = {
    *  "epic:epic-store". Distinct from `tempStoreIdPrefix` so a log
    *  line or an id scan can tell a shop launch from a sign-in. */
   storefrontStoreIdPrefix: string;
+  /** Shortcut display name for the `xbox-pc-auth` action. Microsoft only;
+   *  a config without it never offers that action. */
+  xboxPcAppName?: string;
+  /** store_game_id prefix for the `xbox-pc-auth` action. */
+  xboxPcStoreIdPrefix?: string;
 };
 
 /**
@@ -70,8 +75,42 @@ export type AuthShortcutConfig = {
  * is still there and the user is already signed in. The frontend
  * behaviour is identical — the difference is entirely inside the
  * launcher, keyed off the `UNIFIDECK_<STORE>_ACTION` token.
+ *
+ * `xbox-pc-auth` (Microsoft only) opens Edge with a debugging port on a
+ * blank page; the backend then drives the Xbox PC sign-in page through
+ * that port (`stores/microsoft/xodus/auth.py`).
  */
-export type ShortcutAction = "auth" | "storefront";
+export type ShortcutAction = "auth" | "storefront" | "xbox-pc-auth";
+
+/**
+ * The shortcut's display name and store_game_id prefix for `action`.
+ *
+ * Each action gets a distinct prefix so a log line or an id scan can tell
+ * a shop launch or an Xbox PC sign-in from a store sign-in. An action the
+ * config has no name for falls back to the sign-in pair.
+ */
+export function nameAndPrefix(
+  config: AuthShortcutConfig,
+  action: ShortcutAction,
+): { appName: string; idPrefix: string } {
+  if (action === "storefront") {
+    return {
+      appName: config.storeAppName,
+      idPrefix: config.storefrontStoreIdPrefix,
+    };
+  }
+  if (
+    action === "xbox-pc-auth" &&
+    config.xboxPcAppName &&
+    config.xboxPcStoreIdPrefix
+  ) {
+    return {
+      appName: config.xboxPcAppName,
+      idPrefix: config.xboxPcStoreIdPrefix,
+    };
+  }
+  return { appName: config.appName, idPrefix: config.tempStoreIdPrefix };
+}
 
 /**
  * Outcome of a single auth-shortcut launch attempt :
@@ -126,6 +165,8 @@ const MICROSOFT_AUTH_CONFIG: AuthShortcutConfig = {
   contextRpcMethod: rpcRoutes.getMicrosoftAuthShortcutContext,
   storeAppName: "Xbox Store",
   storefrontStoreIdPrefix: "microsoft:ms-store",
+  xboxPcAppName: "Xbox PC Sign-In",
+  xboxPcStoreIdPrefix: "microsoft:xbox-pc-auth-temp",
 };
 
 /** itch.io signs in on its own site in Edge; butler takes the captured
@@ -179,11 +220,7 @@ export async function launchAuthViaShortcut(
   action: ShortcutAction = "auth",
 ): Promise<AuthShortcutLaunchResult> {
   const tag = logTag(config);
-  const isShop = action === "storefront";
-  const appName = isShop ? config.storeAppName : config.appName;
-  const idPrefix = isShop
-    ? config.storefrontStoreIdPrefix
-    : config.tempStoreIdPrefix;
+  const { appName, idPrefix } = nameAndPrefix(config, action);
   console.log(`${tag} Starting ${action} shortcut launch flow`);
   const raw = await call<[], unknown>(config.contextRpcMethod);
   const ctx = unwrapRpcEnvelope<AuthShortcutContextRPC>(raw, {
@@ -341,3 +378,15 @@ export const launchItchStorefrontViaShortcut =
 export const launchMicrosoftStorefrontViaShortcut =
   (): Promise<AuthShortcutLaunchResult> =>
     launchAuthViaShortcut(MICROSOFT_AUTH_CONFIG, "storefront");
+
+/**
+ * The Edge window for the Xbox PC sign-in (`xbox-pc-auth`). Same Microsoft
+ * shortcut pipeline and Edge profile; the backend has already written
+ * `about:blank` as the start page and attaches to the window itself.
+ */
+export const launchXboxPcSignInViaShortcut =
+  (): Promise<AuthShortcutLaunchResult> =>
+    launchAuthViaShortcut(MICROSOFT_AUTH_CONFIG, "xbox-pc-auth");
+
+/** The Microsoft config, for tests of {@link nameAndPrefix}. */
+export const _MICROSOFT_AUTH_CONFIG = MICROSOFT_AUTH_CONFIG;

@@ -43,6 +43,16 @@ _AUTH_DATA_CANDIDATES = (
     "~/.local/share/unifideck/ubisoft_upc_session.txt",
 )
 
+# Folders whose every file is a credential. Emptied, never removed: the
+# Xbox PC credential folder is 0700 and the next sign-in reuses it.
+_AUTH_DATA_DIRS = (
+    "~/.local/share/unifideck/xbox_pc/credentials",
+)
+# The Xbox PC verified gamertag goes with the credentials it describes.
+_AUTH_DATA_EXTRA = (
+    "~/.local/share/unifideck/xbox_pc/state/account.json",
+)
+
 # Wrapper-store id maps. Each records an absolute ``prefix_path`` per game,
 # which is the only way to find a prefix the user put on an SD card — the
 # data-dir wipe cannot reach those. Add a row when a wrapper store is added;
@@ -178,7 +188,7 @@ def sweep_auth_data() -> int:
     the files the ``is_available`` probes read guarantees signed-out state.
     """
     count = 0
-    for raw in _AUTH_DATA_CANDIDATES:
+    for raw in (*_AUTH_DATA_CANDIDATES, *_AUTH_DATA_EXTRA):
         p = Path(raw).expanduser()
         try:
             if p.is_file():
@@ -186,6 +196,21 @@ def sweep_auth_data() -> int:
                 count += 1
         except OSError:
             logger.exception("[cleanup] unlink(%s) failed", p)
+    for raw in _AUTH_DATA_DIRS:
+        count += _empty_credential_dir(Path(raw).expanduser())
+    return count
+
+
+def _empty_credential_dir(folder: Path) -> int:
+    """Delete every file in ``folder`` (not the folder). Never follows a symlink."""
+    if folder.is_symlink() or not folder.is_dir():
+        return 0
+    count = 0
+    for entry in folder.iterdir():
+        if entry.is_dir() and not entry.is_symlink():
+            continue
+        if _delete_entry(entry):
+            count += 1
     return count
 
 

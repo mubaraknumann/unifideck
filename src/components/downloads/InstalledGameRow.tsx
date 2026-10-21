@@ -19,6 +19,7 @@ import { useTranslation } from "react-i18next";
 import { useGameActions } from "../../hooks/useGameActions";
 import { useGameUpdate } from "../../hooks/useGameUpdate";
 import { useToast } from "../../hooks/useToast";
+import { friendlyDownloadError } from "../../lib/download-errors";
 import { SteamBridge } from "../../lib/steam-bridge";
 import { resolveAppIdFromStoreGame } from "../../lib/library-filters";
 import { StoreIcon } from "../shared/StoreIcon";
@@ -145,7 +146,15 @@ export const InstalledGameRow: FC<Props> = ({ game, disk, onUninstalled }) => {
           setBusy(true);
           try {
             const result = await actions.uninstall(appId, deletePrefix);
-            if (result?.success) onUninstalled();
+            if (result.success) {
+              onUninstalled();
+            } else {
+              // A refusal (an Xbox PC game still running, ...) must say so.
+              toast.error(
+                t("toasts.uninstallFailed"),
+                friendlyDownloadError(result.error, t),
+              );
+            }
           } finally {
             setBusy(false);
           }

@@ -24,6 +24,16 @@ export const rpcRoutes = {
   prepareStoreWebSession: "prepare_store_web_session",
   // Edge prereq (EdgeRPCMixin)
   installEdge: "install_edge",
+  // Xbox PC titles through our own Xodus build (XboxPcRPCMixin). Every
+  // status route answers with the `XboxPcStatus` snapshot.
+  getXboxPcStatus: "get_xbox_pc_status",
+  refreshXboxPcStatus: "refresh_xbox_pc_status",
+  setXboxPcEnabled: "set_xbox_pc_enabled",
+  installXboxPcRuntime: "install_xbox_pc_runtime",
+  cancelXboxPcRuntimeInstall: "cancel_xbox_pc_runtime_install",
+  startXboxPcSignIn: "start_xbox_pc_sign_in",
+  cancelXboxPcSignIn: "cancel_xbox_pc_sign_in",
+  signOutXboxPc: "sign_out_xbox_pc",
   // Auth-shortcut context (AuthShortcutsRPCMixin)
   getEpicAuthShortcutContext: "get_epic_auth_shortcut_context",
   getGogAuthShortcutContext: "get_gog_auth_shortcut_context",

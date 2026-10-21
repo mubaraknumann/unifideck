@@ -18,7 +18,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRPC } from "../api/useRPC";
 import { rpcRoutes } from "../api/rpc-routes";
-import type { Game, GameTag, StoreId } from "../types/api";
+import type { Game, GameTag, StoreId, XboxPcInfo } from "../types/api";
 
 /**
  * Adapt the raw ``get_game_info`` RPC response into our
@@ -65,7 +65,20 @@ function adaptGame(raw: unknown): Game | null {
       ? (r.tags as GameTag[])
       : undefined,
     browser_url: browserUrlOf(r),
+    xbox_pc: xboxPcOf(r),
   };
+}
+
+/** ``metadata.xbox_pc`` off a raw game row, when it is an object with a
+ *  string ``state``. The row's tag says it is an Xbox PC title; these are
+ *  its install facts (plan, package, size). Exported for tests. */
+export function xboxPcOf(r: Record<string, unknown>): XboxPcInfo | undefined {
+  const meta = r.metadata;
+  if (!meta || typeof meta !== "object") return undefined;
+  const info = (meta as Record<string, unknown>).xbox_pc;
+  if (!info || typeof info !== "object") return undefined;
+  const state = (info as Record<string, unknown>).state;
+  return typeof state === "string" ? (info as XboxPcInfo) : undefined;
 }
 
 /** ``metadata.browser_url`` off a raw game row, when it is a string. */

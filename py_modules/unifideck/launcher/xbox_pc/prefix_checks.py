@@ -1,0 +1,77 @@
+"""launcher/xbox_pc/prefix_checks.py — runtimes a game needs in or beside its prefix.
+
+Two checks, both read-only:
+
+* **VC++.** A game that ships an *encrypted* ``vc_redist.x64.exe`` cannot
+  have it installed by the runner in v1, so the prefix must already hold
+  VC++ 14.44.35211.0 or newer (Nexus ``game-dependencies.ts``).
+* **EasyAntiCheat.** An EAC game needs Steam's own "Proton EasyAntiCheat
+  Runtime". It is used when installed and never downloaded here.
+
+Stdlib only, Python 3.10 safe.
+"""
+from __future__ import annotations
+
+import re
+from collections.abc import Iterable
+from pathlib import Path
+
+VC_REDIST_VERSION = "14.44.35211.0"
+EAC_RUNTIME_DIR = "steamapps/common/Proton EasyAntiCheat Runtime"
+_EAC_FILES = ("easyanticheat_x64.dll", "easyanticheat_x64.so")
+
+_VC_SECTION_RE = re.compile(
+    r"^\[Software\\\\Microsoft\\\\VisualStudio\\\\14\.0\\\\VC\\\\Runtimes\\\\x64\](?:\s|$)",
+    re.M,
+)
+_INSTALLED_RE = re.compile(r'^"Installed"=dword:00000001$', re.M)
+_VERSION_RE = re.compile(r'^"Version"="v?([0-9.]+)"$', re.M | re.I)
+
+
+def installed_vc_runtime(prefix: Path) -> str | None:
+    """The VC++ 14 x64 version registered in ``prefix``'s ``system.reg``, or None."""
+    try:
+        registry = (prefix / "system.reg").read_text(errors="replace")
+    except OSError:
+        return None
+    match = _VC_SECTION_RE.search(registry)
+    if not match:
+        return None
+    end = registry.find("\n[", match.start() + 1)
+    section = registry[match.start(): end if end >= 0 else None]
+    if not _INSTALLED_RE.search(section):
+        return None
+    version = _VERSION_RE.search(section)
+    return version.group(1) if version else None
+
+
+def version_at_least(actual: str, minimum: str) -> bool:
+    """Whether dotted version ``actual`` is ``minimum`` or newer."""
+    try:
+        a = [int(p) for p in actual.split(".")]
+        b = [int(p) for p in minimum.split(".")]
+    except ValueError:
+        return False
+    width = max(len(a), len(b))
+    return (a + [0] * (width - len(a))) >= (b + [0] * (width - len(b)))
+
+
+def vc_runtime_problem(prefix: Path) -> str | None:
+    """Why the prefix's VC++ is not enough, for the log, or None when it is."""
+    installed = installed_vc_runtime(prefix)
+    if installed and version_at_least(installed, VC_REDIST_VERSION):
+        return None
+    return f"needs VC++ {VC_REDIST_VERSION} or newer, found {installed or 'none'}"
+
+
+def installed_eac_runtime(libraries: Iterable[Path]) -> Path | None:
+    """Steam's Proton EasyAntiCheat Runtime in any library, or None.
+
+    ``libraries`` are the Steam library roots
+    (``utils.vdf_compat.steam_library_dirs``, resolved by the caller).
+    """
+    for library in sorted(set(libraries)):
+        root = library / EAC_RUNTIME_DIR
+        if all((root / "v2" / "lib64" / name).is_file() for name in _EAC_FILES):
+            return root
+    return None

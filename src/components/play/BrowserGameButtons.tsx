@@ -12,6 +12,10 @@
  * This was `XCloudButtons` until the second kind arrived. The variant picks
  * the label, the icon and the default controller layout (a gamepad for a
  * stream, a trackpad mouse for a web page).
+ *
+ * A merged Xbox PC row whose PC version cannot install (EA Play, Ubisoft+,
+ * an unknown plan, a package choice) streams here too, with `notice`
+ * naming why in one line under Stream.
  */
 import { FC, useCallback } from "react";
 import { DialogButton } from "@decky/ui";
@@ -22,7 +26,6 @@ import { useAppRunning } from "../../hooks/useAppRunning";
 import { useGameActions } from "../../hooks/useGameActions";
 import { SteamBridge } from "../../lib/steam-bridge";
 import { launchAppWithControllerLayout } from "../../utils/controllerConfig";
-import { openNativeAppManageMenu } from "../../utils/nativeAppMenu";
 import {
   PlayShell,
   MetaInline,
@@ -33,37 +36,27 @@ import {
   iconBtnClass,
   controllerBtnClass,
 } from "./PlayMeta";
+import { openControllerConfig, openGearMenu } from "./steamAppDialogs";
+import { PcReasonLine } from "./PcUnsupportedButtons";
+import type { PcUnsupportedReason } from "../../lib/xbox-pc-errors";
 
 interface Props {
   appId: number;
   variant: "stream" | "web";
   /** Where the game opens; used for the openurl fallback. */
   url: string;
+  /** Why the PC version of this title cannot install. */
+  notice?: PcUnsupportedReason;
 }
 
 const defaultBridge = new SteamBridge();
 
-function openControllerConfig(appId: number): void {
-  (
-    window as unknown as {
-      SteamClient?: {
-        Apps?: { ShowControllerConfigurator?: (id: number) => void };
-      };
-    }
-  ).SteamClient?.Apps?.ShowControllerConfigurator?.(appId);
-}
-
-function openAppSettings(appId: number): void {
-  (
-    window as unknown as {
-      SteamClient?: {
-        Apps?: { OpenAppSettingsDialog?: (id: number, page: string) => void };
-      };
-    }
-  ).SteamClient?.Apps?.OpenAppSettingsDialog?.(appId, "general");
-}
-
-export const BrowserGameButtons: FC<Props> = ({ appId, variant, url }) => {
+export const BrowserGameButtons: FC<Props> = ({
+  appId,
+  variant,
+  url,
+  notice,
+}) => {
   const { t } = useTranslation();
   const stream = variant === "stream";
   // While the Edge window is up the game is running: offer Resume (bring it
@@ -116,6 +109,7 @@ export const BrowserGameButtons: FC<Props> = ({ appId, variant, url }) => {
         </DialogButton>
       )}
 
+      {notice && <PcReasonLine reason={notice} />}
       <MetaInline showLastPlayed appId={appId} />
 
       <IconGroup>
@@ -130,13 +124,7 @@ export const BrowserGameButtons: FC<Props> = ({ appId, variant, url }) => {
         <DialogButton
           className={iconBtnClass()}
           style={iconBtnStyle}
-          onClick={(e) => {
-            // Open Steam's native app menu (Manage / Properties / …),
-            // matching the native gear; fall back to Properties directly.
-            if (!openNativeAppManageMenu(e?.currentTarget as HTMLElement)) {
-              openAppSettings(appId);
-            }
-          }}
+          onClick={(e) => openGearMenu(e?.currentTarget as HTMLElement, appId)}
           aria-label={t("playButton.appSettings")}
         >
           <SteamGearIcon />

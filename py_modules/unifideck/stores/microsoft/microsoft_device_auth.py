@@ -182,6 +182,15 @@ class MicrosoftDeviceAuth:
         self._edge = edge
         self._task: asyncio.Task[None] | None = None
 
+    @property
+    def running(self) -> bool:
+        """Whether a sign-in is waiting for the user's approval.
+
+        The Xbox PC sign-in refuses to start while this is True, because both
+        use the same auth window.
+        """
+        return self._task is not None and not self._task.done()
+
     @audit_auth_flow(store="microsoft", method="oauth_device_code")
     async def start_auth(self) -> AuthResult:
         """Ask for a code, point the auth window at it, start polling."""

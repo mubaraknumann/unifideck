@@ -89,6 +89,7 @@ from unifideck.rpc.mixins.store_ownership import StoreOwnershipRPCMixin  # noqa:
 from unifideck.rpc.mixins.sync import SyncRPCMixin  # noqa: E402
 from unifideck.rpc.mixins.ui import UIRPCMixin  # noqa: E402
 from unifideck.rpc.mixins.updater import UpdaterRPCMixin  # noqa: E402
+from unifideck.rpc.mixins.xbox_pc import XboxPcRPCMixin  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +114,7 @@ class Plugin(
     AccountRPCMixin,
     AchievementsRPCMixin,
     UpdaterRPCMixin,
+    XboxPcRPCMixin,
 ):
     """The Decky Loader plugin class.
 

@@ -21,6 +21,7 @@ import { useGameInfo } from "../../hooks/useGameInfo";
 import { useGameActions } from "../../hooks/useGameActions";
 import { useDownloads } from "../../contexts/DownloadContext";
 import { useToast } from "../../hooks/useToast";
+import { friendlyDownloadError } from "../../lib/download-errors";
 import { SteamBridge } from "../../lib/steam-bridge";
 import { UninstallConfirmModal } from "../modals/UninstallConfirmModal";
 import { GameInfoDetailsModal } from "./GameInfoDetailsModal";
@@ -95,7 +96,14 @@ export const GameInfoCompatRow: FC<Props> = ({
         gameTitle={game.title}
         onConfirm={async (deletePrefix) => {
           const r = await actions.uninstall(appId, deletePrefix);
-          if (r?.success) toast.success(t("toasts.uninstallComplete"));
+          if (r.success) {
+            toast.success(t("toasts.uninstallComplete"));
+          } else {
+            toast.error(
+              t("toasts.uninstallFailed"),
+              friendlyDownloadError(r.error, t),
+            );
+          }
         }}
         closeModal={() => {}}
       />,

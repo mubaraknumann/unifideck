@@ -18,6 +18,7 @@
 - [Catalog synchronization](#catalog-synchronization)
   - [Sync flow](#sync-flow)
   - [games.map format](#gamesmap-format)
+  - [Installed, streamed or PC-only: where Play goes](#installed-streamed-or-pc-only-where-play-goes)
 - [Launching an xCloud game](#launching-an-xcloud-game)
   - [Launch flow](#launch-flow)
   - [Chromium flags for xCloud](#chromium-flags-for-xcloud)
@@ -163,6 +164,57 @@ Two fallbacks keep a pre-0.7.6 cache working: an `xcloud` tag without a
 `browser_url`, and a Microsoft title missing from the cache, both resolve to
 the play URL built from the product id. The same mechanism serves itch.io's
 HTML5 games (`kind="web"`); see `.claude/skills/unifideck-architecture/stores.md`.
+
+The one exception to that fallback is a PC-only Xbox title (below): a
+Microsoft title tagged `xbox_pc` and not `xcloud` is never streamed.
+
+### Installed, streamed or PC-only: where Play goes
+
+Since the Xbox PC feature (opt-in, on the `xbox-pc` branch, not yet
+validated on a device), one Microsoft row can be any of three things:
+
+| Row | Tags | Where it comes from |
+|---|---|---|
+| Streamed only | `xcloud`, `browser` | the xCloud catalog, as above |
+| Merged | `xcloud`, `browser`, `xbox_pc` | a title in both the xCloud catalog and the user's Xbox PC library, matched by exact product id (never by title) |
+| PC-only | `xbox_pc` | a PC title xCloud does not carry |
+
+The PC rows come from our own `xodus-cli` build (`stores/microsoft/pc_library/`).
+They are listed only while the xCloud sign-in works, because `get_library`
+reads xCloud first. `xbox_pc` is a fact about the title: it stays on an
+installed row when the feature is turned off.
+
+**Launcher.** Every Microsoft launch goes to
+`launcher/xbox_pc/routing.microsoft_context`, right after the auth and
+storefront check and before any exe lookup:
+
+| games.map row | Xbox PC toggle | Cached row has `xcloud` (or no cached row) | Result |
+|---|---|---|---|
+| yes | on | any | Xodus launch (`xodus-cli run` in our runtime) |
+| yes | off | yes | xCloud stream |
+| yes | off | no | notice `disabled`, nothing launches |
+| no | any | yes | xCloud stream (the behaviour before Xbox PC) |
+| no | any | no | notice `not_installed`, nothing launches |
+
+An installed Xbox PC title has a games.map row (`microsoft:<store_game_id>`),
+written when the install finishes. The launch reads everything else from the
+install record in `~/.local/share/unifideck/xbox_pc/installed/<PID>.json`.
+It never goes through umu, GE or the Proton selection chain.
+
+**Game page.** The frontend decides from the tags and the install state
+(`src/hooks/resolvePlaySection.ts`):
+
+- Installed: Play, which runs the PC game. **There is no Stream button on an
+  installed tile in v1.**
+- Not installed, merged row: Install is the main button and Stream is a
+  secondary one.
+- Not installed, PC-only row: Install.
+- A title Xodus cannot install yet (EA Play, Ubisoft+, an unknown plan, or a
+  package that needs a choice): Stream with the reason when the row has
+  `xcloud`, otherwise a disabled "Not supported yet" button with the reason.
+- Feature turned off: streamed and merged rows stream. A PC-only row shows
+  that the feature is off. An installed row shows why it cannot run and
+  offers Uninstall.
 
 ---
 

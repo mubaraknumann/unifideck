@@ -39,6 +39,9 @@ STORE_FILES = (
     "py_modules/unifideck/stores/microsoft/microsoft_store.py",
     "py_modules/unifideck/stores/microsoft/library_gate.py",
 )
+# The Xbox PC list emits through one helper with the reason in a variable, so
+# its reasons are read from the module's ``SYNC_SKIPPED_REASONS`` tuple.
+PC_LIBRARY = "py_modules/unifideck/stores/microsoft/pc_library/library.py"
 EN_US = "src/i18n/locales/en-US.json"
 LOCALES = "src/i18n/locales"
 
@@ -59,7 +62,27 @@ def _emitted_reasons() -> set[str]:
     reasons: set[str] = set()
     for rel in STORE_FILES:
         reasons |= _reasons_in(rel)
-    return reasons
+    return reasons | _declared_pc_reasons()
+
+
+def _declared_pc_reasons() -> set[str]:
+    """The string constants named in ``pc_library/library.py``'s
+    ``SYNC_SKIPPED_REASONS`` tuple."""
+    tree = ast.parse(_require(PC_LIBRARY).read_text(encoding="utf-8"))
+    constants: dict[str, str] = {}
+    names: list[str] = []
+    for node in tree.body:
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        target = node.targets[0]
+        if not isinstance(target, ast.Name):
+            continue
+        if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+            constants[target.id] = node.value.value
+        elif target.id == "SYNC_SKIPPED_REASONS" and isinstance(node.value, ast.Tuple):
+            names = [e.id for e in node.value.elts if isinstance(e, ast.Name)]
+    assert names, "SYNC_SKIPPED_REASONS not found in pc_library/library.py"
+    return {constants[n] for n in names}
 
 
 def _reasons_in(rel: str) -> set[str]:

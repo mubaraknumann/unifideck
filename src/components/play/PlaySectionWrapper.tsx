@@ -32,6 +32,7 @@ import { NotInstalledButtons } from "./NotInstalledButtons";
 import { DownloadingButtons } from "./DownloadingButtons";
 import { InstalledButtons } from "./InstalledButtons";
 import { BrowserGameButtons } from "./BrowserGameButtons";
+import { PcUnsupportedButtons } from "./PcUnsupportedButtons";
 import { PlayLoadingSkeleton } from "./PlayMeta";
 import {
   injectPlayFocusStyles,
@@ -73,7 +74,8 @@ function notifyBackendUnavailable(): void {
 /**
  * Top-level wrapper rendered in place of Steam's own Play section
  * for Unifideck games. Picks the right variant (Not-installed /
- * Downloading / Installed / browser game) based on `usePlaySection`, or a
+ * Downloading / Installed / browser game / Xbox PC not available) based
+ * on `usePlaySection`, or a
  * loading skeleton while the game info resolves.
  */
 export const PlaySectionWrapper: FC<PlaySectionWrapperProps> = ({ appId }) => {
@@ -99,7 +101,9 @@ export const PlaySectionWrapper: FC<PlaySectionWrapperProps> = ({ appId }) => {
   } else {
     switch (state.kind) {
       case "not-installed":
-        body = <NotInstalledButtons appId={appId} />;
+        body = (
+          <NotInstalledButtons appId={appId} streamUrl={state.streamUrl} />
+        );
         break;
       case "downloading":
         body = <DownloadingButtons download={state.download} />;
@@ -113,6 +117,16 @@ export const PlaySectionWrapper: FC<PlaySectionWrapperProps> = ({ appId }) => {
             appId={state.appId}
             variant={state.variant}
             url={state.url}
+            notice={state.notice}
+          />
+        );
+        break;
+      case "pc-unsupported":
+        body = (
+          <PcUnsupportedButtons
+            appId={state.appId}
+            reason={state.reason}
+            installed={state.installed}
           />
         );
         break;

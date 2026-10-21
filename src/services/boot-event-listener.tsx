@@ -50,12 +50,15 @@ function showToast(
  * `SYNC_SKIPPED.reason` → the i18n key explaining the skip.
  *
  * A skip is an intentional no-op with a user-facing explanation, as distinct
- * from `SYNC_FAILED`. `MicrosoftStore` is the only emitter today: any of these
- * three outcomes drops the entire xCloud library from the sync while the bar
- * still reports success for the other five stores, which reads as "my Game
- * Pass games vanished". The strings existed and were translated in all 16
- * locales the whole time — the event was polled and dropped on the floor
- * (audit §1.3).
+ * from `SYNC_FAILED`. `MicrosoftStore` is the only emitter today. The first
+ * three rows drop the entire xCloud library from the sync while the bar still
+ * reports success for the other stores, which reads as "my Game Pass games
+ * vanished". The strings existed and were translated in all 16 locales the
+ * whole time — the event was polled and dropped on the floor (audit §1.3).
+ *
+ * The `xbox_pc_*` rows come from the Xbox PC list (`stores/microsoft/
+ * pc_library`). Each is sent once until a good read resets it, so a toast
+ * here never repeats on every sync.
  *
  * Keyed by reason rather than by store, and unknown reasons fall through
  * silently, so a future subscription store (EA Play, Ubisoft+) emitting its own
@@ -67,6 +70,13 @@ const SYNC_SKIPPED_KEYS: Record<string, string> = {
   subscription_check_error: "microsoft.subscriptionCheckFailed",
   // Not a whole-store skip: the free titles synced, the Game Pass part did not.
   free_titles_only: "microsoft.syncFreeTitlesOnly",
+  // The Xbox PC list could not be refreshed; the last good one was kept.
+  xbox_pc_list_kept: "microsoft.xboxPcListKept",
+  xbox_pc_signin_needed: "microsoft.xboxPcSignInNeeded",
+  xbox_pc_account_changed: "microsoft.xboxPcAccountChanged",
+  xbox_pc_installed_unreadable: "microsoft.xboxPcInstalledUnreadable",
+  // Sent after `no_active_subscription`: the PC games did sync.
+  xbox_pc_only: "microsoft.xboxPcOnly",
 };
 
 /**

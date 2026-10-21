@@ -36,6 +36,7 @@ def _store(flow: str) -> tuple[MicrosoftStore, MagicMock]:
     store._auth = MagicMock()
     store._auth.start_auth = AsyncMock(return_value=AuthResult(success=True, store="microsoft"))
     store._tokens = MagicMock(client_mismatch=False)
+    store._xbox_pc = MagicMock(sign_in_running=False)
     return store, edge
 
 

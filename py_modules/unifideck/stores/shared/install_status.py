@@ -30,14 +30,16 @@ showing PLAY for a game with no files; see
     would be pure cost.
 
 ``exe_key``
-    GOG only, and it must stay that way. GOG's scanned ``executable`` is an
-    absolute path, and reconcile needs it: ``_update_games_map_row`` writes
+    Only for stores whose install record holds an **absolute** executable:
+    GOG (its scanned ``executable``) and Microsoft (the Xbox PC install
+    record's ``exe``). Reconcile needs it: ``_update_games_map_row`` writes
     the launch row only when both ``installed`` and ``exe_path`` are truthy.
     legendary's equivalent field is a **relative Windows path** —
     ``legendary/core.py`` does ``install.executable.replace('\\\\', '/')
-    .lstrip('/')`` and joins it onto ``install_path`` — so lifting GOG's
+    .lstrip('/')`` and joins it onto ``install_path`` — so lifting this
     behaviour to Epic would put a relative path into ``games.map`` and break
-    launch. The same holds for nile.
+    launch. The same holds for nile. A new store may use it only when its
+    record's exe is absolute and checked as such.
 """
 
 from __future__ import annotations

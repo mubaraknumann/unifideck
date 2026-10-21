@@ -20,6 +20,7 @@ const stops = {
   download: vi.fn(),
   auth: vi.fn(),
   storeInfo: vi.fn(),
+  xboxPc: vi.fn(),
 };
 
 vi.mock("./stores/sync-store", () => ({ syncStore: { stop: () => stops.sync() } }));
@@ -29,6 +30,9 @@ vi.mock("./stores/download-store", () => ({
 vi.mock("./stores/auth-store", () => ({ authStore: { stop: () => stops.auth() } }));
 vi.mock("./stores/store-info-store", () => ({
   storeInfoStore: { stop: () => stops.storeInfo() },
+}));
+vi.mock("./stores/xbox-pc-store", () => ({
+  xboxPcStore: { stop: () => stops.xboxPc() },
 }));
 
 /** Every key of `TeardownHandles`, with the shape each one disposes by.
@@ -92,6 +96,8 @@ describe("runTeardown", () => {
     expect(stops.download).toHaveBeenCalledTimes(1);
     expect(stops.auth).toHaveBeenCalledTimes(1);
     expect(stops.storeInfo).toHaveBeenCalledTimes(1);
+    // Holds the event subscription and the boot status timer.
+    expect(stops.xboxPc).toHaveBeenCalledTimes(1);
   });
 
   it("tolerates absent handles", async () => {

@@ -1,6 +1,6 @@
 # Unifideck — Architecture & Build Process
 
-> **Version:** 0.7.7 · **Last re-synced:** 2026-08-24 (see `docs/architecture-audit.md`) · **0.7.7 pass:** 2026-10-20 added the `native_entry`, `safe_delete`, `ssl_helpers` and cloud-save rows only; the rest was not re-measured
+> **Version:** 0.7.7 · **Last re-synced:** 2026-08-24 (see `docs/architecture-audit.md`) · **0.7.7 pass:** 2026-10-20 added the `native_entry`, `safe_delete`, `ssl_helpers` and cloud-save rows only; the rest was not re-measured · **xbox-pc pass:** 2026-10-21 added the `XboxPcRPCMixin` row and the Xbox PC part of the Microsoft row only
 
 ---
 
@@ -138,7 +138,7 @@ A connector sub-package for each store (the set is `bootstrap/cache_registry._ST
 | `stores/amazon/`    | Amazon Games            | `bin/nile`                           |
 | `stores/ubisoft/`   | Ubisoft Connect         | UPC client in a per-game Wine prefix |
 | `stores/battlenet/` | Battle.net              | Battle.net client in a Wine prefix   |
-| `stores/microsoft/` | Xbox Cloud Gaming + owned Xbox purchases | xbox.com device-code sign-in in the Edge window; Collections for ownership (`ownership/`) |
+| `stores/microsoft/` | Xbox Cloud Gaming + owned Xbox purchases + Xbox PC games (opt-in) | xbox.com device-code sign-in in the Edge window; Collections for ownership (`ownership/`). Xbox PC titles come from our own `xodus-cli` build (`xodus/` runs it, `pc_library/` turns its library into rows) |
 | `stores/gamevault/` | GameVault (self-hosted) | The user's own server over HTTP, or a local folder of archives |
 | `stores/itch/`      | itch.io                 | `bin/butler/butler`, run as the butlerd JSON-RPC daemon |
 
@@ -153,7 +153,7 @@ Infrastructure services that subscribe to the EventBus and own cross-cutting con
 | `services/cloud_save/`             | Save sync — upload/download/conflict. `gog_native.py` maps GOG saves onto Linux-native builds (Unity, DOSBox) |
 | `services/shortcut/`               | Steam VDF shortcut create/delete/update       |
 | `services/artwork/`                | SteamGridDB artwork fetching                  |
-| `services/launcher/`               | Game launch orchestration, circuit breaker    |
+| `services/launcher/`               | Game launch orchestration, circuit breaker. `xbox_pc_game.py` runs an Xbox PC title through `launcher/xbox_pc/` |
 | `services/security/`               | Token store, bruteforce protection, audit log |
 | `services/microsoft_subscription/` | Game Pass entitlement probing                 |
 | `services/microsoft_ownership/`    | Xbox purchase index for the Steam Store ownership ribbon (never library rows) |
@@ -193,6 +193,7 @@ The `Plugin` class in `main.py` is composed from the RPC mixin classes enumerate
 | `CloudSaveRPCMixin`        | `get_cloud_save_status`, `cloud_save_pull`, `cloud_save_push`, `set_game_save_path` |
 | `UIRPCMixin`               | `get_game_metadata_display`, `get_language_preference`, `set_language_preference`, `get_device_type` |
 | `UpdaterRPCMixin`          | `check_plugin_update`, `get_available_versions`, `log_update_event`              |
+| `XboxPcRPCMixin`           | `get_xbox_pc_status`, `set_xbox_pc_enabled`, `install_xbox_pc_runtime`, `start_xbox_pc_sign_in`, `sign_out_xbox_pc` (thin proxy to the `XboxPc` facade on the Microsoft store) |
 
 ---
 
@@ -213,7 +214,7 @@ These sit alongside the layered stack and can be imported by any layer.
 | `metadata/`      | Metacritic scraper, UnifiDB API client                                                                     |
 | `steam/`         | Steam library path discovery, VDF shortcuts, SteamGridDB, owned games                                      |
 | `utils/`         | Shared path helpers, locale utilities, config helpers                                                      |
-| `launcher/`      | Game launcher dispatcher, Proton infrastructure, language setup, cloud save trigger, CDP flows, game fixes |
+| `launcher/`      | Game launcher dispatcher, Proton infrastructure, language setup, cloud save trigger, CDP flows, game fixes. `launcher/xbox_pc/` holds the Xbox PC launch and the shared on-disk layout (stdlib only) |
 | `actions/`       | `dispatch.py` — `unifideck://` URI handler; `unifideck_uri.py` — URI parser                                |
 | `rpc/`           | `auto_wrap_rpc_methods` decorator + `rpc/mixins/` composition                                               |
 

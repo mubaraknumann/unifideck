@@ -30,6 +30,67 @@ const SPACE_RE = /need=([\d.]+)GB,free=([\d.]+)GB/;
 const EXIT_PREFIX_RE = /^\w+_exit_-?\d+:\s*/;
 
 /**
+ * Xbox PC (`stores/microsoft/xodus/`). Three families of code:
+ *
+ * - `xbox_pc_*`: the install precondition, checked before anything is
+ *   queued (feature off, components, sign-in, package plan).
+ * - `xbox_*`: a refusal or failure of the install, update or uninstall
+ *   itself, including the licence stages Xodus reports on stderr.
+ * - `xodus_*`: the Xodus CLI adapter (`XodusCliError`). `xodus_exit_N: tail`
+ *   is deliberately absent: it falls through to the text rules below, which
+ *   read the CLI's own words (disk space, network).
+ *
+ * `xbox_install_in_progress` reuses `lockConflict`; `xbox_folder_in_use`
+ * sits on the shared `folderInUse` row above.
+ */
+const XBOX_PC_CODE_KEYS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/^xbox_pc_disabled$/, "errors.download.xboxPcDisabled"],
+  [
+    /^xbox_pc_runtime_missing$|^xodus_backend_missing$/,
+    "errors.download.xboxPcRuntimeMissing",
+  ],
+  [/^xodus_backend_tampered$/, "errors.download.xboxPcRuntimeDamaged"],
+  [
+    /^xbox_pc_not_signed_in$|^xbox_signin_required$|^xodus_credential_[\w-]+$/,
+    "errors.download.xboxPcSignIn",
+  ],
+  [/^xbox_credentials_unavailable$/, "errors.download.xboxPcCredentials"],
+  [/^xbox_pc_unsupported_plan$/, "errors.download.xboxPcUnsupportedPlan"],
+  [
+    /^xbox_pc_needs_choice$|^xbox_package_choice$/,
+    "errors.download.xboxPcNeedsChoice",
+  ],
+  [
+    /^xbox_pc_no_package$|^xbox_package_unavailable$/,
+    "errors.download.xboxPcNoPackage",
+  ],
+  [/^xbox_license_denied$/, "errors.download.xboxPcLicenseDenied"],
+  [/^xbox_license_rate_limited$/, "errors.download.xboxPcLicenseRateLimited"],
+  [/^xbox_license_unavailable$/, "errors.download.xboxPcLicenseUnavailable"],
+  [/^xbox_license_invalid$/, "errors.download.xboxPcLicenseInvalid"],
+  [/^xbox_filesystem_unsupported$/, "errors.download.xboxPcFilesystem"],
+  [/^xbox_install_incomplete$/, "errors.download.xboxPcIncomplete"],
+  [/^xbox_resolve_failed$/, "errors.download.xboxPcResolveFailed"],
+  [/^xbox_market_unknown$/, "errors.download.xboxPcMarketUnknown"],
+  [/^xbox_already_installed$/, "errors.download.xboxPcAlreadyInstalled"],
+  [/^xbox_update_pending$/, "errors.download.xboxPcUpdatePending"],
+  [
+    /^xbox_game_running$|^xodus_busy_game_running$/,
+    "errors.download.xboxPcGameRunning",
+  ],
+  [/^xbox_install_in_progress$/, "errors.download.lockConflict"],
+  // The folder's drive (an SD card, a USB drive) is not mounted. The record
+  // is kept, so the game is found again once the drive is back.
+  [/^xbox_install_unreachable$/, "errors.download.xboxPcDriveMissing"],
+  [/^xbox_old_partial_in_place$/, "errors.download.xboxPcOldPartial"],
+  [/^xodus_components_busy$/, "errors.download.xboxPcComponentsBusy"],
+  [
+    /^xodus_(panic|empty_response|timeout|bad_json|failed|components_unreadable)$/,
+    "errors.download.xboxPcBackendFailed",
+  ],
+];
+
+/**
  * Bare backend error codes → a translated string.
  *
  * Matched against the code alone (everything before the first `:`), so a
@@ -58,7 +119,10 @@ const CODE_KEYS: ReadonlyArray<readonly [RegExp, string]> = [
   ],
   // legendary refuses a second concurrent install and exits 0 while doing it.
   [/^legendary_install_lock_busy$/, "errors.download.lockConflict"],
-  [/^marker_write_failed$|^mkdir_failed$/, "errors.download.processFailed"],
+  [
+    /^marker_write_failed$|^mkdir_failed$|^record_write_failed$/,
+    "errors.download.processFailed",
+  ],
   // The stall watchdog's own message (`InstallStalledError`), which reads
   // `stalled: no output for 120s while downloading`. It is raised for all
   // three CLI stores since the drain loop was shared, and until now it was
@@ -68,24 +132,30 @@ const CODE_KEYS: ReadonlyArray<readonly [RegExp, string]> = [
   // patterns are tested against the text *before* the first colon, not the
   // whole message. Audit register item 28.
   [/^stalled$/, "errors.download.stalled"],
-  // A store that cannot install at all (the cloud-only store refuses every
-  // install / update / uninstall — audit §3.5, register item 11). Mapped to
-  // the generic string rather than given its own key: the path is guarded
-  // twice over on the way in, so this exists to guarantee that if it is ever
-  // reached the user gets a sentence instead of the token `not_supported` —
-  // which is exactly the defect the §3.2 pass fixed for GOG. Give it a
-  // precise string of its own the day something can actually reach it.
+  // A title the Microsoft store cannot install or uninstall: a stream-only
+  // xCloud title, or an Xbox PC title with no install record and no marker
+  // (audit §3.5, register item 11). Mapped to the generic string so the
+  // user reads a sentence instead of the token `not_supported`, the defect
+  // the §3.2 pass fixed for GOG.
   [/^not_supported$/, "errors.download.generic"],
   // itch.io: a game whose uploads are all soundtracks, HTML5, external
   // links or installer formats butler 15.31 no longer runs.
   [/^itch_no_installable_upload$/, "errors.download.noCompatibleBuild"],
   // butler installs to <root>/<game-url-slug>; another store's game already
   // lives there, so the install was refused rather than mixed into it.
-  [/^itch_folder_in_use$/, "errors.download.folderInUse"],
+  // Xbox PC installs to <base>/Xbox/<PID>, refused the same way.
+  [/^itch_folder_in_use$|^xbox_folder_in_use$/, "errors.download.folderInUse"],
   // itch.io: a bundle game not claimed yet. The install flow opens the claim
   // page on this code (`services/store/claim-flow.tsx`); the key is what
   // the user reads if it is reached any other way.
   [/^itch_claim_required$/, "errors.download.claimRequired"],
+  // Uninstall refusals of a store that deletes the folder itself.
+  [/^uninstall_refused_unsafe_path$/, "errors.download.uninstallRefused"],
+  [
+    /^uninstall_incomplete_files_remain$/,
+    "errors.download.uninstallIncomplete",
+  ],
+  ...XBOX_PC_CODE_KEYS,
 ];
 
 export function friendlyDownloadError(

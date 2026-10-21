@@ -91,6 +91,10 @@ _NAMED_CACHES: tuple[tuple[str, int], ...] = (
     # stay 0: a positive TTL evicts on read, which would erase the last good
     # list exactly when Microsoft is unreachable. Freshness is stored inside.
     ("microsoft_owned", 0),
+    # ``stores/microsoft/pc_library/snapshot.py``: the last good Xbox PC list,
+    # its remembered row ids and the 24 h plan cache. TTL must stay 0 for the
+    # same reason: the last good list is what a failed read falls back on.
+    ("microsoft_xbox_pc", 0),
 )
 
 _STORE_CACHES: tuple[str, ...] = (

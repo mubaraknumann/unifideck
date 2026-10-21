@@ -202,3 +202,29 @@ def start_window_tagger(appid: int) -> threading.Event:
     t.start()
     logger.info("[gamescope_tagger] started for appid=%d", appid)
     return stop
+
+
+def maybe_start_window_tagger(
+    env: dict[str, str], *, log_tag: str,
+) -> threading.Event | None:
+    """Start the tagger for the game env's ``SteamGameId`` in Gaming Mode.
+
+    Returns the thread's stop event, or None when nothing was started.
+    Gaming Mode only: outside a gamescope session there is no compositor to
+    tell, and the thread would poll an X display for five minutes for
+    nothing. A missing, zero or malformed ``SteamGameId`` also starts
+    nothing, because the tagger has no app id to write.
+    """
+    if not os.environ.get("GAMESCOPE_WAYLAND_DISPLAY"):
+        return None
+    try:
+        appid_int = int(env.get("SteamGameId") or 0)
+    except ValueError:
+        appid_int = 0
+    if appid_int <= 0:
+        logger.info(
+            "[%s] no usable SteamGameId in the game env; window tagger off",
+            log_tag,
+        )
+        return None
+    return start_window_tagger(appid_int)

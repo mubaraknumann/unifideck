@@ -34,6 +34,9 @@ class XBLTokenChain:
     user_hash: str
     xuid: str | None = None
     xbl_token: str | None = None
+    #: The classic gamertag (``gtg``). The Xbox PC sign-in compares it with
+    #: the account Xodus signed in to.
+    gamertag: str | None = None
 
 
 @dataclass(frozen=True)
@@ -181,6 +184,7 @@ def _chain_from_xsts(
         user_hash=user_hash,
         xuid=claims[0].get("xid"),
         xbl_token=xbl_token,
+        gamertag=claims[0].get("gtg"),
     )
 
 
