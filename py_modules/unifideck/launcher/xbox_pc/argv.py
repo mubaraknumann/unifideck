@@ -134,13 +134,23 @@ def resolve_package_argv(cli: str | Path, pid: str, market: str) -> list[str]:
     ]
 
 
+#: Connections a game download may use at once (``--parallel``).
+DOWNLOAD_CONNECTIONS = 8
+
+
 def streaming_argv(
     cli: str | Path, pid: str, dest: str | Path, market: str, content_id: str,
 ) -> list[str]:
-    """Download and unpack a game into ``dest`` with ``NEXUS_PROGRESS`` lines."""
+    """Download and unpack a game into ``dest`` with ``NEXUS_PROGRESS`` lines.
+
+    ``--parallel`` caps the connections. The CDN paces each one to about
+    1 to 1.5 MB/s, and our backend splits large files into ranges that share
+    this cap (ISSUES.md I-028), so it sets the download speed.
+    """
     return [
         str(cli), "streaming", validate_pid(pid), _absolute(dest, "dest"),
         "--progress-json",
+        "--parallel", str(DOWNLOAD_CONNECTIONS),
         "--market", validate_market(market),
         "--selected-content-id", validate_content_id(content_id),
     ]

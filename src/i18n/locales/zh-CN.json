@@ -291,7 +291,6 @@
     "syncCancelled": "同步已取消",
     "authTimeout": "认证超时",
     "authTimeoutMessage": "{{store}} 认证已过期。请重试。",
-    "authFailed": "认证失败",
     "authFailedMessage": "无法启动认证流程",
     "authError": "认证错误",
     "authConnected": "{{store}} 已连接！",
@@ -467,18 +466,14 @@
     "backendUnavailableMessage": "Unifideck 后端没有响应，因此显示 Steam 自带的开始游戏按钮。请重启 Decky 或设备以解决此问题。",
     "uninstallFailed": "卸载失败",
     "xboxPcEnabled": "已开启 Xbox PC 游戏",
-    "xboxPcEnabledBody": "安装组件并登录后即可看到您的 PC 游戏。",
     "xboxPcEnableFailed": "无法更改 Xbox PC 游戏设置",
     "xboxPcRuntimeInstalled": "Xbox PC 组件已安装",
-    "xboxPcRuntimeInstalledBody": "现在可以登录 Xbox PC 游戏了。",
     "xboxPcRuntimeFailed": "Xbox PC 组件安装失败",
     "xboxPcSignedIn": "已登录 Xbox PC 游戏",
     "xboxPcSignedInAs": "已登录为 {{gamertag}}。同步完成后将显示您的 PC 游戏。",
     "xboxPcSignedInBody": "同步完成后将显示您的 PC 游戏。",
-    "xboxPcSignInFailed": "Xbox PC 登录失败",
-    "xboxPcSignedOut": "已退出 Xbox PC 游戏登录",
-    "xboxPcSignedOutBody": "您用于云游戏的 Microsoft 登录将保留。",
-    "xboxPcSignOutFailed": "无法退出 Xbox PC 游戏登录"
+    "xboxPcSigningIn": "正在登录 Xbox PC 游戏",
+    "xboxPcSignInFailed": "Xbox PC 登录失败"
   },
   "uninstallModal": {
     "title": "确认卸载",
@@ -507,7 +502,6 @@
     "gogdlNotFound": "未找到 GOG 客户端 (gogdl)",
     "nileNotFound": "未找到 Amazon Games 客户端 (nile)",
     "authUrlFailed": "无法获取认证 URL",
-    "authFailed": "认证失败",
     "notAuthenticated": "未认证。请先登录。",
     "syncInProgress": "同步已在进行中",
     "syncCancelled": "用户取消了同步",
@@ -1223,23 +1217,6 @@
         "inProgress": "组件已在安装中。",
         "cancelled": "安装已取消。"
       },
-      "label": "组件",
-      "missing": "未安装",
-      "installing": "正在安装…",
-      "installed": "已安装（版本 {{version}}）",
-      "outdated": "已安装（版本 {{version}}）。有可用的更新。",
-      "failed": "上一次安装失败。",
-      "install": "安装组件",
-      "cancel": "取消安装",
-      "retry": "重试安装",
-      "update": "更新组件",
-      "stages": {
-        "checking": "正在检查来源",
-        "copying": "正在复制 Xodus",
-        "verifying": "正在验证",
-        "extracting": "正在解压运行环境",
-        "finalizing": "正在完成"
-      },
       "degradedCloudSaves": "此运行环境不支持 Xbox 云存档。存档仅保存在本设备上。",
       "degradedInGameSignIn": "此运行环境无法在游戏内登录 Xbox。在线功能可能无法使用。",
       "degradedOther": "此运行环境缺少一项功能：{{feature}}。"
@@ -1263,17 +1240,7 @@
         "credentialStore": "Unifideck 无法读取或保存 Xbox PC 登录信息。",
         "gameRunning": "有 Xbox PC 游戏正在运行。请在游戏关闭后重试。"
       },
-      "label": "Xbox PC 登录",
-      "signedIn": "已登录",
-      "signedInAs": "已登录为 {{gamertag}}",
-      "signedOut": "未登录",
-      "signingIn": "正在登录…",
-      "unknown": "正在检查…",
-      "unverified": "已登录。Unifideck 暂时无法确认这与您的 Microsoft 登录是同一个账户。",
-      "needsRuntime": "请先安装组件。",
-      "signIn": "登录",
-      "signOut": "退出登录",
-      "cancel": "取消登录"
+      "needsRuntime": "请先安装组件。"
     },
     "errors": {
       "disabled": "请先开启 Xbox PC 游戏。",
@@ -1281,15 +1248,11 @@
       "generic": "出现问题 ({{code}})。"
     },
     "section": {
-      "title": "Xbox PC 游戏（实验性）",
-      "toggleLabel": "安装 Xbox PC 游戏",
-      "toggleDescription": "非官方功能。通过 Unifideck 自己构建的 Xodus 安装并运行您的 Xbox PC 和 PC Game Pass 游戏。",
       "microsoftNeeded": "请先在“商店连接”中登录 Microsoft。Xbox PC 游戏库来自该账户。",
-      "libraryCounts": "{{installable}} 个可安装，{{notSupported}} 个暂不支持。",
-      "libraryStale": "上一次读取游戏库不完整，因此显示的是上一次正常的列表。",
       "statusError": "Unifideck 无法读取 Xbox PC 状态。",
       "noticeRequired": "开启此功能前，请先阅读并接受说明。",
-      "retry": "重试"
+      "retry": "重试",
+      "enableDownloads": "启用实验性 Xbox PC 下载"
     },
     "notice": {
       "title": "开启 Xbox PC 游戏之前",
@@ -1298,23 +1261,6 @@
       "sameAccount": "请使用您登录 Xbox Cloud Gaming 时所用的同一个 Microsoft 账户登录。如果使用其他账户，将会再次退出登录。",
       "disk": "除每个游戏本身外，这些组件还需要约 2 GB 的磁盘空间。",
       "confirm": "开启"
-    },
-    "signIn": {
-      "confirmTitle": "登录 Xbox PC 游戏",
-      "confirmBody": "接下来将打开 Microsoft 登录窗口。请使用与 Xbox Cloud Gaming 登录相同的账户。",
-      "confirm": "继续"
-    },
-    "setup": {
-      "title": "设置 Xbox PC 游戏",
-      "intro": "安装 Xbox PC 游戏之前需要完成以下步骤。",
-      "introGame": "安装 {{title}} 之前需要完成以下步骤。",
-      "stepEnable": "开启 Xbox PC 游戏",
-      "stepMicrosoft": "连接您的 Microsoft 账户",
-      "stepRuntime": "安装组件",
-      "stepSignIn": "登录 Xbox PC 游戏",
-      "enable": "开启",
-      "connect": "连接",
-      "continue": "继续"
     },
     "unsupported": {
       "button": "暂不支持",

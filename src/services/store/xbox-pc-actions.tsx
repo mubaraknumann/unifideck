@@ -1,10 +1,7 @@
 /**
- * Xbox PC actions the QAM section, the setup modal and the sign-in flow
+ * Xbox PC actions the QAM toggle, the link step and the sign-in flow
  * share: turning the feature on and off, the post-setup resync, and the
  * failure toast.
- *
- * Kept apart from `xbox-pc-flow` (which opens the setup modal) so the
- * modal can use these without an import cycle.
  */
 import { call, toaster } from "@decky/api";
 import { showModal } from "@decky/ui";
@@ -14,6 +11,7 @@ import { prepareForSync } from "../../lib/steam-bridge/prepare-sync";
 import { xboxPcErrorText } from "../../lib/xbox-pc-errors";
 import { xboxPcStore } from "../../stores/xbox-pc-store";
 import { XboxPcNoticeModal } from "../../components/modals/XboxPcNoticeModal";
+import { linkXboxPc } from "./xbox-pc-link";
 import type { StoreId, XboxPcStatus } from "../../types/api";
 
 /** A toast through Decky; logged where the toaster is missing. */
@@ -74,8 +72,9 @@ function confirmNotice(): Promise<boolean> {
 /**
  * Turn the feature on, through the notice when it was not acknowledged.
  *
- * Resolves true once the backend has it on. A signed-in account resyncs
- * at once; otherwise the sync waits for the Xbox PC sign-in.
+ * Resolves true once the backend has it on. With Microsoft connected it
+ * then installs the components and signs in by itself (`linkXboxPc`); a
+ * signed-in account resyncs at once.
  */
 export async function enableXboxPc(status: XboxPcStatus): Promise<boolean> {
   const needsNotice = status.notice_ack_version < status.notice_version;
@@ -85,11 +84,17 @@ export async function enableXboxPc(status: XboxPcStatus): Promise<boolean> {
     toastXboxPcError("toasts.xboxPcEnableFailed", r.error);
     return false;
   }
-  xboxPcToast(
-    i18n.t("toasts.xboxPcEnabled"),
-    i18n.t("toasts.xboxPcEnabledBody"),
-  );
-  if (r.data?.account?.state === "signed_in") syncAfterXboxPc();
+  if (!r.data?.xcloud_signed_in) {
+    // Nothing to link yet: connecting Microsoft runs `linkXboxPc`.
+    xboxPcToast(
+      i18n.t("toasts.xboxPcEnabled"),
+      i18n.t("xboxPc.section.microsoftNeeded"),
+    );
+  } else if (r.data.account?.state === "signed_in") {
+    syncAfterXboxPc();
+  } else {
+    void linkXboxPc();
+  }
   return true;
 }
 

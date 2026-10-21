@@ -291,7 +291,6 @@
     "syncCancelled": "Senkronizasyon İptal Edildi",
     "authTimeout": "Kimlik Doğrulama Zaman Aşımı",
     "authTimeoutMessage": "{{store}} kimlik doğrulaması zaman aşımına uğradı. Lütfen tekrar deneyin.",
-    "authFailed": "Kimlik Doğrulama Başarısız",
     "authFailedMessage": "Kimlik doğrulaması başlatılamadı",
     "authError": "Kimlik Doğrulama Hatası",
     "authConnected": "{{store}} Bağlandı!",
@@ -467,18 +466,14 @@
     "backendUnavailableMessage": "Unifideck arka ucu yanıt vermiyor, bu yüzden Steam'in kendi Oyna düğmesi gösteriliyor. Düzeltmek için Decky'yi veya cihazı yeniden başlatın.",
     "uninstallFailed": "Kaldırma Başarısız",
     "xboxPcEnabled": "Xbox PC oyunları açıldı",
-    "xboxPcEnabledBody": "PC oyunlarınızı görmek için bileşenleri yükleyin ve oturum açın.",
     "xboxPcEnableFailed": "Xbox PC oyunları ayarı değiştirilemedi",
     "xboxPcRuntimeInstalled": "Xbox PC bileşenleri yüklendi",
-    "xboxPcRuntimeInstalledBody": "Artık Xbox PC oyunları için oturum açabilirsiniz.",
     "xboxPcRuntimeFailed": "Xbox PC bileşenleri başarısız oldu",
     "xboxPcSignedIn": "Xbox PC oyunları için oturum açıldı",
     "xboxPcSignedInAs": "{{gamertag}} olarak oturum açıldı. PC oyunlarınız eşitlemeden sonra görünür.",
     "xboxPcSignedInBody": "PC oyunlarınız eşitlemeden sonra görünür.",
-    "xboxPcSignInFailed": "Xbox PC oturum açma başarısız",
-    "xboxPcSignedOut": "Xbox PC oyunlarından çıkış yapıldı",
-    "xboxPcSignedOutBody": "Bulut oyunları için Microsoft oturumunuz korunur.",
-    "xboxPcSignOutFailed": "Xbox PC oyunlarından çıkış yapılamadı"
+    "xboxPcSigningIn": "Xbox PC oyunları için oturum açılıyor",
+    "xboxPcSignInFailed": "Xbox PC oturum açma başarısız"
   },
   "uninstallModal": {
     "title": "Kaldırmayı Onayla",
@@ -507,7 +502,6 @@
     "gogdlNotFound": "GOG CLI (gogdl) bulunamadı",
     "nileNotFound": "Amazon Games CLI (Nile) bulunamadı",
     "authUrlFailed": "Kimlik doğrulama URL'si alınamadı",
-    "authFailed": "Kimlik doğrulama başarısız",
     "notAuthenticated": "Kimliğiniz doğrulanmadı. Lütfen önce giriş yapın.",
     "syncInProgress": "Zaten bir senkronizasyon devam ediyor",
     "syncCancelled": "Senkronizasyon kullanıcı tarafından iptal edildi",
@@ -1223,23 +1217,6 @@
         "inProgress": "Bileşenler zaten yükleniyor.",
         "cancelled": "Kurulum iptal edildi."
       },
-      "label": "Bileşenler",
-      "missing": "Yüklü değil",
-      "installing": "Yükleniyor…",
-      "installed": "Yüklü (sürüm {{version}})",
-      "outdated": "Yüklü (sürüm {{version}}). Bir güncelleme mevcut.",
-      "failed": "Son kurulum başarısız oldu.",
-      "install": "Bileşenleri yükle",
-      "cancel": "Kurulumu iptal et",
-      "retry": "Kurulumu yeniden dene",
-      "update": "Bileşenleri güncelle",
-      "stages": {
-        "checking": "Kaynak kontrol ediliyor",
-        "copying": "Xodus kopyalanıyor",
-        "verifying": "Doğrulanıyor",
-        "extracting": "Çalışma ortamı açılıyor",
-        "finalizing": "Tamamlanıyor"
-      },
       "degradedCloudSaves": "Bu çalışma ortamında Xbox bulut kayıtları yok. Kayıtlar yalnızca bu cihazda kalır.",
       "degradedInGameSignIn": "Bu çalışma ortamı oyunların içinde Xbox oturumu açamaz. Çevrim içi özellikler çalışmayabilir.",
       "degradedOther": "Bu çalışma ortamında bir özellik eksik: {{feature}}."
@@ -1263,17 +1240,7 @@
         "credentialStore": "Unifideck, Xbox PC oturum bilgilerini okuyamadı veya kaydedemedi.",
         "gameRunning": "Bir Xbox PC oyunu çalışıyor. Oyun kapandıktan sonra tekrar deneyin."
       },
-      "label": "Xbox PC oturumu",
-      "signedIn": "Oturum açık",
-      "signedInAs": "{{gamertag}} olarak oturum açıldı",
-      "signedOut": "Oturum açılmadı",
-      "signingIn": "Oturum açılıyor…",
-      "unknown": "Kontrol ediliyor…",
-      "unverified": "Oturum açıldı. Unifideck bunun Microsoft oturumunuzla aynı hesap olduğunu henüz doğrulayamadı.",
-      "needsRuntime": "Önce bileşenleri yükleyin.",
-      "signIn": "Giriş Yap",
-      "signOut": "Çıkış Yap",
-      "cancel": "Oturum açmayı iptal et"
+      "needsRuntime": "Önce bileşenleri yükleyin."
     },
     "errors": {
       "disabled": "Önce Xbox PC oyunlarını açın.",
@@ -1281,15 +1248,11 @@
       "generic": "Bir şeyler ters gitti ({{code}})."
     },
     "section": {
-      "title": "Xbox PC oyunları (deneysel)",
-      "toggleLabel": "Xbox PC oyunlarını yükle",
-      "toggleDescription": "Resmî değildir. Xbox PC ve PC Game Pass oyunlarınızı Unifideck'in kendi Xodus derlemesiyle yükler ve çalıştırır.",
       "microsoftNeeded": "Önce Mağaza Bağlantıları bölümünden Microsoft'ta oturum açın. Xbox PC kütüphanesi o hesaptan gelir.",
-      "libraryCounts": "{{installable}} yüklenebilir, {{notSupported}} henüz desteklenmiyor.",
-      "libraryStale": "Son kütüphane okuması eksik kaldı, bu yüzden son geçerli liste gösteriliyor.",
       "statusError": "Unifideck, Xbox PC durumunu okuyamadı.",
       "noticeRequired": "Bunu açmadan önce bildirimi okuyup kabul edin.",
-      "retry": "Yeniden Dene"
+      "retry": "Yeniden Dene",
+      "enableDownloads": "Deneysel Xbox PC indirmelerini etkinleştir"
     },
     "notice": {
       "title": "Xbox PC oyunlarını açmadan önce",
@@ -1298,23 +1261,6 @@
       "sameAccount": "Xbox Cloud Gaming için kullandığınız Microsoft hesabıyla oturum açın. Farklı bir hesabın oturumu yeniden kapatılır.",
       "disk": "Bileşenler, her oyunun kendi alanına ek olarak yaklaşık 2 GB disk alanı gerektirir.",
       "confirm": "Aç"
-    },
-    "signIn": {
-      "confirmTitle": "Xbox PC oyunları için oturum açın",
-      "confirmBody": "Sırada bir Microsoft oturum açma penceresi açılacak. Xbox Cloud Gaming oturumunuzla aynı hesabı kullanın.",
-      "confirm": "Devam"
-    },
-    "setup": {
-      "title": "Xbox PC oyunlarını ayarla",
-      "intro": "Bir Xbox PC oyununun yüklenebilmesi için önce bu adımlar gerekir.",
-      "introGame": "{{title}} yüklenebilmesi için önce bu adımlar gerekir.",
-      "stepEnable": "Xbox PC oyunlarını açın",
-      "stepMicrosoft": "Microsoft hesabınızı bağlayın",
-      "stepRuntime": "Bileşenleri yükleyin",
-      "stepSignIn": "Xbox PC oyunları için oturum açın",
-      "enable": "Aç",
-      "connect": "Bağlan",
-      "continue": "Devam"
     },
     "unsupported": {
       "button": "Henüz desteklenmiyor",

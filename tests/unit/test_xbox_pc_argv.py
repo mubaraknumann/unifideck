@@ -33,7 +33,7 @@ def test_plugin_command_argv() -> None:
 def test_streaming_argv() -> None:
     assert argv.streaming_argv(CLI, PID, "/mnt/Xbox/9PK087LNGJC5/game", "IN", CID) == [
         CLI, "streaming", PID, "/mnt/Xbox/9PK087LNGJC5/game", "--progress-json",
-        "--market", "IN", "--selected-content-id", CID,
+        "--parallel", "8", "--market", "IN", "--selected-content-id", CID,
     ]
 
 

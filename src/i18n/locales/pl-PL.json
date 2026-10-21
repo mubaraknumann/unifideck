@@ -291,7 +291,6 @@
     "syncCancelled": "Synchronizacja anulowana",
     "authTimeout": "Limit czasu uwierzytelniania przekroczony",
     "authTimeoutMessage": "Uwierzytelnianie {{store}} przekroczyło limit czasu. Spróbuj ponownie.",
-    "authFailed": "Uwierzytelnianie nie powiodło się",
     "authFailedMessage": "Nie udało się rozpocząć uwierzytelniania",
     "authError": "Błąd uwierzytelniania",
     "authConnected": "Połączono ze sklepem {{store}}!",
@@ -467,18 +466,14 @@
     "backendUnavailableMessage": "Backend Unifideck nie odpowiada, więc wyświetlany jest przycisk Graj ze Steam. Uruchom ponownie Decky lub urządzenie, aby to naprawić.",
     "uninstallFailed": "Odinstalowanie nie powiodło się",
     "xboxPcEnabled": "Włączono gry Xbox PC",
-    "xboxPcEnabledBody": "Zainstaluj komponenty i zaloguj się, aby zobaczyć swoje gry PC.",
     "xboxPcEnableFailed": "Nie udało się zmienić ustawienia gier Xbox PC",
     "xboxPcRuntimeInstalled": "Zainstalowano komponenty Xbox PC",
-    "xboxPcRuntimeInstalledBody": "Możesz teraz zalogować się do gier Xbox PC.",
     "xboxPcRuntimeFailed": "Instalacja komponentów Xbox PC nie powiodła się",
     "xboxPcSignedIn": "Zalogowano do gier Xbox PC",
     "xboxPcSignedInAs": "Zalogowano jako {{gamertag}}. Twoje gry PC pojawią się po synchronizacji.",
     "xboxPcSignedInBody": "Twoje gry PC pojawią się po synchronizacji.",
-    "xboxPcSignInFailed": "Logowanie Xbox PC nie powiodło się",
-    "xboxPcSignedOut": "Wylogowano z gier Xbox PC",
-    "xboxPcSignedOutBody": "Logowanie Microsoft do gier w chmurze zostało zachowane.",
-    "xboxPcSignOutFailed": "Nie udało się wylogować z gier Xbox PC"
+    "xboxPcSigningIn": "Logowanie do gier Xbox PC",
+    "xboxPcSignInFailed": "Logowanie Xbox PC nie powiodło się"
   },
   "uninstallModal": {
     "title": "Potwierdź odinstalowanie",
@@ -507,7 +502,6 @@
     "gogdlNotFound": "Nie znaleziono GOG CLI (gogdl)",
     "nileNotFound": "Nie znaleziono Amazon Games CLI (Nile)",
     "authUrlFailed": "Nie udało się pobrać URL uwierzytelniania",
-    "authFailed": "Uwierzytelnianie nie powiodło się",
     "notAuthenticated": "Brak uwierzytelnienia. Zaloguj się najpierw.",
     "syncInProgress": "Synchronizacja jest już w toku",
     "syncCancelled": "Synchronizacja anulowana przez użytkownika",
@@ -1223,23 +1217,6 @@
         "inProgress": "Komponenty są już instalowane.",
         "cancelled": "Instalacja została anulowana."
       },
-      "label": "Komponenty",
-      "missing": "Nie zainstalowano",
-      "installing": "Instalowanie…",
-      "installed": "Zainstalowano (wersja {{version}})",
-      "outdated": "Zainstalowano (wersja {{version}}). Dostępna jest aktualizacja.",
-      "failed": "Ostatnia instalacja nie powiodła się.",
-      "install": "Zainstaluj komponenty",
-      "cancel": "Anuluj instalację",
-      "retry": "Ponów instalację",
-      "update": "Zaktualizuj komponenty",
-      "stages": {
-        "checking": "Sprawdzanie źródła",
-        "copying": "Kopiowanie Xodus",
-        "verifying": "Weryfikowanie",
-        "extracting": "Rozpakowywanie środowiska",
-        "finalizing": "Kończenie"
-      },
       "degradedCloudSaves": "To środowisko nie obsługuje zapisów w chmurze Xbox. Zapisy pozostają tylko na tym urządzeniu.",
       "degradedInGameSignIn": "To środowisko nie umożliwia logowania do Xbox w grach. Funkcje online mogą nie działać.",
       "degradedOther": "Temu środowisku brakuje funkcji: {{feature}}."
@@ -1263,17 +1240,7 @@
         "credentialStore": "Unifideck nie mógł odczytać ani zapisać logowania Xbox PC.",
         "gameRunning": "Uruchomiona jest gra Xbox PC. Spróbuj ponownie po jej zamknięciu."
       },
-      "label": "Logowanie Xbox PC",
-      "signedIn": "Zalogowano",
-      "signedInAs": "Zalogowano jako {{gamertag}}",
-      "signedOut": "Nie zalogowano",
-      "signingIn": "Logowanie…",
-      "unknown": "Sprawdzanie…",
-      "unverified": "Zalogowano. Unifideck nie potwierdził jeszcze, że to to samo konto co przy logowaniu Microsoft.",
-      "needsRuntime": "Najpierw zainstaluj komponenty.",
-      "signIn": "Zaloguj się",
-      "signOut": "Wyloguj się",
-      "cancel": "Anuluj logowanie"
+      "needsRuntime": "Najpierw zainstaluj komponenty."
     },
     "errors": {
       "disabled": "Najpierw włącz gry Xbox PC.",
@@ -1281,15 +1248,11 @@
       "generic": "Coś poszło nie tak ({{code}})."
     },
     "section": {
-      "title": "Gry Xbox PC (eksperymentalne)",
-      "toggleLabel": "Instaluj gry Xbox PC",
-      "toggleDescription": "Nieoficjalne. Instaluje i uruchamia Twoje tytuły Xbox PC i PC Game Pass przez własną kompilację Xodus w Unifideck.",
       "microsoftNeeded": "Najpierw zaloguj się do Microsoft w sekcji Połączenia sklepów. Biblioteka Xbox PC pochodzi z tego konta.",
-      "libraryCounts": "Do zainstalowania: {{installable}}, jeszcze nieobsługiwane: {{notSupported}}.",
-      "libraryStale": "Ostatni odczyt biblioteki był niekompletny, więc wyświetlana jest ostatnia poprawna lista.",
       "statusError": "Unifideck nie mógł odczytać stanu Xbox PC.",
       "noticeRequired": "Przeczytaj i zaakceptuj informację przed włączeniem tej funkcji.",
-      "retry": "Ponów"
+      "retry": "Ponów",
+      "enableDownloads": "Włącz eksperymentalne pobieranie gier Xbox PC"
     },
     "notice": {
       "title": "Zanim włączysz gry Xbox PC",
@@ -1298,23 +1261,6 @@
       "sameAccount": "Zaloguj się na to samo konto Microsoft, którego używasz w Xbox Cloud Gaming. Inne konto zostanie ponownie wylogowane.",
       "disk": "Komponenty wymagają około 2 GB miejsca na dysku, niezależnie od miejsca na każdą grę.",
       "confirm": "Włącz"
-    },
-    "signIn": {
-      "confirmTitle": "Logowanie do gier Xbox PC",
-      "confirmBody": "Za chwilę otworzy się okno logowania Microsoft. Użyj tego samego konta co przy logowaniu do Xbox Cloud Gaming.",
-      "confirm": "Kontynuuj"
-    },
-    "setup": {
-      "title": "Konfiguracja gier Xbox PC",
-      "intro": "Te kroki są wymagane, zanim będzie można zainstalować grę Xbox PC.",
-      "introGame": "Te kroki są wymagane, zanim będzie można zainstalować {{title}}.",
-      "stepEnable": "Włącz gry Xbox PC",
-      "stepMicrosoft": "Połącz konto Microsoft",
-      "stepRuntime": "Zainstaluj komponenty",
-      "stepSignIn": "Zaloguj się do gier Xbox PC",
-      "enable": "Włącz",
-      "connect": "Połącz",
-      "continue": "Kontynuuj"
     },
     "unsupported": {
       "button": "Jeszcze nieobsługiwane",

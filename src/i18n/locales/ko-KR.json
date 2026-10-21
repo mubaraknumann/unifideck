@@ -291,7 +291,6 @@
     "syncCancelled": "동기화 취소됨",
     "authTimeout": "인증 시간 초과",
     "authTimeoutMessage": "{{store}} 연동 인증이 만료되었습니다. 다시 시도해 주세요.",
-    "authFailed": "인증 실패",
     "authFailedMessage": "연동 인증 프로세스를 시작할 수 없습니다",
     "authError": "인증 오류",
     "authConnected": "{{store}} 연동됨!",
@@ -467,18 +466,14 @@
     "backendUnavailableMessage": "Unifideck 백엔드가 응답하지 않아 Steam 기본 플레이 버튼을 표시합니다. Decky 또는 기기를 다시 시작하세요.",
     "uninstallFailed": "설치 제거 실패",
     "xboxPcEnabled": "Xbox PC 게임 켜짐",
-    "xboxPcEnabledBody": "PC 게임을 보려면 구성 요소를 설치하고 로그인하세요.",
     "xboxPcEnableFailed": "Xbox PC 게임 설정을 변경할 수 없습니다",
     "xboxPcRuntimeInstalled": "Xbox PC 구성 요소 설치됨",
-    "xboxPcRuntimeInstalledBody": "이제 Xbox PC 게임에 로그인할 수 있습니다.",
     "xboxPcRuntimeFailed": "Xbox PC 구성 요소 설치 실패",
     "xboxPcSignedIn": "Xbox PC 게임에 로그인됨",
     "xboxPcSignedInAs": "{{gamertag}}(으)로 로그인했습니다. 동기화 후 PC 게임이 표시됩니다.",
     "xboxPcSignedInBody": "동기화 후 PC 게임이 표시됩니다.",
-    "xboxPcSignInFailed": "Xbox PC 로그인 실패",
-    "xboxPcSignedOut": "Xbox PC 게임에서 로그아웃됨",
-    "xboxPcSignedOutBody": "클라우드 게임용 Microsoft 로그인은 유지됩니다.",
-    "xboxPcSignOutFailed": "Xbox PC 게임에서 로그아웃할 수 없습니다"
+    "xboxPcSigningIn": "Xbox PC 게임에 로그인하는 중",
+    "xboxPcSignInFailed": "Xbox PC 로그인 실패"
   },
   "uninstallModal": {
     "title": "설치 제거 확인",
@@ -507,7 +502,6 @@
     "gogdlNotFound": "GOG CLI (gogdl)를 찾을 수 없음",
     "nileNotFound": "Amazon Games CLI (Nile)를 찾을 수 없음",
     "authUrlFailed": "연동 인증용 주소를 가져오지 못했습니다",
-    "authFailed": "연동 인증 실패",
     "notAuthenticated": "연동되지 않았습니다. 로그인 설정을 진행해 주세요.",
     "syncInProgress": "동기화가 진행 중입니다",
     "syncCancelled": "사용자에 의해 동기화가 취소되었습니다",
@@ -1223,23 +1217,6 @@
         "inProgress": "구성 요소를 이미 설치하는 중입니다.",
         "cancelled": "설치가 취소되었습니다."
       },
-      "label": "구성 요소",
-      "missing": "설치되지 않음",
-      "installing": "설치 중…",
-      "installed": "설치됨 (버전 {{version}})",
-      "outdated": "설치됨 (버전 {{version}}). 업데이트가 있습니다.",
-      "failed": "마지막 설치에 실패했습니다.",
-      "install": "구성 요소 설치",
-      "cancel": "설치 취소",
-      "retry": "설치 다시 시도",
-      "update": "구성 요소 업데이트",
-      "stages": {
-        "checking": "소스 확인 중",
-        "copying": "Xodus 복사 중",
-        "verifying": "검증 중",
-        "extracting": "런타임 압축 해제 중",
-        "finalizing": "마무리 중"
-      },
       "degradedCloudSaves": "이 런타임에는 Xbox 클라우드 저장 기능이 없습니다. 저장 데이터는 이 기기에만 보관됩니다.",
       "degradedInGameSignIn": "이 런타임은 게임 내에서 Xbox에 로그인할 수 없습니다. 온라인 기능이 작동하지 않을 수 있습니다.",
       "degradedOther": "이 런타임에 없는 기능: {{feature}}."
@@ -1263,17 +1240,7 @@
         "credentialStore": "Unifideck이 Xbox PC 로그인 정보를 읽거나 저장할 수 없습니다.",
         "gameRunning": "Xbox PC 게임이 실행 중입니다. 게임이 종료된 후 다시 시도하세요."
       },
-      "label": "Xbox PC 로그인",
-      "signedIn": "로그인됨",
-      "signedInAs": "{{gamertag}}(으)로 로그인됨",
-      "signedOut": "로그인되지 않음",
-      "signingIn": "로그인 중…",
-      "unknown": "확인 중…",
-      "unverified": "로그인되었습니다. Microsoft 로그인과 같은 계정인지 Unifideck이 아직 확인하지 못했습니다.",
-      "needsRuntime": "먼저 구성 요소를 설치하세요.",
-      "signIn": "로그인",
-      "signOut": "로그아웃",
-      "cancel": "로그인 취소"
+      "needsRuntime": "먼저 구성 요소를 설치하세요."
     },
     "errors": {
       "disabled": "먼저 Xbox PC 게임을 켜세요.",
@@ -1281,15 +1248,11 @@
       "generic": "문제가 발생했습니다 ({{code}})."
     },
     "section": {
-      "title": "Xbox PC 게임 (실험적)",
-      "toggleLabel": "Xbox PC 게임 설치",
-      "toggleDescription": "비공식 기능입니다. Unifideck 자체 Xodus 빌드로 Xbox PC 및 PC Game Pass 타이틀을 설치하고 실행합니다.",
       "microsoftNeeded": "먼저 스토어 연동에서 Microsoft에 로그인하세요. Xbox PC 라이브러리는 해당 계정에서 가져옵니다.",
-      "libraryCounts": "설치 가능 {{installable}}개, 아직 지원되지 않음 {{notSupported}}개.",
-      "libraryStale": "마지막 라이브러리 읽기가 불완전하여 마지막으로 정상이었던 목록을 표시합니다.",
       "statusError": "Unifideck이 Xbox PC 상태를 읽을 수 없습니다.",
       "noticeRequired": "켜기 전에 안내를 읽고 동의하세요.",
-      "retry": "다시 시도"
+      "retry": "다시 시도",
+      "enableDownloads": "실험적 Xbox PC 다운로드 사용"
     },
     "notice": {
       "title": "Xbox PC 게임을 켜기 전에",
@@ -1298,23 +1261,6 @@
       "sameAccount": "Xbox Cloud Gaming에 사용하는 것과 같은 Microsoft 계정으로 로그인하세요. 다른 계정은 다시 로그아웃됩니다.",
       "disk": "구성 요소에는 각 게임과 별도로 약 2GB의 디스크 공간이 필요합니다.",
       "confirm": "켜기"
-    },
-    "signIn": {
-      "confirmTitle": "Xbox PC 게임 로그인",
-      "confirmBody": "다음으로 Microsoft 로그인 창이 열립니다. Xbox Cloud Gaming 로그인과 같은 계정을 사용하세요.",
-      "confirm": "계속"
-    },
-    "setup": {
-      "title": "Xbox PC 게임 설정",
-      "intro": "Xbox PC 게임을 설치하려면 먼저 다음 단계가 필요합니다.",
-      "introGame": "{{title}}을(를) 설치하려면 먼저 다음 단계가 필요합니다.",
-      "stepEnable": "Xbox PC 게임 켜기",
-      "stepMicrosoft": "Microsoft 계정 연결",
-      "stepRuntime": "구성 요소 설치",
-      "stepSignIn": "Xbox PC 게임 로그인",
-      "enable": "켜기",
-      "connect": "연결",
-      "continue": "계속"
     },
     "unsupported": {
       "button": "아직 지원되지 않음",

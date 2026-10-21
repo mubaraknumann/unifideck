@@ -291,7 +291,6 @@
     "syncCancelled": "تم إلغاء المزامنة",
     "authTimeout": "انتهت مهلة المصادقة",
     "authTimeoutMessage": "انتهت مهلة المصادقة مع {{store}}. يرجى المحاولة مرة أخرى.",
-    "authFailed": "فشلت المصادقة",
     "authFailedMessage": "تعذر بدء عملية المصادقة",
     "authError": "خطأ في المصادقة",
     "authConnected": "تم ربط متجر {{store}}!",
@@ -467,18 +466,14 @@
     "backendUnavailableMessage": "الواجهة الخلفية لـ Unifideck لا تستجيب، لذلك يظهر زر اللعب الخاص بـ Steam بدلاً منها. أعد تشغيل Decky أو الجهاز لحل المشكلة.",
     "uninstallFailed": "فشل إلغاء التثبيت",
     "xboxPcEnabled": "تم تفعيل ألعاب Xbox PC",
-    "xboxPcEnabledBody": "ثبّت المكونات وسجّل الدخول لرؤية ألعاب الكمبيوتر الخاصة بك.",
     "xboxPcEnableFailed": "تعذر تغيير حالة ألعاب Xbox PC",
     "xboxPcRuntimeInstalled": "تم تثبيت مكونات Xbox PC",
-    "xboxPcRuntimeInstalledBody": "يمكنك الآن تسجيل الدخول لألعاب Xbox PC.",
     "xboxPcRuntimeFailed": "فشلت مكونات Xbox PC",
     "xboxPcSignedIn": "تم تسجيل الدخول لألعاب Xbox PC",
     "xboxPcSignedInAs": "تم تسجيل الدخول باسم {{gamertag}}. ستظهر ألعاب الكمبيوتر الخاصة بك بعد المزامنة.",
     "xboxPcSignedInBody": "ستظهر ألعاب الكمبيوتر الخاصة بك بعد المزامنة.",
-    "xboxPcSignInFailed": "فشل تسجيل الدخول إلى Xbox PC",
-    "xboxPcSignedOut": "تم تسجيل الخروج من ألعاب Xbox PC",
-    "xboxPcSignedOutBody": "يبقى تسجيل دخولك إلى Microsoft لألعاب السحابة محفوظاً.",
-    "xboxPcSignOutFailed": "تعذر تسجيل الخروج من ألعاب Xbox PC"
+    "xboxPcSigningIn": "جارٍ تسجيل الدخول لألعاب Xbox PC",
+    "xboxPcSignInFailed": "فشل تسجيل الدخول إلى Xbox PC"
   },
   "uninstallModal": {
     "title": "تأكيد إلغاء التثبيت",
@@ -507,7 +502,6 @@
     "gogdlNotFound": "أداة GOG CLI (gogdl) غير موجودة",
     "nileNotFound": "أداة Amazon Games CLI (Nile) غير موجودة",
     "authUrlFailed": "فشل الحصول على رابط المصادقة",
-    "authFailed": "فشلت المصادقة",
     "notAuthenticated": "غير مصادق عليه. يرجى تسجيل الدخول أولاً.",
     "syncInProgress": "المزامنة قيد التشغيل بالفعل",
     "syncCancelled": "تم إلغاء المزامنة بواسطة المستخدم",
@@ -1223,23 +1217,6 @@
         "inProgress": "يجري تثبيت المكونات بالفعل.",
         "cancelled": "تم إلغاء التثبيت."
       },
-      "label": "المكونات",
-      "missing": "غير مثبتة",
-      "installing": "جارٍ التثبيت…",
-      "installed": "مثبتة (الإصدار {{version}})",
-      "outdated": "مثبتة (الإصدار {{version}}). يتوفر تحديث.",
-      "failed": "فشلت آخر عملية تثبيت.",
-      "install": "تثبيت المكونات",
-      "cancel": "إلغاء التثبيت",
-      "retry": "إعادة محاولة التثبيت",
-      "update": "تحديث المكونات",
-      "stages": {
-        "checking": "جارٍ فحص المصدر",
-        "copying": "جارٍ نسخ Xodus",
-        "verifying": "جارٍ التحقق",
-        "extracting": "جارٍ فك ضغط بيئة التشغيل",
-        "finalizing": "جارٍ الإنهاء"
-      },
       "degradedCloudSaves": "لا تدعم بيئة التشغيل هذه الحفظ السحابي من Xbox. تبقى ملفات الحفظ على هذا الجهاز فقط.",
       "degradedInGameSignIn": "لا تستطيع بيئة التشغيل هذه تسجيل الدخول إلى Xbox داخل الألعاب. قد لا تعمل الميزات عبر الإنترنت.",
       "degradedOther": "تفتقد بيئة التشغيل هذه إلى ميزة: {{feature}}."
@@ -1263,17 +1240,7 @@
         "credentialStore": "تعذر على Unifideck قراءة تسجيل الدخول إلى Xbox PC أو حفظه.",
         "gameRunning": "إحدى ألعاب Xbox PC قيد التشغيل. حاول مرة أخرى بعد إغلاقها."
       },
-      "label": "تسجيل الدخول إلى Xbox PC",
-      "signedIn": "تم تسجيل الدخول",
-      "signedInAs": "تم تسجيل الدخول باسم {{gamertag}}",
-      "signedOut": "لم يتم تسجيل الدخول",
-      "signingIn": "جارٍ تسجيل الدخول…",
-      "unknown": "جارٍ التحقق…",
-      "unverified": "تم تسجيل الدخول. لم يتمكن Unifideck بعد من التأكد من أنه الحساب نفسه المستخدم في تسجيل الدخول إلى Microsoft.",
-      "needsRuntime": "ثبّت المكونات أولاً.",
-      "signIn": "تسجيل الدخول",
-      "signOut": "تسجيل الخروج",
-      "cancel": "إلغاء تسجيل الدخول"
+      "needsRuntime": "ثبّت المكونات أولاً."
     },
     "errors": {
       "disabled": "فعّل ألعاب Xbox PC أولاً.",
@@ -1281,15 +1248,11 @@
       "generic": "حدث خطأ ما ({{code}})."
     },
     "section": {
-      "title": "ألعاب Xbox PC (تجريبي)",
-      "toggleLabel": "تثبيت ألعاب Xbox PC",
-      "toggleDescription": "غير رسمي. يثبّت عناوين Xbox PC وPC Game Pass الخاصة بك ويشغّلها عبر نسخة Xodus الخاصة بـ Unifideck.",
       "microsoftNeeded": "سجّل الدخول إلى Microsoft في ربط حسابات المتاجر أولاً. مكتبة Xbox PC مأخوذة من ذلك الحساب.",
-      "libraryCounts": "{{installable}} قابلة للتثبيت، و{{notSupported}} غير مدعومة بعد.",
-      "libraryStale": "كانت آخر قراءة للمكتبة غير مكتملة، لذا تُعرض آخر قائمة سليمة.",
       "statusError": "تعذر على Unifideck قراءة حالة Xbox PC.",
       "noticeRequired": "اقرأ التنبيه ووافق عليه قبل تفعيل هذا الخيار.",
-      "retry": "إعادة المحاولة"
+      "retry": "إعادة المحاولة",
+      "enableDownloads": "تفعيل تنزيلات Xbox PC التجريبية"
     },
     "notice": {
       "title": "قبل تفعيل ألعاب Xbox PC",
@@ -1298,23 +1261,6 @@
       "sameAccount": "سجّل الدخول بحساب Microsoft نفسه الذي تستخدمه لـ Xbox Cloud Gaming. سيتم تسجيل الخروج من أي حساب مختلف.",
       "disk": "تحتاج المكونات إلى نحو 2 غيغابايت من مساحة القرص، بالإضافة إلى مساحة كل لعبة.",
       "confirm": "تفعيل"
-    },
-    "signIn": {
-      "confirmTitle": "تسجيل الدخول لألعاب Xbox PC",
-      "confirmBody": "ستُفتح نافذة تسجيل الدخول إلى Microsoft بعد ذلك. استخدم الحساب نفسه المستخدم في Xbox Cloud Gaming.",
-      "confirm": "متابعة"
-    },
-    "setup": {
-      "title": "إعداد ألعاب Xbox PC",
-      "intro": "هذه الخطوات مطلوبة قبل أن يمكن تثبيت أي لعبة من ألعاب Xbox PC.",
-      "introGame": "هذه الخطوات مطلوبة قبل أن يمكن تثبيت {{title}}.",
-      "stepEnable": "تفعيل ألعاب Xbox PC",
-      "stepMicrosoft": "ربط حساب Microsoft الخاص بك",
-      "stepRuntime": "تثبيت المكونات",
-      "stepSignIn": "تسجيل الدخول لألعاب Xbox PC",
-      "enable": "تفعيل",
-      "connect": "ربط",
-      "continue": "متابعة"
     },
     "unsupported": {
       "button": "غير مدعوم بعد",

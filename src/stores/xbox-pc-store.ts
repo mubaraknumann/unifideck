@@ -186,11 +186,6 @@ class XboxPcStoreImpl {
     return this._statusCall(rpcRoutes.setXboxPcEnabled, ...args);
   }
 
-  /** Sign the Xbox PC account out (the xCloud sign-in is kept). */
-  async signOut(): Promise<XboxPcCallResult<XboxPcStatus>> {
-    return this._statusCall(rpcRoutes.signOutXboxPc);
-  }
-
   /** Start the component install. Progress arrives as events. */
   async installRuntime(): Promise<XboxPcCallResult<RuntimeInstallAnswer>> {
     const r = await callXboxPc<RuntimeInstallAnswer>(
@@ -202,15 +197,6 @@ class XboxPcStoreImpl {
       return { ok: false, error: refusal };
     }
     return r;
-  }
-
-  /** Cancel a running component install. */
-  async cancelRuntimeInstall(): Promise<
-    XboxPcCallResult<RuntimeInstallAnswer>
-  > {
-    return callXboxPc<RuntimeInstallAnswer>(
-      rpcRoutes.cancelXboxPcRuntimeInstall,
-    );
   }
 
   // ── useSyncExternalStore API ──────────────────────────
@@ -254,10 +240,10 @@ class XboxPcStoreImpl {
   ): void {
     if (prev?.runtime.state !== "installing") return;
     if (next.runtime.state === "installed") {
-      notify(
-        i18n.t("toasts.xboxPcRuntimeInstalled"),
-        i18n.t("toasts.xboxPcRuntimeInstalledBody"),
-      );
+      // A full runtime needs no toast: the sign-in toast follows. One that
+      // lacks features says which, since the user loses them (rule 8).
+      const missing = degradedText(next.runtime.degraded);
+      if (missing) notify(i18n.t("toasts.xboxPcRuntimeInstalled"), missing);
     } else if (next.runtime.state === "failed") {
       notify(
         i18n.t("toasts.xboxPcRuntimeFailed"),
@@ -277,6 +263,23 @@ class XboxPcStoreImpl {
 }
 
 /** Singleton, started at boot from `definePlugin`. */
+/** i18n keys for the runtime features the user notices losing. */
+const DEGRADED_KEYS: Record<string, string> = {
+  cloud_saves: "xboxPc.runtime.degradedCloudSaves",
+  xbox_sign_in_in_game: "xboxPc.runtime.degradedInGameSignIn",
+};
+
+/** What a runtime without `degraded` features cannot do, or "". */
+function degradedText(degraded: string[]): string {
+  return degraded
+    .map((d) =>
+      DEGRADED_KEYS[d]
+        ? i18n.t(DEGRADED_KEYS[d])
+        : i18n.t("xboxPc.runtime.degradedOther", { feature: d }),
+    )
+    .join(" ");
+}
+
 export const xboxPcStore = new XboxPcStoreImpl();
 
 /** A fresh, unstarted store. For tests only. */

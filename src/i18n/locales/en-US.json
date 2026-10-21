@@ -300,7 +300,6 @@
     "syncCancelled": "Sync Cancelled",
     "authTimeout": "Authentication Timeout",
     "authTimeoutMessage": "{{store}} auth timed out. Please try again.",
-    "authFailed": "Authentication Failed",
     "authFailedMessage": "Failed to start authentication",
     "authError": "Authentication Error",
     "authConnected": "{{store}} Connected!",
@@ -467,18 +466,14 @@
     "backendUnavailableMessage": "Unifideck's backend didn't answer, so Steam's own Play button is shown. Restart Decky or reboot to fix it.",
     "uninstallFailed": "Uninstall Failed",
     "xboxPcEnabled": "Xbox PC games turned on",
-    "xboxPcEnabledBody": "Install the components and sign in to see your PC games.",
     "xboxPcEnableFailed": "Couldn't change Xbox PC games",
     "xboxPcRuntimeInstalled": "Xbox PC components installed",
-    "xboxPcRuntimeInstalledBody": "You can now sign in for Xbox PC games.",
     "xboxPcRuntimeFailed": "Xbox PC components failed",
     "xboxPcSignedIn": "Signed in for Xbox PC games",
     "xboxPcSignedInAs": "Signed in as {{gamertag}}. Your PC games appear after the sync.",
     "xboxPcSignedInBody": "Your PC games appear after the sync.",
-    "xboxPcSignInFailed": "Xbox PC sign-in failed",
-    "xboxPcSignedOut": "Signed out of Xbox PC games",
-    "xboxPcSignedOutBody": "Your Microsoft sign-in for cloud games is kept.",
-    "xboxPcSignOutFailed": "Couldn't sign out of Xbox PC games"
+    "xboxPcSigningIn": "Signing in for Xbox PC games",
+    "xboxPcSignInFailed": "Xbox PC sign-in failed"
   },
   "uninstallModal": {
     "title": "Confirm Uninstallation",
@@ -507,7 +502,6 @@
     "gogdlNotFound": "GOG CLI (gogdl) not found",
     "nileNotFound": "Amazon Games CLI (Nile) not found",
     "authUrlFailed": "Could not get authentication URL",
-    "authFailed": "Authentication failed",
     "notAuthenticated": "Not authenticated. Please log in first.",
     "syncInProgress": "A sync operation is already in progress",
     "syncCancelled": "Sync cancelled by user",
@@ -1223,23 +1217,6 @@
         "inProgress": "The components are already being installed.",
         "cancelled": "The install was cancelled."
       },
-      "label": "Components",
-      "missing": "Not installed",
-      "installing": "Installing…",
-      "installed": "Installed (version {{version}})",
-      "outdated": "Installed (version {{version}}). An update is available.",
-      "failed": "The last install failed.",
-      "install": "Install components",
-      "cancel": "Cancel install",
-      "retry": "Retry install",
-      "update": "Update components",
-      "stages": {
-        "checking": "Checking the source",
-        "copying": "Copying Xodus",
-        "verifying": "Verifying",
-        "extracting": "Unpacking the runtime",
-        "finalizing": "Finishing"
-      },
       "degradedCloudSaves": "This runtime has no Xbox cloud saves. Saves stay on this device only.",
       "degradedInGameSignIn": "This runtime can't sign in to Xbox inside games. Online features may not work.",
       "degradedOther": "This runtime is missing a feature: {{feature}}."
@@ -1263,17 +1240,7 @@
         "credentialStore": "Unifideck couldn't read or save the Xbox PC sign-in.",
         "gameRunning": "An Xbox PC game is running. Try again after it closes."
       },
-      "label": "Xbox PC sign-in",
-      "signedIn": "Signed in",
-      "signedInAs": "Signed in as {{gamertag}}",
-      "signedOut": "Not signed in",
-      "signingIn": "Signing in…",
-      "unknown": "Checking…",
-      "unverified": "Signed in. Unifideck couldn't yet confirm it is the same account as your Microsoft sign-in.",
-      "needsRuntime": "Install the components first.",
-      "signIn": "Sign in",
-      "signOut": "Sign out",
-      "cancel": "Cancel sign-in"
+      "needsRuntime": "Install the components first."
     },
     "errors": {
       "disabled": "Turn on Xbox PC games first.",
@@ -1281,15 +1248,11 @@
       "generic": "Something went wrong ({{code}})."
     },
     "section": {
-      "title": "Xbox PC games (experimental)",
-      "toggleLabel": "Install Xbox PC games",
-      "toggleDescription": "Unofficial. Installs and runs your Xbox PC and PC Game Pass titles through Unifideck's own Xodus build.",
       "microsoftNeeded": "Sign in to Microsoft in Store Connections first. The Xbox PC library comes from that account.",
-      "libraryCounts": "{{installable}} installable, {{notSupported}} not supported yet.",
-      "libraryStale": "The last library read was incomplete, so the last good list is shown.",
       "statusError": "Unifideck couldn't read the Xbox PC status.",
       "noticeRequired": "Read and accept the notice before turning this on.",
-      "retry": "Retry"
+      "retry": "Retry",
+      "enableDownloads": "Enable Experimental Xbox PC Downloads"
     },
     "notice": {
       "title": "Before you turn on Xbox PC games",
@@ -1298,23 +1261,6 @@
       "sameAccount": "Sign in with the same Microsoft account you use for Xbox Cloud Gaming. A different account is signed out again.",
       "disk": "The components need about 2 GB of disk space, on top of each game.",
       "confirm": "Turn on"
-    },
-    "signIn": {
-      "confirmTitle": "Sign in for Xbox PC games",
-      "confirmBody": "A Microsoft sign-in window opens next. Use the same account as your Xbox Cloud Gaming sign-in.",
-      "confirm": "Continue"
-    },
-    "setup": {
-      "title": "Set up Xbox PC games",
-      "intro": "These steps are needed before an Xbox PC game can install.",
-      "introGame": "These steps are needed before {{title}} can install.",
-      "stepEnable": "Turn on Xbox PC games",
-      "stepMicrosoft": "Connect your Microsoft account",
-      "stepRuntime": "Install the components",
-      "stepSignIn": "Sign in for Xbox PC games",
-      "enable": "Turn on",
-      "connect": "Connect",
-      "continue": "Continue"
     },
     "unsupported": {
       "button": "Not supported yet",

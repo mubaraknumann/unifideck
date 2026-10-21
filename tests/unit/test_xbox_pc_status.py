@@ -331,4 +331,4 @@ async def test_rpc_proxy(tmp_path: Path) -> None:
     missing = _Rpc(None)
     assert (await missing.get_xbox_pc_status())["available"] is False
     with pytest.raises(RpcError):
-        await missing.sign_out_xbox_pc()
+        await missing.install_xbox_pc_runtime()

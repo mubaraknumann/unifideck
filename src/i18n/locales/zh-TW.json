@@ -300,7 +300,6 @@
     "syncCancelled": "同步已取消",
     "authTimeout": "驗證逾時",
     "authTimeoutMessage": "{{store}} 驗證已逾時，請再試一次。",
-    "authFailed": "驗證失敗",
     "authFailedMessage": "無法啟動驗證流程",
     "authError": "驗證錯誤",
     "authConnected": "{{store}} 已連結！",
@@ -467,18 +466,14 @@
     "backendUnavailableMessage": "Unifideck 後端沒有回應，因此顯示 Steam 內建的開始遊戲按鈕。請重新啟動 Decky 或裝置以解決此問題。",
     "uninstallFailed": "解除安裝失敗",
     "xboxPcEnabled": "已開啟 Xbox PC 遊戲",
-    "xboxPcEnabledBody": "安裝元件並登入後即可看到您的 PC 遊戲。",
     "xboxPcEnableFailed": "無法變更 Xbox PC 遊戲設定",
     "xboxPcRuntimeInstalled": "Xbox PC 元件已安裝",
-    "xboxPcRuntimeInstalledBody": "現在可以登入 Xbox PC 遊戲了。",
     "xboxPcRuntimeFailed": "Xbox PC 元件安裝失敗",
     "xboxPcSignedIn": "已登入 Xbox PC 遊戲",
     "xboxPcSignedInAs": "已登入為 {{gamertag}}。同步完成後將顯示您的 PC 遊戲。",
     "xboxPcSignedInBody": "同步完成後將顯示您的 PC 遊戲。",
-    "xboxPcSignInFailed": "Xbox PC 登入失敗",
-    "xboxPcSignedOut": "已登出 Xbox PC 遊戲",
-    "xboxPcSignedOutBody": "您用於雲端遊戲的 Microsoft 登入將保留。",
-    "xboxPcSignOutFailed": "無法登出 Xbox PC 遊戲"
+    "xboxPcSigningIn": "正在登入 Xbox PC 遊戲",
+    "xboxPcSignInFailed": "Xbox PC 登入失敗"
   },
   "uninstallModal": {
     "title": "確認解除安裝",
@@ -507,7 +502,6 @@
     "gogdlNotFound": "找不到 GOG 用戶端（gogdl）",
     "nileNotFound": "找不到 Amazon Games 用戶端（nile）",
     "authUrlFailed": "無法取得驗證 URL",
-    "authFailed": "驗證失敗",
     "notAuthenticated": "尚未驗證，請先登入。",
     "syncInProgress": "同步已在進行中",
     "syncCancelled": "使用者取消了同步",
@@ -1223,23 +1217,6 @@
         "inProgress": "元件已在安裝中。",
         "cancelled": "安裝已取消。"
       },
-      "label": "元件",
-      "missing": "未安裝",
-      "installing": "正在安裝…",
-      "installed": "已安裝（版本 {{version}}）",
-      "outdated": "已安裝（版本 {{version}}）。有可用的更新。",
-      "failed": "上一次安裝失敗。",
-      "install": "安裝元件",
-      "cancel": "取消安裝",
-      "retry": "重試安裝",
-      "update": "更新元件",
-      "stages": {
-        "checking": "正在檢查來源",
-        "copying": "正在複製 Xodus",
-        "verifying": "正在驗證",
-        "extracting": "正在解壓縮執行環境",
-        "finalizing": "正在完成"
-      },
       "degradedCloudSaves": "此執行環境不支援 Xbox 雲端存檔。存檔僅保存在本裝置上。",
       "degradedInGameSignIn": "此執行環境無法在遊戲內登入 Xbox。線上功能可能無法使用。",
       "degradedOther": "此執行環境缺少一項功能：{{feature}}。"
@@ -1263,17 +1240,7 @@
         "credentialStore": "Unifideck 無法讀取或儲存 Xbox PC 登入資訊。",
         "gameRunning": "有 Xbox PC 遊戲正在執行。請在遊戲關閉後再試一次。"
       },
-      "label": "Xbox PC 登入",
-      "signedIn": "已登入",
-      "signedInAs": "已登入為 {{gamertag}}",
-      "signedOut": "未登入",
-      "signingIn": "正在登入…",
-      "unknown": "正在檢查…",
-      "unverified": "已登入。Unifideck 暫時無法確認這與您的 Microsoft 登入是同一個帳戶。",
-      "needsRuntime": "請先安裝元件。",
-      "signIn": "登入",
-      "signOut": "登出",
-      "cancel": "取消登入"
+      "needsRuntime": "請先安裝元件。"
     },
     "errors": {
       "disabled": "請先開啟 Xbox PC 遊戲。",
@@ -1281,15 +1248,11 @@
       "generic": "發生問題（{{code}}）。"
     },
     "section": {
-      "title": "Xbox PC 遊戲（實驗性）",
-      "toggleLabel": "安裝 Xbox PC 遊戲",
-      "toggleDescription": "非官方功能。透過 Unifideck 自行建置的 Xodus 安裝並執行您的 Xbox PC 和 PC Game Pass 遊戲。",
       "microsoftNeeded": "請先在「商店連結」中登入 Microsoft。Xbox PC 遊戲庫來自該帳戶。",
-      "libraryCounts": "{{installable}} 個可安裝，{{notSupported}} 個暫不支援。",
-      "libraryStale": "上一次讀取遊戲庫不完整，因此顯示的是上一次正常的清單。",
       "statusError": "Unifideck 無法讀取 Xbox PC 狀態。",
       "noticeRequired": "開啟此功能前，請先閱讀並接受說明。",
-      "retry": "重試"
+      "retry": "重試",
+      "enableDownloads": "啟用實驗性 Xbox PC 下載"
     },
     "notice": {
       "title": "開啟 Xbox PC 遊戲之前",
@@ -1298,23 +1261,6 @@
       "sameAccount": "請使用您登入 Xbox Cloud Gaming 時所用的同一個 Microsoft 帳戶登入。如果使用其他帳戶，將會再次登出。",
       "disk": "除每個遊戲本身外，這些元件還需要約 2 GB 的磁碟空間。",
       "confirm": "開啟"
-    },
-    "signIn": {
-      "confirmTitle": "登入 Xbox PC 遊戲",
-      "confirmBody": "接下來將開啟 Microsoft 登入視窗。請使用與 Xbox Cloud Gaming 登入相同的帳戶。",
-      "confirm": "繼續"
-    },
-    "setup": {
-      "title": "設定 Xbox PC 遊戲",
-      "intro": "安裝 Xbox PC 遊戲之前需要完成以下步驟。",
-      "introGame": "安裝 {{title}} 之前需要完成以下步驟。",
-      "stepEnable": "開啟 Xbox PC 遊戲",
-      "stepMicrosoft": "連結您的 Microsoft 帳戶",
-      "stepRuntime": "安裝元件",
-      "stepSignIn": "登入 Xbox PC 遊戲",
-      "enable": "開啟",
-      "connect": "連結",
-      "continue": "繼續"
     },
     "unsupported": {
       "button": "暫不支援",

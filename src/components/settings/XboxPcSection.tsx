@@ -1,15 +1,15 @@
 /**
- * XboxPcSection: the QAM section for Xbox PC games (experimental).
+ * XboxPcSection: the one QAM toggle for Xbox PC downloads (experimental).
  *
  * Rendered after `<StoreConnections/>`. Hidden unless the backend reports
  * the feature as available on this build. When the status could not be
  * read it shows that, with a Retry, rather than hiding: a backend failure
  * must not look like the feature is off (rule 8).
  *
- * Turning it on goes through the unofficial notice (`enableXboxPc`).
- * Turning it off deletes nothing. While on, the section shows the
- * Microsoft sign-in it depends on, the components row, the Xbox PC
- * sign-in row and what the last library read found.
+ * There is nothing else to set up by hand. Turning it on goes through the
+ * unofficial notice once (`enableXboxPc`); after that, with Microsoft
+ * connected in Store Connections, the components install and the Xbox PC
+ * sign-in runs by themselves (`linkXboxPc`). Turning it off deletes nothing.
  */
 import { FC, useEffect, useState } from "react";
 import {
@@ -27,35 +27,12 @@ import {
   disableXboxPc,
   enableXboxPc,
 } from "../../services/store/xbox-pc-actions";
-import { XboxPcRuntimeRow } from "./XboxPcRuntimeRow";
-import { XboxPcAccountRow } from "./XboxPcAccountRow";
-import type { XboxPcStatus } from "../../types/api";
-
-const hintStyle = { fontSize: 12, lineHeight: 1.4, color: "#8f98a0" };
-
-/** What the last library read found, once there was one. */
-const LibraryLine: FC<{ status: XboxPcStatus }> = ({ status }) => {
-  const { t } = useTranslation();
-  const lib = status.library;
-  if (!lib || lib.last_read == null) return null;
-  return (
-    <PanelSectionRow>
-      <div style={hintStyle}>
-        {t("xboxPc.section.libraryCounts", {
-          installable: lib.installable,
-          notSupported: lib.not_supported + lib.choice,
-        })}
-        {lib.stale ? ` ${t("xboxPc.section.libraryStale")}` : ""}
-      </div>
-    </PanelSectionRow>
-  );
-};
 
 /** The error row: the status could not be read. */
 const StatusError: FC<{ error: string }> = ({ error }) => {
   const { t } = useTranslation();
   return (
-    <PanelSection title={t("xboxPc.section.title")}>
+    <PanelSection>
       <PanelSectionRow>
         <Field label={xboxPcErrorText(error, t)} bottomSeparator="none" />
       </PanelSectionRow>
@@ -91,24 +68,15 @@ export const XboxPcSection: FC = () => {
   };
 
   return (
-    <PanelSection title={t("xboxPc.section.title")}>
+    <PanelSection>
       <PanelSectionRow>
         <ToggleField
-          label={t("xboxPc.section.toggleLabel")}
-          description={t("xboxPc.section.toggleDescription")}
+          label={t("xboxPc.section.enableDownloads")}
           checked={status.enabled}
           disabled={busy}
           onChange={(on: boolean) => void onToggle(on)}
         />
       </PanelSectionRow>
-      {status.enabled && !status.xcloud_signed_in && (
-        <PanelSectionRow>
-          <div style={hintStyle}>{t("xboxPc.section.microsoftNeeded")}</div>
-        </PanelSectionRow>
-      )}
-      {status.enabled && <XboxPcRuntimeRow status={status} />}
-      {status.enabled && <XboxPcAccountRow status={status} />}
-      {status.enabled && <LibraryLine status={status} />}
     </PanelSection>
   );
 };

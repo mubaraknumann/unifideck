@@ -514,8 +514,18 @@ class XboxPc:
         return self._snapshot()
 
     async def on_microsoft_logout(self) -> None:
-        """The xCloud sign-out is about to kill Edge: stop our sign-in first."""
-        await self._signin.cancel()
+        """Microsoft sign-out: sign the Xbox PC account out with it.
+
+        From the user's side there is one Microsoft sign-in, so signing out
+        of Microsoft signs out of both. A download holding the credentials
+        keeps them (``xodus_busy``): deleting them under it would fail the
+        download. That is logged, and the next sign-out or sign-in clears it.
+        """
+        try:
+            await self.sign_out()
+        except XboxPcError as e:
+            logger.warning("%s Xbox PC sign-out skipped at Microsoft sign-out: %s", _LOG, e.code)
+            await self._signin.cancel()
 
     async def shutdown(self) -> None:
         """Plugin unload."""

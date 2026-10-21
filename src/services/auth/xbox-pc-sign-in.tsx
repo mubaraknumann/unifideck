@@ -1,13 +1,12 @@
 /**
- * Xbox PC sign-in: the account Xodus installs and launches games with.
+ * Xbox PC sign-in: the Xodus credential behind the one Microsoft sign-in.
  *
- * It is a second sign-in on top of the Microsoft (xCloud) one, through our
- * own `xodus-cli login`. The backend owns the protocol and drives the page
- * over Edge's debugging port (`stores/microsoft/xodus/auth.py`). The
- * frontend only:
+ * The user never starts this by hand. `linkXboxPc` runs it when the
+ * toggle is on and Microsoft is connected. It goes through our own
+ * `xodus-cli login`; the backend owns the protocol and drives the page over
+ * Edge's debugging port (`stores/microsoft/xodus/auth.py`). The frontend:
  *
- *   1. warns first that Microsoft may send an Authenticator approval
- *      (I-009), and that it must be the same account;
+ *   1. toasts that Microsoft may send an Authenticator approval (I-009);
  *   2. calls `start_xbox_pc_sign_in`, which answers
  *      `{pending, launch_shortcut, reason}` (no `success` key). On
  *      `edge_not_installed` it offers `ChromiumInstallModal` and retries;
@@ -19,15 +18,11 @@
  *      status event, with the window's exit as the backstop: once it
  *      closes, a short grace, then one refresh decides.
  *
- * On success it toasts and resyncs Microsoft (`prepareForSync` then
- * `requestAuthSync`), the same as `AuthDispatcher` does for a store sign-in.
- * Kept out of `AuthDispatcher` because that one keys everything by store,
- * and this is a second sign-in for a store that is already connected.
+ * On success it resyncs Microsoft (`prepareForSync` then `requestAuthSync`).
+ * There is no separate sign-out: signing out of Microsoft signs out of both.
  */
-import { showModal, ConfirmModal } from "@decky/ui";
+import { showModal } from "@decky/ui";
 import i18n from "i18next";
-import { FC } from "react";
-import { useTranslation } from "react-i18next";
 import { rpcRoutes } from "../../api/rpc-routes";
 import { ChromiumInstallModal } from "../../components/modals/ChromiumInstallModal";
 import { watchAppStopped } from "../../lib/steam-bridge/shortcut-types";
@@ -58,50 +53,6 @@ interface StartAnswer {
   error?: string | null;
   /** The status once the sign-in started (it may already have ended). */
   status?: XboxPcStatus;
-}
-
-const SignInConfirm: FC<{ onConfirm: () => void; closeModal?: () => void }> = ({
-  onConfirm,
-  closeModal,
-}) => {
-  const { t } = useTranslation();
-  return (
-    <ConfirmModal
-      strTitle={t("xboxPc.signIn.confirmTitle")}
-      strOKButtonText={t("xboxPc.signIn.confirm")}
-      strCancelButtonText={t("common.cancel")}
-      onOK={() => {
-        onConfirm();
-        closeModal?.();
-      }}
-      onCancel={closeModal}
-    >
-      <p style={{ fontSize: 14, lineHeight: 1.5 }}>
-        {t("xboxPc.signIn.confirmBody")}
-      </p>
-      <p style={{ fontSize: 14, lineHeight: 1.5 }}>
-        {t("xboxPc.notice.authenticator")}
-      </p>
-    </ConfirmModal>
-  );
-};
-
-function confirmSignIn(): Promise<boolean> {
-  return new Promise((resolve) => {
-    let ok = false;
-    const handle = showModal(
-      <SignInConfirm
-        onConfirm={() => {
-          ok = true;
-          resolve(true);
-        }}
-        closeModal={() => {
-          handle?.Close();
-          if (!ok) resolve(false);
-        }}
-      />,
-    );
-  });
 }
 
 /** The refusal code in a start answer, or null when the sign-in began. */
@@ -159,22 +110,18 @@ function waitForSignIn(
   });
 }
 
-/**
- * Run the whole Xbox PC sign-in. Resolves true once signed in.
- *
- * `confirm` is false for the automatic retry after Edge was installed:
- * the user already accepted the notice for this attempt.
- */
-export async function signInXboxPc(confirm = true): Promise<boolean> {
-  if (confirm && !(await confirmSignIn())) return false;
+/** Run the whole Xbox PC sign-in. Resolves true once signed in. */
+export async function signInXboxPc(): Promise<boolean> {
+  xboxPcToast(
+    i18n.t("toasts.xboxPcSigningIn"),
+    i18n.t("xboxPc.notice.authenticator"),
+  );
   const before = xboxPcStore.getSnapshot().status;
   const start = await callXboxPc<StartAnswer>(rpcRoutes.startXboxPcSignIn);
   if (start.ok && start.data?.status) xboxPcStore.apply(start.data.status);
   const refusal = startRefusal(start);
   if (refusal === "edge_not_installed") {
-    showModal(
-      <ChromiumInstallModal onInstalled={() => void signInXboxPc(false)} />,
-    );
+    showModal(<ChromiumInstallModal onInstalled={() => void signInXboxPc()} />);
     return false;
   }
   if (refusal) {
@@ -202,21 +149,6 @@ export async function signInXboxPc(confirm = true): Promise<boolean> {
     gamertag
       ? i18n.t("toasts.xboxPcSignedInAs", { gamertag })
       : i18n.t("toasts.xboxPcSignedInBody"),
-  );
-  syncAfterXboxPc();
-  return true;
-}
-
-/** Sign the Xbox PC account out. The Microsoft (xCloud) sign-in stays. */
-export async function signOutXboxPc(): Promise<boolean> {
-  const r = await xboxPcStore.signOut();
-  if (!r.ok) {
-    toastXboxPcError("toasts.xboxPcSignOutFailed", r.error);
-    return false;
-  }
-  xboxPcToast(
-    i18n.t("toasts.xboxPcSignedOut"),
-    i18n.t("toasts.xboxPcSignedOutBody"),
   );
   syncAfterXboxPc();
   return true;

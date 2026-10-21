@@ -51,6 +51,7 @@ import {
 } from "./device-code";
 import { pendingSignIns } from "../../stores/pending-signin-store";
 import type { StoreId, AuthResult } from "../../types/api";
+import { linkXboxPc } from "../store/xbox-pc-link";
 
 const AUTH_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes ceiling
 
@@ -224,6 +225,10 @@ class AuthDispatcherImpl {
                 e,
               );
             });
+          // One Microsoft sign-in serves cloud and PC games: with Xbox PC
+          // downloads on, the Xodus sign-in follows in the same Edge
+          // profile (single sign-on), after the components install.
+          if (store === "microsoft") void linkXboxPc();
         }
         resolve(result);
       };

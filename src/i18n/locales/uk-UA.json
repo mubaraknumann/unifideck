@@ -291,7 +291,6 @@
     "syncCancelled": "Синхронізацію скасовано",
     "authTimeout": "Час очікування авторизації минув",
     "authTimeoutMessage": "Час авторизації у {{store}} минув. Будь ласка, спробуйте знову.",
-    "authFailed": "Авторизація не вдалася",
     "authFailedMessage": "Не вдалося розпочати авторизацію",
     "authError": "Помилка авторизації",
     "authConnected": "Магазин {{store}} підключено!",
@@ -467,18 +466,14 @@
     "backendUnavailableMessage": "Бекенд Unifideck не відповідає, тому показано стандартну кнопку «Грати» Steam. Перезапустіть Decky або пристрій, щоб це виправити.",
     "uninstallFailed": "Не вдалося видалити",
     "xboxPcEnabled": "Ігри Xbox PC увімкнено",
-    "xboxPcEnabledBody": "Встановіть компоненти та увійдіть, щоб побачити свої ігри для ПК.",
     "xboxPcEnableFailed": "Не вдалося змінити параметр ігор Xbox PC",
     "xboxPcRuntimeInstalled": "Компоненти Xbox PC встановлено",
-    "xboxPcRuntimeInstalledBody": "Тепер можна увійти для ігор Xbox PC.",
     "xboxPcRuntimeFailed": "Помилка компонентів Xbox PC",
     "xboxPcSignedIn": "Вхід для ігор Xbox PC виконано",
     "xboxPcSignedInAs": "Вхід виконано як {{gamertag}}. Ваші ігри для ПК з'являться після синхронізації.",
     "xboxPcSignedInBody": "Ваші ігри для ПК з'являться після синхронізації.",
-    "xboxPcSignInFailed": "Не вдалося увійти в Xbox PC",
-    "xboxPcSignedOut": "Виконано вихід з ігор Xbox PC",
-    "xboxPcSignedOutBody": "Вхід у Microsoft для хмарних ігор збережено.",
-    "xboxPcSignOutFailed": "Не вдалося вийти з ігор Xbox PC"
+    "xboxPcSigningIn": "Виконується вхід для ігор Xbox PC",
+    "xboxPcSignInFailed": "Не вдалося увійти в Xbox PC"
   },
   "uninstallModal": {
     "title": "Підтвердження видалення",
@@ -507,7 +502,6 @@
     "gogdlNotFound": "Утиліту GOG CLI (gogdl) не знайдено",
     "nileNotFound": "Утиліту Amazon Games CLI (Nile) не знайдено",
     "authUrlFailed": "Не вдалося отримати посилання для авторизації",
-    "authFailed": "Авторизація не вдалася",
     "notAuthenticated": "Не авторизовано. Будь ласка, спочатку увійдіть у систему.",
     "syncInProgress": "Синхронізація вже виконується",
     "syncCancelled": "Синхронізація скасована користувачем",
@@ -1223,23 +1217,6 @@
         "inProgress": "Компоненти вже встановлюються.",
         "cancelled": "Встановлення скасовано."
       },
-      "label": "Компоненти",
-      "missing": "Не встановлено",
-      "installing": "Встановлення…",
-      "installed": "Встановлено (версія {{version}})",
-      "outdated": "Встановлено (версія {{version}}). Доступне оновлення.",
-      "failed": "Останнє встановлення не вдалося.",
-      "install": "Встановити компоненти",
-      "cancel": "Скасувати встановлення",
-      "retry": "Повторити встановлення",
-      "update": "Оновити компоненти",
-      "stages": {
-        "checking": "Перевірка джерела",
-        "copying": "Копіювання Xodus",
-        "verifying": "Перевірка цілісності",
-        "extracting": "Розпакування середовища виконання",
-        "finalizing": "Завершення"
-      },
       "degradedCloudSaves": "У цьому середовищі виконання немає хмарних збережень Xbox. Збереження залишаються лише на цьому пристрої.",
       "degradedInGameSignIn": "Це середовище виконання не може входити в Xbox усередині ігор. Мережеві функції можуть не працювати.",
       "degradedOther": "У цьому середовищі виконання бракує функції: {{feature}}."
@@ -1263,17 +1240,7 @@
         "credentialStore": "Unifideck не зміг прочитати або зберегти дані входу Xbox PC.",
         "gameRunning": "Запущено гру Xbox PC. Повторіть спробу після її закриття."
       },
-      "label": "Вхід у Xbox PC",
-      "signedIn": "Вхід виконано",
-      "signedInAs": "Вхід виконано як {{gamertag}}",
-      "signedOut": "Вхід не виконано",
-      "signingIn": "Виконується вхід…",
-      "unknown": "Перевірка…",
-      "unverified": "Вхід виконано. Unifideck поки що не зміг підтвердити, що це той самий обліковий запис, що й під час входу в Microsoft.",
-      "needsRuntime": "Спочатку встановіть компоненти.",
-      "signIn": "Увійти",
-      "signOut": "Вийти",
-      "cancel": "Скасувати вхід"
+      "needsRuntime": "Спочатку встановіть компоненти."
     },
     "errors": {
       "disabled": "Спочатку увімкніть ігри Xbox PC.",
@@ -1281,15 +1248,11 @@
       "generic": "Щось пішло не так ({{code}})."
     },
     "section": {
-      "title": "Ігри Xbox PC (експериментально)",
-      "toggleLabel": "Встановлювати ігри Xbox PC",
-      "toggleDescription": "Неофіційно. Встановлює та запускає ваші ігри Xbox PC і PC Game Pass через власну збірку Xodus від Unifideck.",
       "microsoftNeeded": "Спочатку увійдіть у Microsoft у розділі «Підключення магазинів». Бібліотека Xbox PC береться з цього облікового запису.",
-      "libraryCounts": "Можна встановити: {{installable}}. Поки що не підтримується: {{notSupported}}.",
-      "libraryStale": "Останнє читання бібліотеки було неповним, тому показано останній коректний список.",
       "statusError": "Unifideck не зміг прочитати стан Xbox PC.",
       "noticeRequired": "Перш ніж увімкнути цю функцію, прочитайте та прийміть повідомлення.",
-      "retry": "Повторити"
+      "retry": "Повторити",
+      "enableDownloads": "Увімкнути експериментальне завантаження ігор Xbox PC"
     },
     "notice": {
       "title": "Перш ніж увімкнути ігри Xbox PC",
@@ -1298,23 +1261,6 @@
       "sameAccount": "Увійдіть з тим самим обліковим записом Microsoft, який ви використовуєте для Xbox Cloud Gaming. Вхід з іншим обліковим записом буде скасовано.",
       "disk": "Компонентам потрібно близько 2 ГБ місця на диску, не враховуючи самих ігор.",
       "confirm": "Увімкнути"
-    },
-    "signIn": {
-      "confirmTitle": "Вхід для ігор Xbox PC",
-      "confirmBody": "Далі відкриється вікно входу Microsoft. Використовуйте той самий обліковий запис, що й для входу в Xbox Cloud Gaming.",
-      "confirm": "Продовжити"
-    },
-    "setup": {
-      "title": "Налаштування ігор Xbox PC",
-      "intro": "Ці кроки потрібно виконати, перш ніж гру Xbox PC можна буде встановити.",
-      "introGame": "Ці кроки потрібно виконати, перш ніж {{title}} можна буде встановити.",
-      "stepEnable": "Увімкніть ігри Xbox PC",
-      "stepMicrosoft": "Підключіть обліковий запис Microsoft",
-      "stepRuntime": "Встановіть компоненти",
-      "stepSignIn": "Увійдіть для ігор Xbox PC",
-      "enable": "Увімкнути",
-      "connect": "Підключити",
-      "continue": "Продовжити"
     },
     "unsupported": {
       "button": "Поки що не підтримується",

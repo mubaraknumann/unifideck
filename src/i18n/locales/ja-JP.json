@@ -291,7 +291,6 @@
     "syncCancelled": "同期をキャンセルしました",
     "authTimeout": "認証がタイムアウトしました",
     "authTimeoutMessage": "{{store}} の認証期限が切れました。もう一度お試しください。",
-    "authFailed": "認証に失敗しました",
     "authFailedMessage": "認証を開始できませんでした",
     "authError": "認証エラー",
     "authConnected": "{{store}} と連携しました！",
@@ -467,18 +466,14 @@
     "backendUnavailableMessage": "Unifideckのバックエンドが応答しないため、Steam標準のプレイボタンを表示しています。Deckyまたは本体を再起動してください。",
     "uninstallFailed": "アンインストールに失敗しました",
     "xboxPcEnabled": "Xbox PC ゲームをオンにしました",
-    "xboxPcEnabledBody": "PC ゲームを表示するには、コンポーネントをインストールしてサインインしてください。",
     "xboxPcEnableFailed": "Xbox PC ゲームの設定を変更できませんでした",
     "xboxPcRuntimeInstalled": "Xbox PC コンポーネントをインストールしました",
-    "xboxPcRuntimeInstalledBody": "Xbox PC ゲームにサインインできるようになりました。",
     "xboxPcRuntimeFailed": "Xbox PC コンポーネントのインストールに失敗しました",
     "xboxPcSignedIn": "Xbox PC ゲームにサインインしました",
     "xboxPcSignedInAs": "{{gamertag}} としてサインインしました。PC ゲームは同期後に表示されます。",
     "xboxPcSignedInBody": "PC ゲームは同期後に表示されます。",
-    "xboxPcSignInFailed": "Xbox PC のサインインに失敗しました",
-    "xboxPcSignedOut": "Xbox PC ゲームからサインアウトしました",
-    "xboxPcSignedOutBody": "クラウドゲーム用の Microsoft サインインは保持されます。",
-    "xboxPcSignOutFailed": "Xbox PC ゲームからサインアウトできませんでした"
+    "xboxPcSigningIn": "Xbox PC ゲームにサインインしています",
+    "xboxPcSignInFailed": "Xbox PC のサインインに失敗しました"
   },
   "uninstallModal": {
     "title": "アンインストールの確認",
@@ -507,7 +502,6 @@
     "gogdlNotFound": "GOG ツール (gogdl) が見つかりません",
     "nileNotFound": "Amazon Games ツール (Nile) が見つかりません",
     "authUrlFailed": "認証 URL を取得できませんでした",
-    "authFailed": "認証に失敗しました",
     "notAuthenticated": "認証されていません。先にログインしてください。",
     "syncInProgress": "同期処理がすでに実行中です",
     "syncCancelled": "ユーザーによって同期がキャンセルされました",
@@ -1223,23 +1217,6 @@
         "inProgress": "コンポーネントはすでにインストール中です。",
         "cancelled": "インストールはキャンセルされました。"
       },
-      "label": "コンポーネント",
-      "missing": "未インストール",
-      "installing": "インストール中…",
-      "installed": "インストール済み (バージョン {{version}})",
-      "outdated": "インストール済み (バージョン {{version}})。アップデートがあります。",
-      "failed": "前回のインストールに失敗しました。",
-      "install": "コンポーネントをインストール",
-      "cancel": "インストールをキャンセル",
-      "retry": "インストールを再試行",
-      "update": "コンポーネントを更新",
-      "stages": {
-        "checking": "ソースを確認中",
-        "copying": "Xodus をコピー中",
-        "verifying": "検証中",
-        "extracting": "ランタイムを展開中",
-        "finalizing": "仕上げ中"
-      },
       "degradedCloudSaves": "このランタイムには Xbox クラウドセーブがありません。セーブデータはこのデバイスにのみ保存されます。",
       "degradedInGameSignIn": "このランタイムではゲーム内で Xbox にサインインできません。オンライン機能が動作しない場合があります。",
       "degradedOther": "このランタイムには次の機能がありません: {{feature}}。"
@@ -1263,17 +1240,7 @@
         "credentialStore": "Unifideck は Xbox PC のサインイン情報を読み込みまたは保存できませんでした。",
         "gameRunning": "Xbox PC ゲームが実行中です。ゲームが終了してから、もう一度お試しください。"
       },
-      "label": "Xbox PC のサインイン",
-      "signedIn": "サインイン済み",
-      "signedInAs": "{{gamertag}} としてサインイン済み",
-      "signedOut": "サインインしていません",
-      "signingIn": "サインイン中…",
-      "unknown": "確認中…",
-      "unverified": "サインイン済みです。Microsoft のサインインと同じアカウントかどうかは、まだ Unifideck で確認できていません。",
-      "needsRuntime": "先にコンポーネントをインストールしてください。",
-      "signIn": "サインイン",
-      "signOut": "サインアウト",
-      "cancel": "サインインをキャンセル"
+      "needsRuntime": "先にコンポーネントをインストールしてください。"
     },
     "errors": {
       "disabled": "先に Xbox PC ゲームをオンにしてください。",
@@ -1281,15 +1248,11 @@
       "generic": "問題が発生しました ({{code}})。"
     },
     "section": {
-      "title": "Xbox PC ゲーム (試験的)",
-      "toggleLabel": "Xbox PC ゲームをインストール",
-      "toggleDescription": "非公式です。Xbox PC および PC Game Pass のタイトルを、Unifideck 独自の Xodus ビルドでインストールして実行します。",
       "microsoftNeeded": "先にストア連携で Microsoft にサインインしてください。Xbox PC ライブラリはそのアカウントから取得されます。",
-      "libraryCounts": "インストール可能: {{installable}}、未対応: {{notSupported}}。",
-      "libraryStale": "前回のライブラリの読み込みが不完全だったため、最後に正常だったリストを表示しています。",
       "statusError": "Unifideck は Xbox PC の状態を読み込めませんでした。",
       "noticeRequired": "オンにする前に、お知らせを読んで同意してください。",
-      "retry": "再試行"
+      "retry": "再試行",
+      "enableDownloads": "実験的な Xbox PC ダウンロードを有効にする"
     },
     "notice": {
       "title": "Xbox PC ゲームをオンにする前に",
@@ -1298,23 +1261,6 @@
       "sameAccount": "Xbox Cloud Gaming で使用しているものと同じ Microsoft アカウントでサインインしてください。別のアカウントは再びサインアウトされます。",
       "disk": "コンポーネントには、各ゲームとは別に約 2 GB のディスク容量が必要です。",
       "confirm": "オンにする"
-    },
-    "signIn": {
-      "confirmTitle": "Xbox PC ゲームにサインイン",
-      "confirmBody": "次に Microsoft のサインインウィンドウが開きます。Xbox Cloud Gaming のサインインと同じアカウントを使用してください。",
-      "confirm": "続行"
-    },
-    "setup": {
-      "title": "Xbox PC ゲームのセットアップ",
-      "intro": "Xbox PC ゲームをインストールする前に、次の手順が必要です。",
-      "introGame": "{{title}} をインストールする前に、次の手順が必要です。",
-      "stepEnable": "Xbox PC ゲームをオンにする",
-      "stepMicrosoft": "Microsoft アカウントを連携する",
-      "stepRuntime": "コンポーネントをインストールする",
-      "stepSignIn": "Xbox PC ゲームにサインインする",
-      "enable": "オンにする",
-      "connect": "連携",
-      "continue": "続行"
     },
     "unsupported": {
       "button": "未対応",

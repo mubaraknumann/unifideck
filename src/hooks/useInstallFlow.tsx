@@ -18,7 +18,8 @@
  *    answers `*_claim_required`, for a tile whose tags predate the claim
  *    rule, then the install is retried once.
  *  - An Xbox PC title (tag `xbox_pc`): the setup modal opens first when
- *    the live status says setup is incomplete (`needsXboxPcSetup`). When
+ *    the live status says setup is incomplete (`needsXboxPcSetup`): it is
+ *    finished in place, with no dialog (`linkXboxPc`). When
  *    `install_game` refuses with a setup code (`xbox_pc_disabled`,
  *    `_runtime_missing`, `_not_signed_in`), setup runs and the install is
  *    retried once. No language picker: Xodus picks the package.
@@ -117,7 +118,7 @@ export function useInstallFlow(bridge: SteamBridgeShape): UseInstallFlowResult {
           if (!claim?.success) return claim;
         }
         if (needsXboxPcSetup(game, xboxPcSnapshot().status)) {
-          if (!(await runXboxPcSetup(game.title))) return null;
+          if (!(await runXboxPcSetup())) return null;
         }
         const install = async (opts: {
           storage: string;
@@ -133,7 +134,7 @@ export function useInstallFlow(bridge: SteamBridgeShape): UseInstallFlowResult {
             actions.install(game.store, game.store_game_id, args);
           if (isXboxPcSetupError(result.error)) {
             // The status was stale (or not loaded): setup, then once more.
-            if (!(await runXboxPcSetup(game.title))) return result;
+            if (!(await runXboxPcSetup())) return result;
             return retry();
           }
           if (!isClaimRequiredError(result.error)) return result;

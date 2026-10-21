@@ -12,8 +12,6 @@
  */
 export { StoreConnections } from "./StoreConnections";
 export { XboxPcSection } from "./XboxPcSection";
-export { XboxPcRuntimeRow } from "./XboxPcRuntimeRow";
-export { XboxPcAccountRow } from "./XboxPcAccountRow";
 export { LibrarySync } from "./LibrarySync";
 export { LanguageSelector } from "./LanguageSelector";
 export { GameDetailsViewModeToggle } from "./GameDetailsViewModeToggle";

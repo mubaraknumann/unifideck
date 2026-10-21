@@ -291,7 +291,6 @@
     "syncCancelled": "Synchronisierung abgebrochen",
     "authTimeout": "Authentifizierungs-Zeitüberschreitung",
     "authTimeoutMessage": "Authentifizierung für {{store}} abgelaufen. Bitte versuche es erneut.",
-    "authFailed": "Authentifizierung fehlgeschlagen",
     "authFailedMessage": "Authentifizierung konnte nicht gestartet werden",
     "authError": "Authentifizierungsfehler",
     "authConnected": "{{store}} verbunden!",
@@ -467,18 +466,14 @@
     "backendUnavailableMessage": "Das Unifideck-Backend antwortet nicht, daher wird die Spielen-Schaltfläche von Steam angezeigt. Starte Decky oder das Gerät neu, um das zu beheben.",
     "uninstallFailed": "Deinstallation fehlgeschlagen",
     "xboxPcEnabled": "Xbox-PC-Spiele aktiviert",
-    "xboxPcEnabledBody": "Installiere die Komponenten und melde dich an, um deine PC-Spiele zu sehen.",
     "xboxPcEnableFailed": "Xbox-PC-Spiele konnten nicht umgeschaltet werden",
     "xboxPcRuntimeInstalled": "Xbox-PC-Komponenten installiert",
-    "xboxPcRuntimeInstalledBody": "Du kannst dich jetzt für Xbox-PC-Spiele anmelden.",
     "xboxPcRuntimeFailed": "Xbox-PC-Komponenten fehlgeschlagen",
     "xboxPcSignedIn": "Für Xbox-PC-Spiele angemeldet",
     "xboxPcSignedInAs": "Angemeldet als {{gamertag}}. Deine PC-Spiele erscheinen nach der Synchronisierung.",
     "xboxPcSignedInBody": "Deine PC-Spiele erscheinen nach der Synchronisierung.",
-    "xboxPcSignInFailed": "Xbox-PC-Anmeldung fehlgeschlagen",
-    "xboxPcSignedOut": "Von Xbox-PC-Spielen abgemeldet",
-    "xboxPcSignedOutBody": "Deine Microsoft-Anmeldung für Cloud-Spiele bleibt erhalten.",
-    "xboxPcSignOutFailed": "Abmeldung von Xbox-PC-Spielen fehlgeschlagen"
+    "xboxPcSigningIn": "Anmeldung für Xbox-PC-Spiele läuft",
+    "xboxPcSignInFailed": "Xbox-PC-Anmeldung fehlgeschlagen"
   },
   "uninstallModal": {
     "title": "Deinstallation bestätigen",
@@ -507,7 +502,6 @@
     "gogdlNotFound": "GOG CLI (gogdl) nicht gefunden",
     "nileNotFound": "Amazon Games CLI (Nile) nicht gefunden",
     "authUrlFailed": "Authentifizierungs-URL konnte nicht abgerufen werden",
-    "authFailed": "Authentifizierung fehlgeschlagen",
     "notAuthenticated": "Nicht authentifiziert. Bitte melde dich zuerst an.",
     "syncInProgress": "Eine Synchronisierung wird bereits ausgeführt",
     "syncCancelled": "Synchronisierung vom Benutzer abgebrochen",
@@ -1223,23 +1217,6 @@
         "inProgress": "Die Komponenten werden bereits installiert.",
         "cancelled": "Die Installation wurde abgebrochen."
       },
-      "label": "Komponenten",
-      "missing": "Nicht installiert",
-      "installing": "Wird installiert…",
-      "installed": "Installiert (Version {{version}})",
-      "outdated": "Installiert (Version {{version}}). Ein Update ist verfügbar.",
-      "failed": "Die letzte Installation ist fehlgeschlagen.",
-      "install": "Komponenten installieren",
-      "cancel": "Installation abbrechen",
-      "retry": "Installation wiederholen",
-      "update": "Komponenten aktualisieren",
-      "stages": {
-        "checking": "Quelle wird geprüft",
-        "copying": "Xodus wird kopiert",
-        "verifying": "Wird überprüft",
-        "extracting": "Laufzeitumgebung wird entpackt",
-        "finalizing": "Wird abgeschlossen"
-      },
       "degradedCloudSaves": "Diese Laufzeitumgebung hat keine Xbox-Cloud-Speicherstände. Spielstände bleiben nur auf diesem Gerät.",
       "degradedInGameSignIn": "Diese Laufzeitumgebung kann sich in Spielen nicht bei Xbox anmelden. Online-Funktionen funktionieren eventuell nicht.",
       "degradedOther": "Dieser Laufzeitumgebung fehlt eine Funktion: {{feature}}."
@@ -1263,17 +1240,7 @@
         "credentialStore": "Unifideck konnte die Xbox-PC-Anmeldung nicht lesen oder speichern.",
         "gameRunning": "Ein Xbox-PC-Spiel läuft. Versuche es erneut, nachdem es geschlossen wurde."
       },
-      "label": "Xbox-PC-Anmeldung",
-      "signedIn": "Angemeldet",
-      "signedInAs": "Angemeldet als {{gamertag}}",
-      "signedOut": "Nicht angemeldet",
-      "signingIn": "Anmeldung läuft…",
-      "unknown": "Wird geprüft…",
-      "unverified": "Angemeldet. Unifideck konnte noch nicht bestätigen, dass es dasselbe Konto wie deine Microsoft-Anmeldung ist.",
-      "needsRuntime": "Installiere zuerst die Komponenten.",
-      "signIn": "Anmelden",
-      "signOut": "Abmelden",
-      "cancel": "Anmeldung abbrechen"
+      "needsRuntime": "Installiere zuerst die Komponenten."
     },
     "errors": {
       "disabled": "Aktiviere zuerst Xbox-PC-Spiele.",
@@ -1281,15 +1248,11 @@
       "generic": "Etwas ist schiefgelaufen ({{code}})."
     },
     "section": {
-      "title": "Xbox-PC-Spiele (experimentell)",
-      "toggleLabel": "Xbox-PC-Spiele installieren",
-      "toggleDescription": "Inoffiziell. Installiert und startet deine Xbox-PC- und PC-Game-Pass-Titel über Unifidecks eigenen Xodus-Build.",
       "microsoftNeeded": "Melde dich zuerst unter Store-Verbindungen bei Microsoft an. Die Xbox-PC-Bibliothek stammt von diesem Konto.",
-      "libraryCounts": "{{installable}} installierbar, {{notSupported}} noch nicht unterstützt.",
-      "libraryStale": "Das letzte Lesen der Bibliothek war unvollständig, daher wird die letzte gültige Liste angezeigt.",
       "statusError": "Unifideck konnte den Xbox-PC-Status nicht lesen.",
       "noticeRequired": "Lies den Hinweis und akzeptiere ihn, bevor du dies aktivierst.",
-      "retry": "Erneut versuchen"
+      "retry": "Erneut versuchen",
+      "enableDownloads": "Experimentelle Xbox-PC-Downloads aktivieren"
     },
     "notice": {
       "title": "Bevor du Xbox-PC-Spiele aktivierst",
@@ -1298,23 +1261,6 @@
       "sameAccount": "Melde dich mit demselben Microsoft-Konto an, das du für Xbox Cloud Gaming verwendest. Ein anderes Konto wird wieder abgemeldet.",
       "disk": "Die Komponenten benötigen etwa 2 GB Speicherplatz, zusätzlich zu jedem Spiel.",
       "confirm": "Aktivieren"
-    },
-    "signIn": {
-      "confirmTitle": "Für Xbox-PC-Spiele anmelden",
-      "confirmBody": "Als Nächstes öffnet sich ein Microsoft-Anmeldefenster. Verwende dasselbe Konto wie bei deiner Xbox-Cloud-Gaming-Anmeldung.",
-      "confirm": "Weiter"
-    },
-    "setup": {
-      "title": "Xbox-PC-Spiele einrichten",
-      "intro": "Diese Schritte sind nötig, bevor ein Xbox-PC-Spiel installiert werden kann.",
-      "introGame": "Diese Schritte sind nötig, bevor {{title}} installiert werden kann.",
-      "stepEnable": "Xbox-PC-Spiele aktivieren",
-      "stepMicrosoft": "Microsoft-Konto verbinden",
-      "stepRuntime": "Komponenten installieren",
-      "stepSignIn": "Für Xbox-PC-Spiele anmelden",
-      "enable": "Aktivieren",
-      "connect": "Verbinden",
-      "continue": "Weiter"
     },
     "unsupported": {
       "button": "Noch nicht unterstützt",

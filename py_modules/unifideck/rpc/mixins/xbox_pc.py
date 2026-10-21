@@ -3,8 +3,9 @@
 A thin proxy to the ``XboxPc`` facade the Microsoft store owns
 (``stores/microsoft/xodus/xbox_pc.py``). The status routes answer with the
 status snapshot (``XboxPcStatus`` in ``src/types/api.ts``); the component
-install answers ``{started, reason}``, its cancel ``{cancelled}`` and the
-sign-in start ``{pending, launch_shortcut, reason, status}``. No payload has a
+install answers ``{started, reason}`` and the sign-in start
+``{pending, launch_shortcut, reason, status}``. There is no Xbox PC
+sign-out route: the Microsoft sign-out signs both out. No payload has a
 top-level ``success`` key, so the envelope wraps it as data instead of
 lifting it.
 
@@ -70,11 +71,6 @@ class XboxPcRPCMixin:
         result: dict[str, Any] = await self._require_xbox_pc().install_components()
         return result
 
-    async def cancel_xbox_pc_runtime_install(self) -> dict[str, Any]:
-        """Stop a running component install: ``{cancelled}``."""
-        result: dict[str, Any] = await self._require_xbox_pc().cancel_install()
-        return result
-
     async def start_xbox_pc_sign_in(self) -> dict[str, Any]:
         """Start the Xodus sign-in: ``{pending, launch_shortcut, reason, status}``.
 
@@ -89,12 +85,4 @@ class XboxPcRPCMixin:
     async def cancel_xbox_pc_sign_in(self) -> dict[str, Any]:
         """Stop a running sign-in (no failure is recorded)."""
         status: dict[str, Any] = await self._require_xbox_pc().cancel_sign_in()
-        return status
-
-    async def sign_out_xbox_pc(self) -> dict[str, Any]:
-        """Forget the Xodus account. Refused with ``xodus_busy`` mid-download."""
-        try:
-            status: dict[str, Any] = await self._require_xbox_pc().sign_out()
-        except XboxPcError as e:
-            raise RpcError(e.code) from None
         return status

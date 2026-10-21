@@ -194,12 +194,26 @@ describe("xbox-pc-store", () => {
     expect(r).toEqual({ ok: false, error: "source_missing:/x" });
   });
 
-  it("toasts when a component install ends", async () => {
+  it("stays quiet when a full runtime installs: the sign-in toast follows", async () => {
     const store = _createXboxPcStore();
     store.apply(status({ runtime: { state: "installing", source_dir: "/s", degraded: [] } }));
     store.apply(status({ runtime: { state: "installed", source_dir: "/s", degraded: [] } }));
+    expect(api.toast).not.toHaveBeenCalled();
+  });
+
+  it("toasts what a degraded runtime cannot do (rule 8)", async () => {
+    const store = _createXboxPcStore();
+    store.apply(status({ runtime: { state: "installing", source_dir: "/s", degraded: [] } }));
+    store.apply(
+      status({
+        runtime: { state: "installed", source_dir: "/s", degraded: ["cloud_saves", "other_x"] },
+      }),
+    );
     expect(api.toast).toHaveBeenCalledTimes(1);
-    expect(api.toast.mock.calls[0][0].title).toBe("toasts.xboxPcRuntimeInstalled");
+    expect(api.toast.mock.calls[0][0]).toMatchObject({
+      title: "toasts.xboxPcRuntimeInstalled",
+      body: "xboxPc.runtime.degradedCloudSaves xboxPc.runtime.degradedOther",
+    });
   });
 
   it("toasts a failed component install with its cause", async () => {

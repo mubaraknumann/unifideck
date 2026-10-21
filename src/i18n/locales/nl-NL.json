@@ -291,7 +291,6 @@
     "syncCancelled": "Synchronisatie geannuleerd",
     "authTimeout": "Authenticatie-time-out",
     "authTimeoutMessage": "Authenticatie voor {{store}} is verlopen. Probeer het opnieuw.",
-    "authFailed": "Authenticatie mislukt",
     "authFailedMessage": "Kan authenticatie niet starten",
     "authError": "Authenticatiefout",
     "authConnected": "{{store}} verbonden!",
@@ -467,18 +466,14 @@
     "backendUnavailableMessage": "De backend van Unifideck reageert niet, dus de Spelen-knop van Steam zelf wordt getoond. Herstart Decky of het apparaat om dit op te lossen.",
     "uninstallFailed": "Deïnstallatie mislukt",
     "xboxPcEnabled": "Xbox PC-games ingeschakeld",
-    "xboxPcEnabledBody": "Installeer de componenten en meld je aan om je pc-games te zien.",
     "xboxPcEnableFailed": "Kan Xbox PC-games niet wijzigen",
     "xboxPcRuntimeInstalled": "Xbox PC-componenten geïnstalleerd",
-    "xboxPcRuntimeInstalledBody": "Je kunt je nu aanmelden voor Xbox PC-games.",
     "xboxPcRuntimeFailed": "Installatie van Xbox PC-componenten mislukt",
     "xboxPcSignedIn": "Aangemeld voor Xbox PC-games",
     "xboxPcSignedInAs": "Aangemeld als {{gamertag}}. Je pc-games verschijnen na de synchronisatie.",
     "xboxPcSignedInBody": "Je pc-games verschijnen na de synchronisatie.",
-    "xboxPcSignInFailed": "Xbox PC-aanmelding mislukt",
-    "xboxPcSignedOut": "Afgemeld bij Xbox PC-games",
-    "xboxPcSignedOutBody": "Je Microsoft-aanmelding voor cloudgames blijft behouden.",
-    "xboxPcSignOutFailed": "Kan niet afmelden bij Xbox PC-games"
+    "xboxPcSigningIn": "Aanmelden voor Xbox PC-games",
+    "xboxPcSignInFailed": "Xbox PC-aanmelding mislukt"
   },
   "uninstallModal": {
     "title": "Deïnstallatie bevestigen",
@@ -507,7 +502,6 @@
     "gogdlNotFound": "GOG CLI (gogdl) niet gevonden",
     "nileNotFound": "Amazon Games CLI (Nile) niet gevonden",
     "authUrlFailed": "Kan authenticatie-URL deïnstalleren",
-    "authFailed": "Authenticatie mislukt",
     "notAuthenticated": "Niet geauthenticeerd. Meld je eerst aan.",
     "syncInProgress": "Er is al een synchronisatie bezig",
     "syncCancelled": "Synchronisatie geannuleerd door gebruiker",
@@ -1223,23 +1217,6 @@
         "inProgress": "De componenten worden al geïnstalleerd.",
         "cancelled": "De installatie is geannuleerd."
       },
-      "label": "Componenten",
-      "missing": "Niet geïnstalleerd",
-      "installing": "Installeren…",
-      "installed": "Geïnstalleerd (versie {{version}})",
-      "outdated": "Geïnstalleerd (versie {{version}}). Er is een update beschikbaar.",
-      "failed": "De laatste installatie is mislukt.",
-      "install": "Componenten installeren",
-      "cancel": "Installatie annuleren",
-      "retry": "Installatie opnieuw proberen",
-      "update": "Componenten bijwerken",
-      "stages": {
-        "checking": "Bron controleren",
-        "copying": "Xodus kopiëren",
-        "verifying": "Verifiëren",
-        "extracting": "Runtime uitpakken",
-        "finalizing": "Afronden"
-      },
       "degradedCloudSaves": "Deze runtime heeft geen Xbox-cloudopslag. Opgeslagen spellen blijven alleen op dit apparaat.",
       "degradedInGameSignIn": "Deze runtime kan in games niet bij Xbox aanmelden. Onlinefuncties werken mogelijk niet.",
       "degradedOther": "Deze runtime mist een functie: {{feature}}."
@@ -1263,17 +1240,7 @@
         "credentialStore": "Unifideck kon de Xbox PC-aanmelding niet lezen of opslaan.",
         "gameRunning": "Er is een Xbox PC-game actief. Probeer het opnieuw nadat deze is afgesloten."
       },
-      "label": "Xbox PC-aanmelding",
-      "signedIn": "Aangemeld",
-      "signedInAs": "Aangemeld als {{gamertag}}",
-      "signedOut": "Niet aangemeld",
-      "signingIn": "Aanmelden…",
-      "unknown": "Controleren…",
-      "unverified": "Aangemeld. Unifideck kon nog niet bevestigen dat dit hetzelfde account is als je Microsoft-aanmelding.",
-      "needsRuntime": "Installeer eerst de componenten.",
-      "signIn": "Aanmelden",
-      "signOut": "Afmelden",
-      "cancel": "Aanmelden annuleren"
+      "needsRuntime": "Installeer eerst de componenten."
     },
     "errors": {
       "disabled": "Schakel eerst Xbox PC-games in.",
@@ -1281,15 +1248,11 @@
       "generic": "Er is iets misgegaan ({{code}})."
     },
     "section": {
-      "title": "Xbox PC-games (experimenteel)",
-      "toggleLabel": "Xbox PC-games installeren",
-      "toggleDescription": "Onofficieel. Installeert en start je Xbox PC- en PC Game Pass-titels via de eigen Xodus-build van Unifideck.",
       "microsoftNeeded": "Meld je eerst aan bij Microsoft in Winkelverbindingen. De Xbox PC-bibliotheek komt van dat account.",
-      "libraryCounts": "{{installable}} te installeren, {{notSupported}} nog niet ondersteund.",
-      "libraryStale": "Het laatste lezen van de bibliotheek was onvolledig, dus de laatste goede lijst wordt getoond.",
       "statusError": "Unifideck kon de Xbox PC-status niet lezen.",
       "noticeRequired": "Lees en accepteer de mededeling voordat je dit inschakelt.",
-      "retry": "Opnieuw proberen"
+      "retry": "Opnieuw proberen",
+      "enableDownloads": "Experimentele Xbox PC-downloads inschakelen"
     },
     "notice": {
       "title": "Voordat je Xbox PC-games inschakelt",
@@ -1298,23 +1261,6 @@
       "sameAccount": "Meld je aan met hetzelfde Microsoft-account dat je voor Xbox Cloud Gaming gebruikt. Een ander account wordt weer afgemeld.",
       "disk": "De componenten hebben ongeveer 2 GB schijfruimte nodig, bovenop elke game.",
       "confirm": "Inschakelen"
-    },
-    "signIn": {
-      "confirmTitle": "Aanmelden voor Xbox PC-games",
-      "confirmBody": "Hierna opent een Microsoft-aanmeldvenster. Gebruik hetzelfde account als je Xbox Cloud Gaming-aanmelding.",
-      "confirm": "Doorgaan"
-    },
-    "setup": {
-      "title": "Xbox PC-games instellen",
-      "intro": "Deze stappen zijn nodig voordat een Xbox PC-game kan worden geïnstalleerd.",
-      "introGame": "Deze stappen zijn nodig voordat {{title}} kan worden geïnstalleerd.",
-      "stepEnable": "Xbox PC-games inschakelen",
-      "stepMicrosoft": "Je Microsoft-account koppelen",
-      "stepRuntime": "De componenten installeren",
-      "stepSignIn": "Aanmelden voor Xbox PC-games",
-      "enable": "Inschakelen",
-      "connect": "Verbinden",
-      "continue": "Doorgaan"
     },
     "unsupported": {
       "button": "Nog niet ondersteund",

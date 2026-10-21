@@ -291,7 +291,6 @@
     "syncCancelled": "Sincronização Cancelada",
     "authTimeout": "Tempo Limite de Autenticação",
     "authTimeoutMessage": "A autenticação do {{store}} expirou. Por favor, tente novamente.",
-    "authFailed": "Falha na Autenticação",
     "authFailedMessage": "Falha ao iniciar autenticação",
     "authError": "Erro de Autenticação",
     "authConnected": "{{store}} Conectado!",
@@ -467,18 +466,14 @@
     "backendUnavailableMessage": "O backend do Unifideck não respondeu, então o botão Jogar do próprio Steam está sendo exibido. Reinicie o Decky ou o aparelho para corrigir.",
     "uninstallFailed": "Falha na Desinstalação",
     "xboxPcEnabled": "Jogos do Xbox PC ativados",
-    "xboxPcEnabledBody": "Instale os componentes e entre para ver seus jogos de PC.",
     "xboxPcEnableFailed": "Não foi possível alterar os jogos do Xbox PC",
     "xboxPcRuntimeInstalled": "Componentes do Xbox PC instalados",
-    "xboxPcRuntimeInstalledBody": "Agora você pode entrar nos jogos do Xbox PC.",
     "xboxPcRuntimeFailed": "Falha nos componentes do Xbox PC",
     "xboxPcSignedIn": "Conectado aos jogos do Xbox PC",
     "xboxPcSignedInAs": "Conectado como {{gamertag}}. Seus jogos de PC aparecem após a sincronização.",
     "xboxPcSignedInBody": "Seus jogos de PC aparecem após a sincronização.",
-    "xboxPcSignInFailed": "Falha no login do Xbox PC",
-    "xboxPcSignedOut": "Desconectado dos jogos do Xbox PC",
-    "xboxPcSignedOutBody": "Seu login da Microsoft para jogos na nuvem foi mantido.",
-    "xboxPcSignOutFailed": "Não foi possível sair dos jogos do Xbox PC"
+    "xboxPcSigningIn": "Conectando aos jogos do Xbox PC",
+    "xboxPcSignInFailed": "Falha no login do Xbox PC"
   },
   "uninstallModal": {
     "title": "Confirmar Desinstalação",
@@ -507,7 +502,6 @@
     "gogdlNotFound": "GOG CLI (gogdl) não encontrado",
     "nileNotFound": "Amazon Games CLI (Nile) não encontrado",
     "authUrlFailed": "Não foi possível obter URL de autenticação",
-    "authFailed": "Falha na autenticação",
     "notAuthenticated": "Não autenticado. Por favor, entre primeiro.",
     "syncInProgress": "Uma sincronização já está em progresso",
     "syncCancelled": "Sincronização cancelada pelo usuário",
@@ -1223,23 +1217,6 @@
         "inProgress": "Os componentes já estão sendo instalados.",
         "cancelled": "A instalação foi cancelada."
       },
-      "label": "Componentes",
-      "missing": "Não instalado",
-      "installing": "Instalando…",
-      "installed": "Instalado (versão {{version}})",
-      "outdated": "Instalado (versão {{version}}). Há uma atualização disponível.",
-      "failed": "A última instalação falhou.",
-      "install": "Instalar componentes",
-      "cancel": "Cancelar instalação",
-      "retry": "Tentar instalar novamente",
-      "update": "Atualizar componentes",
-      "stages": {
-        "checking": "Verificando a origem",
-        "copying": "Copiando o Xodus",
-        "verifying": "Validando",
-        "extracting": "Descompactando o runtime",
-        "finalizing": "Finalizando"
-      },
       "degradedCloudSaves": "Este runtime não tem salvamentos na nuvem do Xbox. Os salvamentos ficam apenas neste dispositivo.",
       "degradedInGameSignIn": "Este runtime não consegue entrar no Xbox dentro dos jogos. Recursos online podem não funcionar.",
       "degradedOther": "Falta um recurso neste runtime: {{feature}}."
@@ -1263,17 +1240,7 @@
         "credentialStore": "O Unifideck não conseguiu ler ou salvar o login do Xbox PC.",
         "gameRunning": "Um jogo do Xbox PC está em execução. Tente novamente depois que ele fechar."
       },
-      "label": "Login do Xbox PC",
-      "signedIn": "Conectado",
-      "signedInAs": "Conectado como {{gamertag}}",
-      "signedOut": "Não conectado",
-      "signingIn": "Entrando…",
-      "unknown": "Verificando…",
-      "unverified": "Conectado. O Unifideck ainda não confirmou que é a mesma conta do seu login da Microsoft.",
-      "needsRuntime": "Instale os componentes primeiro.",
-      "signIn": "Entrar",
-      "signOut": "Sair",
-      "cancel": "Cancelar login"
+      "needsRuntime": "Instale os componentes primeiro."
     },
     "errors": {
       "disabled": "Ative os jogos do Xbox PC primeiro.",
@@ -1281,15 +1248,11 @@
       "generic": "Algo deu errado ({{code}})."
     },
     "section": {
-      "title": "Jogos do Xbox PC (experimental)",
-      "toggleLabel": "Instalar jogos do Xbox PC",
-      "toggleDescription": "Não oficial. Instala e executa seus títulos do Xbox PC e do PC Game Pass pela build própria do Xodus do Unifideck.",
       "microsoftNeeded": "Entre na Microsoft em Conexões de lojas primeiro. A biblioteca do Xbox PC vem dessa conta.",
-      "libraryCounts": "{{installable}} instaláveis, {{notSupported}} ainda sem suporte.",
-      "libraryStale": "A última leitura da biblioteca ficou incompleta, então a última lista válida é exibida.",
       "statusError": "O Unifideck não conseguiu ler o status do Xbox PC.",
       "noticeRequired": "Leia e aceite o aviso antes de ativar isto.",
-      "retry": "Tentar novamente"
+      "retry": "Tentar novamente",
+      "enableDownloads": "Ativar downloads experimentais do Xbox PC"
     },
     "notice": {
       "title": "Antes de ativar os jogos do Xbox PC",
@@ -1298,23 +1261,6 @@
       "sameAccount": "Entre com a mesma conta Microsoft que você usa no Xbox Cloud Gaming. Uma conta diferente é desconectada novamente.",
       "disk": "Os componentes precisam de cerca de 2 GB de espaço em disco, além do espaço de cada jogo.",
       "confirm": "Ativar"
-    },
-    "signIn": {
-      "confirmTitle": "Entrar nos jogos do Xbox PC",
-      "confirmBody": "Em seguida, uma janela de login da Microsoft será aberta. Use a mesma conta do seu login do Xbox Cloud Gaming.",
-      "confirm": "Continuar"
-    },
-    "setup": {
-      "title": "Configurar jogos do Xbox PC",
-      "intro": "Estas etapas são necessárias antes que um jogo do Xbox PC possa ser instalado.",
-      "introGame": "Estas etapas são necessárias antes que {{title}} possa ser instalado.",
-      "stepEnable": "Ativar os jogos do Xbox PC",
-      "stepMicrosoft": "Conectar sua conta Microsoft",
-      "stepRuntime": "Instalar os componentes",
-      "stepSignIn": "Entrar nos jogos do Xbox PC",
-      "enable": "Ativar",
-      "connect": "Conectar",
-      "continue": "Continuar"
     },
     "unsupported": {
       "button": "Ainda sem suporte",
