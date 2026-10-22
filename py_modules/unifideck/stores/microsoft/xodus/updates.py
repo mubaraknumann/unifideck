@@ -30,6 +30,7 @@ from . import install_steps as steps
 from .errors import cli_error_text
 from .game_facts import VERSION_RE
 from .ids import store_game_id
+from .package_source import package_source
 from .update_service import ServiceError, query, service_session
 
 logger = logging.getLogger(__name__)
@@ -105,7 +106,7 @@ class XboxPcUpdates:
         """Ask about each game in turn; keep the ones with a newer package."""
         newer: list[str] = []
         for pid, version in games:
-            verdict = await query(sock, pid, version)
+            verdict = await query(sock, package_source(pid), version)
             if verdict.available:
                 logger.info("[xbox_updates] %s %s -> %s", pid, version, verdict.latest)
                 newer.append(pid)

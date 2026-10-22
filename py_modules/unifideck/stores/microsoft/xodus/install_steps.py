@@ -42,6 +42,7 @@ from .errors import InstallError, classify_failure, cli_error_text
 from .game_facts import GameFacts, read_game_facts
 from .ids import store_game_id
 from .package_choice import select_content
+from .package_source import package_source
 from .progress import ProgressCallback
 from .streaming import StreamOutcome, run_streaming
 
@@ -129,11 +130,12 @@ async def choose_content(
     cli: XodusCliLike, pid: str, market: str, prefer_cid: str | None,
 ) -> str:
     """The content id to stream. ``resolve-package`` needs no sign-in."""
+    source = package_source(pid)
     try:
-        plan = await cli.resolve_package(pid, market)
+        plan = await cli.resolve_package(source, market)
     except Exception as e:
         raise InstallError("xbox_resolve_failed", cli_error_text(e)) from e
-    return select_content(plan, pid, prefer_cid)
+    return select_content(plan, source, prefer_cid)
 
 
 @contextlib.asynccontextmanager
@@ -180,12 +182,13 @@ async def stream_into(
     A cancel kills the process tree and re-raises. The partial download
     and its journal stay, so the next run resumes.
     """
+    source = package_source(pid)
     async with cli.credential_lock, holding_components() as active:
         try:
-            proc = await cli.spawn_streaming(pid, str(game_dir), market, content_id, active)
+            proc = await cli.spawn_streaming(source, str(game_dir), market, content_id, active)
         except Exception as e:
             raise InstallError(cli_error_text(e)) from e
-        logger.info("[xbox_install] streaming %s (%s) into %s", pid, market, game_dir)
+        logger.info("[xbox_install] streaming %s (%s) into %s", source, market, game_dir)
         return await run_streaming(proc, pid, progress_cb)
 
 

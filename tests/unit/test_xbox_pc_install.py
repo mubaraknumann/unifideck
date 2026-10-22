@@ -23,6 +23,7 @@ from _xbox_pc_fakes import (
     FakeProc,
     FakeStdout,
     FakeXboxPc,
+    game_choice,
     plan,
     record_line,
     title_info,
@@ -35,6 +36,7 @@ from unifideck.services.download.worker_helpers import prefix_warmup_supported
 from unifideck.stores.microsoft.xodus import install_steps
 from unifideck.stores.microsoft.xodus import installer as installer_mod
 from unifideck.stores.microsoft.xodus.installer import XboxPcInstaller
+from unifideck.stores.microsoft.xodus.package_source import PACKAGE_SOURCE
 from unifideck.stores.shared import cli_install_helpers as helpers
 
 
@@ -152,6 +154,24 @@ async def test_a_row_id_other_than_the_product_id(env: dict[str, Any]) -> None:
     assert record["title"] == "Balatro"
     marker = json.loads((root / ".unifideck_manifest.json").read_text())
     assert marker["store_id"] == "xcloud-balatro"
+
+
+async def test_a_stub_title_streams_another_products_package_into_its_own_install(
+    env: dict[str, Any], monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = "9SOURCE00000"
+    monkeypatch.setitem(PACKAGE_SOURCE, PID, source)
+    cli = FakeCli(env["tmp"], resolve=plan(game_choice(CID), root=source))
+    inst, _ = _installer(env, cli=cli)
+    result = await inst.install(PID, str(env["base"]))
+    root = _root(env)
+    assert result.success, result.error
+    assert result.install_path == str(root)
+    assert cli.spawned == [(source, str(root / "game"), "IN", CID)]
+    # Everything but the package stays the title's own.
+    record = read_install_record(PID)
+    assert record is not None and record["productId"] == PID and record["contentId"] == CID
+    assert read_install_record(source) is None
 
 
 async def test_the_marker_is_found_by_the_marker_sweep(env: dict[str, Any]) -> None:

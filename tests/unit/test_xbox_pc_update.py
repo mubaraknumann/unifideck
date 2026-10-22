@@ -34,6 +34,7 @@ from _xbox_pc_fakes import (
 from unifideck.launcher.xbox_pc.component_locks import game_lock
 from unifideck.launcher.xbox_pc.install_records import read_install_record, write_install_record
 from unifideck.stores.microsoft.xodus import install_steps, update_service
+from unifideck.stores.microsoft.xodus.package_source import PACKAGE_SOURCE
 from unifideck.stores.microsoft.xodus.update_service import (
     ServiceError,
     encode_request,
@@ -294,6 +295,17 @@ async def test_a_failed_session_reports_nothing(
     cli.service = env["tmp"] / "missing-binary"
     assert await XboxPcUpdates(FakeXboxPc(), cli).check_installed() == []
 
+
+
+async def test_a_stub_title_is_checked_against_its_package_source(
+    env: dict[str, Any], runtime_dir: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Only OTHER has a newer package; PID streams OTHER's package.
+    monkeypatch.setitem(PACKAGE_SOURCE, PID, OTHER)
+    _installed(env["tmp"] / "games" / "Xbox" / PID)
+    cli = FakeCli(env["tmp"])
+    cli.service = _service(env["tmp"])
+    assert await XboxPcUpdates(FakeXboxPc(), cli).check_installed() == [PID]
 
 
 async def test_the_check_answers_in_row_ids(env: dict[str, Any], runtime_dir: Path) -> None:
