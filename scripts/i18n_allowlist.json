@@ -9,6 +9,11 @@
     "reason": "A filesystem path and nothing else. The label that used to precede it (\"Default: \") was removed at the user's request, leaving no words to translate."
   },
 
+  "toasts.launcher.xboxPcVcRuntimeTitle": {
+    "locales": "*",
+    "reason": "Visual C++ is a Microsoft product name; it is not translated in any language."
+  },
+
   "deckTabs.microsoft": {
     "locales": "*",
     "reason": "Company name. Unchanged in every supported language."

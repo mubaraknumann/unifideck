@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 from unifideck.core.types import Result
 from unifideck.launcher.xbox_pc.errors import (
     GAME_ARGS_IGNORED_KEY,
+    NOTICE_TITLES,
     STARTING_KEY,
     XboxPcLaunchError,
     toast_action,
@@ -59,7 +60,7 @@ async def _notice(svc: LauncherService, ctx: LaunchContext, key: str, params: Ma
     title = resolve_title(ctx.game_key)
     await emit_stage(
         svc._bus, i18n_key=key, game_title=title, priority="normal",
-        i18n_params={"game_key": title, **params},
+        i18n_title_key=NOTICE_TITLES.get(key), i18n_params={"game_key": title, **params},
     )
 
 
@@ -87,6 +88,7 @@ def build_deps(svc: LauncherService, ctx: LaunchContext) -> LaunchDeps:
     """Everything the stdlib-only session needs from the rest of Unifideck."""
     from unifideck.launcher.proton.infrastructure.game_log import open_game_log
     from unifideck.launcher.proton.language_setup.resolver import get_unifideck_language
+    from unifideck.launcher.xbox_pc.prefix_vcredist import download_vc_redist
     from unifideck.launcher.xbox_pc.session import LaunchDeps
     from unifideck.services.launch_history.config_readers import read_fast_boot_seconds
     from unifideck.utils.vdf_compat import find_steam_root, steam_library_dirs
@@ -102,6 +104,7 @@ def build_deps(svc: LauncherService, ctx: LaunchContext) -> LaunchDeps:
         log_file=open_game_log(),
         fast_fail_s=read_fast_boot_seconds(svc._config),
         notify=notify,
+        download_vc_redist=download_vc_redist,
     )
 
 

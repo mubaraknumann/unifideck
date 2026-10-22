@@ -59,6 +59,16 @@ REASON_TOAST_KEYS: dict[str, str] = {
 STARTING_KEY = _PREFIX + "startingXboxPcGame"
 LANGUAGE_UNAVAILABLE_KEY = _PREFIX + "xboxPcLanguageUnavailable"
 GAME_ARGS_IGNORED_KEY = _PREFIX + "xboxPcGameArgsIgnored"
+VC_RUNTIME_INSTALLING_KEY = _PREFIX + "xboxPcInstallingVcRuntime"
+VC_RUNTIME_FAILED_KEY = _PREFIX + "xboxPcVcRuntimeFailed"
+VC_RUNTIME_TITLE_KEY = _PREFIX + "xboxPcVcRuntimeTitle"
+
+#: ``notice key -> title key``. A toast line fits about 15 characters, so
+#: these notices split their text between a title and the sub-text.
+NOTICE_TITLES: dict[str, str] = {
+    VC_RUNTIME_INSTALLING_KEY: VC_RUNTIME_TITLE_KEY,
+    VC_RUNTIME_FAILED_KEY: VC_RUNTIME_TITLE_KEY,
+}
 
 
 #: The label of a toast that installs a Steam tool when tapped.

@@ -47,12 +47,26 @@ from .argv import build_env, run_argv, validate_market
 from .backend import BackendPaths
 from .component_locks import ComponentsBusyError, game_lock, reading_components
 from .environment import build_game_env, clean_env, pick_locale
-from .errors import LANGUAGE_UNAVAILABLE_KEY, XboxPcLaunchError
+from .errors import (
+    LANGUAGE_UNAVAILABLE_KEY,
+    VC_RUNTIME_FAILED_KEY,
+    VC_RUNTIME_INSTALLING_KEY,
+    XboxPcLaunchError,
+)
 from .game_manifest import GameInfo, inspect_game
 from .layout import ActiveComponents, credential_dir, validate_pid
 from .output import OutputSink, classify_failure, game_crashed
-from .prefix import prepare_prefix
-from .prefix_checks import installed_battleye_runtime, installed_eac_runtime, vc_runtime_problem
+from .prefix import prepare_prefix, proton_env
+from .prefix_checks import installed_battleye_runtime, installed_eac_runtime
+from .prefix_vcredist import (
+    STEAM_REDIST_DIR,
+    VC_ARCHES,
+    install_vc_runtime,
+    installer_name,
+    native_vc_present,
+    steam_vc_redist,
+    vc_runtime_ready,
+)
 from .record_lookup import find_install_record
 from .restart_watch import (
     POLL_S,
@@ -89,7 +103,9 @@ class LaunchDeps:
     reported as ``game_crashed``. A crash after that is often a crash on
     quit after a real session, and gets no toast. ``list_processes`` lists
     the game's running processes for the restart watch (None reads
-    ``/proc``), polled every ``restart_poll_s``.
+    ``/proc``), polled every ``restart_poll_s``. ``download_vc_redist``
+    fetches the VC++ installer for an architecture (``x64``/``x86``) when
+    no Steam library has it; None never downloads.
     """
 
     steam_root: Path | None
@@ -104,6 +120,7 @@ class LaunchDeps:
     on_spawned: Callable[[], Awaitable[None]] | None = None
     list_processes: ListProcesses | None = None
     restart_poll_s: float = POLL_S
+    download_vc_redist: Callable[[str], Path] | None = None
 
 
 @dataclass(frozen=True)
@@ -237,10 +254,6 @@ class XboxPcLaunch:
         compat_root = game_prefix_root(plan.pid)
         self._compat_root = compat_root
         await self._prepare_prefix(plan, compat_root)
-        if game.vc_redist_encrypted:
-            problem = await asyncio.to_thread(vc_runtime_problem, compat_root)
-            if problem:
-                raise XboxPcLaunchError("vcredist_missing", problem)
         await self._choose_locale(game)
 
     def _sweep(self, plan: _Plan) -> None:
@@ -262,10 +275,57 @@ class XboxPcLaunch:
         battleye = installed_battleye_runtime(self._deps.steam_libraries)
         if game.battleye and battleye is None:
             raise XboxPcLaunchError("battleye_runtime_missing", game.battleye)
+        native_vc = await self._ensure_vc_runtime(plan, compat_root)
         self._runner = await asyncio.to_thread(
             write_runner, runtime, compat_root, eac_runtime=eac, battleye_runtime=battleye,
-            wow64=game.architecture == "x86",
+            wow64=game.architecture == "x86", native_vc=native_vc,
         )
+
+    async def _ensure_vc_runtime(self, plan: _Plan, compat_root: Path) -> bool:
+        """Install VC++ when the game declares it; whether the runner loads it native.
+
+        Both architectures are installed, as on a Windows PC. Only the
+        game's own one is required: a game that ships its installer
+        encrypted cannot start without it (``vcredist_missing``), any other
+        game starts anyway with a notice, because only some reach an export
+        Wine's builtins lack. The other architecture is logged when it fails.
+        """
+        game = self._game
+        assert game is not None
+        if game.needs_vc_runtime:
+            needed = "x86" if game.architecture == "x86" else "x64"
+            missing = [a for a in VC_ARCHES if not await asyncio.to_thread(vc_runtime_ready, compat_root, a)]
+            if missing:
+                await self._notify(VC_RUNTIME_INSTALLING_KEY, {})
+            for arch in missing:
+                problem = await self._install_vc_runtime(plan, compat_root, arch)
+                if not problem:
+                    continue
+                if arch != needed:
+                    logger.warning("[xbox_pc] %s VC++ not installed; the game is %s: %s", arch, needed, problem)
+                elif game.vc_redist_encrypted:
+                    raise XboxPcLaunchError("vcredist_missing", problem)
+                else:
+                    logger.error("[xbox_pc] %s VC++ not installed, the game may crash: %s", arch, problem)
+                    await self._notify(VC_RUNTIME_FAILED_KEY, {})
+        return any([await asyncio.to_thread(native_vc_present, compat_root, a) for a in VC_ARCHES])
+
+    async def _install_vc_runtime(self, plan: _Plan, compat_root: Path, arch: str) -> str | None:
+        """Find or fetch ``arch``'s installer and run it. Returns why it failed, or None."""
+        runtime = self._runtime
+        assert runtime is not None
+        libraries = (*self._deps.steam_libraries, plan.steam_root)
+        installer = await asyncio.to_thread(steam_vc_redist, libraries, arch)
+        where = f"{STEAM_REDIST_DIR}/{installer_name(arch)}"
+        if installer is None and self._deps.download_vc_redist is not None:
+            try:
+                installer = await asyncio.to_thread(self._deps.download_vc_redist, arch)
+            except OSError as err:
+                return f"no {where} in any Steam library; download failed: {err}"
+        if installer is None:
+            return f"no {where} in any Steam library"
+        env = proton_env(self._deps.base_env, compat_root, plan.steam_root)
+        return await install_vc_runtime(runtime, compat_root, env, installer, arch)
 
     async def _notify_prefix(self) -> None:
         """Tell the user a first launch is creating the prefix."""

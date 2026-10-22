@@ -2,9 +2,10 @@
 
 Two checks, both read-only:
 
-* **VC++.** A game that ships an *encrypted* ``vc_redist.x64.exe`` cannot
-  have it installed by the runner in v1, so the prefix must already hold
-  VC++ 14.44.35211.0 or newer (Nexus ``game-dependencies.ts``).
+* **VC++.** The version the prefix registers. A game that declares VC++
+  needs 14.44.35211.0 or newer (Nexus ``game-dependencies.ts``);
+  :mod:`.prefix_vcredist` installs it from Steam's or Microsoft's
+  redistributable, since a game's own copy may be encrypted.
 * **EasyAntiCheat and BattlEye.** A game with either needs Steam's own
   "Proton EasyAntiCheat Runtime" or "Proton BattlEye Runtime". It is used
   when installed and never downloaded here. The runtime's ``ntdll`` reads
@@ -30,21 +31,28 @@ _BATTLEYE_LIB_DIR = "v1/lib64/wine"
 EAC_RUNTIME_APPID = 1826330
 BATTLEYE_RUNTIME_APPID = 1161040
 
-_VC_SECTION_RE = re.compile(
-    r"^\[Software\\\\Microsoft\\\\VisualStudio\\\\14\.0\\\\VC\\\\Runtimes\\\\x64\](?:\s|$)",
-    re.M,
-)
+#: ``arch -> its VC++ 14 key in system.reg``. The x86 redistributable
+#: registers under ``Wow6432Node`` in a 64-bit prefix.
+_VC_SECTION_RES = {
+    "x64": re.compile(
+        r"^\[Software\\\\Microsoft\\\\VisualStudio\\\\14\.0\\\\VC\\\\Runtimes\\\\x64\](?:\s|$)", re.M,
+    ),
+    "x86": re.compile(
+        r"^\[Software\\\\Wow6432Node\\\\Microsoft\\\\VisualStudio\\\\14\.0\\\\VC\\\\Runtimes\\\\x86\](?:\s|$)",
+        re.M,
+    ),
+}
 _INSTALLED_RE = re.compile(r'^"Installed"=dword:00000001$', re.M)
 _VERSION_RE = re.compile(r'^"Version"="v?([0-9.]+)"$', re.M | re.I)
 
 
-def installed_vc_runtime(prefix: Path) -> str | None:
-    """The VC++ 14 x64 version registered in ``prefix``'s ``system.reg``, or None."""
+def installed_vc_runtime(prefix: Path, arch: str = "x64") -> str | None:
+    """The VC++ 14 version for ``arch`` (x64 or x86) in ``prefix``'s ``system.reg``, or None."""
     try:
         registry = (prefix / "system.reg").read_text(errors="replace")
     except OSError:
         return None
-    match = _VC_SECTION_RE.search(registry)
+    match = _VC_SECTION_RES[arch].search(registry)
     if not match:
         return None
     end = registry.find("\n[", match.start() + 1)
@@ -64,14 +72,6 @@ def version_at_least(actual: str, minimum: str) -> bool:
         return False
     width = max(len(a), len(b))
     return (a + [0] * (width - len(a))) >= (b + [0] * (width - len(b)))
-
-
-def vc_runtime_problem(prefix: Path) -> str | None:
-    """Why the prefix's VC++ is not enough, for the log, or None when it is."""
-    installed = installed_vc_runtime(prefix)
-    if installed and version_at_least(installed, VC_REDIST_VERSION):
-        return None
-    return f"needs VC++ {VC_REDIST_VERSION} or newer, found {installed or 'none'}"
 
 
 def installed_eac_runtime(libraries: Iterable[Path]) -> Path | None:

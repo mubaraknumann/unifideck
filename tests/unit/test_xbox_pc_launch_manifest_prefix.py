@@ -22,7 +22,6 @@ from unifideck.launcher.xbox_pc.prefix_checks import (
     installed_battleye_runtime,
     installed_eac_runtime,
     installed_vc_runtime,
-    vc_runtime_problem,
     version_at_least,
 )
 from unifideck.launcher.xbox_pc.runtime import Runtime
@@ -138,8 +137,7 @@ def test_vc_runtime_version_from_system_reg(tmp_path: Path) -> None:
     assert version == "14.44.35211.00"
     assert version_at_least(version, VC_REDIST_VERSION)
     assert not version_at_least("14.38.33135.0", VC_REDIST_VERSION)
-    assert vc_runtime_problem(tmp_path) is None
-    assert vc_runtime_problem(tmp_path / "nowhere") is not None
+    assert installed_vc_runtime(tmp_path / "nowhere") is None
 
 
 def test_rebase_moves_links_to_the_current_release(tmp_path: Path) -> None:

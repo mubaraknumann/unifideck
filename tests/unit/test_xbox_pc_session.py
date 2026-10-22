@@ -29,7 +29,12 @@ from unifideck.launcher.types.context import LaunchContext
 from unifideck.launcher.xbox_pc import component_locks
 from unifideck.launcher.xbox_pc import session as session_mod
 from unifideck.launcher.xbox_pc.argv import run_argv
-from unifideck.launcher.xbox_pc.errors import LANGUAGE_UNAVAILABLE_KEY, XboxPcLaunchError
+from unifideck.launcher.xbox_pc.errors import (
+    LANGUAGE_UNAVAILABLE_KEY,
+    VC_RUNTIME_FAILED_KEY,
+    VC_RUNTIME_INSTALLING_KEY,
+    XboxPcLaunchError,
+)
 from unifideck.launcher.xbox_pc.install_records import write_install_record
 from unifideck.launcher.xbox_pc.layout import (
     ActiveComponents,
@@ -40,6 +45,11 @@ from unifideck.launcher.xbox_pc.layout import (
     install_lock_path,
     runtime_root,
     write_active,
+)
+from unifideck.launcher.xbox_pc.prefix_vcredist import (
+    STEAM_REDIST_DIR,
+    installer_name,
+    vc_runtime_ready,
 )
 from unifideck.launcher.xbox_pc.stop import StagedStopper
 
@@ -550,6 +560,90 @@ async def test_refuses_an_encrypted_vc_redist_without_vc_in_the_prefix(world: di
     redist.mkdir(parents=True)
     (redist / "vc_redist.x64.exe").write_bytes(b"\x00enc")
     assert await _reason(world) == "vcredist_missing"
+
+
+def _needs_vc(world: dict[str, Any], *, arch: str | None = None) -> None:
+    extra = '<KnownDependencyList><KnownDependency Name="VC14"/></KnownDependencyList>'
+    if arch:
+        extra += f"<ProcessorArchitecture>{arch}</ProcessorArchitecture>"
+    (world["game"] / "MicrosoftGame.config").write_text(CONFIG.replace("</Game>", extra + "</Game>"))
+
+
+_VC_KEYS = {
+    "x64": "[Software\\\\Microsoft\\\\VisualStudio\\\\14.0\\\\VC\\\\Runtimes\\\\x64] 1\n",
+    "x86": "[Software\\\\Wow6432Node\\\\Microsoft\\\\VisualStudio\\\\14.0\\\\VC\\\\Runtimes\\\\x86] 1\n",
+}
+
+
+def _vc_installers(tmp_path: Path, arches: tuple[str, ...] = ("x64", "x86")) -> Path:
+    """A Steam library with VC++ installers, and a fake proton that installs them like the real ones."""
+    library = tmp_path / "steamlib"
+    for arch in arches:
+        installer = library / STEAM_REDIST_DIR / installer_name(arch)
+        installer.parent.mkdir(parents=True, exist_ok=True)
+        installer.write_bytes(b"MZ" + b"\x00" * (1 << 20))
+    _script(runtime_root() / "0.1.0" / "proton", _PROTON + "\n".join([
+        "import sys",
+        "if '/install' in sys.argv:",
+        "    arch = 'x86' if 'x86' in pathlib.Path(sys.argv[2]).name else 'x64'",
+        f"    key = {_VC_KEYS!r}[arch] + '\"Installed\"=dword:00000001\\n\"Version\"=\"v14.51.36247.00\"\\n\\n'",
+        "    with (s32.parent.parent.parent / 'system.reg').open('a') as f: f.write(key)",
+        "    folder = s32.parent / ('syswow64' if arch == 'x86' else 'system32')",
+        "    folder.mkdir(parents=True, exist_ok=True)",
+        "    (folder / 'concrt140.dll').write_bytes(b'MZ')",
+    ]) + "\n")
+    return library
+
+
+async def _vc_launch(world: dict[str, Any], **deps: Any) -> tuple[list[str], str]:
+    """Run a launch; the notices it sent and the runner it wrote."""
+    notices: list[str] = []
+
+    async def notify(key: str, _params: Any) -> None:
+        notices.append(key)
+
+    assert await session_mod.XboxPcLaunch(_ctx(), _deps(world, notify=notify, **deps)).run() == 0
+    return notices, (game_prefix_root(PID) / "unifideck-xbox-wine").read_text()
+
+
+@pytest.mark.asyncio
+async def test_a_vc_game_starts_with_a_notice_when_vc_cannot_be_installed(world: dict[str, Any]) -> None:
+    _needs_vc(world)
+    notices, runner = await _vc_launch(world)
+    assert VC_RUNTIME_FAILED_KEY in notices, "losing VC++ is said, not only logged"
+    assert "concrt140" not in runner
+
+
+@pytest.mark.asyncio
+async def test_a_vc_game_gets_both_architectures_from_steam_once(
+    world: dict[str, Any], tmp_path: Path,
+) -> None:
+    _needs_vc(world)
+    library = _vc_installers(tmp_path)
+    notices, runner = await _vc_launch(world, steam_libraries=(library,))
+    assert VC_RUNTIME_INSTALLING_KEY in notices and VC_RUNTIME_FAILED_KEY not in notices
+    assert "concrt140,msvcp140" in runner and "=n,b" in runner
+    prefix = game_prefix_root(PID)
+    assert all(vc_runtime_ready(prefix, arch) for arch in ("x64", "x86"))
+    notices, _ = await _vc_launch(world, steam_libraries=(library,))
+    assert VC_RUNTIME_INSTALLING_KEY not in notices, "an installed runtime is not installed again"
+
+
+@pytest.mark.asyncio
+async def test_a_64_bit_game_does_not_warn_about_x86(world: dict[str, Any], tmp_path: Path) -> None:
+    _needs_vc(world)
+    library = _vc_installers(tmp_path, ("x64",))
+    notices, runner = await _vc_launch(world, steam_libraries=(library,))
+    assert VC_RUNTIME_FAILED_KEY not in notices and "concrt140" in runner
+
+
+@pytest.mark.asyncio
+async def test_a_32_bit_game_needs_the_x86_runtime(world: dict[str, Any], tmp_path: Path) -> None:
+    # A 32-bit game reads syswow64; the x64 runtime alone leaves it on Wine's builtins.
+    _needs_vc(world, arch="x86")
+    library = _vc_installers(tmp_path, ("x64",))
+    notices, _ = await _vc_launch(world, steam_libraries=(library,))
+    assert VC_RUNTIME_FAILED_KEY in notices
 
 
 @pytest.mark.asyncio

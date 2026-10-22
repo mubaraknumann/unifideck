@@ -28,6 +28,7 @@ def _launcher_keys() -> set[str]:
     return {
         *errors.REASON_TOAST_KEYS.values(), errors.LAUNCH_FAILED_KEY, errors.STARTING_KEY,
         errors.LANGUAGE_UNAVAILABLE_KEY, errors.GAME_ARGS_IGNORED_KEY,
+        errors.VC_RUNTIME_INSTALLING_KEY, errors.VC_RUNTIME_FAILED_KEY, errors.VC_RUNTIME_TITLE_KEY,
     }
 
 
@@ -74,6 +75,10 @@ _SHORT_KEYS = {
     errors.REASON_TOAST_KEYS["battleye_runtime_missing"],
     errors.REASON_TOAST_KEYS["anticheat_unsupported"],
     errors.REASON_TOAST_KEYS["restart_loop"],
+    errors.REASON_TOAST_KEYS["vcredist_missing"],
+    errors.VC_RUNTIME_INSTALLING_KEY,
+    errors.VC_RUNTIME_FAILED_KEY,
+    errors.VC_RUNTIME_TITLE_KEY,
     errors.INSTALL_FROM_STEAM_KEY,
 }
 _SHORT_MAX = 15

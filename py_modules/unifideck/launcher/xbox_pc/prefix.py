@@ -164,7 +164,7 @@ async def _register_activatable_classes(runtime: Runtime, compat_root: Path, env
     for name, dll in await asyncio.to_thread(missing_activatable_classes, runtime, compat_root):
         logger.info("[xbox_pc.prefix] registering %s in %s", name, compat_root)
         key = "HKLM\\" + "\\".join((*_CLASS_KEY, name))
-        rc, tail = await _run_proton(
+        rc, tail = await run_proton(
             runtime, env, timeout_s,
             "reg", "add", key, "/v", "DllPath", "/t", "REG_SZ", "/d", f"C:\\windows\\system32\\{dll}", "/f",
         )
@@ -188,7 +188,7 @@ async def _install_webview2(runtime: Runtime, compat_root: Path, env: Mapping[st
     await asyncio.to_thread(reg.parent.mkdir, parents=True, exist_ok=True)
     await asyncio.to_thread(reg.write_text, reg_file_text(stale), encoding="utf-16")
     try:
-        rc, tail = await _run_proton(
+        rc, tail = await run_proton(
             runtime, env, timeout_s, "regedit", "/S", "C:\\windows\\temp\\unifideck-webview2.reg",
         )
     finally:
@@ -231,7 +231,7 @@ async def _spawn_proton(runtime: Runtime, env: Mapping[str, str], args: tuple[st
         raise XboxPcLaunchError("prefix_failed", f"proton did not start: {err}") from err
 
 
-async def _run_proton(
+async def run_proton(
     runtime: Runtime, env: Mapping[str, str], timeout_s: float, *args: str,
 ) -> tuple[int | None, str]:
     """Run ``proton run <args>``, by default ``cmd /c exit``. ``(rc or None on timeout, output tail)``."""
@@ -274,7 +274,7 @@ async def prepare_prefix(
         logger.info("[xbox_pc.prefix] creating %s with the runtime's proton", compat_root)
         if on_create is not None:
             await on_create()
-        rc, tail = await _run_proton(runtime, env, timeout_s)
+        rc, tail = await run_proton(runtime, env, timeout_s)
         missing = await asyncio.to_thread(missing_prefix_files, compat_root)
         if missing:
             raise XboxPcLaunchError(

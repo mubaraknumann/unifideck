@@ -60,6 +60,10 @@ _HOST_LIBS_FEATURE = "wine-host-libraries-v1"
 _NATIVE_OVERRIDES = "dxgi=n;d3d11=n;d3d10core=n;d3d9=n;d3d12=n;d3d12core=n"
 _HTTP2_OVERRIDES = ";winhttp=b;libnghttp2=n"
 _NO_NVAPI_OVERRIDES = ";nvapi=d;nvapi64=d;nvofapi64=d"
+#: Microsoft's VC++ DLLs first, once ``prefix_vcredist`` installed them (I-047).
+_NATIVE_VC_OVERRIDES = (
+    ";concrt140,msvcp140,msvcp140_1,msvcp140_2,msvcp140_atomic_wait,vcruntime140,vcruntime140_1=n,b"
+)
 _NVIDIA_MODULES = frozenset({"nvidia", "nouveau", "nova"})
 _LIB_ARCHES = ("x86_64-linux-gnu", "aarch64-linux-gnu", "i386-linux-gnu")
 SHADER_CACHE_DIR = "vkd3d-proton"
@@ -85,6 +89,7 @@ def nvidia_driver_loaded(modules: Path = Path("/proc/modules")) -> bool:
 
 def _exports(
     runtime: Runtime, compat_root: Path, host_libraries: bool, wow64: bool, nvapi: bool,
+    native_vc: bool = False,
 ) -> list[str]:
     """The ``export`` lines of the prefix env.
 
@@ -107,6 +112,7 @@ def _exports(
         _NATIVE_OVERRIDES
         + (_HTTP2_OVERRIDES if http2 else "")
         + ("" if nvapi else _NO_NVAPI_OVERRIDES)
+        + (_NATIVE_VC_OVERRIDES if native_vc else "")
     )
     q = shell_quote
     return [
@@ -172,6 +178,7 @@ def write_runner(
     host_libraries: bool | None = None,
     wow64: bool = False,
     nvapi: bool | None = None,
+    native_vc: bool = False,
 ) -> Path:
     """Write ``<compat_root>/unifideck-xbox-wine`` (0700) atomically and return it.
 
@@ -180,7 +187,8 @@ def write_runner(
     ``PROTON_EAC_RUNTIME`` or ``PROTON_BATTLEYE_RUNTIME`` the user set wins.
     ``wow64`` is for a 32-bit game and ``nvapi`` keeps NVAPI; None checks
     the host for an NVIDIA driver (see the module docstring for both). A
-    user's ``nvapi=n`` launch option still wins.
+    user's ``nvapi=n`` launch option still wins. ``native_vc`` loads the
+    prefix's Microsoft VC++ DLLs before Wine's builtins (I-047).
     """
     if host_libraries is None:
         host_libraries = _HOST_LIBS_FEATURE in runtime.features
@@ -188,7 +196,7 @@ def write_runner(
         nvapi = nvidia_driver_loaded()
     lines = [
         "#!/bin/sh",
-        *_exports(runtime, compat_root, host_libraries, wow64, nvapi),
+        *_exports(runtime, compat_root, host_libraries, wow64, nvapi, native_vc),
         *_shader_cache(compat_root),
     ]
     for name, folder in (("PROTON_EAC_RUNTIME", eac_runtime), ("PROTON_BATTLEYE_RUNTIME", battleye_runtime)):

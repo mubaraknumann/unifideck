@@ -21,7 +21,9 @@ from .xml_lite import Element
 
 MANIFEST_NAME = "MicrosoftGame.config"
 CONTAINER_NAME = ".xodus-streaming.msixvc"
+APPX_MANIFEST_NAME = "appxmanifest.xml"
 _VC_REDIST = "Engine/Extras/Redist/en-us/vc_redist.x64.exe"
+_VCLIBS_PREFIX = "Microsoft.VCLibs.140.00"
 _EAC_DIRS = ("EasyAntiCheat", "EasyAntiCheat_EOS")
 _EAC_MARKERS = (["Settings.json"], ["Launcher", "Settings.json"])
 _BATTLEYE_DIRS = ("BattlEye",)
@@ -51,6 +53,10 @@ class GameInfo:
     architecture: str | None = None
     #: The game's BattlEye folder relative to ``path``, or None.
     battleye: str | None = None
+    #: The config lists ``KnownDependency VC14`` or the appx manifest the
+    #: ``Microsoft.VCLibs.140.00`` framework: the game wants Microsoft's
+    #: VC++ DLLs, not Wine's builtins (I-047).
+    needs_vc_runtime: bool = False
 
     @property
     def exe_name(self) -> str:
@@ -111,10 +117,30 @@ def _needs_vc(nodes: list[Element]) -> bool:
     )
 
 
+def _appx_needs_vc(root: Path) -> bool:
+    """Whether ``appxmanifest.xml`` depends on the ``Microsoft.VCLibs.140.00`` framework."""
+    appx = find_ci(root, APPX_MANIFEST_NAME)
+    if appx is None:
+        return False
+    try:
+        nodes = xml_lite.parse_file(appx).iter()
+    except (OSError, xml_lite.ParseError):
+        return False
+    return any(
+        _local(n.tag) == "PackageDependency" and (n.get("Name") or "").startswith(_VCLIBS_PREFIX)
+        for n in nodes
+    )
+
+
 def _vc_redist_encrypted(nodes: list[Element], root: Path) -> bool:
     """Whether the game needs VC++ and ships its installer encrypted."""
     vc_path = root / _VC_REDIST
     return _needs_vc(nodes) and vc_path.is_file() and not _begins_with_mz(vc_path)
+
+
+def _vc_facts(nodes: list[Element], root: Path) -> tuple[bool, bool]:
+    """``(needs VC++, ships its VC++ installer encrypted)``."""
+    return _needs_vc(nodes) or _appx_needs_vc(root), _vc_redist_encrypted(nodes, root)
 
 
 def _find_ci_path(root: Path, parts: list[str]) -> Path | None:
@@ -202,6 +228,7 @@ def inspect_game(directory: Path) -> GameInfo:
     nodes = _parse_manifest(root)
     title, store_id, title_id = _identity(nodes, root)
     executable = _executable(nodes)
+    needs_vc, vc_encrypted = _vc_facts(nodes, root)
     return GameInfo(
         path=root,
         title=title,
@@ -209,9 +236,10 @@ def inspect_game(directory: Path) -> GameInfo:
         store_id=store_id,
         title_id=title_id,
         locales=_locales(nodes),
-        vc_redist_encrypted=_vc_redist_encrypted(nodes, root),
+        vc_redist_encrypted=vc_encrypted,
         eac=_anticheat_dir(root, executable, _EAC_DIRS, _EAC_MARKERS),
         container_ready=(root / CONTAINER_NAME).is_file(),
         architecture=_architecture(nodes),
         battleye=_anticheat_dir(root, executable, _BATTLEYE_DIRS, _BATTLEYE_MARKERS),
+        needs_vc_runtime=needs_vc,
     )
