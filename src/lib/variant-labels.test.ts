@@ -6,17 +6,18 @@ import {
   type LabelCandidate,
 } from "./variant-labels";
 
-const candidate = (
-  id: number,
-  entries: string[],
-  base = "gamevault\u0000",
-): LabelCandidate => ({ id, base, entries });
+const candidate = (id: number, entries: string[], base = "gamevault\u0000"): LabelCandidate => ({
+  id,
+  base,
+  entries,
+});
 
 describe("readDisambiguators", () => {
   it("trims entries and drops empty and non-string ones", () => {
-    expect(
-      readDisambiguators({ disambiguators: [" Linux ", "", 3, "Ghostship"] }),
-    ).toEqual(["Linux", "Ghostship"]);
+    expect(readDisambiguators({ disambiguators: [" Linux ", "", 3, "Ghostship"] })).toEqual([
+      "Linux",
+      "Ghostship",
+    ]);
   });
 
   it("returns undefined for anything without a usable string", () => {
@@ -104,10 +105,7 @@ describe("labelCandidates", () => {
   it("treats a missing edition and an explicit placeholder-equal one as the same label", () => {
     const suffixes = disambiguationSuffixes(
       labelCandidates(
-        [
-          sibling(1, undefined, ["Linux"]),
-          sibling(2, "Standard Edition", ["Windows"]),
-        ],
+        [sibling(1, undefined, ["Linux"]), sibling(2, "Standard Edition", ["Windows"])],
         "Standard Edition",
       ),
     );

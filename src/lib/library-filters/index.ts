@@ -953,12 +953,17 @@ function _bumpDetailPageVersionsOnChange(inputs: UnifideckGameInput[]): void {
   const nextSignatures = new Map<number, string>();
   inputs.forEach((g, i) => {
     const members =
-      g.dedupeGroupId === undefined ? [] : groupSignatures.get(g.dedupeGroupId)!;
-    const signature = `${ownSignatures[i]}\u0003${[...members].sort().join("\u0004")}`;
+      g.dedupeGroupId === undefined
+        ? []
+        : groupSignatures.get(g.dedupeGroupId)!;
+    const signature = `${ownSignatures[i]}\u0003${[...members]
+      .sort()
+      .join("\u0004")}`;
     nextSignatures.set(g.appId, signature);
     if (lastSwitcherSignatures.get(g.appId) !== signature) {
       bumpGameStateVersion(g.appId);
-      if (g.steamOwnedAppId !== undefined) bumpGameStateVersion(g.steamOwnedAppId);
+      if (g.steamOwnedAppId !== undefined)
+        bumpGameStateVersion(g.steamOwnedAppId);
       for (const v of g.steamVersions ?? []) bumpGameStateVersion(v.appId);
     }
   });

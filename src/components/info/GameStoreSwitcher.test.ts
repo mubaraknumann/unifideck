@@ -7,7 +7,7 @@ vi.mock("i18next", () => ({
         "deckTabs.gamevault": "GameVault",
         "deckTabs.epic": "Epic",
         "gameStoreSwitcher.defaultEdition": "Standard Edition",
-      })[key] ?? key,
+      }[key] ?? key),
   },
 }));
 vi.mock("@decky/ui", () => ({ Dropdown: () => null }));
@@ -49,10 +49,12 @@ function listedRows(siblings: GroupSibling[]): [number, string][] {
   return options.map((o) => [o.data, textParts(o.label).join(" ")]);
 }
 
-const sibling = (
-  appId: number,
-  extra: Partial<GroupSibling> = {},
-): GroupSibling => ({ appId, store: "gamevault", title: "Game", ...extra });
+const sibling = (appId: number, extra: Partial<GroupSibling> = {}): GroupSibling => ({
+  appId,
+  store: "gamevault",
+  title: "Game",
+  ...extra,
+});
 
 describe("GameStoreSwitcher rows", () => {
   it("labels same-store copies by the store's strings and lists the better rank first", () => {
