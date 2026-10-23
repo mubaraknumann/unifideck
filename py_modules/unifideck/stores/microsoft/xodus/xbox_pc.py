@@ -28,21 +28,21 @@ from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
 from unifideck.core.types import Events
-from unifideck.launcher.xbox_pc.backend import check_backend
 from unifideck.launcher.xbox_pc.layout import (
     XBOX_PC_ENABLED_KEY,
     XBOX_PC_NOTICE_ACK_KEY,
     XBOX_PC_SOURCE_KEY,
     credential_dir,
-    read_active,
 )
 
-from . import account_state
+from . import account_state, auto_components
 from .auth import XboxPcSignIn
 from .cli import XodusCli, XodusCliError
 from .cli_models import AccountStatus
-from .runtime import ComponentInstaller, ComponentInstallError, needs_install
-from .runtime_source import LocalDirSource, SourceError, source_from_config
+from .release_source import ReleaseSource
+from .runtime import ComponentInstaller, ComponentInstallError
+from .runtime_source import LocalDirSource, source_from_config
+from .runtime_status import probe_runtime
 
 if TYPE_CHECKING:
     from unifideck.auth.edge_browser import EdgeBrowser
@@ -82,32 +82,6 @@ def unavailable_status() -> dict[str, Any]:
         "account": {"state": "unknown"},
         "library": dict(_EMPTY_LIBRARY),
     }
-
-
-def _probe_runtime(source_value: Any) -> dict[str, Any]:
-    """The installed components versus the source. Blocking (hashes once)."""
-    view: dict[str, Any] = {"state": "missing", "version": None, "source_dir": "", "degraded": []}
-    listing, source_error = None, None
-    try:
-        source = source_from_config(source_value)
-        view["source_dir"] = str(source.root)
-        listing = source.describe()
-    except SourceError as e:
-        source_error = e.code
-    active = read_active()
-    if active is None:
-        if source_error:
-            view["error"] = source_error
-        return view
-    view.update(version=active.runtime_version, degraded=list(active.degraded))
-    problem = check_backend(active)[1]
-    if problem is not None:
-        view.update(state="failed", error=problem)
-    elif listing is not None and needs_install(listing):
-        view["state"] = "outdated"
-    else:
-        view["state"] = "installed"
-    return view
 
 
 def _drop_credentials() -> int:
@@ -207,7 +181,7 @@ class XboxPc:
     def _get(self, key: str) -> Any:
         return self._config.get(key) if self._config is not None else None
 
-    def _source(self) -> LocalDirSource:
+    def _source(self) -> LocalDirSource | ReleaseSource:
         return source_from_config(self._get(XBOX_PC_SOURCE_KEY))
 
     def enabled(self) -> bool:
@@ -226,8 +200,10 @@ class XboxPc:
         """Turn the feature on or off. Raises ``XboxPcError``.
 
         Turning it on needs the current notice acknowledged, now
-        (``notice_version``) or before. Turning it off cancels a running
-        sign-in and deletes nothing.
+        (``notice_version``) or before, and installs missing or outdated
+        components in the background: a saved Xodus sign-in skips every
+        other path that would. Turning it off cancels a running sign-in and
+        deletes nothing.
         """
         if on:
             if isinstance(notice_version, int) and notice_version >= NOTICE_VERSION:
@@ -240,6 +216,8 @@ class XboxPc:
         logger.info("%s turned %s", _LOG, "on" if on else "off")
         await self._probe()
         self.notify()
+        if on:
+            auto_components.schedule(self)
         return await self.status()
 
     def market_hint(self) -> str | None:
@@ -249,7 +227,7 @@ class XboxPc:
     # ── Status ──────────────────────────────────────────────────────
 
     async def _probe(self) -> None:
-        self._runtime = await asyncio.to_thread(_probe_runtime, self._get(XBOX_PC_SOURCE_KEY))
+        self._runtime = await asyncio.to_thread(probe_runtime, self._get(XBOX_PC_SOURCE_KEY), self.enabled())
 
     def _runtime_view(self) -> dict[str, Any]:
         view = dict(self._runtime or {"state": "missing", "version": None, "source_dir": "", "degraded": []})

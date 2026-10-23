@@ -1225,7 +1225,11 @@
         "backendMissing": "Xodus відсутній. Встановіть компоненти заново.",
         "backendTampered": "Xodus не збігається зі своєю контрольною сумою. Встановіть компоненти заново.",
         "inProgress": "Компоненти вже встановлюються.",
-        "cancelled": "Встановлення скасовано."
+        "cancelled": "Встановлення скасовано.",
+        "releaseUnreachable": "GitHub недоступний",
+        "releaseNotFound": "На GitHub ще немає середовища",
+        "releaseDownloadFailed": "Завантаження перервано. Повторіть.",
+        "releaseMismatch": "Файли релізу не збігаються"
       },
       "degradedCloudSaves": "У цьому середовищі виконання немає хмарних збережень Xbox. Збереження залишаються лише на цьому пристрої.",
       "degradedInGameSignIn": "Це середовище виконання не може входити в Xbox усередині ігор. Мережеві функції можуть не працювати.",
@@ -1262,7 +1266,11 @@
       "statusError": "Unifideck не зміг прочитати стан Xbox PC.",
       "noticeRequired": "Перш ніж увімкнути цю функцію, прочитайте та прийміть повідомлення.",
       "retry": "Повторити",
-      "enableDownloads": "Увімкнути експериментальне завантаження ігор Xbox PC"
+      "enableDownloads": "Увімкнути експериментальне завантаження ігор Xbox PC",
+      "runtimeVersion": "Середовище {{version}}",
+      "runtimeUpdateAvailable": "Середовище {{version}} (є оновлення)",
+      "runtimeDownloading": "Завантаження… {{percent}}%",
+      "runtimeInstalling": "Встановлення…"
     },
     "notice": {
       "title": "Перш ніж увімкнути ігри Xbox PC",

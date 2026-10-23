@@ -136,6 +136,18 @@ async def _wait_installed(facade: XboxPc) -> dict[str, Any]:
     raise AssertionError("install did not finish")
 
 
+async def test_turning_on_installs_missing_components(tmp_path: Path) -> None:
+    """A saved Xodus sign-in skips every other path that installs them."""
+    facade, _, _ = _facade(tmp_path, str(make_source(tmp_path)))
+    await facade.set_enabled(True, notice_version=xp.NOTICE_VERSION)
+    for _ in range(200):
+        status = await facade.status()
+        if status["runtime"]["state"] == "installed":
+            break
+        await asyncio.sleep(0.05)
+    assert status["runtime"]["state"] == "installed" and status["runtime"]["version"] == "0.1.0"
+
+
 async def test_install_runs_in_background_and_reports_degraded(tmp_path: Path) -> None:
     out = make_source(tmp_path, archive=runtime_archive("0.1.0", features=[]))
     facade, config, bus = _facade(tmp_path, str(out))

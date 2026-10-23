@@ -1225,7 +1225,11 @@
         "backendMissing": "Xodus が見つかりません。コンポーネントを再インストールしてください。",
         "backendTampered": "Xodus がチェックサムと一致しません。コンポーネントを再インストールしてください。",
         "inProgress": "コンポーネントはすでにインストール中です。",
-        "cancelled": "インストールはキャンセルされました。"
+        "cancelled": "インストールはキャンセルされました。",
+        "releaseUnreachable": "GitHub に接続できません",
+        "releaseNotFound": "GitHub にランタイムがまだありません",
+        "releaseDownloadFailed": "ダウンロード中断。再試行してください。",
+        "releaseMismatch": "リリースファイルが一致しません"
       },
       "degradedCloudSaves": "このランタイムには Xbox クラウドセーブがありません。セーブデータはこのデバイスにのみ保存されます。",
       "degradedInGameSignIn": "このランタイムではゲーム内で Xbox にサインインできません。オンライン機能が動作しない場合があります。",
@@ -1262,7 +1266,11 @@
       "statusError": "Unifideck は Xbox PC の状態を読み込めませんでした。",
       "noticeRequired": "オンにする前に、お知らせを読んで同意してください。",
       "retry": "再試行",
-      "enableDownloads": "実験的な Xbox PC ダウンロードを有効にする"
+      "enableDownloads": "実験的な Xbox PC ダウンロードを有効にする",
+      "runtimeVersion": "ランタイム {{version}}",
+      "runtimeUpdateAvailable": "ランタイム {{version}}（更新あり）",
+      "runtimeDownloading": "ダウンロード中… {{percent}}%",
+      "runtimeInstalling": "インストール中…"
     },
     "notice": {
       "title": "Xbox PC ゲームをオンにする前に",

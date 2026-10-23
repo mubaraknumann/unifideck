@@ -1225,7 +1225,11 @@
         "backendMissing": "Xodus مفقود. ثبّت المكونات مرة أخرى.",
         "backendTampered": "Xodus لا يطابق مجموعه الاختباري. ثبّت المكونات مرة أخرى.",
         "inProgress": "يجري تثبيت المكونات بالفعل.",
-        "cancelled": "تم إلغاء التثبيت."
+        "cancelled": "تم إلغاء التثبيت.",
+        "releaseUnreachable": "تعذّر الوصول إلى GitHub",
+        "releaseNotFound": "لا توجد بيئة تشغيل على GitHub بعد",
+        "releaseDownloadFailed": "توقف التنزيل. أعد المحاولة.",
+        "releaseMismatch": "ملفات الإصدار غير متطابقة"
       },
       "degradedCloudSaves": "لا تدعم بيئة التشغيل هذه الحفظ السحابي من Xbox. تبقى ملفات الحفظ على هذا الجهاز فقط.",
       "degradedInGameSignIn": "لا تستطيع بيئة التشغيل هذه تسجيل الدخول إلى Xbox داخل الألعاب. قد لا تعمل الميزات عبر الإنترنت.",
@@ -1262,7 +1266,11 @@
       "statusError": "تعذر على Unifideck قراءة حالة Xbox PC.",
       "noticeRequired": "اقرأ التنبيه ووافق عليه قبل تفعيل هذا الخيار.",
       "retry": "إعادة المحاولة",
-      "enableDownloads": "تفعيل تنزيلات Xbox PC التجريبية"
+      "enableDownloads": "تفعيل تنزيلات Xbox PC التجريبية",
+      "runtimeVersion": "بيئة التشغيل {{version}}",
+      "runtimeUpdateAvailable": "بيئة التشغيل {{version}} (تحديث جاهز)",
+      "runtimeDownloading": "جارٍ التنزيل… {{percent}}%",
+      "runtimeInstalling": "جارٍ التثبيت…"
     },
     "notice": {
       "title": "قبل تفعيل ألعاب Xbox PC",

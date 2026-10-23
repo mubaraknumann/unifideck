@@ -1225,7 +1225,11 @@
         "backendMissing": "Xodus bulunamadı. Bileşenleri yeniden yükleyin.",
         "backendTampered": "Xodus sağlama toplamıyla eşleşmiyor. Bileşenleri yeniden yükleyin.",
         "inProgress": "Bileşenler zaten yükleniyor.",
-        "cancelled": "Kurulum iptal edildi."
+        "cancelled": "Kurulum iptal edildi.",
+        "releaseUnreachable": "GitHub'a ulaşılamıyor",
+        "releaseNotFound": "GitHub'da henüz çalışma ortamı yok",
+        "releaseDownloadFailed": "İndirme durdu. Tekrar deneyin.",
+        "releaseMismatch": "Sürüm dosyaları uyuşmuyor"
       },
       "degradedCloudSaves": "Bu çalışma ortamında Xbox bulut kayıtları yok. Kayıtlar yalnızca bu cihazda kalır.",
       "degradedInGameSignIn": "Bu çalışma ortamı oyunların içinde Xbox oturumu açamaz. Çevrim içi özellikler çalışmayabilir.",
@@ -1262,7 +1266,11 @@
       "statusError": "Unifideck, Xbox PC durumunu okuyamadı.",
       "noticeRequired": "Bunu açmadan önce bildirimi okuyup kabul edin.",
       "retry": "Yeniden Dene",
-      "enableDownloads": "Deneysel Xbox PC indirmelerini etkinleştir"
+      "enableDownloads": "Deneysel Xbox PC indirmelerini etkinleştir",
+      "runtimeVersion": "Çalışma ortamı {{version}}",
+      "runtimeUpdateAvailable": "Çalışma ortamı {{version}} (güncelleme hazır)",
+      "runtimeDownloading": "İndiriliyor… %{{percent}}",
+      "runtimeInstalling": "Kuruluyor…"
     },
     "notice": {
       "title": "Xbox PC oyunlarını açmadan önce",

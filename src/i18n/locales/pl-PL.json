@@ -1225,7 +1225,11 @@
         "backendMissing": "Brak Xodus. Zainstaluj komponenty ponownie.",
         "backendTampered": "Xodus nie zgadza się z sumą kontrolną. Zainstaluj komponenty ponownie.",
         "inProgress": "Komponenty są już instalowane.",
-        "cancelled": "Instalacja została anulowana."
+        "cancelled": "Instalacja została anulowana.",
+        "releaseUnreachable": "Brak połączenia z GitHub",
+        "releaseNotFound": "Brak środowiska na GitHub",
+        "releaseDownloadFailed": "Pobieranie przerwane. Ponów.",
+        "releaseMismatch": "Pliki wydania się nie zgadzają"
       },
       "degradedCloudSaves": "To środowisko nie obsługuje zapisów w chmurze Xbox. Zapisy pozostają tylko na tym urządzeniu.",
       "degradedInGameSignIn": "To środowisko nie umożliwia logowania do Xbox w grach. Funkcje online mogą nie działać.",
@@ -1262,7 +1266,11 @@
       "statusError": "Unifideck nie mógł odczytać stanu Xbox PC.",
       "noticeRequired": "Przeczytaj i zaakceptuj informację przed włączeniem tej funkcji.",
       "retry": "Ponów",
-      "enableDownloads": "Włącz eksperymentalne pobieranie gier Xbox PC"
+      "enableDownloads": "Włącz eksperymentalne pobieranie gier Xbox PC",
+      "runtimeVersion": "Środowisko {{version}}",
+      "runtimeUpdateAvailable": "Środowisko {{version}} (aktualizacja gotowa)",
+      "runtimeDownloading": "Pobieranie… {{percent}}%",
+      "runtimeInstalling": "Instalowanie…"
     },
     "notice": {
       "title": "Zanim włączysz gry Xbox PC",

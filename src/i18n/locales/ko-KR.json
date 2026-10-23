@@ -1225,7 +1225,11 @@
         "backendMissing": "Xodus가 없습니다. 구성 요소를 다시 설치하세요.",
         "backendTampered": "Xodus가 체크섬과 일치하지 않습니다. 구성 요소를 다시 설치하세요.",
         "inProgress": "구성 요소를 이미 설치하는 중입니다.",
-        "cancelled": "설치가 취소되었습니다."
+        "cancelled": "설치가 취소되었습니다.",
+        "releaseUnreachable": "GitHub에 연결할 수 없음",
+        "releaseNotFound": "GitHub에 런타임이 아직 없음",
+        "releaseDownloadFailed": "다운로드 중단됨. 다시 시도하세요.",
+        "releaseMismatch": "릴리스 파일이 일치하지 않음"
       },
       "degradedCloudSaves": "이 런타임에는 Xbox 클라우드 저장 기능이 없습니다. 저장 데이터는 이 기기에만 보관됩니다.",
       "degradedInGameSignIn": "이 런타임은 게임 내에서 Xbox에 로그인할 수 없습니다. 온라인 기능이 작동하지 않을 수 있습니다.",
@@ -1262,7 +1266,11 @@
       "statusError": "Unifideck이 Xbox PC 상태를 읽을 수 없습니다.",
       "noticeRequired": "켜기 전에 안내를 읽고 동의하세요.",
       "retry": "다시 시도",
-      "enableDownloads": "실험적 Xbox PC 다운로드 사용"
+      "enableDownloads": "실험적 Xbox PC 다운로드 사용",
+      "runtimeVersion": "런타임 {{version}}",
+      "runtimeUpdateAvailable": "런타임 {{version}} (업데이트 있음)",
+      "runtimeDownloading": "다운로드 중… {{percent}}%",
+      "runtimeInstalling": "설치 중…"
     },
     "notice": {
       "title": "Xbox PC 게임을 켜기 전에",

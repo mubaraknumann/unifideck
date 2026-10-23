@@ -1225,7 +1225,11 @@
         "backendMissing": "Xodus fehlt. Installiere die Komponenten erneut.",
         "backendTampered": "Xodus stimmt nicht mit seiner Prüfsumme überein. Installiere die Komponenten erneut.",
         "inProgress": "Die Komponenten werden bereits installiert.",
-        "cancelled": "Die Installation wurde abgebrochen."
+        "cancelled": "Die Installation wurde abgebrochen.",
+        "releaseUnreachable": "GitHub nicht erreichbar",
+        "releaseNotFound": "Noch keine Runtime auf GitHub",
+        "releaseDownloadFailed": "Download gestoppt. Erneut versuchen.",
+        "releaseMismatch": "Release-Dateien passen nicht"
       },
       "degradedCloudSaves": "Diese Laufzeitumgebung hat keine Xbox-Cloud-Speicherstände. Spielstände bleiben nur auf diesem Gerät.",
       "degradedInGameSignIn": "Diese Laufzeitumgebung kann sich in Spielen nicht bei Xbox anmelden. Online-Funktionen funktionieren eventuell nicht.",
@@ -1262,7 +1266,11 @@
       "statusError": "Unifideck konnte den Xbox-PC-Status nicht lesen.",
       "noticeRequired": "Lies den Hinweis und akzeptiere ihn, bevor du dies aktivierst.",
       "retry": "Erneut versuchen",
-      "enableDownloads": "Experimentelle Xbox-PC-Downloads aktivieren"
+      "enableDownloads": "Experimentelle Xbox-PC-Downloads aktivieren",
+      "runtimeVersion": "Runtime {{version}}",
+      "runtimeUpdateAvailable": "Runtime {{version}} (Update bereit)",
+      "runtimeDownloading": "Download… {{percent}} %",
+      "runtimeInstalling": "Installation…"
     },
     "notice": {
       "title": "Bevor du Xbox-PC-Spiele aktivierst",

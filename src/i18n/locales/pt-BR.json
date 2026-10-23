@@ -1225,7 +1225,11 @@
         "backendMissing": "O Xodus está ausente. Instale os componentes novamente.",
         "backendTampered": "O Xodus não corresponde ao seu checksum. Instale os componentes novamente.",
         "inProgress": "Os componentes já estão sendo instalados.",
-        "cancelled": "A instalação foi cancelada."
+        "cancelled": "A instalação foi cancelada.",
+        "releaseUnreachable": "GitHub inacessível",
+        "releaseNotFound": "Ainda sem runtime no GitHub",
+        "releaseDownloadFailed": "Download parado. Tente de novo.",
+        "releaseMismatch": "Arquivos da versão não batem"
       },
       "degradedCloudSaves": "Este runtime não tem salvamentos na nuvem do Xbox. Os salvamentos ficam apenas neste dispositivo.",
       "degradedInGameSignIn": "Este runtime não consegue entrar no Xbox dentro dos jogos. Recursos online podem não funcionar.",
@@ -1262,7 +1266,11 @@
       "statusError": "O Unifideck não conseguiu ler o status do Xbox PC.",
       "noticeRequired": "Leia e aceite o aviso antes de ativar isto.",
       "retry": "Tentar novamente",
-      "enableDownloads": "Ativar downloads experimentais do Xbox PC"
+      "enableDownloads": "Ativar downloads experimentais do Xbox PC",
+      "runtimeVersion": "Runtime {{version}}",
+      "runtimeUpdateAvailable": "Runtime {{version}} (atualização pronta)",
+      "runtimeDownloading": "Baixando… {{percent}}%",
+      "runtimeInstalling": "Instalando…"
     },
     "notice": {
       "title": "Antes de ativar os jogos do Xbox PC",

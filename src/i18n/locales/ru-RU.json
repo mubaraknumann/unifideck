@@ -1225,7 +1225,11 @@
         "backendMissing": "Xodus отсутствует. Установите компоненты заново.",
         "backendTampered": "Xodus не совпадает со своей контрольной суммой. Установите компоненты заново.",
         "inProgress": "Компоненты уже устанавливаются.",
-        "cancelled": "Установка отменена."
+        "cancelled": "Установка отменена.",
+        "releaseUnreachable": "GitHub недоступен",
+        "releaseNotFound": "На GitHub пока нет среды",
+        "releaseDownloadFailed": "Загрузка прервана. Повторите.",
+        "releaseMismatch": "Файлы релиза не совпадают"
       },
       "degradedCloudSaves": "В этой среде выполнения нет облачных сохранений Xbox. Сохранения остаются только на этом устройстве.",
       "degradedInGameSignIn": "Эта среда выполнения не может входить в Xbox внутри игр. Сетевые функции могут не работать.",
@@ -1262,7 +1266,11 @@
       "statusError": "Unifideck не смог прочитать состояние Xbox PC.",
       "noticeRequired": "Прежде чем включить эту функцию, прочитайте и примите уведомление.",
       "retry": "Повторить",
-      "enableDownloads": "Включить экспериментальную загрузку игр Xbox PC"
+      "enableDownloads": "Включить экспериментальную загрузку игр Xbox PC",
+      "runtimeVersion": "Среда {{version}}",
+      "runtimeUpdateAvailable": "Среда {{version}} (есть обновление)",
+      "runtimeDownloading": "Загрузка… {{percent}}%",
+      "runtimeInstalling": "Установка…"
     },
     "notice": {
       "title": "Прежде чем включить игры Xbox PC",

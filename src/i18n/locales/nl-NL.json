@@ -1225,7 +1225,11 @@
         "backendMissing": "Xodus ontbreekt. Installeer de componenten opnieuw.",
         "backendTampered": "Xodus komt niet overeen met de checksum. Installeer de componenten opnieuw.",
         "inProgress": "De componenten worden al geïnstalleerd.",
-        "cancelled": "De installatie is geannuleerd."
+        "cancelled": "De installatie is geannuleerd.",
+        "releaseUnreachable": "GitHub niet bereikbaar",
+        "releaseNotFound": "Nog geen runtime op GitHub",
+        "releaseDownloadFailed": "Download gestopt. Probeer opnieuw.",
+        "releaseMismatch": "Releasebestanden kloppen niet"
       },
       "degradedCloudSaves": "Deze runtime heeft geen Xbox-cloudopslag. Opgeslagen spellen blijven alleen op dit apparaat.",
       "degradedInGameSignIn": "Deze runtime kan in games niet bij Xbox aanmelden. Onlinefuncties werken mogelijk niet.",
@@ -1262,7 +1266,11 @@
       "statusError": "Unifideck kon de Xbox PC-status niet lezen.",
       "noticeRequired": "Lees en accepteer de mededeling voordat je dit inschakelt.",
       "retry": "Opnieuw proberen",
-      "enableDownloads": "Experimentele Xbox PC-downloads inschakelen"
+      "enableDownloads": "Experimentele Xbox PC-downloads inschakelen",
+      "runtimeVersion": "Runtime {{version}}",
+      "runtimeUpdateAvailable": "Runtime {{version}} (update klaar)",
+      "runtimeDownloading": "Downloaden… {{percent}}%",
+      "runtimeInstalling": "Installeren…"
     },
     "notice": {
       "title": "Voordat je Xbox PC-games inschakelt",

@@ -1,8 +1,11 @@
 """stores/microsoft/xodus/runtime.py — install the Xodus backend and runtime.
 
 One install copies the backend binaries and unpacks the runtime archive
-(349 MB packed, 1.5 GB unpacked) from a ``runtime_source`` folder::
+(about 590 MB packed, 1.5 GB unpacked) from a ``runtime_source`` folder,
+or from a GitHub release downloaded into one first (``release_source``)::
 
+    0. a release: stop unless it is newer than the active components, then
+       download it (resuming); the download is deleted once installed
     1. describe the source; stop if those exact components are active
     2. make the data root private, then check free space
     3. stage into ``.staging-*`` with NO lock held, so launches never wait
@@ -62,6 +65,7 @@ from unifideck.launcher.xbox_pc.layout import (
 )
 from unifideck.services.download.validators import validate_path
 
+from .release_source import ReleaseOffer, ReleaseSource
 from .runtime_source import LocalDirSource, SourceError, SourceListing
 
 logger = logging.getLogger(__name__)
@@ -379,10 +383,14 @@ def _new_staging() -> Path:
 
 
 def _space_check(listing: SourceListing) -> None:
-    """Make the root private first: ``validate_path`` would create it 0755."""
-    ensure_private_dir(data_root())
     need = listing.runtime.size * SPACE_FACTOR + SPACE_MARGIN_BYTES
     need += sum((listing.backend.directory / n).stat().st_size for n in listing.backend.files)
+    _require_space(need)
+
+
+def _require_space(need: int) -> None:
+    """Make the root private first: ``validate_path`` would create it 0755."""
+    ensure_private_dir(data_root())
     result = validate_path(str(data_root()), required_bytes=need)
     if not result.success:
         raise ComponentInstallError(result.error or "insufficient_space")
@@ -411,10 +419,60 @@ def _stage(
     return validate_runtime(root, listing)
 
 
-def install_sync(source: LocalDirSource, progress: ProgressFn, abort: threading.Event) -> ActiveComponents:
+def release_is_newer(offer: ReleaseOffer, active: ActiveComponents) -> bool:
+    """Whether the release offers a newer runtime or backend than ``active``."""
+    return (_version_tuple(offer.runtime_version) > _version_tuple(active.runtime_version)
+            or _version_tuple(offer.backend_version) > _version_tuple(active.backend_version))
+
+
+def _offer(source: ReleaseSource) -> ReleaseOffer:
+    try:
+        return source.offer()
+    except SourceError as e:
+        raise ComponentInstallError(e.code) from None
+
+
+def _install_release(source: ReleaseSource, progress: ProgressFn, abort: threading.Event) -> ActiveComponents:
+    """Download the release, install it, then delete the download.
+
+    A cut download keeps its ``.part`` to resume; a bad one is deleted.
+    """
+    offer = _offer(source)
+    current = read_active()
+    if current is not None and check_backend(current)[1] is None and not release_is_newer(offer, current):
+        return current
+    _require_space(offer.total_bytes() + offer.runtime.size * SPACE_FACTOR + SPACE_MARGIN_BYTES)
+    try:
+        listing = source.fetch(offer, progress, abort)
+    except SourceError as e:
+        if not e.code.startswith(("release_download_failed", "cancelled")):
+            source.discard(offer)
+        raise ComponentInstallError(e.code) from None
+    if (listing.backend.version, listing.runtime.version) != (offer.backend_version, offer.runtime_version):
+        # The asset names lie: it would look newer, and download, forever.
+        source.discard(offer)
+        raise ComponentInstallError(f"release_mismatch:{offer.backend.name}")
+    try:
+        active = _install_listing(listing, progress, abort)
+    except ComponentInstallError as e:
+        if e.code != "cancelled":
+            source.discard(offer)
+        raise
+    source.discard(offer)
+    return active
+
+
+def install_sync(
+    source: LocalDirSource | ReleaseSource, progress: ProgressFn, abort: threading.Event,
+) -> ActiveComponents:
     """The whole install, blocking. Raises ``ComponentInstallError``."""
     progress("checking", 0, None)
-    listing = _describe(source)
+    if isinstance(source, ReleaseSource):
+        return _install_release(source, progress, abort)
+    return _install_listing(_describe(source), progress, abort)
+
+
+def _install_listing(listing: SourceListing, progress: ProgressFn, abort: threading.Event) -> ActiveComponents:
     current = _already_active(listing)
     if current is not None:
         return current
@@ -431,7 +489,7 @@ def install_sync(source: LocalDirSource, progress: ProgressFn, abort: threading.
 class ComponentInstaller:
     """Single-flight runner of ``install_sync`` in a worker thread."""
 
-    def __init__(self, source_fn: Callable[[], LocalDirSource]) -> None:
+    def __init__(self, source_fn: Callable[[], LocalDirSource | ReleaseSource]) -> None:
         """``source_fn`` reads the configured source (it may raise ``SourceError``)."""
         self._source_fn = source_fn
         self._task: asyncio.Task[ActiveComponents] | None = None

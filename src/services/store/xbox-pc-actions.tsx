@@ -91,7 +91,11 @@ export async function enableXboxPc(status: XboxPcStatus): Promise<boolean> {
       i18n.t("xboxPc.section.microsoftNeeded"),
     );
   } else if (r.data.account?.state === "signed_in") {
-    syncAfterXboxPc();
+    // A saved sign-in still needs the components (downloaded on first use)
+    // before the library can be read.
+    void linkXboxPc().then((ready) => {
+      if (ready) syncAfterXboxPc();
+    });
   } else {
     void linkXboxPc();
   }

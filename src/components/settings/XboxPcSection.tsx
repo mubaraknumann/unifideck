@@ -10,6 +10,8 @@
  * unofficial notice once (`enableXboxPc`); after that, with Microsoft
  * connected in Store Connections, the components install and the Xbox PC
  * sign-in runs by themselves (`linkXboxPc`). Turning it off deletes nothing.
+ * While it is on, a small line under the toggle shows the runtime version
+ * or the download progress.
  */
 import { FC, useEffect, useState } from "react";
 import {
@@ -19,8 +21,10 @@ import {
   PanelSectionRow,
   ToggleField,
 } from "@decky/ui";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { useXboxPcStatus } from "../../hooks/useXboxPcStatus";
+import type { XboxPcStatus } from "../../types/api";
 import { xboxPcErrorText } from "../../lib/xbox-pc-errors";
 import { xboxPcStore } from "../../stores/xbox-pc-store";
 import {
@@ -44,6 +48,34 @@ const StatusError: FC<{ error: string }> = ({ error }) => {
     </PanelSection>
   );
 };
+
+/**
+ * The small line under the toggle: the installed runtime version, the
+ * download progress, or why the components are not installed.
+ */
+export function runtimeLine(
+  runtime: XboxPcStatus["runtime"],
+  t: TFunction,
+): string | undefined {
+  const { state, version, progress, error } = runtime;
+  if (state === "installing") {
+    if (progress?.stage === "downloading" && progress.total_bytes) {
+      const percent = Math.floor(
+        (progress.done_bytes / progress.total_bytes) * 100,
+      );
+      return t("xboxPc.section.runtimeDownloading", { percent });
+    }
+    return t("xboxPc.section.runtimeInstalling");
+  }
+  if ((state === "installed" || state === "outdated") && version) {
+    const key =
+      state === "outdated"
+        ? "xboxPc.section.runtimeUpdateAvailable"
+        : "xboxPc.section.runtimeVersion";
+    return t(key, { version });
+  }
+  return error ? xboxPcErrorText(error, t, runtime.source_dir) : undefined;
+}
 
 export const XboxPcSection: FC = () => {
   const { t } = useTranslation();
@@ -72,6 +104,9 @@ export const XboxPcSection: FC = () => {
       <PanelSectionRow>
         <ToggleField
           label={t("xboxPc.section.enableDownloads")}
+          description={
+            status.enabled ? runtimeLine(status.runtime, t) : undefined
+          }
           checked={status.enabled}
           disabled={busy}
           onChange={(on: boolean) => void onToggle(on)}

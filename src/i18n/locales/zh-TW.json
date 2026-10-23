@@ -1225,7 +1225,11 @@
         "backendMissing": "Xodus 遺失。請重新安裝元件。",
         "backendTampered": "Xodus 與其總和檢查碼不符。請重新安裝元件。",
         "inProgress": "元件已在安裝中。",
-        "cancelled": "安裝已取消。"
+        "cancelled": "安裝已取消。",
+        "releaseUnreachable": "無法連線 GitHub",
+        "releaseNotFound": "GitHub 上還沒有執行環境",
+        "releaseDownloadFailed": "下載已中斷，請重試。",
+        "releaseMismatch": "發行檔案不一致"
       },
       "degradedCloudSaves": "此執行環境不支援 Xbox 雲端存檔。存檔僅保存在本裝置上。",
       "degradedInGameSignIn": "此執行環境無法在遊戲內登入 Xbox。線上功能可能無法使用。",
@@ -1262,7 +1266,11 @@
       "statusError": "Unifideck 無法讀取 Xbox PC 狀態。",
       "noticeRequired": "開啟此功能前，請先閱讀並接受說明。",
       "retry": "重試",
-      "enableDownloads": "啟用實驗性 Xbox PC 下載"
+      "enableDownloads": "啟用實驗性 Xbox PC 下載",
+      "runtimeVersion": "執行環境 {{version}}",
+      "runtimeUpdateAvailable": "執行環境 {{version}}（有更新）",
+      "runtimeDownloading": "正在下載… {{percent}}%",
+      "runtimeInstalling": "正在安裝…"
     },
     "notice": {
       "title": "開啟 Xbox PC 遊戲之前",

@@ -1,7 +1,8 @@
 """stores/microsoft/xodus/runtime_source.py — where the components come from.
 
-v1 installs from a local folder, the ``out/`` of the build repo
-(``stores.microsoft.xbox_pc.source``)::
+By default the components come from a GitHub release
+(``release_source.py``). A folder path in ``stores.microsoft.xbox_pc.source``
+installs from the ``out/`` of the build repo instead, for development::
 
     out/backend/   xodus-cli  xodus-service  LICENSE  manifest.json
                    (plus a -source.tar.xz we never read)
@@ -10,9 +11,8 @@ v1 installs from a local folder, the ``out/`` of the build repo
                    (plus -source.* siblings we never read)
 
 Only the names in ``manifest.json["files"]`` are copied from the backend
-folder, and only the exact ``-x86_64`` runtime archive is used. A source
-value starting with ``https://`` is refused for now. That is where a
-release download will plug in later.
+folder, and only the exact ``-x86_64`` runtime archive is used. Any other
+``https://`` source value is refused.
 
 Every error names where it looked, so the QAM can say so (rule 8).
 Describing a source reads two small files and hashes nothing, so it is
@@ -26,9 +26,12 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from unifideck.launcher.xbox_pc.layout import BACKEND_MANIFEST_NAME, CLI_NAME, SERVICE_NAME
+
+if TYPE_CHECKING:
+    from .release_source import ReleaseSource
 
 RUNTIME_PREFIX = "unifideck-xodus-runtime-"
 RUNTIME_SUFFIX = "-x86_64.tar.xz"
@@ -170,6 +173,8 @@ class LocalDirSource:
     def __init__(self, root: Path) -> None:
         """``root`` is already expanded."""
         self.root = root
+        #: What the QAM names as the place it looked.
+        self.where = str(root)
 
     def describe(self) -> SourceListing:
         """What this source offers, or raise ``SourceError``. Blocking."""
@@ -186,11 +191,16 @@ class LocalDirSource:
         )
 
 
-def source_from_config(value: Any) -> LocalDirSource:
-    """The source the config names, or raise ``SourceError``."""
-    if not isinstance(value, str) or not value.strip():
-        raise SourceError("source_missing:")
-    text = value.strip()
+def source_from_config(value: Any) -> LocalDirSource | ReleaseSource:
+    """The source the config names, or raise ``SourceError``.
+
+    Empty or ``github`` is the GitHub release; a path is a local folder.
+    """
+    from .release_source import ReleaseSource  # it imports this module
+
+    text = value.strip() if isinstance(value, str) else ""
+    if not text or text == "github":
+        return ReleaseSource()
     if text.startswith(("https://", "http://")):
         raise SourceError("source_unsupported")
     return LocalDirSource(Path(text).expanduser())

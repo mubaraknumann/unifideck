@@ -1225,7 +1225,11 @@
         "backendMissing": "Xodus is missing. Install the components again.",
         "backendTampered": "Xodus does not match its checksum. Install the components again.",
         "inProgress": "The components are already being installed.",
-        "cancelled": "The install was cancelled."
+        "cancelled": "The install was cancelled.",
+        "releaseUnreachable": "Can't reach GitHub",
+        "releaseNotFound": "No runtime on GitHub yet",
+        "releaseDownloadFailed": "Download stopped. Retry to resume.",
+        "releaseMismatch": "Release files don't match"
       },
       "degradedCloudSaves": "This runtime has no Xbox cloud saves. Saves stay on this device only.",
       "degradedInGameSignIn": "This runtime can't sign in to Xbox inside games. Online features may not work.",
@@ -1262,7 +1266,11 @@
       "statusError": "Unifideck couldn't read the Xbox PC status.",
       "noticeRequired": "Read and accept the notice before turning this on.",
       "retry": "Retry",
-      "enableDownloads": "Enable Experimental Xbox PC Downloads"
+      "enableDownloads": "Enable Experimental Xbox PC Downloads",
+      "runtimeVersion": "Runtime {{version}}",
+      "runtimeUpdateAvailable": "Runtime {{version}} (update ready)",
+      "runtimeDownloading": "Downloading… {{percent}}%",
+      "runtimeInstalling": "Installing…"
     },
     "notice": {
       "title": "Before you turn on Xbox PC games",

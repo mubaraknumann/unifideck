@@ -127,7 +127,7 @@
       "subscription_check_url": "https://xgpuweb.gssv-play-prod.xboxlive.com/v2/login/user",
       "xbox_pc": {
         "enabled": false,
-        "source": "~/Documents/Projects/unifideck-xodus/out",
+        "source": "",
         "notice_ack_version": 0
       }
     },
