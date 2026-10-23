@@ -133,7 +133,10 @@ describe("default rank", () => {
     expect(firstByDefaultRank(items)?.id).toBe("c");
     expect(firstByDefaultRank<Item>([{ id: "a" }, { id: "b" }])?.id).toBe("a");
     expect(
-      firstByDefaultRank<Item>([{ id: "a", defaultRank: 1 }, { id: "b", defaultRank: 1 }])?.id,
+      firstByDefaultRank<Item>([
+        { id: "a", defaultRank: 1 },
+        { id: "b", defaultRank: 1 },
+      ])?.id,
     ).toBe("a");
   });
 });

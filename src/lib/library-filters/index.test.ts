@@ -968,10 +968,7 @@ describe("rank decides among same-store group members", () => {
     setGroupDuplicatesEnabled(true);
   });
 
-  const member = (
-    appId: number,
-    extra: Partial<UnifideckGameInput> = {},
-  ): UnifideckGameInput => ({
+  const member = (appId: number, extra: Partial<UnifideckGameInput> = {}): UnifideckGameInput => ({
     appId,
     store: "epic",
     isInstalled: false,

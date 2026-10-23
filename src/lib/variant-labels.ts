@@ -45,7 +45,9 @@ export function disambiguationSuffixes(
   if (candidates.length > 1) {
     chosen = longest;
     for (let depth = 0; depth <= longest; depth++) {
-      const labels = candidates.map((c) => `${c.base}\u0001${labelAt(c, depth)}`);
+      const labels = candidates.map(
+        (c) => `${c.base}\u0001${labelAt(c, depth)}`,
+      );
       if (new Set(labels).size === labels.length) {
         chosen = depth;
         break;
