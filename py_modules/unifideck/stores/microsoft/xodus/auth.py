@@ -90,9 +90,13 @@ def same_gamertag(a: str, b: str) -> bool:
 class _Run:
     """One running login: the CLI's pipes, the page, and their merged queue."""
 
-    def __init__(self, proc: asyncio.subprocess.Process, page: CdpPageSession) -> None:
+    def __init__(
+        self, proc: asyncio.subprocess.Process, page: CdpPageSession,
+        on_open: Callable[[int], None] | None = None,
+    ) -> None:
         self.proc = proc
         self.page = page
+        self.on_open = on_open
         self.queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
         self.bridge: CxhPageBridge | None = None
         self.buffered: list[dict[str, Any]] = []
@@ -188,7 +192,7 @@ class _Run:
     async def _on_attached(self, ok: bool) -> tuple[bool, str | None]:
         if not ok:
             return True, "window_not_opened"
-        bridge = CxhPageBridge(self.page, self.send)
+        bridge = CxhPageBridge(self.page, self.send, self.on_open)
         try:
             await bridge.setup()
         except CdpError as e:
@@ -265,6 +269,9 @@ class XboxPcSignIn:
         self._proc: asyncio.subprocess.Process | None = None
         #: Why the last sign-in failed, or None.
         self.last_error: str | None = None
+        #: ``device`` once Microsoft asks to confirm the sign-in for this
+        #: device (the backend's second web session), else None.
+        self.step: str | None = None
 
     @property
     def running(self) -> bool:
@@ -294,8 +301,12 @@ class XboxPcSignIn:
             self._release_lock()
             raise
         self.last_error = None
+        self.step = None
         self._proc = proc
         self._task = asyncio.create_task(self._session(proc, port), name="xbox-pc-sign-in")
+        # The end is announced from a done callback: inside the task, ``running``
+        # is still True, and the account would never be re-read (I-060).
+        self._task.add_done_callback(lambda _t: self._on_change())
         self._on_change()
         logger.info("%s started; waiting for the auth window", _LOG)
         return {"pending": True, "launch_shortcut": "microsoft", "reason": None}
@@ -388,10 +399,9 @@ class XboxPcSignIn:
             outcome = "signin_failed"
         self.last_error = None if outcome in (None, "unverified") else outcome
         logger.info("%s finished: %s", _LOG, outcome or "signed in")
-        self._on_change()
 
     async def _drive(self, proc: asyncio.subprocess.Process, port: int) -> str | None:
-        run = _Run(proc, self._page_factory())
+        run = _Run(proc, self._page_factory(), self._on_session_open)
         run.start(port)
         try:
             while True:
@@ -403,6 +413,14 @@ class XboxPcSignIn:
                     return reason
         finally:
             await run.stop()
+
+    def _on_session_open(self, session: int) -> None:
+        """A later session means Microsoft refused the first token exchange
+        and asks to confirm the sign-in for this device."""
+        if session > 1 and self.step != "device":
+            self.step = "device"
+            logger.info("%s Microsoft is confirming this device", _LOG)
+            self._on_change()
 
     async def _cleanup(self, proc: asyncio.subprocess.Process) -> None:
         """Every exit path: kill the CLI tree, close the window, drop the URL."""
@@ -429,7 +447,6 @@ class XboxPcSignIn:
             # Cancelled before it first ran, so its own cleanup never did.
             await self._cleanup(proc)
         self.last_error = None
-        self._on_change()
 
     # ── Account check ───────────────────────────────────────────────
 

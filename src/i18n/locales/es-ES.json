@@ -483,6 +483,8 @@
     "xboxPcSignedInAs": "Sesión iniciada como {{gamertag}}. Tus juegos de PC aparecerán tras la sincronización.",
     "xboxPcSignedInBody": "Tus juegos de PC aparecerán tras la sincronización.",
     "xboxPcSigningIn": "Iniciando sesión para juegos de Xbox PC",
+    "xboxPcConfirmingDevice": "Microsoft está confirmando este dispositivo",
+    "xboxPcConfirmingDeviceBody": "Puede que debas iniciar sesión de nuevo",
     "xboxPcSignInFailed": "Error al iniciar sesión en Xbox PC"
   },
   "uninstallModal": {

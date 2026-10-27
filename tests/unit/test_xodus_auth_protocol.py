@@ -74,6 +74,17 @@ def test_context_and_serverdata_and_notify_summary() -> None:
     assert "SECRET" not in proto.describe_notify(json.dumps({"type": "SECRET" * 10}))
 
 
+def test_describe_notify_shows_bridge_method_names() -> None:
+    """A CXH method name is long enough for ``redact`` to hide it (I-061)."""
+    name = "CloudExperienceHost.MSA.encryptUserData"
+    msg = {"type": "invoke", "value": {"name": name, "args": ["hunter2"]}}
+    out = proto.describe_notify(json.dumps(msg))
+    assert out == f"type=invoke name={name}"
+    assert "hunter2" not in out
+    opaque = {"type": "invoke", "value": {"name": "A" * 60}}
+    assert "A" * 40 not in proto.describe_notify(json.dumps(opaque))
+
+
 class FakePage:
     def __init__(self, server_data: Any = '{"ok":1}') -> None:
         self.posted: list[tuple[str, dict[str, Any] | None]] = []

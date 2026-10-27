@@ -483,6 +483,8 @@
     "xboxPcSignedInAs": "Accesso effettuato come {{gamertag}}. I tuoi giochi PC compariranno dopo la sincronizzazione.",
     "xboxPcSignedInBody": "I tuoi giochi PC compariranno dopo la sincronizzazione.",
     "xboxPcSigningIn": "Accesso in corso per i giochi Xbox PC",
+    "xboxPcConfirmingDevice": "Microsoft sta confermando questo dispositivo",
+    "xboxPcConfirmingDeviceBody": "Potrebbe servire un nuovo accesso",
     "xboxPcSignInFailed": "Accesso a Xbox PC non riuscito"
   },
   "uninstallModal": {

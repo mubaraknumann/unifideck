@@ -483,6 +483,8 @@
     "xboxPcSignedInAs": "{{gamertag}}(으)로 로그인했습니다. 동기화 후 PC 게임이 표시됩니다.",
     "xboxPcSignedInBody": "동기화 후 PC 게임이 표시됩니다.",
     "xboxPcSigningIn": "Xbox PC 게임에 로그인하는 중",
+    "xboxPcConfirmingDevice": "Microsoft가 이 기기를 확인하는 중",
+    "xboxPcConfirmingDeviceBody": "다시 로그인해야 할 수 있습니다",
     "xboxPcSignInFailed": "Xbox PC 로그인 실패"
   },
   "uninstallModal": {

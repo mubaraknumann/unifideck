@@ -483,6 +483,8 @@
     "xboxPcSignedInAs": "{{gamertag}} olarak oturum açıldı. PC oyunlarınız eşitlemeden sonra görünür.",
     "xboxPcSignedInBody": "PC oyunlarınız eşitlemeden sonra görünür.",
     "xboxPcSigningIn": "Xbox PC oyunları için oturum açılıyor",
+    "xboxPcConfirmingDevice": "Microsoft bu cihazı doğruluyor",
+    "xboxPcConfirmingDeviceBody": "Yeniden giriş gerekebilir",
     "xboxPcSignInFailed": "Xbox PC oturum açma başarısız"
   },
   "uninstallModal": {

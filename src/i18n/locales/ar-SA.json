@@ -483,6 +483,8 @@
     "xboxPcSignedInAs": "تم تسجيل الدخول باسم {{gamertag}}. ستظهر ألعاب الكمبيوتر الخاصة بك بعد المزامنة.",
     "xboxPcSignedInBody": "ستظهر ألعاب الكمبيوتر الخاصة بك بعد المزامنة.",
     "xboxPcSigningIn": "جارٍ تسجيل الدخول لألعاب Xbox PC",
+    "xboxPcConfirmingDevice": "تتحقق Microsoft من هذا الجهاز",
+    "xboxPcConfirmingDeviceBody": "قد تحتاج إلى تسجيل الدخول مجددًا",
     "xboxPcSignInFailed": "فشل تسجيل الدخول إلى Xbox PC"
   },
   "uninstallModal": {

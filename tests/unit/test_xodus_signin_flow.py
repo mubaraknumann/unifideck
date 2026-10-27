@@ -238,6 +238,62 @@ async def test_cancel_is_silent(env: dict[str, Path]) -> None:
     assert not cli.credential_lock.locked() and edge.closed == 1
 
 
+def _make_watched(
+    env: dict[str, Path], page: FakePage,
+) -> tuple[XboxPcSignIn, list[tuple[bool, str | None]]]:
+    """A sign-in whose ``on_change`` records ``(running, last_error)`` at each call."""
+    install_backend(LOGIN_SCRIPT.format(gamertag="gamer one", mark=str(env["mark"])))
+    seen: list[tuple[bool, str | None]] = []
+    holder: list[XboxPcSignIn] = []
+    edge = FakeEdge()
+    signin = XboxPcSignIn(
+        XodusCli(env_base={"PATH": "/usr/bin:/bin"}), lambda: edge, FakeTokens(),  # type: ignore[arg-type]
+        lambda: False, lambda: seen.append((holder[0].running, holder[0].last_error)),
+        page_factory=lambda: page,  # type: ignore[arg-type,return-value]
+    )
+    holder.append(signin)
+    return signin, seen
+
+
+async def test_the_end_is_announced_once_running_is_false(env: dict[str, Path]) -> None:
+    """The facade re-reads the account only when ``running`` is False (I-060).
+
+    Announcing the end from inside the task saw ``running`` True, so the
+    account kept its signed-out value and every install signed in again.
+    """
+    signin, seen = _make_watched(env, FakePage())
+    await signin.start()
+    await _finish(signin)
+    await asyncio.sleep(0)
+    assert seen[0] == (True, None)
+    assert seen[-1] == (False, None)
+
+
+async def test_a_second_session_marks_the_device_step(env: dict[str, Path]) -> None:
+    """Session 2 is Microsoft confirming the device: announced once, cleared on start."""
+    signin, seen = _make_watched(env, FakePage("idle"))
+    await signin.start()
+    signin._on_session_open(1)
+    assert signin.step is None
+    before = len(seen)
+    signin._on_session_open(2)
+    signin._on_session_open(3)
+    assert signin.step == "device" and len(seen) == before + 1
+    await signin.cancel()
+    await signin.start()
+    assert signin.step is None
+    await signin.cancel()
+
+
+async def test_cancel_announces_the_end_once_running_is_false(env: dict[str, Path]) -> None:
+    signin, seen = _make_watched(env, FakePage("idle"))
+    await signin.start()
+    await signin.cancel()
+    await asyncio.sleep(0)
+    assert seen[-1][0] is False
+    assert signin.last_error is None
+
+
 @pytest.mark.parametrize("kwargs, reason", [
     ({"busy": True}, "auth_in_progress"),
     ({"edge": FakeEdge(alive={9223})}, "edge_busy"),

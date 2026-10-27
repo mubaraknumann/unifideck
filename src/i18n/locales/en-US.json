@@ -483,6 +483,8 @@
     "xboxPcSignedInAs": "Signed in as {{gamertag}}. Your PC games appear after the sync.",
     "xboxPcSignedInBody": "Your PC games appear after the sync.",
     "xboxPcSigningIn": "Signing in for Xbox PC games",
+    "xboxPcConfirmingDevice": "Microsoft is confirming this device",
+    "xboxPcConfirmingDeviceBody": "Might need to login again",
     "xboxPcSignInFailed": "Xbox PC sign-in failed"
   },
   "uninstallModal": {

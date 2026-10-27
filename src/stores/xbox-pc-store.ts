@@ -173,6 +173,7 @@ class XboxPcStoreImpl {
     if (sameStatus(prev, status) && this._snapshot.error == null) return;
     this._set({ status, loading: false, error: null });
     this._announceRuntime(prev, status);
+    this._announceDevice(prev, status);
   }
 
   // ── Actions ───────────────────────────────────────────
@@ -254,6 +255,21 @@ class XboxPcStoreImpl {
         ),
       );
     }
+  }
+
+  /**
+   * Microsoft asks to confirm the sign-in for this device: a second page in
+   * the same window, sometimes with a second login. Here, not in the sign-in
+   * flow, so it shows however the sign-in started (Connect Microsoft too).
+   */
+  private _announceDevice(prev: XboxPcStatus | null, next: XboxPcStatus): void {
+    if (next.account.step !== "device" || prev?.account.step === "device") {
+      return;
+    }
+    notify(
+      i18n.t("toasts.xboxPcConfirmingDevice"),
+      i18n.t("toasts.xboxPcConfirmingDeviceBody"),
+    );
   }
 
   private _set(next: XboxPcSnapshot): void {

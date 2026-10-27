@@ -215,6 +215,8 @@ export interface XboxPcStatus {
     state: XboxPcAccountState;
     gamertag?: string;
     error?: string;
+    /** While `signing_in`: `device` once Microsoft confirms this device. */
+    step?: string;
   };
   library: {
     installable: number;

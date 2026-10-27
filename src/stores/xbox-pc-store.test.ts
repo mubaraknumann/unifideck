@@ -216,6 +216,19 @@ describe("xbox-pc-store", () => {
     });
   });
 
+  it("toasts once when Microsoft starts confirming the device", async () => {
+    const store = _createXboxPcStore();
+    store.apply(status({ account: { state: "signing_in" } }));
+    expect(api.toast).not.toHaveBeenCalled();
+    store.apply(status({ account: { state: "signing_in", step: "device" } }));
+    store.apply(status({ account: { state: "signing_in", step: "device" }, enabled: true }));
+    expect(api.toast).toHaveBeenCalledTimes(1);
+    expect(api.toast.mock.calls[0][0]).toMatchObject({
+      title: "toasts.xboxPcConfirmingDevice",
+      body: "toasts.xboxPcConfirmingDeviceBody",
+    });
+  });
+
   it("toasts a failed component install with its cause", async () => {
     const store = _createXboxPcStore();
     store.apply(status({ runtime: { state: "installing", source_dir: "/s", degraded: [] } }));

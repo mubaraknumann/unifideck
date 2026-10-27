@@ -483,6 +483,8 @@
     "xboxPcSignedInAs": "已登录为 {{gamertag}}。同步完成后将显示您的 PC 游戏。",
     "xboxPcSignedInBody": "同步完成后将显示您的 PC 游戏。",
     "xboxPcSigningIn": "正在登录 Xbox PC 游戏",
+    "xboxPcConfirmingDevice": "Microsoft 正在确认此设备",
+    "xboxPcConfirmingDeviceBody": "可能需要重新登录",
     "xboxPcSignInFailed": "Xbox PC 登录失败"
   },
   "uninstallModal": {

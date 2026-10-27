@@ -483,6 +483,8 @@
     "xboxPcSignedInAs": "Вхід виконано як {{gamertag}}. Ваші ігри для ПК з'являться після синхронізації.",
     "xboxPcSignedInBody": "Ваші ігри для ПК з'являться після синхронізації.",
     "xboxPcSigningIn": "Виконується вхід для ігор Xbox PC",
+    "xboxPcConfirmingDevice": "Microsoft підтверджує цей пристрій",
+    "xboxPcConfirmingDeviceBody": "Можливо, доведеться увійти знову",
     "xboxPcSignInFailed": "Не вдалося увійти в Xbox PC"
   },
   "uninstallModal": {

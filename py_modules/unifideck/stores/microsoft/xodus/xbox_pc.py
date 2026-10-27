@@ -247,7 +247,10 @@ class XboxPc:
 
     def _account_view(self) -> dict[str, Any]:
         if self._signin.running or self._settling_sign_in:
-            return {"state": "signing_in"}
+            running: dict[str, Any] = {"state": "signing_in"}
+            if self._signin.step is not None:
+                running["step"] = self._signin.step
+            return running
         saved = self._saved
         view: dict[str, Any]
         if self._account_error is not None:
@@ -333,6 +336,7 @@ class XboxPc:
                 logger.info("%s account check deferred: a download holds the credentials", _LOG)
                 return
             self._account_error = f"xodus_{e.code}"
+            logger.info("%s account check failed: %s", _LOG, self._account_error)
         self._saved = await asyncio.to_thread(account_state.read_state)
 
     def signed_in_cached(self) -> bool:
@@ -422,6 +426,9 @@ class XboxPc:
 
     def _on_sign_in_change(self) -> None:
         """A sign-in started or ended. After it ends, re-read the account.
+
+        The end arrives from the sign-in task's done callback, so ``running``
+        is already False here (I-060).
 
         The end is not announced until the re-read finishes. The cached
         account is the one from before the sign-in (``signed_out``), and the

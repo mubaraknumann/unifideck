@@ -34,10 +34,17 @@ _LOG = "[XboxPcSignIn]"
 class CxhPageBridge:
     """Relays between one sign-in window and ``xodus-cli login``."""
 
-    def __init__(self, page: CdpPageSession, send_cli: SendCli) -> None:
-        """``send_cli`` writes one host frame to the CLI's stdin."""
+    def __init__(
+        self, page: CdpPageSession, send_cli: SendCli,
+        on_open: Callable[[int], None] | None = None,
+    ) -> None:
+        """``send_cli`` writes one host frame to the CLI's stdin.
+
+        ``on_open`` is told the number of each web session the backend opens.
+        """
         self._page = page
         self._send_cli = send_cli
+        self._on_open = on_open
         #: The backend's current web session, or None between sessions.
         self.session: int | None = None
         self._pending_headers: dict[str, str] | None = None
@@ -88,6 +95,8 @@ class CxhPageBridge:
         self._pending_headers = {str(k): str(v) for k, v in headers.items()} if isinstance(headers, dict) else None
         logger.info("%s open session %s -> %s", _LOG, session, proto.safe_url(url))
         await self._page.post("Page.navigate", {"url": url})
+        if self._on_open is not None:
+            self._on_open(session)
 
     # ── Events from the page ────────────────────────────────────────
 

@@ -483,6 +483,8 @@
     "xboxPcSignedInAs": "Angemeldet als {{gamertag}}. Deine PC-Spiele erscheinen nach der Synchronisierung.",
     "xboxPcSignedInBody": "Deine PC-Spiele erscheinen nach der Synchronisierung.",
     "xboxPcSigningIn": "Anmeldung für Xbox-PC-Spiele läuft",
+    "xboxPcConfirmingDevice": "Microsoft bestätigt dieses Gerät",
+    "xboxPcConfirmingDeviceBody": "Eventuell erneut anmelden",
     "xboxPcSignInFailed": "Xbox-PC-Anmeldung fehlgeschlagen"
   },
   "uninstallModal": {

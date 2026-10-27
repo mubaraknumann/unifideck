@@ -483,6 +483,8 @@
     "xboxPcSignedInAs": "{{gamertag}} としてサインインしました。PC ゲームは同期後に表示されます。",
     "xboxPcSignedInBody": "PC ゲームは同期後に表示されます。",
     "xboxPcSigningIn": "Xbox PC ゲームにサインインしています",
+    "xboxPcConfirmingDevice": "Microsoft がこのデバイスを確認中",
+    "xboxPcConfirmingDeviceBody": "再度サインインが必要な場合があります",
     "xboxPcSignInFailed": "Xbox PC のサインインに失敗しました"
   },
   "uninstallModal": {

@@ -24,6 +24,7 @@ paths.
 from __future__ import annotations
 
 import json
+import re
 import urllib.parse
 from typing import Any
 
@@ -55,6 +56,8 @@ INLINE_LOGIN_URL = "https://login.live.com/ppsecure/InlineLogin.srf"
 POST_SRF = ("login.live.com", "/ppsecure/post.srf")
 #: A page message the bridge relays is at most this long.
 MAX_PAYLOAD = 65536
+#: A ``CloudExperienceHost`` bridge method name, safe to log as-is.
+_CXH_NAME_RE = re.compile(r"^CloudExperienceHost(\.[A-Za-z]{1,40}){1,4}$")
 
 #: Runs before the page's own scripts, in the top frame of trusted hosts only.
 BRIDGE_JS = """(() => {
@@ -176,5 +179,9 @@ def describe_notify(payload: str) -> str:
         return "token payload (redacted)"
     if isinstance(data, dict):
         value = data.get("value") if isinstance(data.get("value"), dict) else {}
-        return redact(f"type={data.get('type')} name={value.get('name')}")[:120]
+        name = value.get("name")
+        # A bridge method name is not a secret, but it is long enough for
+        # ``redact`` to take it for a token (I-061).
+        shown = name if isinstance(name, str) and _CXH_NAME_RE.match(name) else redact(f"{name}")
+        return f"type={redact(str(data.get('type')))[:40]} name={shown}"[:120]
     return "non-object payload"

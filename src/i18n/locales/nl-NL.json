@@ -483,6 +483,8 @@
     "xboxPcSignedInAs": "Aangemeld als {{gamertag}}. Je pc-games verschijnen na de synchronisatie.",
     "xboxPcSignedInBody": "Je pc-games verschijnen na de synchronisatie.",
     "xboxPcSigningIn": "Aanmelden voor Xbox PC-games",
+    "xboxPcConfirmingDevice": "Microsoft bevestigt dit apparaat",
+    "xboxPcConfirmingDeviceBody": "Mogelijk opnieuw inloggen",
     "xboxPcSignInFailed": "Xbox PC-aanmelding mislukt"
   },
   "uninstallModal": {
