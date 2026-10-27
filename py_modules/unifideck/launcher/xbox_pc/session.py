@@ -81,6 +81,7 @@ from .runtime import Runtime, load_backend, load_runtime
 from .service_session import ServiceSession, sessions_dir
 from .stop import StagedStopper, kill_and_reap, stop_gracefully
 from .sweep import sweep_launch_views, sweep_sessions
+from .title_env import title_env
 
 logger = logging.getLogger(__name__)
 
@@ -366,10 +367,13 @@ class XboxPcLaunch:
             backend.service, build_env(clean_env(base), plan.credentials), self._sink, pid=plan.pid,
         )
         await self._service.start()
+        extra = title_env(game.store_id or plan.pid)
+        if extra:
+            logger.info("[xbox_pc] runtime features for this title: %s", ", ".join(f"{k}={v}" for k, v in extra.items()))
         env = build_game_env(
             base, credential_dir=plan.credentials, locale=self._locale,
             window_env=self._deps.window_env, service_env=self._service.env(),
-            overrides=self._ctx.env_overrides,
+            title_env=extra, overrides=self._ctx.env_overrides,
         )
         self._tag_stop = maybe_start_window_tagger(env, log_tag="xbox_pc")
         argv = run_argv(backend.cli, game.path, runner, game.executable, plan.market)

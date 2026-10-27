@@ -10,8 +10,9 @@ landed:
 3. :func:`stream_into`: ``xodus-cli streaming`` under the credential lock
    and the shared component locks, so a component update cannot delete the
    backend mid-download.
-4. :func:`verify`: the CLI said ``complete`` and exited 0, and the folder
-   holds the manifest, the launch executable and the package container.
+4. :func:`verify`: the CLI said ``complete`` and exited 0, folders that
+   differ only in letter case are merged, and the folder holds the
+   manifest, the launch executable and the package container.
 5. :func:`commit`: the ownership marker again (now naming the exe), then
    the ``installed`` record, both before the result returns.
 
@@ -38,6 +39,7 @@ from unifideck.launcher.xbox_pc.install_records import write_install_record
 from unifideck.launcher.xbox_pc.layout import ActiveComponents
 from unifideck.stores.shared.installed_size import dir_size_bytes
 
+from .case_folding import CaseConflictError, fold_case_collisions
 from .errors import InstallError, classify_failure, cli_error_text
 from .game_facts import GameFacts, read_game_facts
 from .ids import store_game_id
@@ -201,6 +203,14 @@ async def verify(outcome: StreamOutcome, game_dir: Path) -> GameFacts:
                 "xbox_install_incomplete", f"exit_after_complete | {outcome.tail}",
             )
         raise classify_failure(outcome)
+    try:
+        folded = await asyncio.to_thread(fold_case_collisions, game_dir)
+    except CaseConflictError as e:
+        raise InstallError("xbox_install_incomplete", f"case_conflict:{e.relative}") from e
+    except OSError as e:
+        raise InstallError("xbox_install_incomplete", f"case_fold_failed:{type(e).__name__}") from e
+    if folded:
+        logger.info("[xbox_install] merged folders that differ only in case: %s", ", ".join(folded))
     facts, missing = await asyncio.to_thread(read_game_facts, game_dir)
     if facts is None:
         raise InstallError("xbox_install_incomplete", missing)

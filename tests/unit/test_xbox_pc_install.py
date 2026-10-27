@@ -270,6 +270,31 @@ async def test_a_lowercase_manifest_name_is_found(env: dict[str, Any]) -> None:
     assert (await inst.install(PID, str(env["base"]))).success
 
 
+async def test_an_exe_in_a_folder_spelled_two_ways_is_found(env: dict[str, Any]) -> None:
+    from _xbox_pc_fakes import GAME_CONFIG
+
+    def spawn(game: Path) -> None:
+        # The layout names the exe's folder in one casing and writes it in another (I-058).
+        game.mkdir(parents=True, exist_ok=True)
+        config = GAME_CONFIG.format(version="1.0.5.0").replace('Name="love.exe"', 'Name="bin\\Gaming.X64\\love.exe"')
+        (game / "MicrosoftGame.Config").write_text(config)
+        (game / "bin" / "gaming.x64").mkdir(parents=True)
+        (game / "bin" / "gaming.x64" / "love.exe").write_bytes(b"MZ" + b"\0" * 64)
+        (game / "bin" / "gaming.x64" / "lib.dll").write_bytes(b"\0")
+        (game / "bin" / "Gaming.X64" / "crash").mkdir(parents=True)
+        (game / "bin" / "Gaming.X64" / "crash" / "report.exe").write_bytes(b"MZ")
+        (game / ".xodus-streaming.msixvc").write_bytes(b"\0" * 32)
+
+    inst, _ = _installer(env, cli=FakeCli(env["tmp"], on_spawn=spawn))
+    result = await inst.install(PID, str(env["base"]))
+    assert result.success, result.error
+    bin_dir = _root(env) / "game" / "bin"
+    assert [p.name for p in bin_dir.iterdir()] == ["gaming.x64"]
+    assert (bin_dir / "gaming.x64" / "crash" / "report.exe").is_file()
+    record = read_install_record(PID)
+    assert record is not None and record["exeRelative"] == "bin/gaming.x64/love.exe"
+
+
 async def test_cancel_kills_the_download_and_keeps_the_partial(env: dict[str, Any]) -> None:
     hang = FakeStdout([record_line(0, "metadata")], hang_at_end=True)
     procs: list[FakeProc] = []

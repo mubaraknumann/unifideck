@@ -20,7 +20,8 @@ Built in this order, so a later step wins over an earlier one:
    explicit ``0`` would make the window class ``steam_app_0`` and leave the
    game behind the Gaming Mode loading screen.
 7. The ``xodus-service`` socket and bridge, when running.
-8. The user's own ``KEY=value`` launch options, last (launcher invariant 7).
+8. Runtime features a known title needs (``title_env.TITLE_ENV``).
+9. The user's own ``KEY=value`` launch options, last (launcher invariant 7).
 
 Stdlib only, Python 3.10 safe.
 """
@@ -123,6 +124,7 @@ def build_game_env(
     content_roots: Sequence[str | Path] = (),
     window_env: Mapping[str, str] | None = None,
     service_env: Mapping[str, str] | None = None,
+    title_env: Mapping[str, str] | None = None,
     overrides: Mapping[str, str] | None = None,
 ) -> dict[str, str]:
     """The env for ``xodus-cli run`` and the game, in the order above."""
@@ -135,5 +137,6 @@ def build_game_env(
     env = build_env(env, credential_dir)
     env.update(window_env or {})
     env.update(service_env or {})
+    env.update(title_env or {})
     env.update(overrides or {})
     return env

@@ -235,3 +235,25 @@ def test_runner_keeps_the_vkd3d_shader_cache_in_the_prefix(tmp_path: Path) -> No
     subprocess.run([str(runner), NO_WAIT_FLAG, "x"], check=True,
                    env={**_PATH, "VKD3D_SHADER_CACHE_PATH": "Z:\\mine"})
     assert calls.read_text() == "cache=Z:\\mine\n", "a user's cache path wins"
+
+
+def test_a_known_title_gets_its_runtime_feature_and_the_user_can_turn_it_off(tmp_path: Path) -> None:
+    from unifideck.launcher.xbox_pc.title_env import title_env
+
+    extra = title_env("c261457lcnmj")
+    assert extra == {"XODUS_GAMEINPUT_V3": "1"}
+    env = build_game_env({"HOME": "/h"}, credential_dir=tmp_path, title_env=extra)
+    assert env["XODUS_GAMEINPUT_V3"] == "1"
+    env = build_game_env(
+        {"HOME": "/h"}, credential_dir=tmp_path, title_env=extra, overrides={"XODUS_GAMEINPUT_V3": "0"},
+    )
+    assert env["XODUS_GAMEINPUT_V3"] == "0", "the user's launch option wins"
+
+
+def test_any_other_title_gets_no_runtime_feature() -> None:
+    from unifideck.launcher.xbox_pc.title_env import TITLE_ENV, title_env
+
+    assert title_env("9PK087LNGJC5") == {}
+    assert title_env(None) == {}
+    title_env("C261457LCNMJ")["XODUS_GAMEINPUT_V3"] = "changed"
+    assert TITLE_ENV["C261457LCNMJ"]["XODUS_GAMEINPUT_V3"] == "1", "callers get a copy"
