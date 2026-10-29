@@ -416,7 +416,7 @@
       "xboxPcCloudSaveUnavailable": "{{game_key}} no se ha iniciado porque las partidas guardadas en la nube de Xbox no están disponibles. Revisa la sesión de Xbox PC y tu conexión e inténtalo de nuevo.",
       "xboxPcSteamRootMissing": "{{game_key}} no puede iniciarse porque Unifideck no encontró tu carpeta de Steam.",
       "xboxPcSignInRequired": "Inicia sesión en los juegos de Xbox PC desde los ajustes de Unifideck para jugar a {{game_key}}.",
-      "xboxPcNotDownloaded": "{{game_key}} no está instalado por completo. Termina o repite la instalación e inténtalo de nuevo.",
+      "xboxPcNotDownloaded": "A {{game_key}} le faltan archivos. Descargándolos ahora.",
       "xboxPcAlreadyRunning": "{{game_key}} ya se está ejecutando.",
       "xboxPcPrefixFailed": "No se pudo preparar el prefijo de Wine para {{game_key}}. Ver registros para detalles.",
       "xboxPcVcRedistMissing": "Falta VC++",
@@ -485,6 +485,7 @@
     "xboxPcSigningIn": "Iniciando sesión para juegos de Xbox PC",
     "xboxPcConfirmingDevice": "Microsoft está confirmando este dispositivo",
     "xboxPcConfirmingDeviceBody": "Puede que debas iniciar sesión de nuevo",
+    "xboxPcRepairFailed": "No se pudo reparar el juego",
     "xboxPcSignInFailed": "Error al iniciar sesión en Xbox PC"
   },
   "uninstallModal": {
@@ -567,6 +568,7 @@
       "xboxPcUpdatePending": "Una actualización de este juego no ha terminado. Ejecuta primero la actualización.",
       "xboxPcDriveMissing": "La unidad que contiene este juego no está conectada. Conéctala e inténtalo de nuevo.",
       "xboxPcOldPartial": "No se pudo eliminar una descarga sin terminar de este juego en otra unidad. Elimínala allí e inténtalo de nuevo.",
+      "xboxPcRepairNoRecord": "No hay ninguna instalación que reparar. Instala el juego.",
       "xboxPcGameRunning": "Cierra primero el juego e inténtalo de nuevo.",
       "xboxPcComponentsBusy": "Se están actualizando los componentes de Xbox PC. Inténtalo de nuevo dentro de un minuto.",
       "xboxPcBackendFailed": "Xodus se detuvo con un error. Inténtalo de nuevo y captura los registros si sigue fallando.",
@@ -1252,6 +1254,7 @@
         "windowClosed": "La ventana de inicio de sesión se cerró antes de terminar.",
         "timeout": "El inicio de sesión tardó demasiado y se detuvo.",
         "notStored": "El inicio de sesión terminó, pero la cuenta no se guardó. Inténtalo de nuevo.",
+        "xboxRefused": "Xbox Live rechazó esta cuenta o dispositivo",
         "mismatch": "Esa cuenta es distinta de tu sesión de Microsoft. Inicia sesión con la misma cuenta.",
         "credentialStore": "Unifideck no pudo leer ni guardar la sesión de Xbox PC.",
         "gameRunning": "Hay un juego de Xbox PC en ejecución. Inténtalo de nuevo cuando se cierre."

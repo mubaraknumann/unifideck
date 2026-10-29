@@ -416,7 +416,7 @@
       "xboxPcCloudSaveUnavailable": "Nie uruchomiono {{game_key}}, ponieważ zapisy w chmurze Xbox są niedostępne. Sprawdź logowanie Xbox PC i połączenie, a następnie spróbuj ponownie.",
       "xboxPcSteamRootMissing": "Nie można uruchomić {{game_key}}, ponieważ Unifideck nie znalazł folderu Steam.",
       "xboxPcSignInRequired": "Zaloguj się do gier Xbox PC w ustawieniach Unifideck, aby zagrać w {{game_key}}.",
-      "xboxPcNotDownloaded": "Instalacja {{game_key}} nie jest ukończona. Dokończ lub powtórz instalację, a następnie spróbuj ponownie.",
+      "xboxPcNotDownloaded": "W {{game_key}} brakuje plików. Pobieranie teraz.",
       "xboxPcAlreadyRunning": "Gra {{game_key}} jest już uruchomiona.",
       "xboxPcPrefixFailed": "Nie udało się przygotować prefiksu Wine dla {{game_key}}. Szczegóły znajdziesz w dziennikach.",
       "xboxPcVcRedistMissing": "Brak VC++",
@@ -485,6 +485,7 @@
     "xboxPcSigningIn": "Logowanie do gier Xbox PC",
     "xboxPcConfirmingDevice": "Microsoft potwierdza to urządzenie",
     "xboxPcConfirmingDeviceBody": "Może być potrzebne ponowne logowanie",
+    "xboxPcRepairFailed": "Nie udało się naprawić gry",
     "xboxPcSignInFailed": "Logowanie Xbox PC nie powiodło się"
   },
   "uninstallModal": {
@@ -567,6 +568,7 @@
       "xboxPcUpdatePending": "Aktualizacja tej gry nie została ukończona. Najpierw uruchom aktualizację.",
       "xboxPcDriveMissing": "Dysk z tą grą nie jest podłączony. Podłącz go i spróbuj ponownie.",
       "xboxPcOldPartial": "Nie udało się usunąć nieukończonego pobierania tej gry na innym dysku. Usuń je tam i spróbuj ponownie.",
+      "xboxPcRepairNoRecord": "Brak instalacji do naprawy. Zainstaluj grę.",
       "xboxPcGameRunning": "Najpierw zamknij grę, a następnie spróbuj ponownie.",
       "xboxPcComponentsBusy": "Komponenty Xbox PC są aktualizowane. Spróbuj ponownie za minutę.",
       "xboxPcBackendFailed": "Xodus zatrzymał się z błędem. Spróbuj ponownie, a jeśli błąd się powtarza, przechwyć dzienniki.",
@@ -1252,6 +1254,7 @@
         "windowClosed": "Okno logowania zostało zamknięte przed ukończeniem logowania.",
         "timeout": "Logowanie trwało zbyt długo i zostało przerwane.",
         "notStored": "Logowanie zakończone, ale konto nie zostało zapisane. Spróbuj ponownie.",
+        "xboxRefused": "Xbox Live odrzucił to konto lub urządzenie",
         "mismatch": "To inne konto niż konto użyte przy logowaniu Microsoft. Zaloguj się na to samo konto.",
         "credentialStore": "Unifideck nie mógł odczytać ani zapisać logowania Xbox PC.",
         "gameRunning": "Uruchomiona jest gra Xbox PC. Spróbuj ponownie po jej zamknięciu."

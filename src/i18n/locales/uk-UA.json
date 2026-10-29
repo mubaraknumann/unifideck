@@ -416,7 +416,7 @@
       "xboxPcCloudSaveUnavailable": "{{game_key}} не запущено, тому що хмарні збереження Xbox недоступні. Перевірте вхід у Xbox PC і підключення, потім повторіть спробу.",
       "xboxPcSteamRootMissing": "{{game_key}} не може запуститися, тому що Unifideck не знайшов вашу папку Steam.",
       "xboxPcSignInRequired": "Щоб грати в {{game_key}}, увійдіть в ігри Xbox PC у налаштуваннях Unifideck.",
-      "xboxPcNotDownloaded": "{{game_key}} встановлено не повністю. Завершіть або повторіть встановлення, потім спробуйте знову.",
+      "xboxPcNotDownloaded": "У {{game_key}} бракує файлів. Завантажуємо їх зараз.",
       "xboxPcAlreadyRunning": "{{game_key}} вже запущено.",
       "xboxPcPrefixFailed": "Не вдалося підготувати префікс Wine для {{game_key}}. Подробиці дивіться у логах.",
       "xboxPcVcRedistMissing": "Немає VC++",
@@ -485,6 +485,7 @@
     "xboxPcSigningIn": "Виконується вхід для ігор Xbox PC",
     "xboxPcConfirmingDevice": "Microsoft підтверджує цей пристрій",
     "xboxPcConfirmingDeviceBody": "Можливо, доведеться увійти знову",
+    "xboxPcRepairFailed": "Не вдалося відновити гру",
     "xboxPcSignInFailed": "Не вдалося увійти в Xbox PC"
   },
   "uninstallModal": {
@@ -567,6 +568,7 @@
       "xboxPcUpdatePending": "Оновлення цієї гри не завершено. Спочатку виконайте оновлення.",
       "xboxPcDriveMissing": "Диск із цією грою не підключено. Підключіть його та спробуйте ще раз.",
       "xboxPcOldPartial": "Не вдалося видалити незавершене завантаження цієї гри на іншому диску. Видаліть його там і спробуйте ще раз.",
+      "xboxPcRepairNoRecord": "Немає встановлення для відновлення. Установіть гру.",
       "xboxPcGameRunning": "Спочатку закрийте гру, потім повторіть спробу.",
       "xboxPcComponentsBusy": "Компоненти Xbox PC оновлюються. Повторіть спробу за хвилину.",
       "xboxPcBackendFailed": "Xodus завершився з помилкою. Повторіть спробу, а якщо помилка повторюється, зберіть журнали.",
@@ -1252,6 +1254,7 @@
         "windowClosed": "Вікно входу було закрито до завершення входу.",
         "timeout": "Вхід тривав надто довго і був зупинений.",
         "notStored": "Вхід завершено, але обліковий запис не було збережено. Повторіть спробу.",
+        "xboxRefused": "Xbox Live відхилив цей обліковий запис або пристрій",
         "mismatch": "Це не той обліковий запис, з яким ви увійшли в Microsoft. Увійдіть з тим самим обліковим записом.",
         "credentialStore": "Unifideck не зміг прочитати або зберегти дані входу Xbox PC.",
         "gameRunning": "Запущено гру Xbox PC. Повторіть спробу після її закриття."

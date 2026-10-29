@@ -416,7 +416,7 @@
       "xboxPcCloudSaveUnavailable": "{{game_key}} non è stato avviato perché i salvataggi cloud Xbox non sono disponibili. Controlla l'accesso a Xbox PC e la connessione, poi riprova.",
       "xboxPcSteamRootMissing": "{{game_key}} non può avviarsi perché Unifideck non ha trovato la tua cartella di Steam.",
       "xboxPcSignInRequired": "Accedi ai giochi Xbox PC nelle impostazioni di Unifideck per giocare a {{game_key}}.",
-      "xboxPcNotDownloaded": "{{game_key}} non è installato completamente. Completa o ripeti l'installazione, poi riprova.",
+      "xboxPcNotDownloaded": "A {{game_key}} mancano dei file. Download in corso.",
       "xboxPcAlreadyRunning": "{{game_key}} è già in esecuzione.",
       "xboxPcPrefixFailed": "Impossibile preparare il prefisso Wine per {{game_key}}. Controlla i log per dettagli.",
       "xboxPcVcRedistMissing": "Manca VC++",
@@ -485,6 +485,7 @@
     "xboxPcSigningIn": "Accesso in corso per i giochi Xbox PC",
     "xboxPcConfirmingDevice": "Microsoft sta confermando questo dispositivo",
     "xboxPcConfirmingDeviceBody": "Potrebbe servire un nuovo accesso",
+    "xboxPcRepairFailed": "Impossibile riparare il gioco",
     "xboxPcSignInFailed": "Accesso a Xbox PC non riuscito"
   },
   "uninstallModal": {
@@ -567,6 +568,7 @@
       "xboxPcUpdatePending": "Un aggiornamento di questo gioco non è stato completato. Esegui prima l'aggiornamento.",
       "xboxPcDriveMissing": "L'unità che contiene questo gioco non è collegata. Collegala, poi riprova.",
       "xboxPcOldPartial": "Non è stato possibile rimuovere un download incompleto di questo gioco su un'altra unità. Eliminalo da lì, poi riprova.",
+      "xboxPcRepairNoRecord": "Non c'è un'installazione da riparare. Installa il gioco.",
       "xboxPcGameRunning": "Chiudi prima il gioco, poi riprova.",
       "xboxPcComponentsBusy": "I componenti Xbox PC sono in fase di aggiornamento. Riprova tra un minuto.",
       "xboxPcBackendFailed": "Xodus si è interrotto con un errore. Riprova e acquisisci i registri se continua a non funzionare.",
@@ -1252,6 +1254,7 @@
         "windowClosed": "La finestra di accesso è stata chiusa prima del completamento dell'accesso.",
         "timeout": "L'accesso ha richiesto troppo tempo ed è stato interrotto.",
         "notStored": "L'accesso è stato completato, ma l'account non è stato salvato. Riprova.",
+        "xboxRefused": "Xbox Live ha rifiutato account o dispositivo",
         "mismatch": "Questo account è diverso da quello del tuo accesso Microsoft. Accedi con lo stesso account.",
         "credentialStore": "Unifideck non è riuscito a leggere o salvare l'accesso a Xbox PC.",
         "gameRunning": "È in esecuzione un gioco Xbox PC. Riprova dopo averlo chiuso."

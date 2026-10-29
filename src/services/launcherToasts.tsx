@@ -23,6 +23,7 @@ import { CloudSaveConflictModal } from "../components/modals/CloudSaveConflictMo
 import { resolveToastDuration } from "./toast-duration";
 import { buildToastParams } from "./toast-params";
 import { isConflictAction, resolveToastAction } from "./toast-action";
+import { REPAIR_VERB, repairXboxPcGame } from "./store/xbox-pc-repair";
 import type { ToastActionPayload } from "../types/events";
 
 const POLL_INTERVAL_MS = 2000;
@@ -116,6 +117,12 @@ function showLauncherToast(ev: LauncherToast): void {
       />,
     );
     return;
+  }
+
+  // Play on an Xbox PC game with missing files: download them now. The
+  // toast below still says what is happening.
+  if (ev.action?.verb === REPAIR_VERB && ev.action.args?.[0]) {
+    void repairXboxPcGame(ev.action.args[0]);
   }
 
   const message = ev.i18n_key ? String(i18n.t(ev.i18n_key, params)) : "";

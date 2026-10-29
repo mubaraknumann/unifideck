@@ -416,7 +416,7 @@
       "xboxPcCloudSaveUnavailable": "Xbox クラウドセーブを利用できないため、{{game_key}} を起動しませんでした。Xbox PC のサインインと接続を確認してから、もう一度お試しください。",
       "xboxPcSteamRootMissing": "Unifideck が Steam フォルダーを見つけられなかったため、{{game_key}} を起動できません。",
       "xboxPcSignInRequired": "{{game_key}} をプレイするには、Unifideck の設定で Xbox PC ゲームにサインインしてください。",
-      "xboxPcNotDownloaded": "{{game_key}} のインストールが完了していません。インストールを完了するかやり直してから、もう一度お試しください。",
+      "xboxPcNotDownloaded": "{{game_key}} のファイルが不足しています。今すぐダウンロードします。",
       "xboxPcAlreadyRunning": "{{game_key}} はすでに実行中です。",
       "xboxPcPrefixFailed": "{{game_key}} の Wine プレフィックスを準備できませんでした。詳細はログを確認してください。",
       "xboxPcVcRedistMissing": "VC++ がありません",
@@ -485,6 +485,7 @@
     "xboxPcSigningIn": "Xbox PC ゲームにサインインしています",
     "xboxPcConfirmingDevice": "Microsoft がこのデバイスを確認中",
     "xboxPcConfirmingDeviceBody": "再度サインインが必要な場合があります",
+    "xboxPcRepairFailed": "ゲームを修復できませんでした",
     "xboxPcSignInFailed": "Xbox PC のサインインに失敗しました"
   },
   "uninstallModal": {
@@ -567,6 +568,7 @@
       "xboxPcUpdatePending": "このゲームのアップデートが完了していません。先にアップデートを実行してください。",
       "xboxPcDriveMissing": "このゲームが入っているドライブが接続されていません。接続してから、もう一度お試しください。",
       "xboxPcOldPartial": "別のドライブにあるこのゲームの未完了のダウンロードを削除できませんでした。そこで削除してから、もう一度お試しください。",
+      "xboxPcRepairNoRecord": "修復するインストールがありません。ゲームをインストールしてください。",
       "xboxPcGameRunning": "先にゲームを終了してから、もう一度お試しください。",
       "xboxPcComponentsBusy": "Xbox PC コンポーネントを更新中です。1 分ほどしてから、もう一度お試しください。",
       "xboxPcBackendFailed": "Xodus がエラーで停止しました。もう一度お試しください。失敗が続く場合はログを収集してください。",
@@ -1252,6 +1254,7 @@
         "windowClosed": "サインインが完了する前にサインインウィンドウが閉じられました。",
         "timeout": "サインインに時間がかかりすぎたため、停止しました。",
         "notStored": "サインインは完了しましたが、アカウントが保存されませんでした。もう一度お試しください。",
+        "xboxRefused": "Xbox Live がこのアカウントまたはデバイスを拒否しました",
         "mismatch": "Microsoft のサインインとは別のアカウントです。同じアカウントでサインインしてください。",
         "credentialStore": "Unifideck は Xbox PC のサインイン情報を読み込みまたは保存できませんでした。",
         "gameRunning": "Xbox PC ゲームが実行中です。ゲームが終了してから、もう一度お試しください。"

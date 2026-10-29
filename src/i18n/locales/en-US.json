@@ -425,7 +425,7 @@
       "xboxPcCloudSaveUnavailable": "{{game_key}} was not started because Xbox cloud saves are unavailable. Check the Xbox PC sign-in and your connection, then try again.",
       "xboxPcSteamRootMissing": "{{game_key}} can't start because Unifideck could not find your Steam folder.",
       "xboxPcSignInRequired": "Sign in to Xbox PC games in Unifideck settings to play {{game_key}}.",
-      "xboxPcNotDownloaded": "{{game_key}} is not fully installed. Finish or repeat the install, then try again.",
+      "xboxPcNotDownloaded": "{{game_key}} is missing files. Downloading them now.",
       "xboxPcAlreadyRunning": "{{game_key}} is already running.",
       "xboxPcPrefixFailed": "Couldn't prepare the Wine prefix for {{game_key}}. Check the logs for details.",
       "xboxPcVcRedistMissing": "VC++ missing",
@@ -485,6 +485,7 @@
     "xboxPcSigningIn": "Signing in for Xbox PC games",
     "xboxPcConfirmingDevice": "Microsoft is confirming this device",
     "xboxPcConfirmingDeviceBody": "Might need to login again",
+    "xboxPcRepairFailed": "Couldn't repair the game",
     "xboxPcSignInFailed": "Xbox PC sign-in failed"
   },
   "uninstallModal": {
@@ -567,6 +568,7 @@
       "xboxPcUpdatePending": "An update of this game has not finished. Run the update first.",
       "xboxPcDriveMissing": "The drive that holds this game is not connected. Connect it, then try again.",
       "xboxPcOldPartial": "An unfinished download of this game on another drive could not be removed. Delete it there, then try again.",
+      "xboxPcRepairNoRecord": "There is no install to repair. Install the game instead.",
       "xboxPcGameRunning": "Close the game first, then try again.",
       "xboxPcComponentsBusy": "The Xbox PC components are being updated. Try again in a minute.",
       "xboxPcBackendFailed": "Xodus stopped with an error. Try again, and capture logs if it keeps failing.",
@@ -1252,6 +1254,7 @@
         "windowClosed": "The sign-in window was closed before sign-in finished.",
         "timeout": "Sign-in took too long and was stopped.",
         "notStored": "Sign-in finished, but the account was not saved. Try again.",
+        "xboxRefused": "Xbox Live refused this account or device",
         "mismatch": "That is a different account from your Microsoft sign-in. Sign in with the same account.",
         "credentialStore": "Unifideck couldn't read or save the Xbox PC sign-in.",
         "gameRunning": "An Xbox PC game is running. Try again after it closes."

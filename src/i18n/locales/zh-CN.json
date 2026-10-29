@@ -416,7 +416,7 @@
       "xboxPcCloudSaveUnavailable": "由于 Xbox 云存档不可用，未启动 {{game_key}}。请检查 Xbox PC 登录状态和网络连接，然后重试。",
       "xboxPcSteamRootMissing": "Unifideck 找不到您的 Steam 文件夹，因此无法启动 {{game_key}}。",
       "xboxPcSignInRequired": "请在 Unifideck 设置中登录 Xbox PC 游戏，才能游玩 {{game_key}}。",
-      "xboxPcNotDownloaded": "{{game_key}} 未完整安装。请完成或重新进行安装，然后重试。",
+      "xboxPcNotDownloaded": "{{game_key}} 缺少文件，正在下载。",
       "xboxPcAlreadyRunning": "{{game_key}} 已在运行。",
       "xboxPcPrefixFailed": "无法为 {{game_key}} 准备 Wine 环境。请查看日志了解详细信息。",
       "xboxPcVcRedistMissing": "缺少 VC++",
@@ -485,6 +485,7 @@
     "xboxPcSigningIn": "正在登录 Xbox PC 游戏",
     "xboxPcConfirmingDevice": "Microsoft 正在确认此设备",
     "xboxPcConfirmingDeviceBody": "可能需要重新登录",
+    "xboxPcRepairFailed": "无法修复游戏",
     "xboxPcSignInFailed": "Xbox PC 登录失败"
   },
   "uninstallModal": {
@@ -567,6 +568,7 @@
       "xboxPcUpdatePending": "此游戏的更新尚未完成。请先运行更新。",
       "xboxPcDriveMissing": "存放此游戏的驱动器未连接。请连接后重试。",
       "xboxPcOldPartial": "无法删除此游戏在另一个驱动器上未完成的下载。请在该驱动器上删除后重试。",
+      "xboxPcRepairNoRecord": "没有可修复的安装。请安装游戏。",
       "xboxPcGameRunning": "请先关闭游戏，然后重试。",
       "xboxPcComponentsBusy": "Xbox PC 组件正在更新。请一分钟后重试。",
       "xboxPcBackendFailed": "Xodus 因错误而停止。请重试，如果仍然失败，请收集日志。",
@@ -1252,6 +1254,7 @@
         "windowClosed": "登录窗口在登录完成前被关闭。",
         "timeout": "登录耗时过长，已被中止。",
         "notStored": "登录已完成，但未能保存账户。请重试。",
+        "xboxRefused": "Xbox Live 拒绝了此帐户或设备",
         "mismatch": "该账户与您的 Microsoft 登录账户不同。请使用同一个账户登录。",
         "credentialStore": "Unifideck 无法读取或保存 Xbox PC 登录信息。",
         "gameRunning": "有 Xbox PC 游戏正在运行。请在游戏关闭后重试。"

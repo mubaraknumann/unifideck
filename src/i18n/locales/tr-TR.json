@@ -416,7 +416,7 @@
       "xboxPcCloudSaveUnavailable": "Xbox bulut kayıtları kullanılamadığı için {{game_key}} başlatılmadı. Xbox PC oturumunu ve bağlantınızı kontrol edip tekrar deneyin.",
       "xboxPcSteamRootMissing": "Unifideck Steam klasörünüzü bulamadığı için {{game_key}} başlatılamıyor.",
       "xboxPcSignInRequired": "{{game_key}} oynamak için Unifideck ayarlarından Xbox PC oyunları için oturum açın.",
-      "xboxPcNotDownloaded": "{{game_key}} tam olarak yüklenmedi. Kurulumu tamamlayın veya yineleyin, sonra tekrar deneyin.",
+      "xboxPcNotDownloaded": "{{game_key}} için eksik dosyalar var. Şimdi indiriliyor.",
       "xboxPcAlreadyRunning": "{{game_key}} zaten çalışıyor.",
       "xboxPcPrefixFailed": "{{game_key}} için Wine öneki hazırlanamadı. Detaylar için günlüklere bakın.",
       "xboxPcVcRedistMissing": "VC++ eksik",
@@ -485,6 +485,7 @@
     "xboxPcSigningIn": "Xbox PC oyunları için oturum açılıyor",
     "xboxPcConfirmingDevice": "Microsoft bu cihazı doğruluyor",
     "xboxPcConfirmingDeviceBody": "Yeniden giriş gerekebilir",
+    "xboxPcRepairFailed": "Oyun onarılamadı",
     "xboxPcSignInFailed": "Xbox PC oturum açma başarısız"
   },
   "uninstallModal": {
@@ -567,6 +568,7 @@
       "xboxPcUpdatePending": "Bu oyunun bir güncellemesi tamamlanmadı. Önce güncellemeyi çalıştırın.",
       "xboxPcDriveMissing": "Bu oyunu içeren sürücü bağlı değil. Bağlayın ve tekrar deneyin.",
       "xboxPcOldPartial": "Bu oyunun başka bir sürücüdeki tamamlanmamış indirmesi kaldırılamadı. Onu orada silin ve tekrar deneyin.",
+      "xboxPcRepairNoRecord": "Onarılacak bir kurulum yok. Oyunu yükleyin.",
       "xboxPcGameRunning": "Önce oyunu kapatın, sonra tekrar deneyin.",
       "xboxPcComponentsBusy": "Xbox PC bileşenleri güncelleniyor. Bir dakika sonra tekrar deneyin.",
       "xboxPcBackendFailed": "Xodus bir hatayla durdu. Tekrar deneyin, sorun sürerse günlükleri toplayın.",
@@ -1252,6 +1254,7 @@
         "windowClosed": "Oturum açma penceresi, işlem bitmeden kapatıldı.",
         "timeout": "Oturum açma çok uzun sürdü ve durduruldu.",
         "notStored": "Oturum açma tamamlandı ancak hesap kaydedilmedi. Tekrar deneyin.",
+        "xboxRefused": "Xbox Live bu hesabı veya cihazı reddetti",
         "mismatch": "Bu, Microsoft oturumunuzdan farklı bir hesap. Aynı hesapla oturum açın.",
         "credentialStore": "Unifideck, Xbox PC oturum bilgilerini okuyamadı veya kaydedemedi.",
         "gameRunning": "Bir Xbox PC oyunu çalışıyor. Oyun kapandıktan sonra tekrar deneyin."

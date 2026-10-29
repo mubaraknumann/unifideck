@@ -416,7 +416,7 @@
       "xboxPcCloudSaveUnavailable": "لم يتم تشغيل {{game_key}} لأن الحفظ السحابي من Xbox غير متاح. تحقق من تسجيل الدخول إلى Xbox PC ومن اتصالك، ثم حاول مرة أخرى.",
       "xboxPcSteamRootMissing": "لا يمكن تشغيل {{game_key}} لأن Unifideck لم يعثر على مجلد Steam الخاص بك.",
       "xboxPcSignInRequired": "سجّل الدخول إلى ألعاب Xbox PC في إعدادات Unifideck لتلعب {{game_key}}.",
-      "xboxPcNotDownloaded": "{{game_key}} غير مثبتة بالكامل. أكمل التثبيت أو أعده، ثم حاول مرة أخرى.",
+      "xboxPcNotDownloaded": "تنقص {{game_key}} ملفات. جارٍ تنزيلها الآن.",
       "xboxPcAlreadyRunning": "{{game_key}} قيد التشغيل بالفعل.",
       "xboxPcPrefixFailed": "تعذر تجهيز بيئة تشغيل Wine للعبة {{game_key}}. راجع السجلات للتفاصيل.",
       "xboxPcVcRedistMissing": "VC++ غير مثبت",
@@ -485,6 +485,7 @@
     "xboxPcSigningIn": "جارٍ تسجيل الدخول لألعاب Xbox PC",
     "xboxPcConfirmingDevice": "تتحقق Microsoft من هذا الجهاز",
     "xboxPcConfirmingDeviceBody": "قد تحتاج إلى تسجيل الدخول مجددًا",
+    "xboxPcRepairFailed": "تعذّر إصلاح اللعبة",
     "xboxPcSignInFailed": "فشل تسجيل الدخول إلى Xbox PC"
   },
   "uninstallModal": {
@@ -567,6 +568,7 @@
       "xboxPcUpdatePending": "لم يكتمل تحديث لهذه اللعبة. شغّل التحديث أولاً.",
       "xboxPcDriveMissing": "محرك الأقراص الذي يحتوي على هذه اللعبة غير متصل. وصّله ثم حاول مرة أخرى.",
       "xboxPcOldPartial": "تعذّرت إزالة تنزيل غير مكتمل لهذه اللعبة على محرك أقراص آخر. احذفه من هناك ثم حاول مرة أخرى.",
+      "xboxPcRepairNoRecord": "لا يوجد تثبيت لإصلاحه. ثبّت اللعبة بدلًا من ذلك.",
       "xboxPcGameRunning": "أغلق اللعبة أولاً ثم حاول مرة أخرى.",
       "xboxPcComponentsBusy": "يجري تحديث مكونات Xbox PC. حاول مرة أخرى بعد دقيقة.",
       "xboxPcBackendFailed": "توقف Xodus بسبب خطأ. حاول مرة أخرى، واجمع السجلات إذا استمر الفشل.",
@@ -1252,6 +1254,7 @@
         "windowClosed": "أُغلقت نافذة تسجيل الدخول قبل اكتمال تسجيل الدخول.",
         "timeout": "استغرق تسجيل الدخول وقتاً طويلاً جداً فتم إيقافه.",
         "notStored": "اكتمل تسجيل الدخول لكن لم يتم حفظ الحساب. حاول مرة أخرى.",
+        "xboxRefused": "رفض Xbox Live هذا الحساب أو الجهاز",
         "mismatch": "هذا حساب مختلف عن حساب تسجيل الدخول إلى Microsoft. سجّل الدخول بالحساب نفسه.",
         "credentialStore": "تعذر على Unifideck قراءة تسجيل الدخول إلى Xbox PC أو حفظه.",
         "gameRunning": "إحدى ألعاب Xbox PC قيد التشغيل. حاول مرة أخرى بعد إغلاقها."

@@ -200,6 +200,24 @@ async def test_status_never_runs_profile_and_refresh_verifies(tmp_path: Path) ->
     assert log.read_text().split().count("profile") == 1, "a verified account is not re-verified"
 
 
+async def test_a_refused_account_is_an_error_until_a_recheck_passes(tmp_path: Path) -> None:
+    """Stored, but Xbox Live refused it: installs must not read it as signed in (I-062)."""
+    import time
+
+    from unifideck.stores.microsoft.xodus import account_state
+
+    install_backend(ACCOUNT_SCRIPT.format(log=str(tmp_path / "calls.log"), stored="True"))
+    facade, config, _ = _facade(tmp_path)
+    config.data[XBOX_PC_ENABLED_KEY] = True
+    await asyncio.to_thread(
+        account_state.write_state, account_state.AccountState(None, time.time(), refused=True),
+    )
+    assert (await facade.checked_status())["account"] == {"state": "error", "error": "xbox_refused"}
+    assert not await facade.is_ready()
+    # Fixed on the user's side (for example a device removed): the next refresh sees it.
+    assert (await facade.refresh_status())["account"]["state"] == "signed_in"
+
+
 async def test_signed_out_account_and_sign_out(tmp_path: Path) -> None:
     log = tmp_path / "calls.log"
     install_backend(ACCOUNT_SCRIPT.format(log=str(log), stored="False"))

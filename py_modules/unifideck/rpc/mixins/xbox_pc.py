@@ -30,6 +30,8 @@ class XboxPcRPCMixin:
     """Xbox PC toggle, components, sign-in and status."""
 
     registry: Any
+    #: ``DownloadRPCMixin._queue_install``, on the same plugin.
+    _queue_install: Any
 
     def _xbox_pc(self) -> Any:
         """The facade, or None when the Microsoft store is missing."""
@@ -86,3 +88,20 @@ class XboxPcRPCMixin:
         """Stop a running sign-in (no failure is recorded)."""
         status: dict[str, Any] = await self._require_xbox_pc().cancel_sign_in()
         return status
+
+    async def repair_xbox_pc_game(self, game_id: str) -> dict[str, Any]:
+        """Queue a repair of an installed game: ``{success, error}``.
+
+        Play on a game whose files are missing (the launcher's
+        ``not_downloaded``) calls this. It installs into the folder the game
+        already has, which the installer runs as a repair or a resume.
+        """
+        target: dict[str, Any] = await self._require_xbox_pc().repair_target(str(game_id))
+        if "reason" in target:
+            logger.info("[XboxPcRPC] repair of %s refused: %s", game_id, target["reason"])
+            return {"success": False, "error": target["reason"]}
+        logger.info("[XboxPcRPC] repairing %s in %s", game_id, target["base_path"])
+        result: dict[str, Any] = await self._queue_install(
+            "microsoft", str(game_id), target["base_path"], target["title"],
+        )
+        return result

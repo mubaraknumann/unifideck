@@ -65,9 +65,10 @@ def _obtain_xbl_user_token(
     live = [("2", f"t={access_token}"), ("1", f"d={access_token}"), ("1", f"t={access_token}")]
     aad = [("1", f"d={access_token}"), ("2", f"t={access_token}")]
     candidates = aad if prefer_d else live
+    reasons: list[str] = []
     for contract_v, rps in candidates:
         resp = _try_xbl_request(
-            contract_v, rps, locale, xbl_auth_url, xbl_user_agent,
+            contract_v, rps, locale, xbl_auth_url, xbl_user_agent, reasons,
         )
         if resp is not None and resp.get("Token"):
             logger.info(
@@ -75,8 +76,11 @@ def _obtain_xbl_user_token(
                 contract_v, rps[:2],
             )
             return resp
+    # Microsoft's reason is the only way to tell a refused account or device
+    # from a network fault, so it goes out at the failure's level (rule 8).
     logger.error(
-        "[MS] XBL user token failed with all contract/prefix combos",
+        "[MS] XBL user token failed with all contract/prefix combos: %s",
+        "; ".join(reasons) or "no reply",
     )
     return None
 def _try_xbl_request(
@@ -85,8 +89,9 @@ def _try_xbl_request(
     locale: str,
     xbl_auth_url: str,
     xbl_user_agent: str,
+    reasons: list[str] | None = None,
 ) -> dict[str, Any] | None:
-    """Try XBL request."""
+    """Try XBL request. Why it failed is appended to ``reasons``."""
     body = {
         "Properties": {
             "AuthMethod": "RPS",
@@ -107,16 +112,21 @@ def _try_xbl_request(
         return http_post_json(xbl_auth_url, body, headers)
     except urllib.error.HTTPError as e:
         body_text = _read_http_error_body(e)
-        logger.debug(
-            "[MS] XBL failed (v%s, %r): HTTP %d %s",
-            contract_v, rps[:2], e.code, body_text[:500],
-        )
+        challenge = (e.headers.get("WWW-Authenticate") if e.headers else None) or ""
+        reason = f"v{contract_v} {rps[:2]} HTTP {e.code}"
+        if challenge:
+            reason += f" [{challenge[:200]}]"
+        if body_text.strip():
+            reason += f" {body_text.strip()[:200]}"
+        logger.debug("[MS] XBL failed: %s", reason)
+        if reasons is not None:
+            reasons.append(reason)
         return None
     except Exception as e:
-        logger.debug(
-            "[MS] XBL failed (v%s, %r): %s",
-            contract_v, rps[:2], e,
-        )
+        reason = f"v{contract_v} {rps[:2]} {type(e).__name__}: {e}"[:300]
+        logger.debug("[MS] XBL failed: %s", reason)
+        if reasons is not None:
+            reasons.append(reason)
         return None
 def _extract_user_hash(xbl_resp: dict[str, Any]) -> str | None:
     """Extract user hash."""

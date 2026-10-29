@@ -24,13 +24,15 @@ one runs (``running``). Edge allows one process per profile, so a stream or
 storefront window open on 9223 or 9224 refuses with ``edge_busy``.
 
 Failure reasons (``last_error``): ``window_not_opened``, ``window_closed``,
-``signin_timeout``, ``not_stored``, ``account_mismatch``, ``xodus_*``.
+``signin_timeout``, ``not_stored``, ``account_mismatch``, ``xbox_refused``,
+``xodus_*``.
 """
 from __future__ import annotations
 
 import asyncio
 import contextlib
 import logging
+import re
 import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
@@ -61,6 +63,27 @@ LOCK_WAIT_S = 15.0
 #: After the window closes, the CLI gets this long to exit on its own.
 CLOSED_GRACE_S = 15.0
 _CREDENTIAL_MARK = "NEXUS_CREDENTIAL_ERROR_V1 "
+#: ``profile`` stages that are Microsoft's own refusal, never a network fault.
+_REFUSED_STAGES = (
+    "(ticket-refused)", "(ticket-interaction-required)", "(session-user-invalid)",
+    "(session-user-expired)", "(session-device-invalid)",
+)
+#: Backend 0.1.3 prints Xbox Live's reply. A 4xx other than 429 is a refusal.
+_REFUSED_HTTP = re.compile(r"XODUS_XBOX_REFUSED (?:user\.auth|xsts) HTTP 4(?!29)\d\d")
+
+
+def xbox_refused(err: XodusCliError) -> bool:
+    """Whether a failed ``profile`` is Microsoft refusing the account or device.
+
+    ``xbox-user`` and ``xsts`` stages alone are not enough: before backend
+    0.1.3 a network fault ended there too (I-062).
+    """
+    tail = err.tail
+    return (
+        bool(_REFUSED_HTTP.search(tail))
+        or any(stage in tail for stage in _REFUSED_STAGES)
+        or "Microsoft refused the stored sign-in" in tail
+    )
 
 
 class _RefusalError(Exception):
@@ -455,7 +478,9 @@ class XboxPcSignIn:
 
         Returns None (verified), ``unverified`` (a gamertag could not be
         read; checked again later), ``not_stored``, ``account_mismatch``
-        (Xodus is signed out again) or an ``xodus_*`` error.
+        (Xodus is signed out again), ``xbox_refused`` (Microsoft signed in,
+        but Xbox Live refused the account or this device) or an ``xodus_*``
+        error.
         """
         try:
             account = await self._cli.account()
@@ -463,9 +488,17 @@ class XboxPcSignIn:
             return str(e).split(":", 1)[0]
         if not account.stored:
             return "not_stored"
-        profile_tag = await self._profile_gamertag()
-        chain_tag = await self._chain_gamertag()
+        profile_tag, refused = await self._profile_gamertag()
         now = time.time()
+        if refused:
+            # Kept signed in: signing out would drop the device files and
+            # register yet another device on the next sign-in (I-045).
+            logger.warning(
+                "%s Microsoft signed in, but Xbox Live refused the account or this device", _LOG,
+            )
+            await asyncio.to_thread(write_state, AccountState(None, now, refused=True))
+            return "xbox_refused"
+        chain_tag = await self._chain_gamertag()
         if profile_tag and chain_tag:
             if same_gamertag(profile_tag, chain_tag):
                 await asyncio.to_thread(write_state, AccountState(profile_tag, now))
@@ -478,12 +511,15 @@ class XboxPcSignIn:
         await asyncio.to_thread(write_state, AccountState(profile_tag, now, unverified=True))
         return "unverified"
 
-    async def _profile_gamertag(self) -> str | None:
+    async def _profile_gamertag(self) -> tuple[str | None, bool]:
+        """The Xodus gamertag, and whether Xbox Live refused the sign-in."""
         try:
-            return (await self._cli.profile()).gamertag
+            return (await self._cli.profile()).gamertag, False
         except XodusCliError as e:
-            logger.info("%s Xodus gamertag unreadable: %s", _LOG, e.code)
-            return None
+            # The tail is redacted. It names the failed step, the only way to
+            # tell a refused account from a network fault.
+            logger.info("%s Xodus gamertag unreadable: %s %s", _LOG, e.code, e.tail[-400:])
+            return None, xbox_refused(e)
 
     async def _chain_gamertag(self) -> str | None:
         try:

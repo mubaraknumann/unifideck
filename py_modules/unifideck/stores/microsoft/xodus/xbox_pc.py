@@ -35,7 +35,7 @@ from unifideck.launcher.xbox_pc.layout import (
     credential_dir,
 )
 
-from . import account_state, auto_components
+from . import account_state, auto_components, repair
 from .auth import XboxPcSignIn
 from .cli import XodusCli, XodusCliError
 from .cli_models import AccountStatus
@@ -252,22 +252,29 @@ class XboxPc:
                 running["step"] = self._signin.step
             return running
         saved = self._saved
-        view: dict[str, Any]
-        if self._account_error is not None:
-            view = {"state": "error", "error": self._account_error}
-        elif self._account is None:
-            view = {"state": "unknown"}
-        elif not self._account.stored:
-            view = {"state": "mismatch" if saved is not None and saved.mismatch else "signed_out"}
-        elif saved is None or saved.unverified:
-            view = {"state": "unverified"}
-        else:
-            view = {"state": "signed_in"}
+        view = self._account_state()
         if saved is not None and saved.gamertag and view["state"] in ("signed_in", "unverified"):
             view["gamertag"] = saved.gamertag
         if self._signin.last_error and view["state"] != "signed_in":
             view.setdefault("error", self._signin.last_error)
         return view
+
+    def _account_state(self) -> dict[str, Any]:
+        """The account's state from the last check and the saved verification."""
+        saved = self._saved
+        if self._account_error is not None:
+            return {"state": "error", "error": self._account_error}
+        if self._account is None:
+            return {"state": "unknown"}
+        if not self._account.stored:
+            return {"state": "mismatch" if saved is not None and saved.mismatch else "signed_out"}
+        if saved is not None and saved.refused:
+            # Stored, but Xbox Live refuses it: not usable, so installs must
+            # not read it as signed in (I-062).
+            return {"state": "error", "error": "xbox_refused"}
+        if saved is None or saved.unverified:
+            return {"state": "unverified"}
+        return {"state": "signed_in"}
 
     def _snapshot(self) -> dict[str, Any]:
         return {
@@ -471,6 +478,10 @@ class XboxPc:
         result = await self._signin.start(connect=connect)
         self.notify()
         return {**result, "status": self._snapshot()}
+
+    async def repair_target(self, game_id: str) -> dict[str, Any]:
+        """Where a repair of ``game_id`` installs: ``{base_path, title}`` or ``{reason}``."""
+        return await asyncio.to_thread(repair.repair_target, game_id)
 
     async def cancel_sign_in(self) -> dict[str, Any]:
         """Stop a running sign-in."""

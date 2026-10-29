@@ -425,7 +425,7 @@
       "xboxPcCloudSaveUnavailable": "由於 Xbox 雲端存檔無法使用，未啟動 {{game_key}}。請檢查 Xbox PC 登入狀態和網路連線，然後再試一次。",
       "xboxPcSteamRootMissing": "Unifideck 找不到您的 Steam 資料夾，因此無法啟動 {{game_key}}。",
       "xboxPcSignInRequired": "請在 Unifideck 設定中登入 Xbox PC 遊戲，才能遊玩 {{game_key}}。",
-      "xboxPcNotDownloaded": "{{game_key}} 未完整安裝。請完成或重新進行安裝，然後再試一次。",
+      "xboxPcNotDownloaded": "{{game_key}} 缺少檔案，正在下載。",
       "xboxPcAlreadyRunning": "{{game_key}} 已在執行中。",
       "xboxPcPrefixFailed": "無法為 {{game_key}} 準備 Wine Prefix。詳細資訊請查看紀錄檔。",
       "xboxPcVcRedistMissing": "缺少 VC++",
@@ -485,6 +485,7 @@
     "xboxPcSigningIn": "正在登入 Xbox PC 遊戲",
     "xboxPcConfirmingDevice": "Microsoft 正在確認此裝置",
     "xboxPcConfirmingDeviceBody": "可能需要重新登入",
+    "xboxPcRepairFailed": "無法修復遊戲",
     "xboxPcSignInFailed": "Xbox PC 登入失敗"
   },
   "uninstallModal": {
@@ -567,6 +568,7 @@
       "xboxPcUpdatePending": "此遊戲的更新尚未完成。請先執行更新。",
       "xboxPcDriveMissing": "存放此遊戲的磁碟機未連接。請連接後再試一次。",
       "xboxPcOldPartial": "無法移除此遊戲在另一個磁碟機上未完成的下載。請在該磁碟機上刪除後再試一次。",
+      "xboxPcRepairNoRecord": "沒有可修復的安裝。請安裝遊戲。",
       "xboxPcGameRunning": "請先關閉遊戲，然後再試一次。",
       "xboxPcComponentsBusy": "Xbox PC 元件正在更新。請一分鐘後再試一次。",
       "xboxPcBackendFailed": "Xodus 因錯誤而停止。請再試一次，如果仍然失敗，請收集記錄。",
@@ -1252,6 +1254,7 @@
         "windowClosed": "登入視窗在登入完成前被關閉。",
         "timeout": "登入耗時過長，已被中止。",
         "notStored": "登入已完成，但未能儲存帳戶。請再試一次。",
+        "xboxRefused": "Xbox Live 拒絕了此帳戶或裝置",
         "mismatch": "該帳戶與您的 Microsoft 登入帳戶不同。請使用同一個帳戶登入。",
         "credentialStore": "Unifideck 無法讀取或儲存 Xbox PC 登入資訊。",
         "gameRunning": "有 Xbox PC 遊戲正在執行。請在遊戲關閉後再試一次。"

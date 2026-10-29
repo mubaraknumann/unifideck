@@ -45,6 +45,9 @@ if args == ["--external-webview-stdio", "login"]:
 if args[0] == "account":
     print(json.dumps({{"stored": True, "username": "me@example.com"}}))
 elif args[0] == "profile":
+    if GAMERTAG.startswith("!"):  # a failing profile: the rest is its stderr
+        sys.stderr.write(GAMERTAG[1:] + "\\n")
+        sys.exit(1)
     print(json.dumps({{"schema": 1, "account": "me@example.com", "gamertag": GAMERTAG}}))
 elif args[0] == "logout":
     open(MARK, "w").write("out")
@@ -195,6 +198,41 @@ async def test_unreadable_gamertag_is_unverified_not_an_error(env: dict[str, Pat
     assert saved is not None and saved.unverified and saved.gamertag == "gamer one"
     assert account_state.needs_recheck(saved, now=saved.verified_at + 13 * 3600)
     assert not account_state.needs_recheck(saved, now=saved.verified_at + 60)
+
+
+@pytest.mark.parametrize("stderr", [
+    (
+        "XODUS_XBOX_REFUSED user.auth HTTP 401 [XASU error=token_required] "
+        "Xbox profile is temporarily unavailable (xbox-user); stored account is unchanged."
+    ),
+    'XODUS_XBOX_REFUSED xsts HTTP 401 [] {"XErr":2148916233}',
+    "Xbox profile is temporarily unavailable (ticket-refused); stored account is unchanged.",
+])
+async def test_xbox_refusal_is_a_failure_not_unverified(env: dict[str, Path], stderr: str) -> None:
+    """Microsoft signed in but Xbox Live refused: never usable (I-062)."""
+    signin, *_ = _make(env, gamertag="!" + stderr)
+    await signin.start()
+    await _finish(signin)
+    assert signin.last_error == "xbox_refused"
+    saved = account_state.read_state()
+    assert saved is not None and saved.refused and not saved.unverified
+    assert account_state.needs_recheck(saved, now=saved.verified_at + 60)
+    assert env["mark"].exists() is False, "kept signed in: a sign-out drops the device"
+
+
+@pytest.mark.parametrize("stderr", [
+    "Xbox profile is temporarily unavailable (xbox-user); stored account is unchanged.",
+    "XODUS_XBOX_REFUSED user.auth HTTP 429 []",
+    "Xbox profile request timed out; stored account is unchanged.",
+])
+async def test_an_ambiguous_profile_failure_stays_unverified(env: dict[str, Path], stderr: str) -> None:
+    """A network fault can end at the same step, so it is not called a refusal."""
+    signin, *_ = _make(env, gamertag="!" + stderr)
+    await signin.start()
+    await _finish(signin)
+    assert signin.last_error is None
+    saved = account_state.read_state()
+    assert saved is not None and saved.unverified and not saved.refused
 
 
 async def test_window_never_opens(env: dict[str, Path]) -> None:

@@ -193,7 +193,7 @@ The `Plugin` class in `main.py` is composed from the RPC mixin classes enumerate
 | `CloudSaveRPCMixin`        | `get_cloud_save_status`, `cloud_save_pull`, `cloud_save_push`, `set_game_save_path` |
 | `UIRPCMixin`               | `get_game_metadata_display`, `get_language_preference`, `set_language_preference`, `get_device_type` |
 | `UpdaterRPCMixin`          | `check_plugin_update`, `get_available_versions`, `log_update_event`              |
-| `XboxPcRPCMixin`           | `get_xbox_pc_status`, `set_xbox_pc_enabled`, `install_xbox_pc_runtime`, `refresh_xbox_pc_status`, `start_xbox_pc_sign_in`, `cancel_xbox_pc_sign_in` (thin proxy to the `XboxPc` facade on the Microsoft store) |
+| `XboxPcRPCMixin`           | `get_xbox_pc_status`, `set_xbox_pc_enabled`, `install_xbox_pc_runtime`, `refresh_xbox_pc_status`, `start_xbox_pc_sign_in`, `cancel_xbox_pc_sign_in`, `repair_xbox_pc_game` (thin proxy to the `XboxPc` facade on the Microsoft store; the repair queues through `DownloadRPCMixin._queue_install`) |
 
 ---
 

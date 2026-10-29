@@ -32,6 +32,7 @@ export const rpcRoutes = {
   installXboxPcRuntime: "install_xbox_pc_runtime",
   startXboxPcSignIn: "start_xbox_pc_sign_in",
   cancelXboxPcSignIn: "cancel_xbox_pc_sign_in",
+  repairXboxPcGame: "repair_xbox_pc_game",
   // Auth-shortcut context (AuthShortcutsRPCMixin)
   getEpicAuthShortcutContext: "get_epic_auth_shortcut_context",
   getGogAuthShortcutContext: "get_gog_auth_shortcut_context",

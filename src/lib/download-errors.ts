@@ -83,6 +83,8 @@ const XBOX_PC_CODE_KEYS: ReadonlyArray<readonly [RegExp, string]> = [
   // is kept, so the game is found again once the drive is back.
   [/^xbox_install_unreachable$/, "errors.download.xboxPcDriveMissing"],
   [/^xbox_old_partial_in_place$/, "errors.download.xboxPcOldPartial"],
+  // Play found missing files, but there is no install to repair.
+  [/^xbox_repair_no_record$/, "errors.download.xboxPcRepairNoRecord"],
   [/^xodus_components_busy$/, "errors.download.xboxPcComponentsBusy"],
   [
     /^xodus_(panic|empty_response|timeout|bad_json|failed|components_unreadable)$/,

@@ -416,7 +416,7 @@
       "xboxPcCloudSaveUnavailable": "{{game_key}} is niet gestart omdat Xbox-cloudopslag niet beschikbaar is. Controleer de Xbox PC-aanmelding en je verbinding en probeer het opnieuw.",
       "xboxPcSteamRootMissing": "{{game_key}} kan niet starten omdat Unifideck je Steam-map niet kon vinden.",
       "xboxPcSignInRequired": "Meld je aan voor Xbox PC-games in de Unifideck-instellingen om {{game_key}} te spelen.",
-      "xboxPcNotDownloaded": "{{game_key}} is niet volledig geïnstalleerd. Voltooi of herhaal de installatie en probeer het opnieuw.",
+      "xboxPcNotDownloaded": "{{game_key}} mist bestanden. Ze worden nu gedownload.",
       "xboxPcAlreadyRunning": "{{game_key}} is al actief.",
       "xboxPcPrefixFailed": "Kan de Wine-prefix voor {{game_key}} niet voorbereiden. Bekijk de logboeken voor details.",
       "xboxPcVcRedistMissing": "VC++ ontbreekt",
@@ -485,6 +485,7 @@
     "xboxPcSigningIn": "Aanmelden voor Xbox PC-games",
     "xboxPcConfirmingDevice": "Microsoft bevestigt dit apparaat",
     "xboxPcConfirmingDeviceBody": "Mogelijk opnieuw inloggen",
+    "xboxPcRepairFailed": "Game kon niet worden gerepareerd",
     "xboxPcSignInFailed": "Xbox PC-aanmelding mislukt"
   },
   "uninstallModal": {
@@ -567,6 +568,7 @@
       "xboxPcUpdatePending": "Een update van deze game is niet voltooid. Voer eerst de update uit.",
       "xboxPcDriveMissing": "De schijf met deze game is niet aangesloten. Sluit hem aan en probeer het opnieuw.",
       "xboxPcOldPartial": "Een onvoltooide download van deze game op een andere schijf kon niet worden verwijderd. Verwijder hem daar en probeer het opnieuw.",
+      "xboxPcRepairNoRecord": "Er is geen installatie om te repareren. Installeer de game.",
       "xboxPcGameRunning": "Sluit eerst de game en probeer het opnieuw.",
       "xboxPcComponentsBusy": "De Xbox PC-componenten worden bijgewerkt. Probeer het over een minuut opnieuw.",
       "xboxPcBackendFailed": "Xodus is gestopt met een fout. Probeer het opnieuw en leg logboeken vast als het blijft mislukken.",
@@ -1252,6 +1254,7 @@
         "windowClosed": "Het aanmeldvenster is gesloten voordat de aanmelding klaar was.",
         "timeout": "De aanmelding duurde te lang en is gestopt.",
         "notStored": "De aanmelding is voltooid, maar het account is niet opgeslagen. Probeer het opnieuw.",
+        "xboxRefused": "Xbox Live weigert dit account of apparaat",
         "mismatch": "Dat is een ander account dan je Microsoft-aanmelding. Meld je aan met hetzelfde account.",
         "credentialStore": "Unifideck kon de Xbox PC-aanmelding niet lezen of opslaan.",
         "gameRunning": "Er is een Xbox PC-game actief. Probeer het opnieuw nadat deze is afgesloten."

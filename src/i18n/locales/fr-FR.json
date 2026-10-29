@@ -416,7 +416,7 @@
       "xboxPcCloudSaveUnavailable": "{{game_key}} n'a pas été démarré, car les sauvegardes cloud Xbox sont indisponibles. Vérifiez la connexion Xbox PC et votre réseau, puis réessayez.",
       "xboxPcSteamRootMissing": "{{game_key}} ne peut pas démarrer, car Unifideck n'a pas trouvé votre dossier Steam.",
       "xboxPcSignInRequired": "Connectez-vous aux jeux Xbox PC dans les paramètres d'Unifideck pour jouer à {{game_key}}.",
-      "xboxPcNotDownloaded": "{{game_key}} n'est pas entièrement installé. Terminez ou recommencez l'installation, puis réessayez.",
+      "xboxPcNotDownloaded": "Il manque des fichiers à {{game_key}}. Téléchargement en cours.",
       "xboxPcAlreadyRunning": "{{game_key}} est déjà en cours d'exécution.",
       "xboxPcPrefixFailed": "Impossible de préparer le préfixe Wine pour {{game_key}}. Consultez les journaux pour les détails.",
       "xboxPcVcRedistMissing": "VC++ manquant",
@@ -485,6 +485,7 @@
     "xboxPcSigningIn": "Connexion pour les jeux Xbox PC",
     "xboxPcConfirmingDevice": "Microsoft confirme cet appareil",
     "xboxPcConfirmingDeviceBody": "Reconnexion peut-être nécessaire",
+    "xboxPcRepairFailed": "Impossible de réparer le jeu",
     "xboxPcSignInFailed": "Échec de la connexion Xbox PC"
   },
   "uninstallModal": {
@@ -567,6 +568,7 @@
       "xboxPcUpdatePending": "Une mise à jour de ce jeu n'est pas terminée. Lancez d'abord la mise à jour.",
       "xboxPcDriveMissing": "Le disque qui contient ce jeu n'est pas connecté. Connectez-le, puis réessayez.",
       "xboxPcOldPartial": "Un téléchargement inachevé de ce jeu sur un autre disque n'a pas pu être supprimé. Supprimez-le sur ce disque, puis réessayez.",
+      "xboxPcRepairNoRecord": "Aucune installation à réparer. Installez plutôt le jeu.",
       "xboxPcGameRunning": "Fermez d'abord le jeu, puis réessayez.",
       "xboxPcComponentsBusy": "Les composants Xbox PC sont en cours de mise à jour. Réessayez dans une minute.",
       "xboxPcBackendFailed": "Xodus s'est arrêté sur une erreur. Réessayez et capturez les journaux si l'échec se répète.",
@@ -1252,6 +1254,7 @@
         "windowClosed": "La fenêtre de connexion a été fermée avant la fin de la connexion.",
         "timeout": "La connexion a pris trop de temps et a été interrompue.",
         "notStored": "La connexion est terminée, mais le compte n'a pas été enregistré. Réessayez.",
+        "xboxRefused": "Xbox Live a refusé ce compte ou cet appareil",
         "mismatch": "Ce compte est différent de votre connexion Microsoft. Connectez-vous avec le même compte.",
         "credentialStore": "Unifideck n'a pas pu lire ou enregistrer la connexion Xbox PC.",
         "gameRunning": "Un jeu Xbox PC est en cours d'exécution. Réessayez après sa fermeture."

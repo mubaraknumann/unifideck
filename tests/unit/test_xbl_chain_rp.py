@@ -130,6 +130,27 @@ def test_ticket_order(monkeypatch: pytest.MonkeyPatch, prefer_d: bool, first: tu
     assert tried[0] == first
 
 
+def test_refused_user_token_logs_microsofts_reason(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The refusal reason is logged at the failure's level, not DEBUG (I-062)."""
+    import email.message
+    import io
+    import urllib.error
+
+    def refuse(url: str, *_a: Any) -> None:
+        headers = email.message.Message()
+        headers["WWW-Authenticate"] = "XASU error=token_required"
+        raise urllib.error.HTTPError(url, 401, "Unauthorized", headers, io.BytesIO(b""))
+
+    monkeypatch.setattr(microsoft_auth, "http_post_json", refuse)
+    with caplog.at_level("ERROR"):
+        assert microsoft_auth._obtain_xbl_user_token("SECRET-TOKEN", "en-US", "https://xbl", "ua") is None
+    text = caplog.text
+    assert "HTTP 401" in text and "XASU error=token_required" in text
+    assert "SECRET-TOKEN" not in text
+
+
 @pytest.mark.parametrize(("code", "words"), [
     (2148916233, "no Xbox profile"),
     (2148916235, "region"),

@@ -3,12 +3,15 @@
 ``state/account.json`` (0600) remembers what the last check found::
 
     {"schema": 1, "gamertag": "...", "verified_at": <epoch>,
-     "mismatch": false, "unverified": false}
+     "mismatch": false, "unverified": false, "refused": false}
 
 * ``mismatch``: Xodus signed in to a different Xbox account than
   Unifideck's Microsoft sign-in. Xodus was signed out again.
 * ``unverified``: one of the two gamertags could not be read. The account
   is used, and checked again within ``RECHECK_S``.
+* ``refused``: Microsoft signed in, but Xbox Live refused a token made from
+  the sign-in (the account or this device). Not usable; checked again on
+  every status refresh, so a fix on the user's side is picked up (I-062).
 
 The gamertag is not secret, but the file is still private: the support
 bundle records only that it exists. Blocking file I/O; call it through
@@ -42,6 +45,7 @@ class AccountState:
     verified_at: float
     mismatch: bool = False
     unverified: bool = False
+    refused: bool = False
 
 
 def read_state() -> AccountState | None:
@@ -56,6 +60,7 @@ def read_state() -> AccountState | None:
         verified_at=float(at) if isinstance(at, (int, float)) else 0.0,
         mismatch=data.get("mismatch") is True,
         unverified=data.get("unverified") is True,
+        refused=data.get("refused") is True,
     )
 
 
@@ -69,6 +74,7 @@ def write_state(state: AccountState) -> None:
         "verified_at": state.verified_at,
         "mismatch": state.mismatch,
         "unverified": state.unverified,
+        "refused": state.refused,
     })
 
 
@@ -80,8 +86,10 @@ def clear_state() -> None:
 
 def needs_recheck(state: AccountState | None, now: float | None = None) -> bool:
     """Whether the account should be checked again now."""
-    if state is None or state.mismatch:
-        return state is None
+    if state is None or state.refused:
+        return True
+    if state.mismatch:
+        return False
     if not state.unverified:
         return False
     current = time.time() if now is None else now

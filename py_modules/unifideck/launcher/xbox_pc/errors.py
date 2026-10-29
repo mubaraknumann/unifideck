@@ -87,8 +87,19 @@ def toast_key(reason: str) -> str:
     return REASON_TOAST_KEYS.get(reason, LAUNCH_FAILED_KEY)
 
 
-def toast_action(reason: str) -> dict[str, Any] | None:
-    """The one-tap fix offered with ``reason``'s toast, or None."""
+#: The verb that makes the frontend queue a repair of the game at once.
+REPAIR_VERB = "repair-xbox-pc"
+
+
+def toast_action(reason: str, game_id: str = "") -> dict[str, Any] | None:
+    """The fix offered with ``reason``'s toast, or None.
+
+    ``not_downloaded`` carries ``repair-xbox-pc``: the frontend queues a
+    repair as soon as it sees the toast, so Play on a game with missing
+    files downloads them (no tap needed).
+    """
+    if reason == "not_downloaded" and game_id:
+        return {"verb": REPAIR_VERB, "args": [game_id]}
     appid = _REASON_STEAM_TOOLS.get(reason)
     if appid is None:
         return None

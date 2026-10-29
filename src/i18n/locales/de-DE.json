@@ -416,7 +416,7 @@
       "xboxPcCloudSaveUnavailable": "{{game_key}} wurde nicht gestartet, weil Xbox-Cloud-Speicherstände nicht verfügbar sind. Prüfe die Xbox-PC-Anmeldung und deine Verbindung und versuche es dann erneut.",
       "xboxPcSteamRootMissing": "{{game_key}} kann nicht starten, weil Unifideck deinen Steam-Ordner nicht finden konnte.",
       "xboxPcSignInRequired": "Melde dich in den Unifideck-Einstellungen für Xbox-PC-Spiele an, um {{game_key}} zu spielen.",
-      "xboxPcNotDownloaded": "{{game_key}} ist nicht vollständig installiert. Schließe die Installation ab oder wiederhole sie und versuche es dann erneut.",
+      "xboxPcNotDownloaded": "{{game_key}} fehlen Dateien. Sie werden jetzt heruntergeladen.",
       "xboxPcAlreadyRunning": "{{game_key}} läuft bereits.",
       "xboxPcPrefixFailed": "Das Wine-Präfix für {{game_key}} konnte nicht vorbereitet werden. Siehe Protokolle für Details.",
       "xboxPcVcRedistMissing": "VC++ fehlt",
@@ -485,6 +485,7 @@
     "xboxPcSigningIn": "Anmeldung für Xbox-PC-Spiele läuft",
     "xboxPcConfirmingDevice": "Microsoft bestätigt dieses Gerät",
     "xboxPcConfirmingDeviceBody": "Eventuell erneut anmelden",
+    "xboxPcRepairFailed": "Spiel konnte nicht repariert werden",
     "xboxPcSignInFailed": "Xbox-PC-Anmeldung fehlgeschlagen"
   },
   "uninstallModal": {
@@ -567,6 +568,7 @@
       "xboxPcUpdatePending": "Ein Update dieses Spiels wurde nicht abgeschlossen. Führe zuerst das Update aus.",
       "xboxPcDriveMissing": "Das Laufwerk mit diesem Spiel ist nicht verbunden. Verbinde es und versuche es dann erneut.",
       "xboxPcOldPartial": "Ein unvollständiger Download dieses Spiels auf einem anderen Laufwerk konnte nicht entfernt werden. Lösche ihn dort und versuche es dann erneut.",
+      "xboxPcRepairNoRecord": "Es gibt keine Installation zum Reparieren. Installiere das Spiel stattdessen.",
       "xboxPcGameRunning": "Schließe zuerst das Spiel und versuche es dann erneut.",
       "xboxPcComponentsBusy": "Die Xbox-PC-Komponenten werden gerade aktualisiert. Versuche es in einer Minute erneut.",
       "xboxPcBackendFailed": "Xodus wurde mit einem Fehler beendet. Versuche es erneut und erfasse die Protokolle, wenn es weiterhin fehlschlägt.",
@@ -1252,6 +1254,7 @@
         "windowClosed": "Das Anmeldefenster wurde geschlossen, bevor die Anmeldung abgeschlossen war.",
         "timeout": "Die Anmeldung hat zu lange gedauert und wurde abgebrochen.",
         "notStored": "Die Anmeldung ist abgeschlossen, aber das Konto wurde nicht gespeichert. Versuche es erneut.",
+        "xboxRefused": "Xbox Live lehnt dieses Konto oder Gerät ab",
         "mismatch": "Das ist ein anderes Konto als deine Microsoft-Anmeldung. Melde dich mit demselben Konto an.",
         "credentialStore": "Unifideck konnte die Xbox-PC-Anmeldung nicht lesen oder speichern.",
         "gameRunning": "Ein Xbox-PC-Spiel läuft. Versuche es erneut, nachdem es geschlossen wurde."

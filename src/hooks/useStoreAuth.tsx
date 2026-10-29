@@ -67,6 +67,8 @@ const ERROR_KEYS: Record<string, string> = {
   region_unavailable: "auth.errors.regionUnavailable",
   client_rejected: "auth.errors.clientRejected",
   itch_key_limited: "auth.errors.itchKeyLimited",
+  // With Xbox PC on, Connect Microsoft is the Xodus sign-in (I-062).
+  xbox_refused: "xboxPc.account.errors.xboxRefused",
 };
 
 /** The user pressed Cancel; telling them it failed would be noise. */

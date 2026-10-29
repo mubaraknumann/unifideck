@@ -42,6 +42,7 @@ const EXACT_KEYS: Readonly<Record<string, string>> = {
   signin_timeout: "xboxPc.account.errors.timeout",
   not_stored: "xboxPc.account.errors.notStored",
   account_mismatch: "xboxPc.account.errors.mismatch",
+  xbox_refused: "xboxPc.account.errors.xboxRefused",
   credential_store_unavailable: "xboxPc.account.errors.credentialStore",
   busy_game_running: "xboxPc.account.errors.gameRunning",
   xodus_busy_game_running: "xboxPc.account.errors.gameRunning",
