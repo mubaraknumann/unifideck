@@ -360,6 +360,8 @@
       "installingUbisoft": "Встановлення через Ubisoft Connect",
       "installingUbisoftMessage": "Відкриття Ubisoft Connect. Почніть встановлення у вікні лаунчера.",
       "protonReadyBody": "{{version}} готовий до використання",
+      "protonDamaged": "Proton пошкоджено",
+      "protonDamagedMessage": "{{version}} буде завантажено знову",
       "externalProtonOutdatedTitle": "Доступне оновлення GE-Proton",
       "externalProtonOutdatedBody": "Доступна остання версія {{version}}. Будь ласка, оновіть через зовнішній менеджер.",
       "protonReadyTitle": "Proton готовий",

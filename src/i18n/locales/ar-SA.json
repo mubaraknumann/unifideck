@@ -360,6 +360,8 @@
       "installingUbisoft": "التثبيت عبر Ubisoft Connect",
       "installingUbisoftMessage": "جارٍ فتح Ubisoft Connect. ابدأ التثبيت من نافذة المشغّل.",
       "protonReadyBody": "{{version}} جاهز للاستخدام",
+      "protonDamaged": "Proton تالف",
+      "protonDamagedMessage": "ستتم إعادة تنزيل {{version}}",
       "externalProtonOutdatedTitle": "تحديث GE-Proton متوفر",
       "externalProtonOutdatedBody": "أحدث إصدار {{version}} متوفر. يرجى التحديث عبر المدير الخارجي.",
       "protonReadyTitle": "Proton جاهز",

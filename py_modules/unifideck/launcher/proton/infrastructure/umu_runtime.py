@@ -17,7 +17,7 @@ from unifideck.launcher.proton.infrastructure.game_log import (
 )
 
 from .container_escape import escape_argv
-from .proton_health import assert_proton_still_complete
+from .proton_health import assert_proton_still_complete, check_after_failure
 
 logger = logging.getLogger(__name__)
 # Short pause before a recoverable umu retry — gives a transient
@@ -426,6 +426,8 @@ async def run_umu_with_retry(
             return rc
         return last_rc
     finally:
+        if last_rc != 0:  # a damaged Proton fails every game; see check_after_failure
+            check_after_failure(env)
         if game_log is not None:
             with contextlib.suppress(OSError):
                 game_log.close()

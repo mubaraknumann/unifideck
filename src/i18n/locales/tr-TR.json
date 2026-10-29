@@ -360,6 +360,8 @@
       "installingUbisoft": "Ubisoft Connect ile yükleniyor",
       "installingUbisoftMessage": "Ubisoft Connect açılıyor. Kurulumu başlatıcı penceresinden başlatın.",
       "protonReadyBody": "{{version}} kullanıma hazır",
+      "protonDamaged": "Proton bozuk",
+      "protonDamagedMessage": "{{version}} yeniden indirilecek",
       "externalProtonOutdatedTitle": "GE-Proton Güncellemesi Mevcut",
       "externalProtonOutdatedBody": "En son {{version}} sürümü mevcut. Lütfen harici yöneticiniz üzerinden güncelleyin.",
       "protonReadyTitle": "Proton hazır",

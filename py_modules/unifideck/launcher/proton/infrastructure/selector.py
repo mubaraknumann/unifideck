@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import subprocess
 from pathlib import Path
+from typing import Any
 
 from unifideck.core.compat_bridge import to_unsigned
 from unifideck.launcher.types.errors import (
@@ -182,32 +183,44 @@ def get_saved_proton_tool(store_game_id: str) -> str | None:
     """
     if not store_game_id:
         return None
+    entry = _saved_games().get(store_game_id, "")
+    # Pre-0.7.0 wrote each entry as {"proton_tool": "<id>"}; nothing
+    # writes that shape anymore, so its presence means this entry
+    # hasn't been refreshed since before the rewrite — likely a
+    # long-forgotten pin (useLaunchPrep only refreshes it when the
+    # game-details page is opened, not on every launch). Extracting
+    # and honoring it resurrects a stale, possibly-incompatible
+    # Proton choice the user no longer wants (and can't see is even
+    # in effect, since Steam's own Force-Compat UI shows whatever
+    # was last restored there, not this file). Treat it as no saved
+    # override instead and fall through to the normal priority
+    # chain — this also fixes the original TypeError crash.
+    if isinstance(entry, dict):
+        return None
+    return entry or None
+
+
+def _saved_games() -> dict[str, Any]:
+    """``proton_settings.json``'s per-game map, or ``{}`` on any failure."""
     settings_path = Path(
         "~/.local/share/unifideck/proton_settings.json",
     ).expanduser()
     if not settings_path.is_file():
-        return None
+        return {}
     try:
         import json
         with settings_path.open() as f:
-            settings = json.load(f)
-        entry = settings.get("games", {}).get(store_game_id, "")
-        # Pre-0.7.0 wrote each entry as {"proton_tool": "<id>"}; nothing
-        # writes that shape anymore, so its presence means this entry
-        # hasn't been refreshed since before the rewrite — likely a
-        # long-forgotten pin (useLaunchPrep only refreshes it when the
-        # game-details page is opened, not on every launch). Extracting
-        # and honoring it resurrects a stale, possibly-incompatible
-        # Proton choice the user no longer wants (and can't see is even
-        # in effect, since Steam's own Force-Compat UI shows whatever
-        # was last restored there, not this file). Treat it as no saved
-        # override instead and fall through to the normal priority
-        # chain — this also fixes the original TypeError crash.
-        if isinstance(entry, dict):
-            return None
-        return entry or None
-    except (OSError, ValueError):
-        return None
+            games = json.load(f).get("games", {})
+    except (OSError, ValueError, AttributeError):
+        return {}
+    return games if isinstance(games, dict) else {}
+
+
+def saved_proton_tools() -> set[str]:
+    """Every per-game tool :func:`get_saved_proton_tool` would honour."""
+    return {tool for tool in _saved_games().values() if isinstance(tool, str) and tool}
+
+
 def _read_steam_config_vdf() -> str:
     """Text of the global ``<steam>/config/config.vdf`` (cross-distro), or ""."""
     config_vdf = vdf_compat.find_steam_config_vdf()
@@ -217,6 +230,11 @@ def _read_steam_config_vdf() -> str:
         return config_vdf.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return ""
+
+
+def steam_mapped_tools() -> set[str]:
+    """Every tool Steam's ``CompatToolMapping`` names, per-app and default."""
+    return vdf_compat.compat_tool_names(_read_steam_config_vdf())
 
 
 def get_steam_compat_tool_override(app_id: str) -> str | None:

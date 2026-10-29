@@ -359,6 +359,8 @@
       "protonSwitchedTo": "Now using {{version}}",
       "protonReadyTitle": "Proton Ready",
       "protonReadyBody": "{{version}} is ready to use",
+      "protonDamaged": "Proton Damaged",
+      "protonDamagedMessage": "{{version}} will be re-downloaded",
       "externalProtonOutdatedTitle": "GE-Proton Update Available",
       "externalProtonOutdatedBody": "Latest version {{version}} is available. Please update via your external manager.",
       "epicAuthRequired": "Epic Login Required",

@@ -359,6 +359,8 @@
       "protonSwitchedTo": "現在使用 {{version}}",
       "protonReadyTitle": "Proton 已就緒",
       "protonReadyBody": "{{version}} 已可使用",
+      "protonDamaged": "Proton 已損壞",
+      "protonDamagedMessage": "將重新下載 {{version}}",
       "externalProtonOutdatedTitle": "外部管理的 GE-Proton 有可用更新",
       "externalProtonOutdatedBody": "偵測到最新版本 {{version}}，請前往外部管理器進行更新。",
       "epicAuthRequired": "需要 Epic 登入",

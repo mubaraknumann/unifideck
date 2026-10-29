@@ -360,6 +360,8 @@
       "installingUbisoft": "Installeren via Ubisoft Connect",
       "installingUbisoftMessage": "Ubisoft Connect openen. Start de installatie vanuit het launcher-venster.",
       "protonReadyBody": "{{version}} is klaar voor gebruik",
+      "protonDamaged": "Proton beschadigd",
+      "protonDamagedMessage": "{{version}} wordt opnieuw gedownload",
       "externalProtonOutdatedTitle": "GE-Proton-update beschikbaar",
       "externalProtonOutdatedBody": "Nieuwste versie {{version}} is beschikbaar. Werk bij via je externe beheerder.",
       "protonReadyTitle": "Proton gereed",

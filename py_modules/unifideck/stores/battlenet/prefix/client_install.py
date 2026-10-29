@@ -52,6 +52,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from unifideck.launcher.proton.infrastructure.proton_health import check_after_failure
 from unifideck.launcher.wrapper_locale import bootstrapper_locale
 from unifideck.stores.battlenet import paths
 from unifideck.stores.shared.wine_env import WineEnvResolver
@@ -350,7 +351,10 @@ async def run_silent_install(
         logger.exception("[Battlenet] could not spawn the installer")
         return InstallOutcome(installed=False)
 
-    return await _await_installer(proc, prefix, stall_timeout)
+    outcome = await _await_installer(proc, prefix, stall_timeout)
+    if not outcome.installed:  # a damaged Proton kills the installer in seconds
+        await asyncio.to_thread(check_after_failure, env)
+    return outcome
 
 
 async def _await_installer(

@@ -360,6 +360,8 @@
       "installingUbisoft": "Ubisoft Connect로 설치 중",
       "installingUbisoftMessage": "Ubisoft Connect를 여는 중. 런처 창에서 설치를 시작하세요.",
       "protonReadyBody": "{{version}}을(를) 사용할 준비가 되었습니다",
+      "protonDamaged": "Proton 손상됨",
+      "protonDamagedMessage": "{{version}}을(를) 다시 다운로드합니다",
       "externalProtonOutdatedTitle": "GE-Proton 업데이트 사용 가능",
       "externalProtonOutdatedBody": "최신 버전 {{version}}을(를) 사용할 수 있습니다. 외부 관리자에서 업데이트해 주세요.",
       "protonReadyTitle": "Proton 준비 완료",

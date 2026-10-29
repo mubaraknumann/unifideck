@@ -360,6 +360,8 @@
       "installingUbisoft": "正在通过 Ubisoft Connect 安装",
       "installingUbisoftMessage": "正在打开 Ubisoft Connect。请在启动器窗口中开始安装。",
       "protonReadyBody": "{{version}} 已可使用",
+      "protonDamaged": "Proton 已损坏",
+      "protonDamagedMessage": "将重新下载 {{version}}",
       "externalProtonOutdatedTitle": "外部管理的 GE-Proton 有可用更新",
       "externalProtonOutdatedBody": "检测到最新版本 {{version}}，请前往外部管理器进行更新。",
       "protonReadyTitle": "Proton 已就绪",

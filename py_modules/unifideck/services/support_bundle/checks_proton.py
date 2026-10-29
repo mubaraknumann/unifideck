@@ -5,7 +5,10 @@ question behind "every game crashes back to the library and the Ubisoft
 login won't open": is the GE-Proton every launch defaults to actually
 complete? A copy missing its ``toolmanifest.vdf`` makes umu die with
 ``KeyError: 'manifest'`` before anything starts, and nothing else in the
-bundle names it.
+bundle names it. A copy whose Windows DLLs were replaced by Wine
+placeholders looks complete to that check, so the probe also runs the quick
+integrity check (core DLL signatures, shipped file sizes) and this check
+fails with the file it names.
 """
 from __future__ import annotations
 
@@ -33,12 +36,17 @@ def check_managed_ge(view: _View) -> CheckResult:
             f"{tag} is recorded but not on disk - the plugin downloads it on "
             "its next start; until then launches fall back to Proton Experimental",
         )
-    usable = [d["path"] for d in dirs if not d.get("problem")]
+    usable = [d for d in dirs if not d.get("problem")]
     if usable:
-        return _ok(name, f"{tag} complete at {usable[0]}")
+        how = (
+            "files match GE's release manifest" if usable[0].get("manifest")
+            else "core DLLs intact (no release manifest yet)"
+        )
+        return _ok(name, f"{tag} complete at {usable[0]['path']}, {how}")
     broken = "; ".join(f"{d['path']}: {d['problem']}" for d in dirs)
     return _fail(
         name,
         f"{tag} is unusable ({broken}) - every launch without a Proton "
-        "override fails until it is re-downloaded",
+        "override fails until it is re-downloaded (the plugin does this on its "
+        "next start)",
     )
