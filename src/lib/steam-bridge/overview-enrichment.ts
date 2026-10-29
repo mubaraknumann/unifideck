@@ -58,6 +58,8 @@ interface EnrichableOverview {
   rt_purchased_time?: number;
   review_score_with_bombs?: number;
   review_percentage_with_bombs?: number;
+  review_score_without_bombs?: number;
+  review_percentage_without_bombs?: number;
   steam_hw_compat_category_packed?: number;
   minutes_playtime_forever?: number;
   rt_last_time_played?: number;
@@ -161,11 +163,18 @@ function applyFacet(ov: EnrichableOverview, facet: FacetRecord): void {
   // previous build left on live overviews when the plugin is reloaded
   // without a Steam restart.
   if (ov.rt_purchased_time) ov.rt_purchased_time = 0;
+  // Steam's `review_score` / `review_percentage` getters read the
+  // `_with_bombs` pair only when the user's store review preference is
+  // "include all"; the default and "exclude" read `_without_bombs`.
+  // We have one summary per game, so fill both pairs or the sort shows
+  // "No review score" for most users.
   if (typeof facet.review_score === "number") {
     ov.review_score_with_bombs = facet.review_score;
+    ov.review_score_without_bombs = facet.review_score;
   }
   if (typeof facet.review_percentage === "number") {
     ov.review_percentage_with_bombs = facet.review_percentage;
+    ov.review_percentage_without_bombs = facet.review_percentage;
   }
   // Write EVERY track we know, not just the Deck's. Steam picks the
   // field to read from the device it is running on, so a Machine reads

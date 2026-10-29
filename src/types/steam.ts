@@ -46,6 +46,8 @@ export interface SteamApp {
   metacritic_score?: number;
   review_score_with_bombs?: number;
   review_percentage_with_bombs?: number;
+  review_score_without_bombs?: number;
+  review_percentage_without_bombs?: number;
   steam_hw_compat_category_packed?: number;
   steam_deck_compat_category?: number;
   store_category: number[];
