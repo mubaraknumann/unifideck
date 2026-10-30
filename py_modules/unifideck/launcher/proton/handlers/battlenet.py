@@ -100,7 +100,7 @@ def _fail(
     """
     launcher_toast(
         f"toasts.launcher.{key}Message",
-        i18n_title_key=f"toasts.launcher.{key}",
+        i18n_title_key="toasts.header.battlenet",
         game_title=resolve_title(plan.context.game_key) if titled else "",
         severity="error",
     )
@@ -286,7 +286,7 @@ async def _try_start(plan: ProtonLaunchPlan, launcher_exe: Path) -> bool:
     proc = await _start_client_detached(plan, launcher_exe)
     launcher_toast(
         "toasts.launcher.battlenetStartingClientMessage",
-        i18n_title_key="toasts.launcher.battlenetStartingClient",
+        i18n_title_key="toasts.header.battlenet",
         game_title=resolve_title(plan.context.game_key),
     )
     return await watch.wait_for_client_ready(
@@ -333,7 +333,7 @@ async def battlenet_launch(plan: ProtonLaunchPlan) -> int:
 
     launcher_toast(
         "toasts.launcher.startingBattlenetGame",
-        i18n_title_key="toasts.launcher.launchingGame",
+        i18n_title_key="toasts.header.battlenet",
         game_title=resolve_title(plan.context.game_key),
     )
     battlenet_wc3.apply_wc3_crypt32_fix(plan, family)
@@ -478,7 +478,7 @@ async def battlenet_install_launch(plan: ProtonLaunchPlan) -> int:
         )
     launcher_toast(
         "toasts.launcher.installingBattlenetMessage",
-        i18n_title_key="toasts.launcher.installingBattlenet",
+        i18n_title_key="toasts.header.battlenet",
         game_title=resolve_title(plan.context.game_key),
     )
     client_exe = await _bring_up_client(plan)

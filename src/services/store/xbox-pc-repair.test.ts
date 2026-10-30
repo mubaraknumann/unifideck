@@ -16,6 +16,10 @@ vi.mock("@decky/api", () => ({
 vi.mock("i18next", () => ({
   default: { t: (k: string) => k },
 }));
+// Unclamped, so the assertions read whole keys.
+vi.mock("../show-toast", () => ({
+  showToast: (options: unknown) => api.toast(options),
+}));
 vi.mock("../../api/event-bus-client", () => ({
   EventBusClient: { subscribe: () => () => {} },
 }));
@@ -42,8 +46,8 @@ describe("repairXboxPcGame", () => {
     });
     expect(await repairXboxPcGame("9NMPDQ2NRX34")).toBe(false);
     expect(api.toast.mock.calls[0][0]).toMatchObject({
-      title: "toasts.xboxPcRepairFailed",
-      body: "errors.download.xboxPcRepairNoRecord",
+      title: "toasts.header.gameRepair",
+      body: "toasts.downloadError.xboxPcRepairNoRecord",
     });
   });
 });

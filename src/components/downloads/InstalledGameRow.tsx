@@ -19,7 +19,8 @@ import { useTranslation } from "react-i18next";
 import { useGameActions } from "../../hooks/useGameActions";
 import { useGameUpdate } from "../../hooks/useGameUpdate";
 import { useToast } from "../../hooks/useToast";
-import { friendlyDownloadError } from "../../lib/download-errors";
+import { downloadErrorToast } from "../../lib/download-errors";
+import { toastText, headerText } from "../../services/toast-text";
 import { SteamBridge } from "../../lib/steam-bridge";
 import { resolveAppIdFromStoreGame } from "../../lib/library-filters";
 import { StoreIcon } from "../shared/StoreIcon";
@@ -109,9 +110,15 @@ export const InstalledGameRow: FC<Props> = ({ game, disk, onUninstalled }) => {
         game.store_game_id,
       );
       if (result?.success) {
-        toast.success(t("toasts.updateQueued"));
+        toast.success(
+          headerText("toasts.header.update"),
+          toastText("toasts.updateQueued"),
+        );
       } else {
-        toast.error(t("toasts.updateFailed"), result?.error ?? "");
+        toast.error(
+          headerText("toasts.header.update"),
+          downloadErrorToast(result?.error),
+        );
       }
     } finally {
       setBusy(false);
@@ -151,8 +158,8 @@ export const InstalledGameRow: FC<Props> = ({ game, disk, onUninstalled }) => {
             } else {
               // A refusal (an Xbox PC game still running, ...) must say so.
               toast.error(
-                t("toasts.uninstallFailed"),
-                friendlyDownloadError(result.error, t),
+                headerText("toasts.header.uninstall"),
+                downloadErrorToast(result.error),
               );
             }
           } finally {

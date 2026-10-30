@@ -86,7 +86,7 @@ describe("linkXboxPc", () => {
     h.set(status({ runtime: { state: "missing" } }));
     h.store.installRuntime.mockResolvedValue({ ok: false, error: "source_missing:/x" });
     expect(await linkXboxPc()).toBe(false);
-    expect(h.toastError).toHaveBeenCalledWith("toasts.xboxPcRuntimeFailed", "source_missing:/x");
+    expect(h.toastError).toHaveBeenCalledWith("component install", "source_missing:/x");
     expect(h.signIn).not.toHaveBeenCalled();
   });
 

@@ -19,6 +19,7 @@ import { useTranslation } from "react-i18next";
 import { useRPCMutation } from "../../api/useRPC";
 import { rpcRoutes } from "../../api/rpc-routes";
 import { useToast } from "../../hooks/useToast";
+import { toastText, headerText } from "../../services/toast-text";
 import { deleteAllUnifideckCollections } from "../../lib/steam-bridge/collection-manager";
 import { CleanupConfirmModal } from "../modals/CleanupConfirmModal";
 
@@ -49,16 +50,17 @@ export const CleanupSection: FC = () => {
     setTimeout(
       () =>
         toast.info(
-          t("toasts.cleanupStarted"),
-          t("toasts.cleanupStartedMessage"),
+          headerText("toasts.header.fullReset"),
+          toastText("toasts.cleanupStartedMessage"),
         ),
       400,
     );
     const result = await mutate(deleteFiles);
     if (!result) {
+      console.error("[Cleanup] reset failed:", error);
       toast.error(
-        t("toasts.deleteFailed"),
-        error?.message ?? t("errors.unknown"),
+        headerText("toasts.header.fullReset"),
+        toastText("toasts.deleteFailed"),
       );
       return;
     }
@@ -102,17 +104,14 @@ export const CleanupSection: FC = () => {
       result.deleted_files_count +
       (result.deleted_residual_count ?? 0);
     if (totalTouched === 0) {
-      toast.info(t("toasts.cleanupNoop"), t("toasts.cleanupNoopMessage"));
+      toast.info(
+        headerText("toasts.header.fullReset"),
+        toastText("toasts.cleanupNoop"),
+      );
     } else {
       toast.success(
-        t("toasts.cleanupSuccessful"),
-        t("toasts.cleanupSuccessfulMessage", {
-          games: result.deleted_games,
-          artwork: result.deleted_artwork_count,
-          stores: result.logged_out_count,
-          files: result.deleted_files_count,
-          residual: result.deleted_residual_count ?? 0,
-        }),
+        headerText("toasts.header.fullReset"),
+        toastText("toasts.cleanupSuccessfulMessage"),
       );
     }
   };

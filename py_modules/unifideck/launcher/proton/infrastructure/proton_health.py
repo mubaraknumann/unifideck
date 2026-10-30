@@ -84,7 +84,7 @@ def check_after_failure(env: dict[str, str] | None) -> str | None:
 
         launcher_toast(
             "toasts.launcher.protonDamagedMessage",
-            i18n_title_key="toasts.launcher.protonDamaged",
+            i18n_title_key="toasts.header.proton",
             i18n_params={"version": root.name},
             severity="error",
         )

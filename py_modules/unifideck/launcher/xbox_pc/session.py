@@ -48,6 +48,7 @@ from .backend import BackendPaths
 from .component_locks import ComponentsBusyError, game_lock, reading_components
 from .environment import build_game_env, clean_env, pick_locale
 from .errors import (
+    INITIALIZING_PREFIX_KEY,
     LANGUAGE_UNAVAILABLE_KEY,
     VC_RUNTIME_FAILED_KEY,
     VC_RUNTIME_INSTALLING_KEY,
@@ -90,7 +91,6 @@ Notify = Callable[[str, Mapping[str, Any]], Awaitable[None]]
 #: The credential file a signed-in account always has.
 USER_SESSION_FILE = "user-session"
 _PUMP_DRAIN_S = 5.0
-_INITIALIZING_PREFIX_KEY = "toasts.launcher.initializingPrefix"
 
 
 @dataclass(frozen=True)
@@ -335,7 +335,7 @@ class XboxPcLaunch:
 
     async def _notify_prefix(self) -> None:
         """Tell the user a first launch is creating the prefix."""
-        await self._notify(_INITIALIZING_PREFIX_KEY, {})
+        await self._notify(INITIALIZING_PREFIX_KEY, {})
 
     async def _choose_locale(self, game: GameInfo) -> None:
         """Run the game in the UI language when it declares it; say so when not."""

@@ -368,8 +368,8 @@ async def test_service_hard_block_emits_error_not_modal(
     evt = mock_event_bus.emit.await_args
     assert "action" not in evt.kwargs  # no retry-sync → no pick modal
     assert evt.kwargs.get("severity") == "warning"
-    assert evt.kwargs.get("i18n_title_key") == "cloudSave.uploadSkippedTitle"
-    assert evt.kwargs.get("i18n_key") == "cloudSave.uploadSkippedBody"
+    assert evt.kwargs.get("i18n_title_key") == "toasts.header.cloudSaves"
+    assert evt.kwargs.get("i18n_key") == "toasts.cloudUploadSkippedBody"
 
 
 # ── Forced pull (explicit "Use Cloud") ────────────────────────────────────

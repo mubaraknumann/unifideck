@@ -61,7 +61,7 @@ def test_damaged_proton_is_marked_and_rejected(tmp_path, toasts):
     assert toasts == [(
         "toasts.launcher.protonDamagedMessage",
         {
-            "i18n_title_key": "toasts.launcher.protonDamaged",
+            "i18n_title_key": "toasts.header.proton",
             "i18n_params": {"version": "GE-Proton11-11"},
             "severity": "error",
         },

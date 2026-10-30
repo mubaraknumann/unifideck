@@ -151,7 +151,7 @@ async def test_a_refusal_toasts_its_key_and_emits_no_launch(monkeypatch: pytest.
     assert bus.stage_keys()[-1] == "toasts.launcher.xboxPcEacRuntimeMissing"
     stage = next(kw for _ev, kw in bus.events if kw.get("i18n_key") == bus.stage_keys()[-1])
     assert stage["severity"] == "error"
-    assert stage["i18n_params"]["reason"] == "eac_runtime_missing"
+    assert stage["i18n_title_key"] == "toasts.header.xboxPc"
     assert "game_key" in stage["i18n_params"]
     assert "/secret/path" not in str(stage)
     assert stage["action"] == {

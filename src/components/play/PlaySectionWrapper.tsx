@@ -25,8 +25,8 @@
  * component just glues them.
  */
 import { FC, ReactNode, useEffect } from "react";
-import { toaster } from "@decky/api";
-import i18n from "i18next";
+import { toastText, headerText } from "../../services/toast-text";
+import { showToast } from "../../services/show-toast";
 import { usePlaySection } from "../../hooks/usePlaySection";
 import { NotInstalledButtons } from "./NotInstalledButtons";
 import { DownloadingButtons } from "./DownloadingButtons";
@@ -60,15 +60,11 @@ let backendUnavailableToastShown = false;
 function notifyBackendUnavailable(): void {
   if (backendUnavailableToastShown) return;
   backendUnavailableToastShown = true;
-  try {
-    toaster.toast({
-      title: String(i18n.t("toasts.backendUnavailable")),
-      body: String(i18n.t("toasts.backendUnavailableMessage")),
-      duration: 8000,
-    });
-  } catch (e) {
-    console.error("[Unifideck] backend-unavailable toast failed:", e);
-  }
+  showToast({
+    title: headerText("toasts.header.unifideck"),
+    body: toastText("toasts.backendUnavailableMessage"),
+    duration: 8000,
+  });
 }
 
 /**

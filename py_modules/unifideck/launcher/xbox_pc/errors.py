@@ -5,11 +5,11 @@ launcher service turns the reason into a toast through
 :data:`REASON_TOAST_KEYS`, so a user always sees why nothing started
 (CLAUDE.md rule 8). The result's ``error_code`` is ``xbox_pc_<reason>``.
 
-Every toast key here declares ``{{game_key}}``, except the anti-cheat and
-restart-loop ones: those stay within 15 characters so the toast does not cut
-them off. A missing runtime's toast is tappable and opens Steam's install
-dialog (:func:`toast_action`), so it need not spell out what to install. ``xboxPcLaunchFailed`` also declares ``{{reason}}``, because it
-covers the reasons that have no string of their own.
+A toast field holds 16 characters (``scripts/check_toast_length.py``). Every
+toast here shows the Xbox PC header (:func:`toast_header`) over a body that
+says what happened. A missing runtime's toast is tappable and opens Steam's
+install dialog (:func:`toast_action`), so it need not spell out what to
+install. The reason itself is in the log, not the toast.
 
 Stdlib only, Python 3.10 safe.
 """
@@ -61,14 +61,23 @@ LANGUAGE_UNAVAILABLE_KEY = _PREFIX + "xboxPcLanguageUnavailable"
 GAME_ARGS_IGNORED_KEY = _PREFIX + "xboxPcGameArgsIgnored"
 VC_RUNTIME_INSTALLING_KEY = _PREFIX + "xboxPcInstallingVcRuntime"
 VC_RUNTIME_FAILED_KEY = _PREFIX + "xboxPcVcRuntimeFailed"
-VC_RUNTIME_TITLE_KEY = _PREFIX + "xboxPcVcRuntimeTitle"
 
-#: ``notice key -> title key``. A toast line fits about 15 characters, so
-#: these notices split their text between a title and the sub-text.
-NOTICE_TITLES: dict[str, str] = {
-    VC_RUNTIME_INSTALLING_KEY: VC_RUNTIME_TITLE_KEY,
-    VC_RUNTIME_FAILED_KEY: VC_RUNTIME_TITLE_KEY,
-}
+#: Shown by the session while it creates the prefix on a first launch.
+INITIALIZING_PREFIX_KEY = _PREFIX + "initializingPrefix"
+
+
+#: Notices shown under the Game Setup header; every other key is an Xbox PC
+#: toast.
+_GAME_SETUP_KEYS = frozenset({
+    INITIALIZING_PREFIX_KEY, VC_RUNTIME_INSTALLING_KEY, VC_RUNTIME_FAILED_KEY,
+})
+
+
+def toast_header(key: str) -> str:
+    """The header (the feature's name) a launch toast shows over ``key``."""
+    if key in _GAME_SETUP_KEYS:
+        return "toasts.header.gameSetup"
+    return "toasts.header.xboxPc"
 
 
 #: The label of a toast that installs a Steam tool when tapped.

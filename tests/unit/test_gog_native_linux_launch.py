@@ -142,7 +142,7 @@ async def test_native_output_lands_in_game_log_and_early_exit_toasts(
     toast.assert_awaited_once()
     kwargs = toast.await_args.kwargs
     assert kwargs["i18n_key"] == "toasts.launcher.nativeExitedEarly"
-    assert kwargs["i18n_params"]["code"] == 3
+    assert kwargs["i18n_title_key"] == "toasts.header.gameLaunch"
 
 
 async def test_clean_native_exit_does_not_toast(tmp_path, monkeypatch):

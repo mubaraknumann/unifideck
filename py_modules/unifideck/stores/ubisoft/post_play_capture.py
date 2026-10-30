@@ -185,7 +185,7 @@ class PostPlayCaptureMixin:
             await self._bus.emit(
                 Events.LAUNCHER_STAGE,
                 severity="warning",
-                i18n_title_key="toasts.ubisoftSignInExpired",
+                i18n_title_key="toasts.header.ubisoft",
                 i18n_key="toasts.ubisoftSignInExpiredMessage",
                 duration_ms=10000,
                 store="ubisoft",

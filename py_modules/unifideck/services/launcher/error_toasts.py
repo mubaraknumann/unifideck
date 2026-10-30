@@ -32,6 +32,7 @@ async def emit_launch_error_toast(
     ctx: LaunchContext,
     *,
     i18n_key: str,
+    i18n_title_key: str | None = None,
     extra_params: dict[str, Any] | None = None,
     action: dict[str, Any] | None = None,
     tag: str,
@@ -49,16 +50,16 @@ async def emit_launch_error_toast(
     that had failed three times simply stopped responding to Play with no
     message at all. Anything added here must stay on ``LAUNCHER_STAGE``.
 
-    Every string these callers use declares a ``{{game_key}}`` placeholder,
-    so the resolved display title is fed into it: that turns "battlenet:D1
-    failed to launch" into "Diablo IV failed to launch" without touching 16
-    locale files. ``resolve_title`` falls back to the raw key.
+    The resolved display title is passed as ``{{game_key}}`` (``resolve_title``
+    falls back to the raw key) for any string that names the game.
 
     Best-effort by construction — a failure to *report* a failed launch must
     not itself raise into the launch path.
 
     Args:
-        i18n_key: the locale key to render.
+        i18n_key: the locale key to render: the body, or the whole toast
+            when there is no title key.
+        i18n_title_key: the toast title, above ``i18n_key``.
         extra_params: interpolation values beyond ``game_key``.
         action: a one-tap fix, in ``emit_stage``'s ``action`` shape.
         tag: log prefix, so a delivery failure names its caller.
@@ -71,6 +72,7 @@ async def emit_launch_error_toast(
         await emit_stage(
             svc._bus,
             i18n_key=i18n_key,
+            i18n_title_key=i18n_title_key,
             game_title=title,
             severity="error",
             duration_ms=_ERROR_TOAST_MS,
@@ -92,10 +94,11 @@ async def emit_launcher_error_toast(
     handled — the specific failures (umu retry, prefix init, GE fallback)
     toast from their own sites.
     """
+    logger.error("[ErrorToasts] launch of %s failed: %s", ctx.game_key, err_code)
     await emit_launch_error_toast(
         svc, ctx,
         i18n_key="toasts.launcher.launcherError",
-        extra_params={"error_code": err_code},
+        i18n_title_key="toasts.header.gameLaunch",
         tag="ErrorToasts",
     )
 

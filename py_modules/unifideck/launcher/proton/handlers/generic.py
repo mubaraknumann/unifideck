@@ -102,14 +102,14 @@ async def generic_launch(plan: ProtonLaunchPlan) -> int:
     if store == "gog":
         launcher_toast(
             "toasts.launcher.startingGogGame",
-            i18n_title_key="toasts.launcher.launchingGame",
+            i18n_title_key="toasts.header.gog",
             game_title=plan.context.game_key,
         )
         rc = await _gog_launch(plan)
     elif store == "amazon":
         launcher_toast(
             "toasts.launcher.startingAmazonGame",
-            i18n_title_key="toasts.launcher.launchingGame",
+            i18n_title_key="toasts.header.amazon",
             game_title=plan.context.game_key,
         )
         rc = await _amazon_launch(plan)

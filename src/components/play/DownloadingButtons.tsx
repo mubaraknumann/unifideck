@@ -22,6 +22,7 @@ import { FaTimes } from "react-icons/fa";
 import { useDownloads } from "../../contexts/DownloadContext";
 import { useGameActions } from "../../hooks/useGameActions";
 import { useToast } from "../../hooks/useToast";
+import { toastText, headerText } from "../../services/toast-text";
 import { SteamBridge } from "../../lib/steam-bridge";
 import type { DownloadItem } from "../../types/downloads";
 import { showsPercent } from "../../lib/download-phase";
@@ -55,14 +56,13 @@ export const DownloadingButtons: FC<Props> = ({
       // refetch nothing else would ever replace it — the button stayed live
       // and the user could sit here failing the same cancel forever.
       void downloads.refresh();
+      console.error("[DownloadingButtons] cancel failed:", result?.error);
       toast.error(
-        t("toasts.cancelFailed"),
-        t("downloadsTab.toastCancelFailedBody", {
-          error: result?.error ?? t("common.unknown"),
-        }),
+        headerText("toasts.header.download"),
+        toastText("toasts.cancelFailed"),
       );
     }
-  }, [actions, download.id, downloads, t, toast]);
+  }, [actions, download.id, downloads, toast]);
 
   const onCancelClick = useCallback(() => {
     if (cancelled) return;

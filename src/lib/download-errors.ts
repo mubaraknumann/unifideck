@@ -5,9 +5,10 @@
  * The backend folds the store CLI's real error tail into
  * `error_message` (e.g. `insufficient_space:need=66.4GB,free=43.5GB` from
  * the size-aware preflight, or `legendary_exit_1: … Not enough available
- * disk space! …` when legendary itself aborts). Both the failure toast
- * (`download-store`) and the failed-row detail (`DownloadItemRow`) render
- * through this one helper so they always agree.
+ * disk space! …` when legendary itself aborts). The failed-row detail
+ * (`friendlyDownloadError`) and the failure toast (`downloadErrorToast`)
+ * classify through one helper so they always agree; the toast shows a
+ * short twin of the row's sentence.
  *
  * Matching keys off the RAW message text, not the backend `error_type`:
  * `classify_download_error` historically missed legendary's "disk space"
@@ -23,6 +24,11 @@
  * cause. `EXIT_PREFIX_RE` had anticipated `gogdl_exit_N:` all along.
  */
 import type { TFunction } from "i18next";
+import {
+  toastText,
+  type ToastKey,
+  type ToastString,
+} from "../services/toast-text";
 
 /** Pull `need`/`free` GB out of an `insufficient_space:…` code. */
 const SPACE_RE = /need=([\d.]+)GB,free=([\d.]+)GB/;
@@ -163,31 +169,34 @@ const CODE_KEYS: ReadonlyArray<readonly [RegExp, string]> = [
   ...XBOX_PC_CODE_KEYS,
 ];
 
-export function friendlyDownloadError(
-  raw: string | undefined,
-  t: TFunction,
-): string {
+interface Classified {
+  key: string;
+  params?: Record<string, string>;
+}
+
+/** The row key (and its params) for a failure, or null for an unknown one. */
+function classify(raw: string | undefined): Classified | null {
   if (!raw || !raw.trim()) {
-    return t("errors.download.generic");
+    return { key: "errors.download.generic" };
   }
 
   const lower = raw.toLowerCase();
   const code = raw.split(":", 1)[0].trim();
   for (const [pattern, key] of CODE_KEYS) {
     if (pattern.test(code)) {
-      return t(key);
+      return { key };
     }
   }
 
   if (raw.startsWith("insufficient_space:")) {
     const m = SPACE_RE.exec(raw);
     if (m) {
-      return t("errors.download.insufficientSpace", {
-        need: m[1],
-        free: m[2],
-      });
+      return {
+        key: "errors.download.insufficientSpace",
+        params: { need: m[1], free: m[2] },
+      };
     }
-    return t("errors.download.diskSpace");
+    return { key: "errors.download.diskSpace" };
   }
 
   if (
@@ -196,17 +205,101 @@ export function friendlyDownloadError(
     lower.includes("disk full") ||
     raw.startsWith("low_space:")
   ) {
-    return t("errors.download.diskSpace");
+    return { key: "errors.download.diskSpace" };
   }
 
   if (lower.includes("network") || lower.includes("connection")) {
-    return t("errors.download.network");
+    return { key: "errors.download.network" };
   }
 
   if (lower.includes("login") || lower.includes("auth")) {
-    return t("errors.download.authExpired");
+    return { key: "errors.download.authExpired" };
   }
 
-  // Unknown failure — surface the real tail so nothing is ever silent.
-  return raw.replace(EXIT_PREFIX_RE, "").trim() || t("errors.download.generic");
+  return null;
 }
+
+/** The failure as a sentence, for the failed-download row. */
+export function friendlyDownloadError(
+  raw: string | undefined,
+  t: TFunction,
+): string {
+  const found = classify(raw);
+  if (found) return t(found.key, found.params);
+  // Unknown failure — surface the real tail so nothing is ever silent.
+  return (
+    (raw ?? "").replace(EXIT_PREFIX_RE, "").trim() ||
+    t("errors.download.generic")
+  );
+}
+
+/**
+ * The failure as a toast body: the row key's short twin under
+ * `toasts.downloadError.*` (`TOAST_KEYS`). A toast has no room
+ * for the raw tail an unknown failure shows in the row, so that one reads
+ * as the generic reason; the row and the log keep the detail.
+ */
+export function downloadErrorToast(raw: string | undefined): ToastString {
+  const key = classify(raw)?.key ?? "errors.download.generic";
+  return toastText(TOAST_KEYS[key] ?? "toasts.downloadError.generic");
+}
+
+/** Row key → its short toast twin. */
+const TOAST_KEYS: Readonly<Record<string, ToastKey>> = {
+  "errors.download.authExpired": "toasts.downloadError.authExpired",
+  "errors.download.claimRequired": "toasts.downloadError.claimRequired",
+  "errors.download.directoryNotFound": "toasts.downloadError.directoryNotFound",
+  "errors.download.diskSpace": "toasts.downloadError.diskSpace",
+  "errors.download.folderInUse": "toasts.downloadError.folderInUse",
+  "errors.download.generic": "toasts.downloadError.generic",
+  "errors.download.insufficientSpace": "toasts.downloadError.diskSpace",
+  "errors.download.lockConflict": "toasts.downloadError.lockConflict",
+  "errors.download.network": "toasts.downloadError.network",
+  "errors.download.noCompatibleBuild": "toasts.downloadError.noCompatibleBuild",
+  "errors.download.processFailed": "toasts.downloadError.processFailed",
+  "errors.download.stalled": "toasts.downloadError.stalled",
+  "errors.download.toolMissing": "toasts.downloadError.toolMissing",
+  "errors.download.uninstallIncomplete":
+    "toasts.downloadError.uninstallIncomplete",
+  "errors.download.uninstallRefused": "toasts.downloadError.uninstallRefused",
+  "errors.download.xboxPcAlreadyInstalled":
+    "toasts.downloadError.xboxPcAlreadyInstalled",
+  "errors.download.xboxPcBackendFailed":
+    "toasts.downloadError.xboxPcBackendFailed",
+  "errors.download.xboxPcComponentsBusy":
+    "toasts.downloadError.xboxPcComponentsBusy",
+  "errors.download.xboxPcCredentials": "toasts.downloadError.xboxPcCredentials",
+  "errors.download.xboxPcDisabled": "toasts.downloadError.xboxPcDisabled",
+  "errors.download.xboxPcDriveMissing":
+    "toasts.downloadError.xboxPcDriveMissing",
+  "errors.download.xboxPcFilesystem": "toasts.downloadError.xboxPcFilesystem",
+  "errors.download.xboxPcGameRunning": "toasts.downloadError.xboxPcGameRunning",
+  "errors.download.xboxPcIncomplete": "toasts.downloadError.xboxPcIncomplete",
+  "errors.download.xboxPcLicenseDenied":
+    "toasts.downloadError.xboxPcLicenseDenied",
+  "errors.download.xboxPcLicenseInvalid":
+    "toasts.downloadError.xboxPcLicenseInvalid",
+  "errors.download.xboxPcLicenseRateLimited":
+    "toasts.downloadError.xboxPcLicenseRateLimited",
+  "errors.download.xboxPcLicenseUnavailable":
+    "toasts.downloadError.xboxPcLicenseUnavailable",
+  "errors.download.xboxPcMarketUnknown":
+    "toasts.downloadError.xboxPcMarketUnknown",
+  "errors.download.xboxPcNeedsChoice": "toasts.downloadError.xboxPcNeedsChoice",
+  "errors.download.xboxPcNoPackage": "toasts.downloadError.xboxPcNoPackage",
+  "errors.download.xboxPcOldPartial": "toasts.downloadError.xboxPcOldPartial",
+  "errors.download.xboxPcRepairNoRecord":
+    "toasts.downloadError.xboxPcRepairNoRecord",
+  "errors.download.xboxPcResolveFailed":
+    "toasts.downloadError.xboxPcResolveFailed",
+  "errors.download.xboxPcRuntimeDamaged":
+    "toasts.downloadError.xboxPcRuntimeDamaged",
+  "errors.download.xboxPcRuntimeMissing":
+    "toasts.downloadError.xboxPcRuntimeMissing",
+  "errors.download.xboxPcSignIn": "toasts.downloadError.xboxPcSignIn",
+  "errors.download.xboxPcUnsupportedPlan":
+    "toasts.downloadError.xboxPcUnsupportedPlan",
+  "errors.download.xboxPcUpdatePending":
+    "toasts.downloadError.xboxPcUpdatePending",
+  "xboxPc.account.errors.xboxRefused": "toasts.downloadError.xboxRefused",
+};

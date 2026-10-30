@@ -21,7 +21,8 @@ import { SteamControllerIcon, SteamGearIcon } from "../shared";
 import { useGameInfo } from "../../hooks/useGameInfo";
 import { useInstallFlow } from "../../hooks/useInstallFlow";
 import { useToast } from "../../hooks/useToast";
-import { friendlyDownloadError } from "../../lib/download-errors";
+import { downloadErrorToast } from "../../lib/download-errors";
+import { toastText, headerText } from "../../services/toast-text";
 import { SteamBridge } from "../../lib/steam-bridge";
 import {
   PlayShell,
@@ -61,19 +62,17 @@ export const NotInstalledButtons: FC<Props> = ({
     if (result == null) return;
     if (result.success) {
       toast.success(
-        t("toasts.downloadQueued"),
-        t("toasts.downloadQueuedBody", { title: game.title }),
+        headerText("toasts.header.download"),
+        toastText("toasts.downloadQueued"),
       );
     } else {
       // A refusal code (`xbox_pc_disabled`, ...) becomes its friendly line.
       toast.error(
-        t("toasts.downloadFailed"),
-        result.error
-          ? friendlyDownloadError(result.error, t)
-          : t("toasts.downloadFailedUnknown"),
+        headerText("toasts.header.downloadGame", { title: game.title }),
+        downloadErrorToast(result.error),
       );
     }
-  }, [installFlow, game, t, toast]);
+  }, [installFlow, game, toast]);
 
   return (
     // autoFocus is intentional: claims gamepad focus for the primary action

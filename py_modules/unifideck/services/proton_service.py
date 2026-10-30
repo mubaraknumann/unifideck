@@ -88,7 +88,7 @@ class ProtonService:
             def _announce(tag: str, _problem: str) -> None:
                 asyncio.run_coroutine_threadsafe(
                     self._emit_proton_toast(
-                        "toasts.launcher.installingProton",
+                        "toasts.header.proton",
                         "toasts.launcher.attemptingInstall",
                         tag,
                     ),
@@ -109,7 +109,7 @@ class ProtonService:
                 "[ProtonService] repaired %s (was: %s)", result.tag, result.problem,
             )
             await self._emit_proton_toast(
-                "toasts.launcher.protonReadyTitle",
+                "toasts.header.proton",
                 "toasts.launcher.protonReadyBody",
                 result.tag,
             )
@@ -151,7 +151,7 @@ class ProtonService:
                 return
             # A download is needed → tell the user it's happening.
             await self._emit_proton_toast(
-                "toasts.launcher.installingProton",
+                "toasts.header.proton",
                 "toasts.launcher.attemptingInstall",
                 tag,
             )
@@ -163,7 +163,7 @@ class ProtonService:
             _path, installed_tag = result
             logger.info("[ProtonService] latest GE-Proton ready: %s", installed_tag)
             await self._emit_proton_toast(
-                "toasts.launcher.protonReadyTitle",
+                "toasts.header.proton",
                 "toasts.launcher.protonReadyBody",
                 installed_tag,
             )
@@ -249,7 +249,7 @@ class ProtonService:
             current_ver, tag,
         )
         await self._emit_proton_toast(
-            "toasts.launcher.externalProtonOutdatedTitle",
+            "toasts.header.proton",
             "toasts.launcher.externalProtonOutdatedBody",
             tag,
         )

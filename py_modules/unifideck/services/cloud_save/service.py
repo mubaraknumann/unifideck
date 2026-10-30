@@ -314,9 +314,10 @@ class CloudSaveService(_SyncMixin, _StatusMixin):
             Events.LAUNCHER_STAGE,
             store=store,
             game_id=game_id,
-            # Non-empty i18n_key so the listener doesn't early-return before
-            # opening the modal (it renders its own copy from cloudSave.*).
-            i18n_key="cloudSave.title",
+            # The listener opens the conflict modal for this payload, which
+            # renders its own copy from cloudSave.*; this key is not shown.
+            i18n_title_key="toasts.header.cloudSaves",
+            i18n_key="toasts.cloudConflict",
             severity="warning",
             game_title=game_title or game_id,
             local_snapshot=conflict.local,
@@ -397,8 +398,7 @@ class CloudSaveService(_SyncMixin, _StatusMixin):
             Events.LAUNCHER_STAGE,
             store=store,
             game_id=game_id,
-            i18n_title_key="cloudSave.uploadSkippedTitle",
-            i18n_key="cloudSave.uploadSkippedBody",
-            i18n_params={"game": self._game_title(store, game_id)},
+            i18n_title_key="toasts.header.cloudSaves",
+            i18n_key="toasts.cloudUploadSkippedBody",
             severity="warning",
         )

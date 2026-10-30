@@ -401,7 +401,7 @@ class _GeDownloadAnnouncer:
             from unifideck.launcher.frontend_bridge import launcher_toast
             launcher_toast(
                 "toasts.launcher.downloadingProton",
-                i18n_title_key="toasts.launcher.installingProton",
+                i18n_title_key="toasts.header.proton",
             )
         except Exception:
             logger.debug("[launcher.proton] GE download toast failed", exc_info=True)
@@ -413,7 +413,7 @@ def _announce_ge_ready(tag: str) -> None:
         from unifideck.launcher.frontend_bridge import launcher_toast
         launcher_toast(
             "toasts.launcher.protonReadyBody",
-            i18n_title_key="toasts.launcher.protonReadyTitle",
+            i18n_title_key="toasts.header.proton",
             i18n_params={"version": tag},
         )
     except Exception:

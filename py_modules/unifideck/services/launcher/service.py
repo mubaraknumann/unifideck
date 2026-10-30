@@ -199,6 +199,7 @@ class LauncherService:
             # A notice launches nothing; its own toast is the whole answer.
             await emit_stage(
                 self._bus,
+                i18n_title_key="toasts.header.gameLaunch",
                 i18n_key="toasts.launcher.launchingGame",
                 game_title=ctx.game_key,
                 priority="low",

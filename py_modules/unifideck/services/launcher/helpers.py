@@ -221,12 +221,12 @@ async def _emit_cloud_unavailable_toast(
 
         await emit_stage(
             svc._bus,
-            i18n_key="cloudSync.unavailableNativeDep",
+            i18n_title_key="toasts.header.cloudSaves",
+            i18n_key="toasts.cloudSavesOffBody",
             game_title=getattr(ctx, "game_key", None)
             or f"{ctx.store}:{ctx.game_id}",
             priority="low",
             severity="warning",
-            i18n_params={"python": py_ver},
         )
     except Exception as e:  # never let a toast break a launch
         logger.debug("[Helpers] cloud-unavailable toast failed: %s", e)

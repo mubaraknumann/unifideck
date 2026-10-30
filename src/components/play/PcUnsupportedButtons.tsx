@@ -19,7 +19,8 @@ import { SteamControllerIcon, SteamGearIcon } from "../shared";
 import { useGameInfo } from "../../hooks/useGameInfo";
 import { useGameActions } from "../../hooks/useGameActions";
 import { useToast } from "../../hooks/useToast";
-import { friendlyDownloadError } from "../../lib/download-errors";
+import { downloadErrorToast } from "../../lib/download-errors";
+import { toastText, headerText } from "../../services/toast-text";
 import { SteamBridge } from "../../lib/steam-bridge";
 import {
   pcUnsupportedKey,
@@ -97,18 +98,21 @@ export const PcUnsupportedButtons: FC<Props> = ({
         onConfirm={async (deletePrefix) => {
           const r = await actions.uninstall(appId, deletePrefix);
           if (r.success) {
-            toast.success(t("toasts.uninstallDone"));
+            toast.success(
+              headerText("toasts.header.uninstall"),
+              toastText("toasts.uninstallDone"),
+            );
           } else {
             toast.error(
-              t("toasts.uninstallFailed"),
-              friendlyDownloadError(r.error, t),
+              headerText("toasts.header.uninstall"),
+              downloadErrorToast(r.error),
             );
           }
         }}
         closeModal={() => {}}
       />,
     );
-  }, [actions, appId, game, t, toast]);
+  }, [actions, appId, game, toast]);
 
   return (
     // autoFocus is intentional: claims gamepad focus for the primary action

@@ -110,16 +110,14 @@ def _reasons_in(rel: str) -> set[str]:
 
 
 def _mapped_reasons() -> dict[str, str]:
-    """``reason -> i18n key`` as declared in SYNC_SKIPPED_KEYS."""
+    """``reason -> body key`` as declared in SYNC_SKIPPED_KEYS."""
     text = _require(LISTENER).read_text(encoding="utf-8")
     block = re.search(
-        r"SYNC_SKIPPED_KEYS\s*:\s*Record<string,\s*string>\s*=\s*\{(.*?)\}",
+        r"SYNC_SKIPPED_KEYS\s*:\s*Record<string,\s*ToastKey>\s*=\s*\{(.*?)\};",
         text, re.S,
     )
     assert block, "SYNC_SKIPPED_KEYS table not found in the boot event listener"
-    return dict(
-        re.findall(r"(\w+)\s*:\s*\"([\w.]+)\"", block.group(1)),
-    )
+    return dict(re.findall(r"(\w+)\s*:\s*\"([\w.]+)\"", block.group(1)))
 
 
 def _lookup(bundle: dict, dotted: str) -> object | None:

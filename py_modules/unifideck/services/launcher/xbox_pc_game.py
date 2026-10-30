@@ -19,10 +19,10 @@ from typing import TYPE_CHECKING, Any
 from unifideck.core.types import Result
 from unifideck.launcher.xbox_pc.errors import (
     GAME_ARGS_IGNORED_KEY,
-    NOTICE_TITLES,
     STARTING_KEY,
     XboxPcLaunchError,
     toast_action,
+    toast_header,
     toast_key,
 )
 
@@ -45,8 +45,8 @@ async def _refuse(svc: LauncherService, ctx: LaunchContext, err: XboxPcLaunchErr
     """Toast the refusal and return its failure result."""
     logger.warning("[LauncherService] Xbox PC launch refused: %s", err)
     await emit_launch_error_toast(
-        svc, ctx, i18n_key=toast_key(err.reason),
-        extra_params={"reason": err.reason}, action=toast_action(err.reason, ctx.game_id), tag=_TAG,
+        svc, ctx, i18n_key=(key := toast_key(err.reason)), i18n_title_key=toast_header(key),
+        action=toast_action(err.reason, ctx.game_id), tag=_TAG,
     )
     code = f"xbox_pc_{err.reason}"
     return Result(success=False, error=code, error_code=code, store=ctx.store)
@@ -60,7 +60,7 @@ async def _notice(svc: LauncherService, ctx: LaunchContext, key: str, params: Ma
     title = resolve_title(ctx.game_key)
     await emit_stage(
         svc._bus, i18n_key=key, game_title=title, priority="normal",
-        i18n_title_key=NOTICE_TITLES.get(key), i18n_params={"game_key": title, **params},
+        i18n_title_key=toast_header(key), i18n_params={"game_key": title, **params},
     )
 
 

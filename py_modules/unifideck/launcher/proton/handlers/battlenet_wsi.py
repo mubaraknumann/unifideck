@@ -208,7 +208,7 @@ async def adopt_workaround(plan: object, game_title: str) -> bool:
     )
     launcher_toast(
         "toasts.launcher.battlenetRetryingWithoutWsiMessage",
-        i18n_title_key="toasts.launcher.battlenetRetryingWithoutWsi",
+        i18n_title_key="toasts.header.battlenet",
         game_title=game_title,
     )
     return True

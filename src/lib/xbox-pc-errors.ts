@@ -11,8 +11,15 @@
  * Install refusals (`xbox_pc_*`, `xbox_*`, `xodus_*` from `install_game`)
  * are not mapped here. They go through `friendlyDownloadError`, like every
  * other store's install failure.
+ *
+ * A toast shows `xboxPcErrorToast`, the short twin of the same key.
  */
 import type { TFunction } from "i18next";
+import {
+  toastText,
+  type ToastKey,
+  type ToastString,
+} from "../services/toast-text";
 
 /** Exact codes (the part before the first `:`) and their keys. */
 const EXACT_KEYS: Readonly<Record<string, string>> = {
@@ -111,6 +118,68 @@ export function xboxPcErrorText(
   if (!key) return t("xboxPc.errors.generic", { code: splitCode(value).code });
   const { code, detail } = splitCode(value);
   return t(key, { path: detail || sourceDir || "", code });
+}
+
+/** Row key → its short toast twin. */
+const TOAST_KEYS: Readonly<Record<string, ToastKey>> = {
+  "xboxPc.account.errors.credentialStore": "toasts.xboxPcError.credentialStore",
+  "xboxPc.account.errors.edgeBusy": "toasts.xboxPcError.edgeBusy",
+  "xboxPc.account.errors.edgeMissing": "toasts.xboxPcError.edgeMissing",
+  "xboxPc.account.errors.gameRunning": "toasts.xboxPcError.gameRunning",
+  "xboxPc.account.errors.inProgress": "toasts.xboxPcError.signInInProgress",
+  "xboxPc.account.errors.microsoftRequired":
+    "toasts.xboxPcError.microsoftRequired",
+  "xboxPc.account.errors.mismatch": "toasts.xboxPcError.mismatch",
+  "xboxPc.account.errors.notStored": "toasts.xboxPcError.notStored",
+  "xboxPc.account.errors.signinFailed": "toasts.xboxPcError.signinFailed",
+  "xboxPc.account.errors.spawnFailed": "toasts.xboxPcError.spawnFailed",
+  "xboxPc.account.errors.timeout": "toasts.xboxPcError.timeout",
+  "xboxPc.account.errors.windowClosed": "toasts.xboxPcError.windowClosed",
+  "xboxPc.account.errors.windowNotOpened": "toasts.xboxPcError.windowNotOpened",
+  "xboxPc.account.errors.xboxRefused": "toasts.xboxPcError.xboxRefused",
+  "xboxPc.account.errors.xodusBusy": "toasts.xboxPcError.xodusBusy",
+  "xboxPc.account.errors.xodusFailed": "toasts.xboxPcError.xodusFailed",
+  "xboxPc.account.errors.xodusNotReady": "toasts.xboxPcError.xodusNotReady",
+  "xboxPc.account.needsRuntime": "toasts.xboxPcError.needsRuntime",
+  "xboxPc.errors.disabled": "toasts.xboxPcError.disabled",
+  "xboxPc.errors.generic": "toasts.xboxPcError.generic",
+  "xboxPc.errors.unavailable": "toasts.xboxPcError.unavailable",
+  "xboxPc.runtime.errors.backendMissing": "toasts.xboxPcError.backendMissing",
+  "xboxPc.runtime.errors.backendTampered": "toasts.xboxPcError.backendTampered",
+  "xboxPc.runtime.errors.cancelled": "toasts.xboxPcError.cancelled",
+  "xboxPc.runtime.errors.checksum": "toasts.xboxPcError.checksum",
+  "xboxPc.runtime.errors.componentsBusy": "toasts.xboxPcError.componentsBusy",
+  "xboxPc.runtime.errors.inProgress": "toasts.xboxPcError.inProgress",
+  "xboxPc.runtime.errors.installFailed": "toasts.xboxPcError.installFailed",
+  "xboxPc.runtime.errors.insufficientSpace":
+    "toasts.xboxPcError.insufficientSpace",
+  "xboxPc.runtime.errors.invalid": "toasts.xboxPcError.invalid",
+  "xboxPc.runtime.errors.ioError": "toasts.xboxPcError.ioError",
+  "xboxPc.runtime.errors.notWritable": "toasts.xboxPcError.notWritable",
+  "xboxPc.runtime.errors.releaseDownloadFailed":
+    "toasts.xboxPcError.releaseDownloadFailed",
+  "xboxPc.runtime.errors.releaseMismatch": "toasts.xboxPcError.releaseMismatch",
+  "xboxPc.runtime.errors.releaseNotFound": "toasts.xboxPcError.releaseNotFound",
+  "xboxPc.runtime.errors.releaseUnreachable":
+    "toasts.xboxPcError.releaseUnreachable",
+  "xboxPc.runtime.errors.sourceAmbiguous": "toasts.xboxPcError.sourceAmbiguous",
+  "xboxPc.runtime.errors.sourceIncomplete":
+    "toasts.xboxPcError.sourceIncomplete",
+  "xboxPc.runtime.errors.sourceMissing": "toasts.xboxPcError.sourceMissing",
+  "xboxPc.runtime.errors.sourceUnsupported":
+    "toasts.xboxPcError.sourceUnsupported",
+  "xboxPc.section.noticeRequired": "toasts.xboxPcError.noticeRequired",
+  "xboxPc.section.statusError": "toasts.xboxPcError.statusError",
+};
+
+/**
+ * An Xbox PC error code as a toast body: the row key's short twin under
+ * `toasts.xboxPcError.*` (`TOAST_KEYS`). A toast has no room for the code
+ * or the path a row sentence names; the QAM row keeps them.
+ */
+export function xboxPcErrorToast(raw: string | null | undefined): ToastString {
+  const key = xboxPcErrorKey((raw ?? "").trim());
+  return toastText((key && TOAST_KEYS[key]) || "toasts.xboxPcError.generic");
 }
 
 /**

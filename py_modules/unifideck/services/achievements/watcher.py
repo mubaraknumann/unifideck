@@ -205,8 +205,8 @@ class AchievementWatcher:
         try:
             from unifideck.launcher.frontend_bridge import launcher_toast
             launcher_toast(
-                "achievements.unlockedBody",
-                i18n_title_key="achievements.unlockedTitle",
+                "toasts.achievementName",
+                i18n_title_key="toasts.header.achievement",
                 i18n_params={"name": achievement.get("name") or ""},
                 game_title=self._game_title(store, game_id),
             )

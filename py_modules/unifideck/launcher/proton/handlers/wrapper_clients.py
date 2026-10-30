@@ -321,6 +321,7 @@ def announce_client_open(store: str) -> None:
     from unifideck.launcher.frontend_bridge import launcher_toast
 
     launcher_toast(
+        i18n_title_key="toasts.header.client",
         i18n_key="toasts.launcher.wrapperOpening",
         i18n_params={"client": _CLIENT_NAMES.get(store, store)},
     )

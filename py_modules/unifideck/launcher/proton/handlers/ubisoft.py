@@ -147,7 +147,7 @@ async def ubisoft_launch(plan: ProtonLaunchPlan) -> int:
     )
     launcher_toast(
         "toasts.launcher.startingUbisoftGame",
-        i18n_title_key="toasts.launcher.launchingGame",
+        i18n_title_key="toasts.header.ubisoft",
         game_title=resolve_title(plan.context.game_key),
     )
     await _apply_epic_wrapper_fix(plan)
@@ -163,7 +163,7 @@ async def ubisoft_launch(plan: ProtonLaunchPlan) -> int:
     if upc_exe is None:
         launcher_toast(
             "toasts.launcher.ubisoftPrefixNotReadyMessage",
-            i18n_title_key="toasts.launcher.ubisoftPrefixNotReady",
+            i18n_title_key="toasts.header.ubisoft",
             game_title=resolve_title(plan.context.game_key),
             severity="error",
         )
@@ -193,12 +193,13 @@ async def ubisoft_launch(plan: ProtonLaunchPlan) -> int:
         # didn't work. (Robust post-install id seeding should make this rare.)
         logger.warning(
             "[launcher.proton.ubisoft] no uplay id for %s — opening UPC "
-            "bare (user can launch from their library)",
+            "bare (user can launch from their library; a library sync "
+            "restores direct launch)",
             plan.context.game_id,
         )
         launcher_toast(
             "toasts.launcher.ubisoftLaunchIdMissingMessage",
-            i18n_title_key="toasts.launcher.ubisoftLaunchIdMissing",
+            i18n_title_key="toasts.header.ubisoft",
             game_title=resolve_title(plan.context.game_key),
             severity="warning",
         )
@@ -238,7 +239,7 @@ async def ubisoft_auth_launch(plan: ProtonLaunchPlan) -> int:
     if upc_exe is None:
         launcher_toast(
             "toasts.launcher.ubisoftAuthPrefixNotReadyMessage",
-            i18n_title_key="toasts.launcher.ubisoftAuthPrefixNotReady",
+            i18n_title_key="toasts.header.ubisoft",
             game_title="Ubisoft Connect",
             severity="error",
         )
@@ -321,7 +322,7 @@ async def ubisoft_install_launch(plan: ProtonLaunchPlan) -> int:
     )
     launcher_toast(
         "toasts.launcher.installingUbisoftMessage",
-        i18n_title_key="toasts.launcher.installingUbisoft",
+        i18n_title_key="toasts.header.ubisoft",
         game_title="Ubisoft Connect",
     )
     # _resolve_or_recover_upc_exe returns a verified-existing path or None
@@ -331,7 +332,7 @@ async def ubisoft_install_launch(plan: ProtonLaunchPlan) -> int:
     if upc_exe is None:
         launcher_toast(
             "toasts.launcher.ubisoftPrefixNotReadyMessage",
-            i18n_title_key="toasts.launcher.ubisoftPrefixNotReady",
+            i18n_title_key="toasts.header.ubisoft",
             game_title="Ubisoft Connect",
             severity="error",
         )

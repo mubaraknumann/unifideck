@@ -11,10 +11,9 @@ import pytest
 
 from unifideck.launcher.xbox_pc import prefix_vcredist as vc
 from unifideck.launcher.xbox_pc.errors import (
-    NOTICE_TITLES,
+    toast_header,
     VC_RUNTIME_FAILED_KEY,
     VC_RUNTIME_INSTALLING_KEY,
-    VC_RUNTIME_TITLE_KEY,
 )
 from unifideck.launcher.xbox_pc.game_manifest import inspect_game
 from unifideck.launcher.xbox_pc.runner import NO_WAIT_FLAG, write_runner
@@ -209,9 +208,9 @@ async def test_a_newer_runtime_already_there_counts_as_installed(tmp_path: Path)
 
 # ── the toasts ───────────────────────────────────────────────────────
 
-def test_vc_notices_split_between_title_and_sub_text() -> None:
-    assert NOTICE_TITLES[VC_RUNTIME_INSTALLING_KEY] == VC_RUNTIME_TITLE_KEY
-    assert NOTICE_TITLES[VC_RUNTIME_FAILED_KEY] == VC_RUNTIME_TITLE_KEY
+def test_vc_notices_show_under_the_game_setup_header() -> None:
+    assert toast_header(VC_RUNTIME_INSTALLING_KEY) == "toasts.header.gameSetup"
+    assert toast_header(VC_RUNTIME_FAILED_KEY) == "toasts.header.gameSetup"
 
 
 # ── the runner ───────────────────────────────────────────────────────

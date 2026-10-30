@@ -23,7 +23,8 @@ import { useGameInfo } from "../../hooks/useGameInfo";
 import { useGameActions } from "../../hooks/useGameActions";
 import { useGameUpdate } from "../../hooks/useGameUpdate";
 import { useToast } from "../../hooks/useToast";
-import { friendlyDownloadError } from "../../lib/download-errors";
+import { downloadErrorToast } from "../../lib/download-errors";
+import { toastText, headerText } from "../../services/toast-text";
 import { SteamBridge } from "../../lib/steam-bridge";
 import { UninstallConfirmModal } from "../modals/UninstallConfirmModal";
 import { UpdateAvailableModal } from "../modals/UpdateAvailableModal";
@@ -80,14 +81,24 @@ export const InstalledButtons: FC<Props> = ({
     try {
       const res = await actions.update(appId, gameStore, gameId);
       if (res?.success) {
-        toast.success(t("toasts.updateQueued"));
+        toast.success(
+          headerText("toasts.header.update"),
+          toastText("toasts.updateQueued"),
+        );
       } else {
-        toast.error(t("toasts.updateFailed"), res?.error ?? "");
+        toast.error(
+          headerText("toasts.header.update"),
+          downloadErrorToast(res?.error),
+        );
       }
     } catch (e) {
-      toast.error(t("toasts.updateFailed"), String(e));
+      console.error("[InstalledButtons] update failed:", e);
+      toast.error(
+        headerText("toasts.header.update"),
+        downloadErrorToast(undefined),
+      );
     }
-  }, [actions, appId, game, gameId, gameStore, t, toast]);
+  }, [actions, appId, game, gameId, gameStore, toast]);
 
   const onResume = useCallback(() => {
     actions.launch(appId);
@@ -132,18 +143,21 @@ export const InstalledButtons: FC<Props> = ({
         onConfirm={async (deletePrefix) => {
           const r = await actions.uninstall(appId, deletePrefix);
           if (r.success) {
-            toast.success(t("toasts.uninstallDone"));
+            toast.success(
+              headerText("toasts.header.uninstall"),
+              toastText("toasts.uninstallDone"),
+            );
           } else {
             toast.error(
-              t("toasts.uninstallFailed"),
-              friendlyDownloadError(r.error, t),
+              headerText("toasts.header.uninstall"),
+              downloadErrorToast(r.error),
             );
           }
         }}
         closeModal={() => {}}
       />,
     );
-  }, [actions, appId, game, t, toast]);
+  }, [actions, appId, game, toast]);
 
   const primaryButtons = (() => {
     if (isRunning) {

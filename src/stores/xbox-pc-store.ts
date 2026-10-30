@@ -20,12 +20,18 @@
  * (`hooks/useXboxPcStatus`). `getSnapshot` returns the same object until
  * something changes, or the hook would loop.
  */
-import { call, toaster } from "@decky/api";
-import i18n from "i18next";
+import { call } from "@decky/api";
 import { rpcRoutes, type RouteName } from "../api/rpc-routes";
 import { EventBusClient } from "../api/event-bus-client";
 import { Events } from "../types/events";
-import { xboxPcErrorText } from "../lib/xbox-pc-errors";
+import { xboxPcErrorToast } from "../lib/xbox-pc-errors";
+import {
+  toastText,
+  headerText,
+  type ToastKey,
+  type ToastString,
+} from "../services/toast-text";
+import { showToast } from "../services/show-toast";
 import type { XboxPcStatus } from "../types/api";
 
 // ── Snapshot type ────────────────────────────────────────
@@ -103,13 +109,13 @@ function sameStatus(a: XboxPcStatus | null, b: XboxPcStatus | null): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-/** A toast through Decky; a no-op where the toaster is missing (tests). */
-function notify(title: string, body: string): void {
-  try {
-    toaster.toast({ title, body, duration: 7000 });
-  } catch (e) {
-    console.warn("[XboxPcStore] toast failed:", e);
-  }
+/** An Xbox PC store toast. */
+function notify(body: ToastString): void {
+  showToast({
+    title: headerText("toasts.header.xboxPc"),
+    body,
+    duration: 7000,
+  });
 }
 
 // ── Store implementation ────────────────────────────────
@@ -242,18 +248,15 @@ class XboxPcStoreImpl {
     if (prev?.runtime.state !== "installing") return;
     if (next.runtime.state === "installed") {
       // A full runtime needs no toast: the sign-in toast follows. One that
-      // lacks features says which, since the user loses them (rule 8).
-      const missing = degradedText(next.runtime.degraded);
-      if (missing) notify(i18n.t("toasts.xboxPcRuntimeInstalled"), missing);
+      // lacks features says so, since the user loses them (rule 8).
+      const missing = degradedToast(next.runtime.degraded);
+      if (missing) notify(missing);
     } else if (next.runtime.state === "failed") {
-      notify(
-        i18n.t("toasts.xboxPcRuntimeFailed"),
-        xboxPcErrorText(
-          next.runtime.error,
-          i18n.t.bind(i18n),
-          next.runtime.source_dir,
-        ),
+      console.error(
+        "[XboxPcStore] component install failed:",
+        next.runtime.error,
       );
+      notify(xboxPcErrorToast(next.runtime.error));
     }
   }
 
@@ -266,10 +269,7 @@ class XboxPcStoreImpl {
     if (next.account.step !== "device" || prev?.account.step === "device") {
       return;
     }
-    notify(
-      i18n.t("toasts.xboxPcConfirmingDevice"),
-      i18n.t("toasts.xboxPcConfirmingDeviceBody"),
-    );
+    notify(toastText("toasts.xboxPcConfirmingDeviceBody"));
   }
 
   private _set(next: XboxPcSnapshot): void {
@@ -279,21 +279,20 @@ class XboxPcStoreImpl {
 }
 
 /** Singleton, started at boot from `definePlugin`. */
-/** i18n keys for the runtime features the user notices losing. */
-const DEGRADED_KEYS: Record<string, string> = {
-  cloud_saves: "xboxPc.runtime.degradedCloudSaves",
-  xbox_sign_in_in_game: "xboxPc.runtime.degradedInGameSignIn",
+/** Toast keys for the runtime features the user notices losing. */
+const DEGRADED_KEYS: Record<string, ToastKey> = {
+  cloud_saves: "toasts.xboxPcDegraded.cloudSaves",
+  xbox_sign_in_in_game: "toasts.xboxPcDegraded.inGameSignIn",
 };
 
-/** What a runtime without `degraded` features cannot do, or "". */
-function degradedText(degraded: string[]): string {
-  return degraded
-    .map((d) =>
-      DEGRADED_KEYS[d]
-        ? i18n.t(DEGRADED_KEYS[d])
-        : i18n.t("xboxPc.runtime.degradedOther", { feature: d }),
-    )
-    .join(" ");
+/**
+ * The first feature a runtime lacks, as a toast body, or null. A toast has
+ * room for one; the log names them all.
+ */
+function degradedToast(degraded: string[]): ToastString | null {
+  if (degraded.length === 0) return null;
+  console.warn("[XboxPcStore] runtime lacks:", degraded.join(", "));
+  return toastText(DEGRADED_KEYS[degraded[0]] ?? "toasts.xboxPcDegraded.other");
 }
 
 export const xboxPcStore = new XboxPcStoreImpl();

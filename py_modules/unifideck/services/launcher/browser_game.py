@@ -48,7 +48,8 @@ async def _edge_missing(svc: LauncherService, ctx: LaunchContext) -> Result | No
         return None
     logger.warning("[LauncherService] browser game aborted: Edge not installed")
     await emit_stage(
-        svc._bus, i18n_key="toasts.launcher.browserRequired",
+        svc._bus, i18n_title_key="toasts.header.gameLaunch",
+        i18n_key="toasts.launcher.browserRequired",
         game_title=ctx.game_key, severity="error", priority="normal",
     )
     return Result(success=False, error="edge_not_installed", store=ctx.store)
@@ -73,7 +74,8 @@ async def run_browser_game(svc: LauncherService, ctx: LaunchContext) -> Result:
     )
     if ctx.browser_kind == "stream":
         # A cloud stream signs in to its service before the game starts.
-        await emit_stage(svc._bus, i18n_key="toasts.launcher.signingIn",
+        await emit_stage(svc._bus, i18n_title_key="toasts.header.xboxCloud",
+                         i18n_key="toasts.launcher.signingIn",
                          game_title=ctx.game_key)
     try:
         # ``launch_browser_game`` is synchronous: ``Popen`` blocks for about

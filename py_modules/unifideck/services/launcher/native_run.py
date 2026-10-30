@@ -142,7 +142,6 @@ async def _emit_native_early_exit_toast(
     Best-effort: a toast failure never affects the launch result.
     """
     log_path = game_log_path()
-    log_name = log_path.name if log_path is not None else "game.log"
     logger.warning(
         "[Helpers] native game %s:%s exited rc=%s within %ds; output in %s",
         ctx.store, ctx.game_id, rc, EARLY_EXIT_SECONDS, log_path,
@@ -153,12 +152,11 @@ async def _emit_native_early_exit_toast(
         await emit_stage(
             svc._bus,
             i18n_key="toasts.launcher.nativeExitedEarly",
-            i18n_title_key="toasts.launcher.nativeExitedEarlyTitle",
+            i18n_title_key="toasts.header.gameLaunch",
             game_title=getattr(ctx, "game_key", None)
             or f"{ctx.store}:{ctx.game_id}",
             priority="normal",
             severity="warning",
-            i18n_params={"code": rc, "log": f"launches/{log_name}"},
             duration_ms=10000,
         )
     except Exception as e:  # never let a toast break a launch

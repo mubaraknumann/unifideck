@@ -22,7 +22,7 @@
  * There is no separate sign-out: signing out of Microsoft signs out of both.
  */
 import { showModal } from "@decky/ui";
-import i18n from "i18next";
+import { toastText } from "../toast-text";
 import { rpcRoutes } from "../../api/rpc-routes";
 import { ChromiumInstallModal } from "../../components/modals/ChromiumInstallModal";
 import { watchAppStopped } from "../../lib/steam-bridge/shortcut-types";
@@ -112,10 +112,7 @@ function waitForSignIn(
 
 /** Run the whole Xbox PC sign-in. Resolves true once signed in. */
 export async function signInXboxPc(): Promise<boolean> {
-  xboxPcToast(
-    i18n.t("toasts.xboxPcSigningIn"),
-    i18n.t("xboxPc.notice.authenticator"),
-  );
+  xboxPcToast(toastText("toasts.xboxPcApprove"));
   const before = xboxPcStore.getSnapshot().status;
   const start = await callXboxPc<StartAnswer>(rpcRoutes.startXboxPcSignIn);
   if (start.ok && start.data?.status) xboxPcStore.apply(start.data.status);
@@ -125,7 +122,7 @@ export async function signInXboxPc(): Promise<boolean> {
     return false;
   }
   if (refusal) {
-    toastXboxPcError("toasts.xboxPcSignInFailed", refusal);
+    toastXboxPcError("sign-in", refusal);
     return false;
   }
   let appId: number | undefined;
@@ -133,7 +130,7 @@ export async function signInXboxPc(): Promise<boolean> {
     const launched = await launchXboxPcSignInViaShortcut();
     if (!launched.success) {
       await callXboxPc(rpcRoutes.cancelXboxPcSignIn);
-      toastXboxPcError("toasts.xboxPcSignInFailed", "window_not_opened");
+      toastXboxPcError("sign-in", "window_not_opened");
       return false;
     }
     appId = launched.app_id ?? launched.appId;
@@ -145,16 +142,10 @@ export async function signInXboxPc(): Promise<boolean> {
 function finishSignIn(status: XboxPcStatus | null): boolean {
   const outcome = signInOutcome(status);
   if (!outcome?.ok) {
-    toastXboxPcError("toasts.xboxPcSignInFailed", outcome?.error);
+    toastXboxPcError("sign-in", outcome?.error);
     return false;
   }
-  const gamertag = xboxPcStore.getSnapshot().status?.account.gamertag;
-  xboxPcToast(
-    i18n.t("toasts.xboxPcSignedIn"),
-    gamertag
-      ? i18n.t("toasts.xboxPcSignedInAs", { gamertag })
-      : i18n.t("toasts.xboxPcSignedInBody"),
-  );
+  xboxPcToast(toastText("toasts.xboxPcSignedInBody"));
   syncAfterXboxPc();
   return true;
 }

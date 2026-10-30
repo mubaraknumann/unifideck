@@ -13,16 +13,14 @@
  * prefix setup, dependency install, Proton switch, …). This poll is the
  * panel-independent delivery path for everything the launcher emits.
  */
-import { call, toaster } from "@decky/api";
+import { call } from "@decky/api";
 import { showModal } from "@decky/ui";
-import i18n from "i18next";
 import { rpcRoutes } from "../api/rpc-routes";
 import { unwrapRpcEnvelope } from "../api/useRPC";
 import { EventBusClient } from "../api/event-bus-client";
 import { CloudSaveConflictModal } from "../components/modals/CloudSaveConflictModal";
-import { resolveToastDuration } from "./toast-duration";
-import { buildToastParams } from "./toast-params";
-import { isConflictAction, resolveToastAction } from "./toast-action";
+import { isConflictAction } from "./toast-action";
+import { showStageToast } from "./stage-toast";
 import { REPAIR_VERB, repairXboxPcGame } from "./store/xbox-pc-repair";
 import type { ToastActionPayload } from "../types/events";
 
@@ -78,13 +76,6 @@ export function startLauncherToastPoll(): () => void {
 }
 
 function showLauncherToast(ev: LauncherToast): void {
-  // `game_title` is a top-level payload field, but the strings interpolate
-  // it as `{{gameTitle}}` — so without merging it in here every launcher
-  // toast rendered with the placeholder unfilled ("Starting  through
-  // Battle.net…"). An explicit i18n_params entry still wins, since a caller
-  // that named the variable meant it.
-  const params = buildToastParams(ev);
-
   // Cloud-save conflict → modal so the user can pick keep-local/remote.
   // Discriminated on the SNAPSHOTS, not the verb: `cloud_failure` also sends
   // `retry-sync` for a transient failure with nothing to choose between
@@ -125,34 +116,5 @@ function showLauncherToast(ev: LauncherToast): void {
     void repairXboxPcGame(ev.action.args[0]);
   }
 
-  const message = ev.i18n_key ? String(i18n.t(ev.i18n_key, params)) : "";
-  if (!message && !ev.i18n_title_key) return;
-
-  // Match the QAM ToastEventListener: title key (when present) is the
-  // bold header and i18n_key is the body; otherwise the message is the
-  // title with no body.
-  const title = ev.i18n_title_key
-    ? String(i18n.t(ev.i18n_title_key, params))
-    : message;
-  const body = ev.i18n_title_key ? message : "";
-
-  // Decky toasts take an onClick, not a button — so the whole toast is the
-  // affordance and the action's label goes in the subtext.
-  const onClick = resolveToastAction(ev.action);
-  const actionLabel =
-    onClick && ev.action?.i18n_label_key
-      ? String(i18n.t(ev.action.i18n_label_key))
-      : "";
-
-  try {
-    toaster.toast({
-      title,
-      body,
-      duration: resolveToastDuration(ev.duration_ms, ev.severity),
-      ...(onClick ? { onClick } : {}),
-      ...(actionLabel ? { subtext: actionLabel } : {}),
-    });
-  } catch {
-    console.log(`[LauncherToast] ${title}: ${body}`);
-  }
+  showStageToast(ev);
 }

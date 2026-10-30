@@ -459,17 +459,14 @@ class _SyncRunMixin:
             await self._bus.emit(
                 Events.LAUNCHER_STAGE,
                 severity="warning",
+                i18n_title_key="toasts.header.librarySync",
                 i18n_key="toasts.library.syncStoreFailed",
-                i18n_params={
-                    "store": store.store_name,
-                    "error": str(e)[:120],
-                },
+                i18n_params={"store": store.store_info.display_name},
                 duration_ms=8000,
                 action={
+                    "verb": "refresh-library",
+                    "args": [store.store_name],
                     "i18n_label_key": "toasts.actions.retryLibrarySync",
-                    "target_url": (
-                        f"unifideck://refresh-library/{store.store_name}"
-                    ),
                 },
                 store=store.store_name,
             )

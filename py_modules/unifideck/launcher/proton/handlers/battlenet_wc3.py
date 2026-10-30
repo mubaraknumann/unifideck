@@ -55,7 +55,7 @@ def apply_wc3_crypt32_fix(plan: ProtonLaunchPlan, family: str) -> None:
     )
     launcher_toast(
         "toasts.launcher.wc3ProtonUnsupportedMessage",
-        i18n_title_key="toasts.launcher.wc3ProtonUnsupported",
+        i18n_title_key="toasts.header.proton",
         game_title=resolve_title(plan.context.game_key),
         severity="error",
     )

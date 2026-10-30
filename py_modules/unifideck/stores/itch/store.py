@@ -152,7 +152,7 @@ class ItchStore(BrowserAuthRebuildMixin, StoreBase):
             await self._bus.emit(
                 Events.LAUNCHER_STAGE,
                 severity="warning",
-                i18n_title_key="toasts.itchKeyRejected",
+                i18n_title_key="toasts.header.itch",
                 i18n_key="toasts.itchKeyRejectedMessage",
                 duration_ms=12000,
                 store="itch",

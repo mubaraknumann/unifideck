@@ -3,36 +3,37 @@
  * share: turning the feature on and off, the post-setup resync, and the
  * failure toast.
  */
-import { call, toaster } from "@decky/api";
+import { call } from "@decky/api";
 import { showModal } from "@decky/ui";
-import i18n from "i18next";
 import { rpcRoutes } from "../../api/rpc-routes";
 import { prepareForSync } from "../../lib/steam-bridge/prepare-sync";
-import { xboxPcErrorText } from "../../lib/xbox-pc-errors";
+import { xboxPcErrorToast } from "../../lib/xbox-pc-errors";
+import { toastText, headerText, type ToastString } from "../toast-text";
+import { showToast } from "../show-toast";
 import { xboxPcStore } from "../../stores/xbox-pc-store";
 import { XboxPcNoticeModal } from "../../components/modals/XboxPcNoticeModal";
 import { linkXboxPc } from "./xbox-pc-link";
 import type { StoreId, XboxPcStatus } from "../../types/api";
 
-/** A toast through Decky; logged where the toaster is missing. */
-export function xboxPcToast(title: string, body: string): void {
-  try {
-    toaster.toast({ title, body, duration: 7000 });
-  } catch (e) {
-    console.warn("[XboxPc] toast failed:", e);
-  }
+/** An Xbox PC toast: `body` under the shared Xbox PC header. */
+export function xboxPcToast(body: ToastString): void {
+  showToast({
+    title: headerText("toasts.header.xboxPc"),
+    body,
+    duration: 7000,
+  });
 }
 
-/** Toast an Xbox PC failure code under `titleKey` (rule 8). */
+/**
+ * Toast an Xbox PC failure code (rule 8). The toast names the reason; the
+ * code is logged with `context`, and the QAM row shows the full sentence.
+ */
 export function toastXboxPcError(
-  titleKey: string,
+  context: string,
   code: string | undefined,
 ): void {
-  const status = xboxPcStore.getSnapshot().status;
-  xboxPcToast(
-    i18n.t(titleKey),
-    xboxPcErrorText(code, i18n.t.bind(i18n), status?.runtime.source_dir),
-  );
+  console.error(`[XboxPc] ${context} failed:`, code);
+  xboxPcToast(xboxPcErrorToast(code));
 }
 
 /**
@@ -81,15 +82,12 @@ export async function enableXboxPc(status: XboxPcStatus): Promise<boolean> {
   if (needsNotice && !(await confirmNotice())) return false;
   const r = await xboxPcStore.setEnabled(true, status.notice_version);
   if (!r.ok) {
-    toastXboxPcError("toasts.xboxPcEnableFailed", r.error);
+    toastXboxPcError("toggle", r.error);
     return false;
   }
   if (!r.data?.xcloud_signed_in) {
     // Nothing to link yet: connecting Microsoft runs `linkXboxPc`.
-    xboxPcToast(
-      i18n.t("toasts.xboxPcEnabled"),
-      i18n.t("xboxPc.section.microsoftNeeded"),
-    );
+    xboxPcToast(toastText("toasts.xboxPcError.microsoftRequired"));
   } else if (r.data.account?.state === "signed_in") {
     // A saved sign-in still needs the components (downloaded on first use)
     // before the library can be read.
@@ -110,7 +108,7 @@ export async function enableXboxPc(status: XboxPcStatus): Promise<boolean> {
 export async function disableXboxPc(): Promise<boolean> {
   const r = await xboxPcStore.setEnabled(false);
   if (!r.ok) {
-    toastXboxPcError("toasts.xboxPcEnableFailed", r.error);
+    toastXboxPcError("toggle", r.error);
     return false;
   }
   syncAfterXboxPc();

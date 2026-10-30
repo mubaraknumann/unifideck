@@ -9,7 +9,7 @@
  * Microsoft first. The predicates live in `lib/xbox-pc-setup` and are
  * re-exported here so the install flow has one import for the whole step.
  */
-import i18n from "i18next";
+import { toastText } from "../toast-text";
 import { xboxPcStore } from "../../stores/xbox-pc-store";
 import { xboxPcToast } from "./xbox-pc-actions";
 import { linkXboxPc } from "./xbox-pc-link";
@@ -24,10 +24,7 @@ export {
 export async function runXboxPcSetup(): Promise<boolean> {
   const status = xboxPcStore.getSnapshot().status;
   if (status && !status.xcloud_signed_in) {
-    xboxPcToast(
-      i18n.t("toasts.xboxPcSignInFailed"),
-      i18n.t("xboxPc.section.microsoftNeeded"),
-    );
+    xboxPcToast(toastText("toasts.xboxPcError.microsoftRequired"));
     return false;
   }
   return linkXboxPc();

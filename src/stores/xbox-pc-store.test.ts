@@ -27,6 +27,10 @@ vi.mock("@decky/api", () => ({
 vi.mock("i18next", () => ({
   default: { t: (k: string) => k },
 }));
+// Unclamped, so the assertions read whole keys.
+vi.mock("../services/show-toast", () => ({
+  showToast: (options: unknown) => api.toast(options),
+}));
 vi.mock("../api/event-bus-client", () => ({
   EventBusClient: {
     subscribe: (name: string, fn: (p: Record<string, unknown>) => void) => {
@@ -211,8 +215,9 @@ describe("xbox-pc-store", () => {
     );
     expect(api.toast).toHaveBeenCalledTimes(1);
     expect(api.toast.mock.calls[0][0]).toMatchObject({
-      title: "toasts.xboxPcRuntimeInstalled",
-      body: "xboxPc.runtime.degradedCloudSaves xboxPc.runtime.degradedOther",
+      title: "toasts.header.xboxPc",
+      // A toast has room for one; the first missing feature is named.
+      body: "toasts.xboxPcDegraded.cloudSaves",
     });
   });
 
@@ -224,7 +229,7 @@ describe("xbox-pc-store", () => {
     store.apply(status({ account: { state: "signing_in", step: "device" }, enabled: true }));
     expect(api.toast).toHaveBeenCalledTimes(1);
     expect(api.toast.mock.calls[0][0]).toMatchObject({
-      title: "toasts.xboxPcConfirmingDevice",
+      title: "toasts.header.xboxPc",
       body: "toasts.xboxPcConfirmingDeviceBody",
     });
   });
@@ -238,8 +243,8 @@ describe("xbox-pc-store", () => {
       }),
     );
     expect(api.toast.mock.calls[0][0]).toMatchObject({
-      title: "toasts.xboxPcRuntimeFailed",
-      body: "xboxPc.runtime.errors.sourceAmbiguous",
+      title: "toasts.header.xboxPc",
+      body: "toasts.xboxPcError.sourceAmbiguous",
     });
   });
 });

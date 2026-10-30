@@ -302,8 +302,8 @@ async def test_startup_audits_each_tree_in_use_then_sweeps(monkeypatch):
     await svc._audit_in_use_ges()
 
     assert toasts == [
-        ("toasts.launcher.installingProton", "toasts.launcher.attemptingInstall", "GE-Proton11-9"),
-        ("toasts.launcher.protonReadyTitle", "toasts.launcher.protonReadyBody", "GE-Proton11-9"),
+        ("toasts.header.proton", "toasts.launcher.attemptingInstall", "GE-Proton11-9"),
+        ("toasts.header.proton", "toasts.launcher.protonReadyBody", "GE-Proton11-9"),
     ]
     assert swept == [True]
 

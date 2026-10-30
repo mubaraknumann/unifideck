@@ -17,8 +17,7 @@
  * the thin `<DownloadProvider>` wrapper (which now only provides
  * mutation actions and the reactive snapshot).
  */
-import { call, toaster } from "@decky/api";
-import i18n from "i18next";
+import { call } from "@decky/api";
 import { rpcRoutes } from "../api/rpc-routes";
 import { unwrapRpcEnvelope } from "../api/useRPC";
 import type { EventName } from "../types/events";
@@ -26,7 +25,9 @@ import { EventBusClient } from "../api/event-bus-client";
 import { invalidateGameInfo } from "../hooks/useGameInfo";
 import { bumpGameStateVersion } from "../lib/game-state-version";
 import { invalidateGameSize } from "../lib/game-size-cache";
-import { friendlyDownloadError } from "../lib/download-errors";
+import { downloadErrorToast } from "../lib/download-errors";
+import { headerText } from "../services/toast-text";
+import { showToast } from "../services/show-toast";
 import { launchUbisoftInstallViaShortcut } from "../utils/ubisoftShortcutLaunch";
 import { launchBattlenetInstallViaShortcut } from "../utils/battlenetShortcutLaunch";
 
@@ -216,20 +217,17 @@ class DownloadStoreImpl {
       onTerminal(payload);
       const { error, title } = extractFailure(payload);
       if (!error) return;
-      const body = friendlyDownloadError(error, i18n.t.bind(i18n));
-      try {
-        toaster.toast({
-          title: title
-            ? `${i18n.t("toasts.downloadFailed")}: ${title}`
-            : i18n.t("toasts.downloadFailed"),
-          body,
-          duration: 7500,
-        });
-      } catch {
-        console.error(
-          `[DownloadStore] install failed: ${title ?? ""} — ${body}`,
-        );
-      }
+      console.error(
+        `[DownloadStore] install failed: ${title ?? ""} — ${error}`,
+      );
+      showToast({
+        // The queue runs in the background, so the header names the game.
+        title: title
+          ? headerText("toasts.header.downloadGame", { title })
+          : headerText("toasts.header.download"),
+        body: downloadErrorToast(error),
+        duration: 7500,
+      });
     };
 
     this._unsubs.push(

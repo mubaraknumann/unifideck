@@ -303,7 +303,7 @@ def ensure_umu_runtime_ready() -> None:
     if not any((UMU_CACHE_DIR / variant).exists() for variant in UMU_RUNTIME_VARIANTS):
         launcher_toast(
             "toasts.launcher.downloadingRuntime",
-            i18n_title_key="toasts.launcher.firstTimeSetup",
+            i18n_title_key="toasts.header.gameSetup",
         )
     UMU_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     os.environ["UMU_LOG"] = "1"
@@ -338,7 +338,7 @@ async def _prepare_retry(rc: int, attempt: int, max_attempts: int) -> None:
     )
     launcher_toast(
         "toasts.launcher.retryingUmu",
-        i18n_title_key="toasts.launcher.launchRetry",
+        i18n_title_key="toasts.header.gameSetup",
         i18n_params={
             "seconds": _RETRY_BACKOFF_SECONDS,
             "attempt": attempt + 1,

@@ -36,6 +36,7 @@ import { EventBusClient, useEventBus } from "../../api/event-bus-client";
 import { markCloudOpPending } from "../../api/cloud-save-pending";
 import { Events } from "../../types/events";
 import { useToast } from "../../hooks/useToast";
+import { toastText, headerText } from "../../services/toast-text";
 import {
   useCloudSaveStatus,
   type CloudSaveStatus,
@@ -145,7 +146,10 @@ export const CloudSaveModal: FC<Props> = ({
   const onDownload = async () => {
     markCloudOpPending(store, gameId, "down");
     setTriggered(true);
-    toast.info(t("toasts.cloudPullStarted"));
+    toast.info(
+      headerText("toasts.header.cloudSaves"),
+      toastText("toasts.cloudPullStarted"),
+    );
     await pull.mutate(store, gameId, true);
     EventBusClient.bumpToFast();
     void live.refetch();
@@ -154,7 +158,10 @@ export const CloudSaveModal: FC<Props> = ({
   const onUpload = async () => {
     markCloudOpPending(store, gameId, "up");
     setTriggered(true);
-    toast.info(t("toasts.cloudPushStarted"));
+    toast.info(
+      headerText("toasts.header.cloudSaves"),
+      toastText("toasts.cloudPushStarted"),
+    );
     await push.mutate(store, gameId);
     EventBusClient.bumpToFast();
     void live.refetch();
@@ -164,10 +171,16 @@ export const CloudSaveModal: FC<Props> = ({
     setPicking(false);
     const r = await setPath.mutate(store, gameId, path);
     if (r !== null) {
-      toast.success(t("toasts.cloudSavePathSet"));
+      toast.success(
+        headerText("toasts.header.cloudSaves"),
+        toastText("toasts.cloudSavePathSet"),
+      );
       void live.refetch();
     } else {
-      toast.error(t("toasts.cloudSavePathFailed"));
+      toast.error(
+        headerText("toasts.header.cloudSaves"),
+        toastText("toasts.cloudSavePathFailed"),
+      );
     }
   };
 
@@ -176,10 +189,16 @@ export const CloudSaveModal: FC<Props> = ({
   const onResetPath = async () => {
     const r = await setPath.mutate(store, gameId, "");
     if (r !== null) {
-      toast.success(t("toasts.cloudSavePathReset"));
+      toast.success(
+        headerText("toasts.header.cloudSaves"),
+        toastText("toasts.cloudSavePathReset"),
+      );
       void live.refetch();
     } else {
-      toast.error(t("toasts.cloudSavePathFailed"));
+      toast.error(
+        headerText("toasts.header.cloudSaves"),
+        toastText("toasts.cloudSavePathFailed"),
+      );
     }
   };
 

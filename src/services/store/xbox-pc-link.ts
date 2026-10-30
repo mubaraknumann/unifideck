@@ -62,7 +62,7 @@ async function ensureComponents(status: XboxPcStatus): Promise<boolean> {
     // or downloads already running keep the old copy until they end.
     void xboxPcStore.installRuntime().then((r) => {
       if (!r.ok && r.error !== "install_in_progress") {
-        toastXboxPcError("toasts.xboxPcRuntimeFailed", r.error);
+        toastXboxPcError("component install", r.error);
       }
     });
     return true;
@@ -71,7 +71,7 @@ async function ensureComponents(status: XboxPcStatus): Promise<boolean> {
   if (status.runtime.state !== "installing") {
     const r = await xboxPcStore.installRuntime();
     if (!r.ok && r.error !== "install_in_progress") {
-      toastXboxPcError("toasts.xboxPcRuntimeFailed", r.error);
+      toastXboxPcError("component install", r.error);
       return false;
     }
   }
