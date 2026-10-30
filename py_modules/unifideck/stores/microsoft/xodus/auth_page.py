@@ -108,7 +108,8 @@ class CxhPageBridge:
             await handler(params)
 
     async def _on_request_paused(self, params: dict[str, Any]) -> None:
-        request = params.get("request") if isinstance(params.get("request"), dict) else {}
+        raw = params.get("request")
+        request = raw if isinstance(raw, dict) else {}
         out: dict[str, Any] = {"requestId": params.get("requestId")}
         page_headers = request.get("headers")
         headers = proto.merge_cxh_headers(

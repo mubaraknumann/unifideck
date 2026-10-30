@@ -89,9 +89,12 @@ class LibraryReadLike(Protocol):
     failed or busy; ``stdout`` holds the JSON line on ok (it has the email:
     never log it)."""
 
-    status: str
-    stdout: str
-    tail: str
+    @property
+    def status(self) -> str: ...
+    @property
+    def stdout(self) -> str: ...
+    @property
+    def tail(self) -> str: ...
 
 
 class XodusCliLike(Protocol):

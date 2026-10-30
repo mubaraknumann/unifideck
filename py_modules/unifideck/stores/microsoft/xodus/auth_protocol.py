@@ -178,7 +178,8 @@ def describe_notify(payload: str) -> str:
     if isinstance(data, dict) and "sDAToken" in data:
         return "token payload (redacted)"
     if isinstance(data, dict):
-        value = data.get("value") if isinstance(data.get("value"), dict) else {}
+        raw = data.get("value")
+        value = raw if isinstance(raw, dict) else {}
         name = value.get("name")
         # A bridge method name is not a secret, but it is long enough for
         # ``redact`` to take it for a token (I-061).

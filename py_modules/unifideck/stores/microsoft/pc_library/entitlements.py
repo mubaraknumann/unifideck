@@ -33,7 +33,7 @@ import json
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, TypeGuard
 
 PRODUCT_ID_RE = re.compile(r"^[A-Z0-9]{12}\Z")
 
@@ -183,7 +183,7 @@ def _row(row: dict[str, Any]) -> Entitlement | None:
     )
 
 
-def is_product_id(value: Any) -> bool:
+def is_product_id(value: Any) -> TypeGuard[str]:
     """Whether ``value`` is an upper-case 12-character product id."""
     return isinstance(value, str) and bool(PRODUCT_ID_RE.match(value))
 

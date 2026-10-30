@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 COMPONENTS_WAIT_S = 600.0
 _SIGNED_IN = frozenset({"signed_in", "unverified"})
 _USABLE = frozenset({"installed", "outdated"})
-_tasks: set[asyncio.Task[None]] = set()
+_tasks: set[asyncio.Task[Any]] = set()
 
 
 async def _components_ready(facade: XboxPc) -> str | None:

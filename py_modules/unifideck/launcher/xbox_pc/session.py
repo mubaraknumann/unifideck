@@ -300,16 +300,21 @@ class XboxPcLaunch:
                 await self._notify(VC_RUNTIME_INSTALLING_KEY, {})
             for arch in missing:
                 problem = await self._install_vc_runtime(plan, compat_root, arch)
-                if not problem:
-                    continue
-                if arch != needed:
-                    logger.warning("[xbox_pc] %s VC++ not installed; the game is %s: %s", arch, needed, problem)
-                elif game.vc_redist_encrypted:
-                    raise XboxPcLaunchError("vcredist_missing", problem)
-                else:
-                    logger.error("[xbox_pc] %s VC++ not installed, the game may crash: %s", arch, problem)
-                    await self._notify(VC_RUNTIME_FAILED_KEY, {})
+                if problem:
+                    await self._vc_install_failed(arch, needed, problem)
         return any([await asyncio.to_thread(native_vc_present, compat_root, a) for a in VC_ARCHES])
+
+    async def _vc_install_failed(self, arch: str, needed: str, problem: str) -> None:
+        """Log, notify or refuse the launch for one VC++ install that failed."""
+        game = self._game
+        assert game is not None
+        if arch != needed:
+            logger.warning("[xbox_pc] %s VC++ not installed; the game is %s: %s", arch, needed, problem)
+        elif game.vc_redist_encrypted:
+            raise XboxPcLaunchError("vcredist_missing", problem)
+        else:
+            logger.error("[xbox_pc] %s VC++ not installed, the game may crash: %s", arch, problem)
+            await self._notify(VC_RUNTIME_FAILED_KEY, {})
 
     async def _install_vc_runtime(self, plan: _Plan, compat_root: Path, arch: str) -> str | None:
         """Find or fetch ``arch``'s installer and run it. Returns why it failed, or None."""

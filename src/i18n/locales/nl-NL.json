@@ -1274,7 +1274,7 @@
       "noticeRequired": "Lees en accepteer de mededeling voordat je dit inschakelt.",
       "retry": "Opnieuw proberen",
       "enableDownloads": "Experimentele Xbox PC-downloads inschakelen",
-      "runtimeVersion": "Runtime {{version}}",
+      "runtimeVersion": "Omgeving {{version}}",
       "runtimeUpdateAvailable": "Runtime {{version}} (update klaar)",
       "runtimeDownloading": "Downloaden… {{percent}}%",
       "runtimeInstalling": "Installeren…"

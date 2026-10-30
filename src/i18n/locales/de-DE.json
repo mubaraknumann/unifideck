@@ -1274,7 +1274,7 @@
       "noticeRequired": "Lies den Hinweis und akzeptiere ihn, bevor du dies aktivierst.",
       "retry": "Erneut versuchen",
       "enableDownloads": "Experimentelle Xbox-PC-Downloads aktivieren",
-      "runtimeVersion": "Runtime {{version}}",
+      "runtimeVersion": "Laufzeitumgebung {{version}}",
       "runtimeUpdateAvailable": "Runtime {{version}} (Update bereit)",
       "runtimeDownloading": "Download… {{percent}} %",
       "runtimeInstalling": "Installation…"

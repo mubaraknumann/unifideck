@@ -125,9 +125,9 @@ def parse_profile(stdout: str) -> Profile:
 
 
 def _int_or_none(value: Any) -> int | None:
-    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-        return None
-    return value
+    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+        return value
+    return None
 
 
 def _record_from(data: dict[str, Any]) -> ProgressRecord | None:

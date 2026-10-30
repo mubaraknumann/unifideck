@@ -79,7 +79,8 @@ class PcTitle:
         ent, target = meta.get("product_id"), meta.get("target_id")
         if not is_product_id(ent) or not is_product_id(target):
             return None
-        choices = meta.get("choices") if isinstance(meta.get("choices"), list) else []
+        raw_choices = meta.get("choices")
+        choices = raw_choices if isinstance(raw_choices, list) else []
         size = meta.get("size_bytes")
         return cls(
             entitlement_id=ent, target_id=target, title=str(meta.get("title") or target),

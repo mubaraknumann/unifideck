@@ -24,7 +24,7 @@ import inspect
 import logging
 import platform
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Coroutine
 from typing import TYPE_CHECKING, Any
 
 from unifideck.core.types import Events
@@ -102,7 +102,7 @@ def _drop_credentials() -> int:
 class _Throttle:
     """Runs ``emit`` at most once per interval, always with the latest state."""
 
-    def __init__(self, emit: Callable[[], Awaitable[None]], interval: float) -> None:
+    def __init__(self, emit: Callable[[], Coroutine[Any, Any, None]], interval: float) -> None:
         self._emit = emit
         self._interval = interval
         self._last = 0.0

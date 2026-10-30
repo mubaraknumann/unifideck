@@ -102,10 +102,8 @@ def _text(node: Element | None) -> str:
 
 def _locales(nodes: list[Element]) -> tuple[str, ...]:
     """The well-formed languages the manifest declares, sorted."""
-    found = {
-        n.get("Language", "") for n in nodes
-        if _local(n.tag) == "Resource" and _LOCALE_RE.fullmatch(n.get("Language", ""))
-    }
+    langs = (n.get("Language") or "" for n in nodes if _local(n.tag) == "Resource")
+    found = {lang for lang in langs if _LOCALE_RE.fullmatch(lang)}
     return tuple(sorted(found))
 
 
