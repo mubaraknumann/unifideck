@@ -32,7 +32,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-import re
 import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
@@ -46,6 +45,7 @@ from .account_state import AccountState, write_state
 from .auth_page import CxhPageBridge
 from .cli import XodusCli, XodusCliError
 from .cli_models import redact
+from .errors import REFUSED_HTTP
 
 if TYPE_CHECKING:
     from unifideck.auth.edge_browser import EdgeBrowser
@@ -68,8 +68,6 @@ _REFUSED_STAGES = (
     "(ticket-refused)", "(ticket-interaction-required)", "(session-user-invalid)",
     "(session-user-expired)", "(session-device-invalid)",
 )
-#: Backend 0.1.3 prints Xbox Live's reply. A 4xx other than 429 is a refusal.
-_REFUSED_HTTP = re.compile(r"XODUS_XBOX_REFUSED (?:user\.auth|xsts) HTTP 4(?!29)\d\d")
 
 
 def xbox_refused(err: XodusCliError) -> bool:
@@ -80,7 +78,7 @@ def xbox_refused(err: XodusCliError) -> bool:
     """
     tail = err.tail
     return (
-        bool(_REFUSED_HTTP.search(tail))
+        bool(REFUSED_HTTP.search(tail))
         or any(stage in tail for stage in _REFUSED_STAGES)
         or "Microsoft refused the stored sign-in" in tail
     )

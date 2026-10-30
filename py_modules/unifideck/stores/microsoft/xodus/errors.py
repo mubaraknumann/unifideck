@@ -9,12 +9,14 @@ The order of :func:`classify_failure` follows how much each signal knows:
 1. A credential diagnostic: the sign-in is gone or unreadable.
 2. A content-license diagnostic. The last stage other than
    ``content-parsed`` wins, as in Nexus's ``content-license.ts``.
-3. The stall watchdog.
-4. Otherwise ``xodus_exit_<rc>: <tail>``. The frontend's text rules then
+3. Xbox Live refusing the sign-in (backend 0.1.3+).
+4. The stall watchdog.
+5. Otherwise ``xodus_exit_<rc>: <tail>``. The frontend's text rules then
    read the CLI's own words (disk space, network).
 """
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 from .diagnostics import Diagnostics, LicenseDiagnostic
@@ -29,6 +31,8 @@ _SIGN_IN_AGAIN = frozenset({"keyring-missing-data", "keyring-invalid-data"})
 _LICENSE_HTTP = {401: "xbox_signin_required", 403: "xbox_license_denied",
                  429: "xbox_license_rate_limited"}
 _LICENSE_NETWORK = frozenset({"content-timeout", "content-request", "content-read"})
+#: Backend 0.1.3 prints Xbox Live's reply. A 4xx other than 429 is a refusal.
+REFUSED_HTTP = re.compile(r"XODUS_XBOX_REFUSED (?:user\.auth|xsts) HTTP 4(?!29)\d\d")
 
 
 class InstallError(Exception):
@@ -83,6 +87,10 @@ def classify_failure(outcome: StreamOutcome) -> InstallError:
     code = credential_failure(outcome.diagnostics) or license_failure(outcome.diagnostics)
     if code is not None:
         return InstallError(code, outcome.tail)
+    if REFUSED_HTTP.search(outcome.tail):
+        # The CLI's own sentence says "Check your connection", which the
+        # frontend would show as a network error (I-062).
+        return InstallError("xbox_refused", outcome.tail)
     if outcome.stalled:
         # The tail reads ``stalled: no output for 300s while ... | <tail>``.
         _code, _sep, detail = outcome.tail.partition(": ")

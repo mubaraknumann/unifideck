@@ -64,6 +64,9 @@ const XBOX_PC_CODE_KEYS: ReadonlyArray<readonly [RegExp, string]> = [
     /^xbox_pc_no_package$|^xbox_package_unavailable$/,
     "errors.download.xboxPcNoPackage",
   ],
+  // Xbox Live refused the Xodus sign-in. The CLI's sentence says "Check
+  // your connection", so without this it reads as a network error.
+  [/^xbox_refused$/, "xboxPc.account.errors.xboxRefused"],
   [/^xbox_license_denied$/, "errors.download.xboxPcLicenseDenied"],
   [/^xbox_license_rate_limited$/, "errors.download.xboxPcLicenseRateLimited"],
   [/^xbox_license_unavailable$/, "errors.download.xboxPcLicenseUnavailable"],

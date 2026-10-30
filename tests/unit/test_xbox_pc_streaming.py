@@ -64,6 +64,20 @@ async def test_diagnostics_come_from_stderr_only(kills: list[int]) -> None:
     assert classify_failure(outcome).code == "xbox_license_denied"
 
 
+@pytest.mark.parametrize(("line", "code"), [
+    (b"XODUS_XBOX_REFUSED user.auth HTTP 400 []\n", "xbox_refused"),
+    (b'XODUS_XBOX_REFUSED xsts HTTP 401 [] {"XErr":2148916233}\n', "xbox_refused"),
+    (b"XODUS_XBOX_REFUSED user.auth HTTP 429 []\n", "xodus_exit_1"),
+])
+async def test_an_xbox_live_refusal_is_not_a_network_error(
+    kills: list[int], line: bytes, code: str,
+) -> None:
+    sentence = b"Xbox authentication request failed. Check your connection and sign-in.\n"
+    stderr = FakeStderr([line, sentence])
+    outcome, _ = await _run(FakeProc(FakeStdout([record_line(0, "metadata")]), stderr, rc=1))
+    assert classify_failure(outcome).code == code
+
+
 async def test_a_record_spliced_after_a_diagnostic_fragment_is_still_read(kills: list[int]) -> None:
     spliced = b"NEXUS_CONTENT_LICENSE_DIAGNOSTIC_V1 cont" + record_line(1, "complete", 5, 5)
     outcome, sent = await _run(FakeProc(FakeStdout([record_line(0, "metadata"), spliced])))
