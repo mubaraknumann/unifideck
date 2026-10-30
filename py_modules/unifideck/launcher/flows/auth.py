@@ -102,7 +102,11 @@ async def handle_store_auth(
         "[launcher.auth] %s auth URL resolved (%d chars)",
         label, len(auth_url),
     )
-    started = edge_browser.launch_auth(auth_url)
+    # The Xbox PC sign-in is the one Microsoft window the backend drives over
+    # CDP: its URL is ``about:blank`` (stores/microsoft/xodus/auth.py). It must
+    # not share the persistent profile, see ``launch_auth``.
+    private = store == "microsoft" and auth_url == "about:blank"
+    started = edge_browser.launch_auth(auth_url, private=private)
     if not started:
         return Result(
             success=False,

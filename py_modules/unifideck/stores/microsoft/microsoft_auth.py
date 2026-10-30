@@ -62,6 +62,9 @@ def _obtain_xbl_user_token(
     device-code client. The likely one goes first so a sign-in costs one
     request, not a failed one plus a retry, on every relying party.
     """
+    # The Xodus service returns the ticket already prefixed (``t=<jwe>``).
+    if access_token[:2] in ("t=", "d="):
+        access_token = access_token[2:]
     live = [("2", f"t={access_token}"), ("1", f"d={access_token}"), ("1", f"t={access_token}")]
     aad = [("1", f"d={access_token}"), ("2", f"t={access_token}")]
     candidates = aad if prefer_d else live

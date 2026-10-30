@@ -178,10 +178,43 @@ async def test_xbox_pc_auth_opens_the_microsoft_auth_window(
         return None
 
     monkeypatch.setattr(auth_flow, "_wait_for_auth_end", no_wait)
-    opened: list[str] = []
-    edge = SimpleNamespace(is_installed=True, launch_auth=lambda url: opened.append(url) or True)
+    opened: list[tuple[str, bool]] = []
+    edge = SimpleNamespace(
+        is_installed=True,
+        launch_auth=lambda url, *, private=False: opened.append((url, private)) or True,
+    )
     svc = LauncherService(bus=SimpleNamespace(), shortcut_svc=None, proton_svc=None,  # type: ignore[arg-type]
                           cloud_svc=None, edge_browser=edge)  # type: ignore[arg-type]
     ctx = await d._build_context(["launcher", "microsoft:ms-auth-temp-1"], _Shortcuts(None))
     result = await svc._handle_auth_path(ctx)
-    assert result.success and opened == ["about:blank"]
+    # InPrivate: a signed-in Edge profile sends its browser-SSO credential and
+    # Microsoft then never asks for the second factor the Xbox exchange needs.
+    assert result.success and opened == [("about:blank", True)]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("store, url", [
+    ("microsoft", "https://login.live.com/oauth20_authorize.srf?client_id=x"),
+    ("epic", "about:blank"),
+    ("gog", "https://auth.gog.com/auth?client_id=x"),
+])
+async def test_only_the_xbox_pc_sign_in_window_is_private(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, store: str, url: str,
+) -> None:
+    """Every other store keeps the shared profile (xCloud cookies, saved logins)."""
+    from unifideck.launcher.flows import auth as auth_flow
+
+    monkeypatch.setattr(auth_flow, "read_auth_url", lambda _store: url)
+
+    async def no_wait(_edge: Any) -> None:
+        return None
+
+    monkeypatch.setattr(auth_flow, "_wait_for_auth_end", no_wait)
+    opened: list[tuple[str, bool]] = []
+    edge = SimpleNamespace(
+        is_installed=True,
+        launch_auth=lambda u, *, private=False: opened.append((u, private)) or True,
+    )
+    ctx = SimpleNamespace(auth_store=store, game_key="x")
+    result = await auth_flow.handle_store_auth(ctx, edge)  # type: ignore[arg-type]
+    assert result.success and opened == [(url, False)]
