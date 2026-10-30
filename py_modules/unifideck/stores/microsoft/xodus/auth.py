@@ -8,15 +8,20 @@ every other sign-in does, in Desktop and in Gaming Mode::
     2. take the credential lock, write ``about:blank`` to ms_auth_url.txt
     3. start ``xodus-cli --external-webview-stdio login``; answer ``ready``
     4. the frontend launches the auth shortcut: Edge opens
-       ``--app=about:blank`` with CDP on 9222, in the real edge-auth profile
+       ``--app=about:blank --inprivate`` with CDP on 9222
     5. attach to that page (120 s) and relay frames both ways
        (``auth_page.CxhPageBridge``) until the CLI exits
     6. on exit 0, check the account: Xodus's gamertag must match the one in
        Unifideck's own Xbox sign-in (XSTS ``gtg``)
 
-The edge-auth profile carries the Microsoft session, so the user usually
-only approves the sign-in (Microsoft may still ask for an Authenticator
-approval on a new device, I-009).
+The window is InPrivate on purpose (``launcher/flows/auth.py``). In the
+shared edge-auth profile, Edge signs the profile in to the user's Microsoft
+account after the first login and then sends its browser-SSO credential
+(``x-ms-RefreshTokenCredential``) with every ``login.live.com`` request.
+Microsoft treats the later legs as single sign-on, never asks for the second
+factor, and refuses the token exchange with 0x800488e5 for ever. Without a
+browser account the sign-in is interactive: password, then the second
+factor, then the approval step.
 
 The two Microsoft sign-ins never run together: this one refuses while the
 xCloud sign-in runs, and ``MicrosoftStore.start_auth`` refuses while this

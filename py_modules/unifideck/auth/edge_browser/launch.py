@@ -137,12 +137,21 @@ def _spawn_edge_process(
             stderr_fh.close()
 
 
-def launch_auth(browser: EdgeBrowser, auth_url: str) -> bool:
+def launch_auth(browser: EdgeBrowser, auth_url: str, *, private: bool = False) -> bool:
     """Launch the auth browser for OAuth with remote debugging.
 
     Opens the browser in fullscreen app mode with our CDP port.
     Reuses the shared Unifideck profile so xCloud sessions can keep
     their cookies, while cleaning up stale auth-browser state first.
+
+    ``private`` opens the window InPrivate instead. The Xbox PC sign-in
+    needs it: Edge signs the shared profile in to the user's Microsoft
+    account after the first login and from then on attaches its
+    browser-SSO credential (``x-ms-RefreshTokenCredential``) to every
+    ``login.live.com`` request. Microsoft then treats the later legs as
+    single sign-on, never asks for the second factor, and the Xbox token
+    exchange is refused with 0x800488e5 for ever. An InPrivate window has no
+    browser account, so the sign-in is a plain interactive one.
 
     Returns:
       True if the browser was launched successfully.
@@ -160,6 +169,8 @@ def launch_auth(browser: EdgeBrowser, auth_url: str) -> bool:
     env = clean_env()
     window_flags = auth_window_flags(env)
     args = [*cmd, f"--app={auth_url}", "--class=unifideck-auth", f"--remote-debugging-port={browser.cdp_port}", f"--user-data-dir={PROFILE_DIR}", *_BASE_FLAGS, "--start-fullscreen", "--enable-touch-events", *window_flags, f"--lang={browser.locale_fn().split('-')[0]}"]
+    if private:
+        args.append("--inprivate")
     return _spawn_edge_process(browser, args, log_mode="w", label="Auth", env=env)
 
 

@@ -176,3 +176,136 @@ async def test_context_and_close() -> None:
     await bridge.on_cli_frame({"type": "close", "session": 5})
     assert bridge.session is None
     assert page.posted[-1] == ("Page.navigate", {"url": "about:blank"})
+
+
+# ── Host contract calls the backend ignores ─────────────────────────────
+
+_HOST_CALLS = (
+    "CloudExperienceHost.Storage.PrivateData.addItem",
+    "CloudExperienceHost.Storage.PrivateData.getItem",
+    "CloudExperienceHost.Storage.SharableData.addValue",
+    "CloudExperienceHost.Storage.SharableData.getValue",
+    "CloudExperienceHost.Storage.VolatileSharableData.addItem",
+    "CloudExperienceHost.Storage.VolatileSharableData.getItem",
+    "CloudExperienceHost.MSA.encryptUserData",
+)
+
+
+def _invoke(name: str, context: str | None = "ctx-1", args: list[Any] | None = None) -> str:
+    value: dict[str, Any] = {"name": name, "args": args or []}
+    if context is not None:
+        value["context"] = context
+    return json.dumps({"type": "invoke", "value": value})
+
+
+def _callback_of(expr: str) -> dict[str, Any]:
+    """The message the page's ``dispatchMessage`` would receive."""
+    marker = '"CloudExperienceHost.Bridge.dispatchMessage"], '
+    literal = expr[expr.index(marker) + len(marker):-1]
+    return json.loads(json.loads(literal))
+
+
+@pytest.mark.parametrize("name", _HOST_CALLS)
+def test_invoke_answer_resolves_the_pages_own_promise(name: str) -> None:
+    answered = proto.invoke_answer(_invoke(name, "ctx-9", ["hunter2"]))
+    assert answered is not None
+    method, expr = answered
+    assert method == name
+    message = _callback_of(expr)
+    assert message["type"] == "callback"
+    assert message["value"]["context"] == "ctx-9"
+    assert message["value"]["iserror"] is False
+    expected = "" if name.endswith("encryptUserData") else None
+    assert message["value"]["result"] == expected
+    assert "hunter2" not in expr
+
+
+def test_invoke_answer_is_guarded_when_the_bridge_is_missing() -> None:
+    _, expr = proto.invoke_answer(_invoke(_HOST_CALLS[0])) or ("", "")
+    assert 'typeof f === "function"' in expr
+
+
+@pytest.mark.parametrize("payload", [
+    _invoke("CloudExperienceHost.getContext"),
+    _invoke("CloudExperienceHost.Telemetry.logEvent"),
+    _invoke(_HOST_CALLS[0], context=None),
+    json.dumps({"type": "event", "value": {"name": "CloudExperienceHost.visible"}}),
+    json.dumps({"type": "invoke", "value": "x"}),
+    "not json",
+    "[]",
+])
+def test_invoke_answer_leaves_everything_else_to_the_backend(payload: str) -> None:
+    assert proto.invoke_answer(payload) is None
+
+
+async def test_host_calls_are_answered_and_never_forwarded() -> None:
+    page = FakePage()
+    bridge, sent = await _bridge(page)
+    await bridge.on_cli_frame({"type": "open", "session": 2, "url": INLINE})
+    await _navigate(bridge, "https://login.live.com/ppsecure/InlineClientAuth.srf")
+    binding = {"method": "Runtime.bindingCalled",
+               "params": {"name": proto.BINDING,
+                          "payload": _invoke("CloudExperienceHost.MSA.encryptUserData", "c1", ["hunter2"])}}
+    await bridge.on_event(binding)
+    assert sent == [], "the password must not reach xodus-cli"
+    method, params = page.posted[-1]
+    assert method == "Runtime.evaluate"
+    assert params is not None and "c1" in params["expression"] and "hunter2" not in params["expression"]
+    # getContext is the one call the backend answers: still forwarded.
+    context = _invoke("CloudExperienceHost.getContext", "c2")
+    await bridge.on_event({**binding, "params": {**binding["params"], "payload": context}})
+    assert sent == [{"type": "ipc", "session": 2, "payload": context}]
+
+
+# ── Broker headers on the later legs ────────────────────────────────────
+
+BROKER = {"cxh-correlationid": "first", "cxh-protocol": "TokenBroker", "hostapp": "CloudExperienceHost"}
+APPROVAL = "https://login.live.com/ppsecure/InlineClientAuth.srf?stsft=SECRET"
+
+
+def _paused(url: str, request_id: str = "r") -> dict[str, Any]:
+    return {"method": "Fetch.requestPaused",
+            "params": {"requestId": request_id, "request": {"url": url, "headers": {}}}}
+
+
+def test_fresh_correlation_keeps_the_other_headers() -> None:
+    fresh = proto.fresh_correlation(BROKER, "second")
+    assert fresh["cxh-correlationid"] == "second"
+    assert {k: v for k, v in fresh.items() if k != "cxh-correlationid"} == {
+        k: v for k, v in BROKER.items() if k != "cxh-correlationid"}
+    assert BROKER["cxh-correlationid"] == "first"
+
+
+def test_merge_cxh_headers_matches_the_legs_own_page_only() -> None:
+    assert proto.merge_cxh_headers(APPROVAL, {}, BROKER, APPROVAL)
+    # whatever URL the backend picks for a leg, query ignored
+    connect = "https://login.live.com/ppsecure/inlineconnect.srf?x=1"
+    assert proto.merge_cxh_headers(connect.replace("x=1", "x=2"), {}, BROKER, connect)
+    # not another page, not a passkey host, not without headers
+    assert proto.merge_cxh_headers(INLINE, {}, BROKER, APPROVAL) is None
+    assert proto.merge_cxh_headers("https://login.microsoft.com/consumers/fido/get", {}, BROKER, APPROVAL) is None
+    assert proto.merge_cxh_headers(APPROVAL, {}, None, APPROVAL) is None
+
+
+async def test_later_leg_replays_the_headers_with_a_new_correlation_id() -> None:
+    page = FakePage()
+    bridge, _ = await _bridge(page)
+    await bridge.on_cli_frame({"type": "open", "session": 1, "url": INLINE, "headers": BROKER})
+    await bridge.on_event(_paused(INLINE, "r1"))
+    # The backend's second leg carries no headers of its own.
+    await bridge.on_cli_frame({"type": "open", "session": 2, "url": APPROVAL, "headers": {}})
+    await bridge.on_event(_paused(APPROVAL, "r2"))
+    sent = {h["name"]: h["value"] for h in page.posted[-1][1]["headers"]}
+    assert sent["cxh-protocol"] == "TokenBroker" and sent["hostapp"] == "CloudExperienceHost"
+    assert sent["cxh-correlationid"] not in ("first", "")
+    # Once per leg, like the first one.
+    await bridge.on_event(_paused(APPROVAL, "r3"))
+    assert page.posted[-1][1] == {"requestId": "r3"}
+
+
+async def test_no_headers_are_invented_when_none_were_ever_sent() -> None:
+    page = FakePage()
+    bridge, _ = await _bridge(page)
+    await bridge.on_cli_frame({"type": "open", "session": 1, "url": APPROVAL})
+    await bridge.on_event(_paused(APPROVAL))
+    assert page.posted[-1][1] == {"requestId": "r"}

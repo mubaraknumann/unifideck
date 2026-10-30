@@ -8,7 +8,7 @@
 * ``on_cli_frame`` handles the backend's ``open``, ``close`` and
   ``context`` frames.
 * ``on_event`` handles the page's CDP events: a paused request is
-  continued (with the headers, on the first ``InlineLogin.srf``), a
+  continued (with the headers, on every hosted sign-in leg), a
   finished ``post.srf`` hands its ``ServerData`` to the backend, and a
   ``notify`` from a trusted page is relayed.
 
@@ -18,6 +18,7 @@ Navigation and request continuation are posted without waiting for a reply
 from __future__ import annotations
 
 import logging
+import uuid
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -48,6 +49,10 @@ class CxhPageBridge:
         #: The backend's current web session, or None between sessions.
         self.session: int | None = None
         self._pending_headers: dict[str, str] | None = None
+        #: The page the backend asked for in the current leg.
+        self._leg_url = proto.INLINE_LOGIN_URL
+        #: The last leg's broker headers, reused when a later leg sends none.
+        self._broker_headers: dict[str, str] | None = None
         self._main_url = ""
         self._handlers: dict[str, Callable[[dict[str, Any]], Awaitable[None]]] = {
             "Fetch.requestPaused": self._on_request_paused,
@@ -92,7 +97,18 @@ class CxhPageBridge:
             return
         headers = frame.get("headers")
         self.session = session
+        self._leg_url = url
         self._pending_headers = {str(k): str(v) for k, v in headers.items()} if isinstance(headers, dict) else None
+        if self._pending_headers:
+            self._broker_headers = self._pending_headers
+        elif self._broker_headers is not None:
+            # The backend sends the broker headers with the first leg only
+            # (see auth_protocol.CORRELATION_HEADER); replay them, with a new
+            # correlation id, as xodus-nexus's fixed backend does.
+            self._pending_headers = proto.fresh_correlation(
+                self._broker_headers, str(uuid.uuid4()),
+            )
+            logger.info("%s replayed the broker headers on a later sign-in leg", _LOG)
         logger.info("%s open session %s -> %s", _LOG, session, proto.safe_url(url))
         await self._page.post("Page.navigate", {"url": url})
         if self._on_open is not None:
@@ -116,6 +132,7 @@ class CxhPageBridge:
             str(request.get("url") or ""),
             page_headers if isinstance(page_headers, dict) else {},
             self._pending_headers,
+            self._leg_url,
         )
         if headers is not None:
             out["headers"] = headers
@@ -150,6 +167,14 @@ class CxhPageBridge:
         payload = params.get("payload")
         if self.session is None or not proto.is_trusted_url(self._main_url) or not isinstance(payload, str):
             logger.info("%s page message ignored (no session or untrusted page)", _LOG)
+            return
+        answer = proto.invoke_answer(payload)
+        if answer is not None:
+            # A host call: answered here and not forwarded, since the backend
+            # ignores it and its args can carry the password.
+            method, expr = answer
+            logger.info("%s page message -> host: %s", _LOG, method)
+            await self._page.post("Runtime.evaluate", {"expression": expr})
             return
         logger.info("%s page message -> backend: %s", _LOG, proto.describe_notify(payload))
         await self._send_cli(proto.ipc_frame(self.session, payload))
