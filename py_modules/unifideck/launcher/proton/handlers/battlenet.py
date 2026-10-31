@@ -44,10 +44,10 @@ from unifideck.launcher.frontend_bridge import launcher_toast
 from unifideck.launcher.game_title import resolve_title
 from unifideck.launcher.proton.handlers import battlenet_auth_wsi as auth_wsi
 from unifideck.launcher.proton.handlers import battlenet_bootstrap as bootstrap
-from unifideck.launcher.proton.handlers import battlenet_direct as direct
 from unifideck.launcher.proton.handlers import battlenet_exec as bnet_exec
 from unifideck.launcher.proton.handlers import battlenet_login_state as login_state
 from unifideck.launcher.proton.handlers import battlenet_session as session
+from unifideck.launcher.proton.handlers import battlenet_versions as versions
 from unifideck.launcher.proton.handlers import battlenet_watch as watch
 from unifideck.launcher.proton.handlers import battlenet_wc3, battlenet_wsi, wrapper_clients
 from unifideck.launcher.proton.handlers.battlenet_client import (
@@ -321,9 +321,31 @@ async def _require_signed_in(plan: ProtonLaunchPlan) -> None:
 async def battlenet_launch(plan: ProtonLaunchPlan) -> int:
     """Launch an installed Battle.net game through the resident client."""
     uid = plan.context.game_id
-    # Read from the prefix at launch time, so a version installed since the
-    # last library sync is launched as what it is (see ``battlenet_direct``).
-    found = await asyncio.to_thread(direct.resolve, plan.prefix_path, uid)
+    family, selects = await _launch_family(plan, uid)
+    launcher_toast(
+        "toasts.launcher.startingBattlenetGame",
+        i18n_title_key="toasts.header.battlenet",
+        game_title=resolve_title(plan.context.game_key),
+    )
+    battlenet_wc3.apply_wc3_crypt32_fix(plan, family)
+    client_exe = await _bring_up_client(plan)
+    await _require_signed_in(plan)
+    pid, before = await bnet_exec.issue_and_confirm(
+        plan, client_exe, uid, family, fail=_fail, client_selects=selects,
+    )
+    await _await_session_end(plan, pid, before)
+    plan.state.game_exit_code = 0
+    return 0
+
+
+async def _launch_family(plan: ProtonLaunchPlan, uid: str) -> tuple[str, bool]:
+    """``(family, client_selects)`` for the version installed right now.
+
+    Read from the prefix at launch time, so a version installed since the
+    last library sync is launched as what it is (see ``battlenet_versions``).
+    The id map is the fallback when the prefix cannot answer.
+    """
+    found = await asyncio.to_thread(versions.resolve, plan.prefix_path, uid)
     family = found.family or resolve_family(uid)
     if not family:
         # Never fall back to "open the client bare". Battle.net's failure is
@@ -334,68 +356,8 @@ async def battlenet_launch(plan: ProtonLaunchPlan) -> int:
             f"No Battle.net family code known for {uid}",
             uid=uid,
         )
-
-    launcher_toast(
-        "toasts.launcher.startingBattlenetGame",
-        i18n_title_key="toasts.header.battlenet",
-        game_title=resolve_title(plan.context.game_key),
-    )
-    battlenet_wc3.apply_wc3_crypt32_fix(plan, family)
-    client_exe = await _bring_up_client(plan)
-    await _require_signed_in(plan)
-    if found.target is not None:
-        await _launch_direct(plan, found.target)
-    else:
-        await _launch_via_client(plan, client_exe, family, found)
-    plan.state.game_exit_code = 0
-    return 0
-
-
-async def _launch_via_client(
-    plan: ProtonLaunchPlan, client_exe: Path, family: str, found: direct.Resolution,
-) -> None:
-    """``--exec=launch <family>``: several versions, or no binary found.
-
-    Several versions is the user's call in the client's picker. One
-    version with no binary is the fallback, and is said out loud: for a
-    non-retail version the client will only select it.
-    """
-    uid = plan.context.game_id
-    if len(found.versions) == 1:
-        logger.warning(
-            "[battlenet] %s: no game binary found in %s and no prior "
-            "launch in the client log — handing over to the client, "
-            "which may need Play pressed", uid, found.searched,
-        )
     selects = found.selects if found.versions else client_selects_version(uid)
-    pid, before = await bnet_exec.issue_and_confirm(
-        plan, client_exe, uid, family, fail=_fail, client_selects=selects,
-    )
-    await _await_session_end(plan, pid, before)
-
-
-async def _launch_direct(plan: ProtonLaunchPlan, target: direct.DirectTarget) -> None:
-    """Start the version's own binary, then follow it like any launch.
-
-    Proven the same way as ``--exec``: only a new game process counts.
-    """
-    before = watch.game_pids(plan.prefix_path)
-    run = direct.start(plan, target)
-    try:
-        pid = await watch.wait_for_game(
-            plan.prefix_path, before, bnet_exec.GAME_APPEAR_TIMEOUT,
-        )
-        if pid is None:
-            raise _fail(
-                plan,
-                "battlenetLaunchNotObserved",
-                f"Started {target.exe} but no game process appeared",
-                uid=target.uid,
-                exe=str(target.exe),
-            )
-        await _await_session_end(plan, pid, before)
-    finally:
-        await direct.finish(run)
+    return family, selects
 
 
 async def _await_session_end(
