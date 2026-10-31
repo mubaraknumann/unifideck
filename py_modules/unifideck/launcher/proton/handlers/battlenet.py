@@ -44,6 +44,7 @@ from unifideck.launcher.frontend_bridge import launcher_toast
 from unifideck.launcher.game_title import resolve_title
 from unifideck.launcher.proton.handlers import battlenet_auth_wsi as auth_wsi
 from unifideck.launcher.proton.handlers import battlenet_bootstrap as bootstrap
+from unifideck.launcher.proton.handlers import battlenet_direct as direct
 from unifideck.launcher.proton.handlers import battlenet_exec as bnet_exec
 from unifideck.launcher.proton.handlers import battlenet_login_state as login_state
 from unifideck.launcher.proton.handlers import battlenet_session as session
@@ -320,7 +321,10 @@ async def _require_signed_in(plan: ProtonLaunchPlan) -> None:
 async def battlenet_launch(plan: ProtonLaunchPlan) -> int:
     """Launch an installed Battle.net game through the resident client."""
     uid = plan.context.game_id
-    family = resolve_family(uid)
+    # Read from the prefix at launch time, so a version installed since the
+    # last library sync is launched as what it is (see ``battlenet_direct``).
+    found = await asyncio.to_thread(direct.resolve, plan.prefix_path, uid)
+    family = found.family or resolve_family(uid)
     if not family:
         # Never fall back to "open the client bare". Battle.net's failure is
         # silent, so the user would see the client open and nothing happen.
@@ -339,14 +343,59 @@ async def battlenet_launch(plan: ProtonLaunchPlan) -> int:
     battlenet_wc3.apply_wc3_crypt32_fix(plan, family)
     client_exe = await _bring_up_client(plan)
     await _require_signed_in(plan)
-    selects = client_selects_version(uid)
+    if found.target is not None:
+        await _launch_direct(plan, found.target)
+    else:
+        await _launch_via_client(plan, client_exe, family, found)
+    plan.state.game_exit_code = 0
+    return 0
+
+
+async def _launch_via_client(
+    plan: ProtonLaunchPlan, client_exe: Path, family: str, found: direct.Resolution,
+) -> None:
+    """``--exec=launch <family>``: several versions, or no binary found.
+
+    Several versions is the user's call in the client's picker. One
+    version with no binary is the fallback, and is said out loud: for a
+    non-retail version the client will only select it.
+    """
+    uid = plan.context.game_id
+    if len(found.versions) == 1:
+        logger.warning(
+            "[battlenet] %s: no game binary found in %s and no prior "
+            "launch in the client log — handing over to the client, "
+            "which may need Play pressed", uid, found.searched,
+        )
+    selects = found.selects if found.versions else client_selects_version(uid)
     pid, before = await bnet_exec.issue_and_confirm(
         plan, client_exe, uid, family, fail=_fail, client_selects=selects,
     )
-
     await _await_session_end(plan, pid, before)
-    plan.state.game_exit_code = 0
-    return 0
+
+
+async def _launch_direct(plan: ProtonLaunchPlan, target: direct.DirectTarget) -> None:
+    """Start the version's own binary, then follow it like any launch.
+
+    Proven the same way as ``--exec``: only a new game process counts.
+    """
+    before = watch.game_pids(plan.prefix_path)
+    run = direct.start(plan, target)
+    try:
+        pid = await watch.wait_for_game(
+            plan.prefix_path, before, bnet_exec.GAME_APPEAR_TIMEOUT,
+        )
+        if pid is None:
+            raise _fail(
+                plan,
+                "battlenetLaunchNotObserved",
+                f"Started {target.exe} but no game process appeared",
+                uid=target.uid,
+                exe=str(target.exe),
+            )
+        await _await_session_end(plan, pid, before)
+    finally:
+        await direct.finish(run)
 
 
 async def _await_session_end(

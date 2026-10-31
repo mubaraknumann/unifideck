@@ -79,6 +79,11 @@ class CatalogEntry:
     # than retail, because ``--exec=launch WoW`` resets the client to
     # ``WoW_retail`` whatever the user had selected.
     type_launch_families: dict[str, str] = field(default_factory=dict)
+    # product type -> the arguments the client appends when it starts that
+    # version's binary itself: {"wow_classic_era": ("-initialgamemode=cera",)}.
+    # Read from ``types.<type>.game_packages``; what a direct launch needs
+    # to land in the same game mode as the client's own Play button.
+    type_launch_args: dict[str, tuple[str, ...]] = field(default_factory=dict)
     genre_key: str | None = None
     handheld_status: tuple[str, ...] = ()
     # Platforms the client will install this title on, e.g. ('win',). The
@@ -115,6 +120,22 @@ class CatalogEntry:
             if type_uid.casefold() == target:
                 return self.type_launch_families.get(product_type)
         return None
+
+    def launch_args_for(self, uid: str | None) -> tuple[str, ...]:
+        """The extra arguments the client passes when it starts ``uid``.
+
+        Empty when the version has none, which is the normal case. Measured:
+        the client starts Classic Era as ``WowClassic.exe -launcherlogin
+        -uid wow_classic_era -initialgamemode=cera``, and the last argument
+        is this version's launchable game package.
+        """
+        if not uid:
+            return ()
+        target = uid.casefold()
+        for product_type, type_uid in self.type_uids.items():
+            if type_uid.casefold() == target:
+                return self.type_launch_args.get(product_type, ())
+        return ()
 
     def known_uids(self) -> tuple[str, ...]:
         """Every uid this title can be installed as, the tile's own first.
@@ -254,6 +275,43 @@ def _type_launch_families(base: dict[str, object]) -> dict[str, str]:
     return out
 
 
+def _package_args(cfg: dict[str, object]) -> tuple[str, ...] | None:
+    """Launch arguments of a version's launchable package with lowest rank."""
+    packages = cfg.get("game_packages")
+    if not isinstance(packages, list):
+        return None
+    launchable = [
+        p for p in packages
+        if isinstance(p, dict) and p.get("launchable") is not False
+    ]
+    if not launchable:
+        return None
+    best = min(launchable, key=_package_rank)
+    args = best.get("launch_arguments")
+    if not isinstance(args, list):
+        return ()
+    return tuple(a for a in args if isinstance(a, str) and a)
+
+
+def _package_rank(package: dict[str, object]) -> int:
+    """A package's rank; unranked ones sort last."""
+    rank = package.get("rank")
+    return rank if isinstance(rank, int) else 1 << 30
+
+
+def _type_launch_args(base: dict[str, object]) -> dict[str, tuple[str, ...]]:
+    types = base.get("types")
+    if not isinstance(types, dict):
+        return {}
+    out: dict[str, tuple[str, ...]] = {}
+    for product_type, cfg in types.items():
+        if isinstance(product_type, str) and isinstance(cfg, dict):
+            args = _package_args(cfg)
+            if args is not None:
+                out[product_type] = args
+    return out
+
+
 def _install_uids(fragment: dict[str, object]) -> tuple[str, ...]:
     installs = fragment.get("installs")
     if not isinstance(installs, dict):
@@ -284,6 +342,7 @@ def _entry_from_product(product: object) -> CatalogEntry | None:
         default_product_type=str(base.get("default_product_type") or "retail"),
         type_uids=_type_uids(base),
         type_launch_families=_type_launch_families(base),
+        type_launch_args=_type_launch_args(base),
         genre_key=base.get("genre") if isinstance(base.get("genre"), str) else None,
         handheld_status=tuple(h for h in (handheld or []) if isinstance(h, str)),
         supported_platforms=tuple(p for p in (platforms or []) if isinstance(p, str)),
@@ -305,6 +364,7 @@ def _absorb_entry(catalog: MergedCatalog, entry: CatalogEntry) -> None:
         return
     merged_types = {**entry.type_uids, **existing.type_uids}
     merged_families = {**entry.type_launch_families, **existing.type_launch_families}
+    merged_args = {**entry.type_launch_args, **existing.type_launch_args}
     catalog.entries[entry.product_id] = CatalogEntry(
         product_id=existing.product_id,
         program_id=existing.program_id or entry.program_id,
@@ -313,6 +373,7 @@ def _absorb_entry(catalog: MergedCatalog, entry: CatalogEntry) -> None:
         default_product_type=existing.default_product_type or entry.default_product_type,
         type_uids=merged_types,
         type_launch_families=merged_families,
+        type_launch_args=merged_args,
         genre_key=existing.genre_key or entry.genre_key,
         handheld_status=existing.handheld_status or entry.handheld_status,
         supported_platforms=existing.supported_platforms or entry.supported_platforms,
