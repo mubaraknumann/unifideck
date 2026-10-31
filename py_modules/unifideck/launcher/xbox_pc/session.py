@@ -41,6 +41,7 @@ from pathlib import Path
 from typing import IO, Any, NoReturn
 
 from unifideck.launcher.proton.infrastructure.prefix_layout import game_prefix_root
+from unifideck.launcher.steam_offline import steam_offline_mode
 from unifideck.launcher.types.context import LaunchContext
 
 from .argv import build_env, run_argv, validate_market
@@ -55,7 +56,7 @@ from .errors import (
     XboxPcLaunchError,
 )
 from .game_manifest import GameInfo, inspect_game
-from .layout import ActiveComponents, credential_dir, validate_pid
+from .layout import ActiveComponents, credential_dir, license_cache_dir, validate_pid
 from .output import OutputSink, classify_failure, game_crashed
 from .prefix import prepare_prefix, proton_env
 from .prefix_checks import installed_battleye_runtime, installed_eac_runtime
@@ -381,9 +382,19 @@ class XboxPcLaunch:
             title_env=extra, overrides=self._ctx.env_overrides,
         )
         self._tag_stop = maybe_start_window_tagger(env, log_tag="xbox_pc")
-        argv = run_argv(backend.cli, game.path, runner, game.executable, plan.market)
-        logger.info("[xbox_pc] running xodus-cli run <game> <runner> --exe %s", game.executable)
-        await self._start_cli(argv, env, game.path)
+        await self._start_cli(self._run_argv(backend, game, runner, plan), env, game.path)
+
+    @staticmethod
+    def _run_argv(backend: BackendPaths, game: GameInfo, runner: Path, plan: _Plan) -> list[str]:
+        """``xodus-cli run``, with offline licences when the backend has them."""
+        cache = license_cache_dir() if backend.offline_licences else None
+        offline = cache is not None and steam_offline_mode()
+        logger.info(
+            "[xbox_pc] running xodus-cli run <game> <runner> --exe %s%s%s",
+            game.executable, " (offline licences on)" if cache else "",
+            " (Steam offline mode)" if offline else "",
+        )
+        return run_argv(backend.cli, game.path, runner, game.executable, plan.market, cache, offline)
 
     async def _start_cli(self, argv: list[str], env: dict[str, str], cwd: Path) -> None:
         """Start ``xodus-cli run`` with its output pumped into the sink."""

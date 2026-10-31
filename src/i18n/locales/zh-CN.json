@@ -326,6 +326,7 @@
       "xboxPcLicenseDenied": "无许可证",
       "xboxPcLicenseInvalid": "许可证无效",
       "xboxPcLicenseRateLimited": "请求过于频繁",
+      "xboxPcLicenseDeviceLimit": "设备数已达上限",
       "xboxPcLicenseUnavailable": "许可证服务离线",
       "xboxPcMarketUnknown": "地区未知",
       "xboxPcNeedsChoice": "有多个版本",
@@ -617,6 +618,7 @@
       "xboxPcNoPackage": "此游戏没有可安装的 PC 安装包。",
       "xboxPcLicenseDenied": "Microsoft 未授予此游戏的许可证。请检查版本、订阅以及 Store 区域。",
       "xboxPcLicenseRateLimited": "Microsoft 正在限制请求。请等待几分钟后重试。",
+      "xboxPcLicenseDeviceLimit": "已达到 Microsoft Store 游戏的设备数量上限。请在 account.microsoft.com/devices/content 移除不再使用的设备，然后重试。",
       "xboxPcLicenseUnavailable": "无法连接 Microsoft 的许可证服务。请稍后重试。",
       "xboxPcLicenseInvalid": "Microsoft 发送的许可证无法被此版本读取。请收集日志并报告此问题。",
       "xboxPcFilesystem": "此驱动器不支持链接，因此无法存放 Xbox PC 游戏。请选择其他驱动器。",
@@ -1292,6 +1294,7 @@
       "enableDownloads": "启用实验性 Xbox PC 下载",
       "runtimeVersion": "运行时 {{version}}",
       "runtimeUpdateAvailable": "运行时 {{version}}（有更新）",
+      "backendVersion": "后端 {{version}}",
       "runtimeDownloading": "正在下载… {{percent}}%",
       "runtimeInstalling": "正在安装…"
     },

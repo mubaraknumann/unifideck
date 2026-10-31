@@ -75,6 +75,7 @@ const XBOX_PC_CODE_KEYS: ReadonlyArray<readonly [RegExp, string]> = [
   [/^xbox_refused$/, "xboxPc.account.errors.xboxRefused"],
   [/^xbox_license_denied$/, "errors.download.xboxPcLicenseDenied"],
   [/^xbox_license_rate_limited$/, "errors.download.xboxPcLicenseRateLimited"],
+  [/^xbox_license_device_limit$/, "errors.download.xboxPcLicenseDeviceLimit"],
   [/^xbox_license_unavailable$/, "errors.download.xboxPcLicenseUnavailable"],
   [/^xbox_license_invalid$/, "errors.download.xboxPcLicenseInvalid"],
   [/^xbox_filesystem_unsupported$/, "errors.download.xboxPcFilesystem"],
@@ -277,6 +278,8 @@ const TOAST_KEYS: Readonly<Record<string, ToastKey>> = {
   "errors.download.xboxPcIncomplete": "toasts.downloadError.xboxPcIncomplete",
   "errors.download.xboxPcLicenseDenied":
     "toasts.downloadError.xboxPcLicenseDenied",
+  "errors.download.xboxPcLicenseDeviceLimit":
+    "toasts.downloadError.xboxPcLicenseDeviceLimit",
   "errors.download.xboxPcLicenseInvalid":
     "toasts.downloadError.xboxPcLicenseInvalid",
   "errors.download.xboxPcLicenseRateLimited":

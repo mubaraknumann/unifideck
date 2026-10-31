@@ -326,6 +326,7 @@
       "xboxPcLicenseDenied": "Geen licentie",
       "xboxPcLicenseInvalid": "Licentie onjuist",
       "xboxPcLicenseRateLimited": "Even wachten",
+      "xboxPcLicenseDeviceLimit": "Apparaatlimiet",
       "xboxPcLicenseUnavailable": "Licentie offline",
       "xboxPcMarketUnknown": "Regio onbekend",
       "xboxPcNeedsChoice": "Meerdere edities",
@@ -617,6 +618,7 @@
       "xboxPcNoPackage": "Deze game heeft geen pc-pakket dat kan worden geïnstalleerd.",
       "xboxPcLicenseDenied": "Microsoft heeft geen licentie voor deze game verleend. Controleer de editie, het abonnement en de Store-regio.",
       "xboxPcLicenseRateLimited": "Microsoft beperkt het aantal verzoeken. Wacht een paar minuten en probeer het opnieuw.",
+      "xboxPcLicenseDeviceLimit": "De apparaatlimiet van Microsoft voor Store-games is bereikt. Verwijder een apparaat dat je niet meer gebruikt op account.microsoft.com/devices/content en probeer het opnieuw.",
       "xboxPcLicenseUnavailable": "De licentieservice van Microsoft is niet bereikbaar. Probeer het later opnieuw.",
       "xboxPcLicenseInvalid": "Microsoft heeft een licentie gestuurd die deze versie niet kan lezen. Leg logboeken vast en meld het.",
       "xboxPcFilesystem": "Deze schijf kan geen Xbox PC-games bevatten, omdat hij geen koppelingen ondersteunt. Kies een andere schijf.",
@@ -1292,6 +1294,7 @@
       "enableDownloads": "Experimentele Xbox PC-downloads inschakelen",
       "runtimeVersion": "Omgeving {{version}}",
       "runtimeUpdateAvailable": "Runtime {{version}} (update klaar)",
+      "backendVersion": "Backend {{version}}",
       "runtimeDownloading": "Downloaden… {{percent}}%",
       "runtimeInstalling": "Installeren…"
     },

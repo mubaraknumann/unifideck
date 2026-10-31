@@ -326,6 +326,7 @@
       "xboxPcLicenseDenied": "라이선스 없음",
       "xboxPcLicenseInvalid": "잘못된 라이선스",
       "xboxPcLicenseRateLimited": "요청 한도 초과",
+      "xboxPcLicenseDeviceLimit": "기기 한도",
       "xboxPcLicenseUnavailable": "라이선스 서버 오프라인",
       "xboxPcMarketUnknown": "지역 알 수 없음",
       "xboxPcNeedsChoice": "에디션이 여러 개",
@@ -617,6 +618,7 @@
       "xboxPcNoPackage": "이 게임에는 설치할 수 있는 PC 패키지가 없습니다.",
       "xboxPcLicenseDenied": "Microsoft가 이 게임의 라이선스를 부여하지 않았습니다. 에디션, 구독 및 스토어 지역을 확인하세요.",
       "xboxPcLicenseRateLimited": "Microsoft가 요청을 제한하고 있습니다. 몇 분 기다린 후 다시 시도하세요.",
+      "xboxPcLicenseDeviceLimit": "Microsoft Store 게임의 기기 한도에 도달했습니다. account.microsoft.com/devices/content에서 더 이상 사용하지 않는 기기를 제거한 후 다시 시도하세요.",
       "xboxPcLicenseUnavailable": "Microsoft 라이선스 서비스에 연결할 수 없습니다. 나중에 다시 시도하세요.",
       "xboxPcLicenseInvalid": "Microsoft가 이 버전에서 읽을 수 없는 라이선스를 보냈습니다. 로그를 수집하여 신고해 주세요.",
       "xboxPcFilesystem": "이 드라이브는 링크를 지원하지 않아 Xbox PC 게임을 저장할 수 없습니다. 다른 드라이브를 선택하세요.",
@@ -1292,6 +1294,7 @@
       "enableDownloads": "실험적 Xbox PC 다운로드 사용",
       "runtimeVersion": "런타임 {{version}}",
       "runtimeUpdateAvailable": "런타임 {{version}} (업데이트 있음)",
+      "backendVersion": "백엔드 {{version}}",
       "runtimeDownloading": "다운로드 중… {{percent}}%",
       "runtimeInstalling": "설치 중…"
     },

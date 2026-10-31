@@ -158,18 +158,29 @@ def streaming_argv(
 
 def run_argv(
     cli: str | Path, game_dir: str | Path, runner: str | Path, exe: str, market: str,
+    license_cache: str | Path | None = None, offline: bool = False,
 ) -> list[str]:
     """Run an installed game through the runner script.
 
     ``exe`` is the game's executable as ``MicrosoftGame.config`` names it.
+    ``license_cache`` (backend with offline play only) is where ``run``
+    keeps a game's offline licence and reads it when Microsoft is
+    unreachable. ``offline`` (Steam is in offline mode) uses a valid
+    offline licence without asking Microsoft; without one, ``run`` still
+    asks, so offline mode never blocks a launch that works online.
     """
     if not isinstance(exe, str) or not exe or exe.startswith("-") or "\0" in exe:
         raise ValueError(f"not a game executable: {exe!r}")
-    return [
+    argv = [
         str(cli), "run", _absolute(game_dir, "game_dir"), _absolute(runner, "runner"),
         "--exe", exe, "--materialize-chain",
         "--market", validate_market(market),
     ]
+    if license_cache is not None:
+        argv += ["--license-cache", _absolute(license_cache, "license_cache")]
+        if offline:
+            argv.append("--offline")
+    return argv
 
 
 def service_argv(service: str | Path) -> list[str]:

@@ -111,6 +111,27 @@ async def test_fresh_status_shape_and_missing_source(tmp_path: Path) -> None:
     _no_email(status)
 
 
+async def test_turning_on_asks_microsoft_again_instead_of_a_stale_answer(tmp_path: Path) -> None:
+    """Turning Xbox PC off resyncs while the Xodus sign-in does not apply, so
+    the store's cached answer says "signed out". Turning it back on must ask
+    again, or the status says "Microsoft needed" and nothing links (2026-10-31)."""
+    signed_in = {"cached": False, "asked": 0}
+
+    async def refresh() -> bool:
+        signed_in["asked"] += 1
+        signed_in["cached"] = True
+        return True
+
+    facade = XboxPc(FakeConfig(str(tmp_path / "missing-out")), lambda: None, FakeTokens(),  # type: ignore[arg-type]
+                    lambda: False, FakeBus(),  # type: ignore[arg-type]
+                    xcloud_signed_in=lambda: signed_in["cached"], refresh_signed_in=refresh)
+    off = await facade.set_enabled(False)
+    assert signed_in["asked"] == 0 and off["xcloud_signed_in"] is False
+    on = await facade.set_enabled(True, notice_version=xp.NOTICE_VERSION)
+    assert signed_in["asked"] == 1
+    assert on["xcloud_signed_in"] is True
+
+
 async def test_enable_needs_the_notice_and_disable_deletes_nothing(tmp_path: Path) -> None:
     facade, config, _ = _facade(tmp_path)
     with pytest.raises(XboxPcError) as err:

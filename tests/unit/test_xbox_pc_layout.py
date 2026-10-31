@@ -5,6 +5,7 @@ can touch the user's ``~/.local/share/unifideck``.
 """
 from __future__ import annotations
 
+import dataclasses
 import fcntl
 import hashlib
 import json
@@ -166,6 +167,22 @@ def test_resolve_backend_verifies_hashes_and_exec_bits(root: Path) -> None:
     assert paths is not None
     assert paths.cli == active.backend_dir / "xodus-cli"
     assert paths.service == active.backend_dir / "xodus-service"
+
+
+def test_offline_licences_come_only_from_a_verified_manifest_patch_list(root: Path) -> None:
+    active = _active(root)
+    paths = backend.resolve_backend(active)
+    assert paths is not None and not paths.offline_licences
+    manifest = active.backend_dir / "manifest.json"
+    data = json.loads(manifest.read_bytes())
+    data["patches"] = ["xodus-linux-run.patch", backend.OFFLINE_LICENCE_PATCH]
+    raw = json.dumps(data).encode()
+    manifest.write_bytes(raw)
+    upgraded = dataclasses.replace(active, manifest_sha256=hashlib.sha256(raw).hexdigest())
+    paths = backend.resolve_backend(upgraded)
+    assert paths is not None and paths.offline_licences
+    # The same list under the old manifest hash is a tampered manifest.
+    assert backend.check_backend(active) == (None, "backend_tampered")
 
 
 def test_tampered_binary_is_refused(root: Path) -> None:

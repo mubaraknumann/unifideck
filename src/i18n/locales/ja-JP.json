@@ -326,6 +326,7 @@
       "xboxPcLicenseDenied": "ライセンスなし",
       "xboxPcLicenseInvalid": "ライセンスが無効です",
       "xboxPcLicenseRateLimited": "リクエスト制限中",
+      "xboxPcLicenseDeviceLimit": "デバイス上限",
       "xboxPcLicenseUnavailable": "ライセンス取得不可",
       "xboxPcMarketUnknown": "地域が不明です",
       "xboxPcNeedsChoice": "複数のエディション",
@@ -617,6 +618,7 @@
       "xboxPcNoPackage": "このゲームにはインストール可能な PC パッケージがありません。",
       "xboxPcLicenseDenied": "Microsoft がこのゲームのライセンスを付与しませんでした。エディション、サブスクリプション、ストアの地域を確認してください。",
       "xboxPcLicenseRateLimited": "Microsoft がリクエストを制限しています。数分待ってから、もう一度お試しください。",
+      "xboxPcLicenseDeviceLimit": "Microsoft の Store ゲーム用デバイス数の上限に達しました。account.microsoft.com/devices/content で使っていないデバイスを削除してから、もう一度お試しください。",
       "xboxPcLicenseUnavailable": "Microsoft のライセンスサービスに接続できませんでした。後でもう一度お試しください。",
       "xboxPcLicenseInvalid": "Microsoft から、このバージョンでは読み込めないライセンスが送られてきました。ログを収集して報告してください。",
       "xboxPcFilesystem": "このドライブはリンクに対応していないため、Xbox PC ゲームを保存できません。別のドライブを選択してください。",
@@ -1292,6 +1294,7 @@
       "enableDownloads": "実験的な Xbox PC ダウンロードを有効にする",
       "runtimeVersion": "ランタイム {{version}}",
       "runtimeUpdateAvailable": "ランタイム {{version}}（更新あり）",
+      "backendVersion": "バックエンド {{version}}",
       "runtimeDownloading": "ダウンロード中… {{percent}}%",
       "runtimeInstalling": "インストール中…"
     },

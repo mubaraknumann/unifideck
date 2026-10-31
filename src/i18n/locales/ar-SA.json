@@ -326,6 +326,7 @@
       "xboxPcLicenseDenied": "لا ترخيص",
       "xboxPcLicenseInvalid": "الترخيص غير صالح",
       "xboxPcLicenseRateLimited": "طلبات كثيرة",
+      "xboxPcLicenseDeviceLimit": "حد الأجهزة",
       "xboxPcLicenseUnavailable": "الترخيص غير متاح",
       "xboxPcMarketUnknown": "منطقة مجهولة",
       "xboxPcNeedsChoice": "عدة إصدارات",
@@ -617,6 +618,7 @@
       "xboxPcNoPackage": "لا تحتوي هذه اللعبة على حزمة للكمبيوتر يمكن تثبيتها.",
       "xboxPcLicenseDenied": "لم تمنح Microsoft ترخيصاً لهذه اللعبة. تحقق من الإصدار والاشتراك ومنطقة المتجر.",
       "xboxPcLicenseRateLimited": "تحد Microsoft من عدد الطلبات. انتظر بضع دقائق ثم حاول مرة أخرى.",
+      "xboxPcLicenseDeviceLimit": "تم بلوغ حد Microsoft للأجهزة في ألعاب Store. أزل جهازًا لم تعد تستخدمه من account.microsoft.com/devices/content ثم حاول مجددًا.",
       "xboxPcLicenseUnavailable": "تعذر الوصول إلى خدمة التراخيص من Microsoft. حاول مرة أخرى لاحقاً.",
       "xboxPcLicenseInvalid": "أرسلت Microsoft ترخيصاً لا يستطيع هذا الإصدار قراءته. اجمع السجلات وأبلغ عن المشكلة.",
       "xboxPcFilesystem": "لا يمكن لهذا القرص استيعاب ألعاب Xbox PC لأنه لا يدعم الروابط. اختر قرصاً آخر.",
@@ -1292,6 +1294,7 @@
       "enableDownloads": "تفعيل تنزيلات Xbox PC التجريبية",
       "runtimeVersion": "بيئة التشغيل {{version}}",
       "runtimeUpdateAvailable": "بيئة التشغيل {{version}} (تحديث جاهز)",
+      "backendVersion": "الواجهة الخلفية {{version}}",
       "runtimeDownloading": "جارٍ التنزيل… {{percent}}%",
       "runtimeInstalling": "جارٍ التثبيت…"
     },

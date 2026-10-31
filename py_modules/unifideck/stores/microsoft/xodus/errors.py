@@ -67,6 +67,9 @@ def _license_code(diag: LicenseDiagnostic) -> str:
         return "xbox_license_unavailable"
     if diag.stage == "content-not-entitled":
         return "xbox_license_denied"
+    if diag.stage == "content-device-limit":
+        # Backend 0.1.5+: Microsoft's licensing reason 501 (ISSUES.md I-032).
+        return "xbox_license_device_limit"
     return "xbox_license_invalid"
 
 

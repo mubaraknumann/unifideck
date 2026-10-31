@@ -35,6 +35,7 @@ describe("friendlyDownloadError: Xbox PC codes", () => {
     ["xbox_package_unavailable", "errors.download.xboxPcNoPackage"],
     ["xbox_license_denied: tail", "errors.download.xboxPcLicenseDenied"],
     ["xbox_license_rate_limited", "errors.download.xboxPcLicenseRateLimited"],
+    ["xbox_license_device_limit", "errors.download.xboxPcLicenseDeviceLimit"],
     ["xbox_license_unavailable", "errors.download.xboxPcLicenseUnavailable"],
     ["xbox_license_invalid", "errors.download.xboxPcLicenseInvalid"],
     ["xbox_filesystem_unsupported", "errors.download.xboxPcFilesystem"],

@@ -44,6 +44,20 @@ def test_run_argv() -> None:
     ]
 
 
+def test_run_argv_passes_the_offline_licence_folder_only_when_given() -> None:
+    assert argv.run_argv(CLI, "/g", "/r", "a.exe", "IN", "/data/license-cache")[-2:] == [
+        "--license-cache", "/data/license-cache",
+    ]
+    assert "--license-cache" not in argv.run_argv(CLI, "/g", "/r", "a.exe", "IN")
+    assert argv.run_argv(CLI, "/g", "/r", "a.exe", "IN", "/data/c", offline=True)[-3:] == [
+        "--license-cache", "/data/c", "--offline",
+    ]
+    # --offline needs the folder: an old backend never gets it.
+    assert "--offline" not in argv.run_argv(CLI, "/g", "/r", "a.exe", "IN", offline=True)
+    with pytest.raises(ValueError):
+        argv.run_argv(CLI, "/g", "/r", "a.exe", "IN", "license-cache")
+
+
 def test_service_argv_takes_no_options() -> None:
     """Even ``--help`` starts the service (I-005), so no option can exist."""
     assert argv.service_argv("/x/xodus-service") == ["/x/xodus-service"]

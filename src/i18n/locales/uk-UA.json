@@ -326,6 +326,7 @@
       "xboxPcLicenseDenied": "Немає ліцензії",
       "xboxPcLicenseInvalid": "Хибна ліцензія",
       "xboxPcLicenseRateLimited": "Забагато запитів",
+      "xboxPcLicenseDeviceLimit": "Ліміт пристроїв",
       "xboxPcLicenseUnavailable": "Ліцензії офлайн",
       "xboxPcMarketUnknown": "Регіон невідомий",
       "xboxPcNeedsChoice": "Кілька видань",
@@ -617,6 +618,7 @@
       "xboxPcNoPackage": "Ця гра не має пакета для ПК, який можна встановити.",
       "xboxPcLicenseDenied": "Microsoft не видав ліцензію на цю гру. Перевірте видання, підписку та регіон Store.",
       "xboxPcLicenseRateLimited": "Microsoft обмежує кількість запитів. Зачекайте кілька хвилин і повторіть спробу.",
+      "xboxPcLicenseDeviceLimit": "Досягнуто ліміту пристроїв Microsoft для ігор зі Store. Видаліть пристрій, яким більше не користуєтеся, на account.microsoft.com/devices/content і спробуйте ще раз.",
       "xboxPcLicenseUnavailable": "Не вдалося зв'язатися зі службою ліцензій Microsoft. Повторіть спробу пізніше.",
       "xboxPcLicenseInvalid": "Microsoft надіслав ліцензію, яку ця версія не може прочитати. Зберіть журнали та повідомте про проблему.",
       "xboxPcFilesystem": "Цей диск не підходить для ігор Xbox PC, тому що не підтримує посилання. Виберіть інший диск.",
@@ -1292,6 +1294,7 @@
       "enableDownloads": "Увімкнути експериментальне завантаження ігор Xbox PC",
       "runtimeVersion": "Середовище {{version}}",
       "runtimeUpdateAvailable": "Середовище {{version}} (є оновлення)",
+      "backendVersion": "Бекенд {{version}}",
       "runtimeDownloading": "Завантаження… {{percent}}%",
       "runtimeInstalling": "Встановлення…"
     },

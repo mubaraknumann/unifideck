@@ -130,6 +130,21 @@ def test_ticket_order(monkeypatch: pytest.MonkeyPatch, prefer_d: bool, first: tu
     assert tried[0] == first
 
 
+@pytest.mark.parametrize("prefer_d", [True, False])
+def test_a_ticket_that_carries_its_prefix_is_sent_as_issued(
+    monkeypatch: pytest.MonkeyPatch, prefer_d: bool,
+) -> None:
+    """Backend 0.1.5+ issues JWE tickets as ``t=<jwe>``; ``t=t=`` gets 401 (measured 2026-10-31)."""
+    tried: list[tuple[str, str]] = []
+
+    def attempt(contract: str, rps: str, *rest: Any) -> None:
+        tried.append((contract, rps))
+
+    monkeypatch.setattr(microsoft_auth, "_try_xbl_request", attempt)
+    microsoft_auth._obtain_xbl_user_token("t=eyJ.a.b.c.d", "en-US", "https://xbl", "ua", prefer_d=prefer_d)
+    assert tried == [("1", "t=eyJ.a.b.c.d"), ("2", "t=eyJ.a.b.c.d")]
+
+
 def test_refused_user_token_logs_microsofts_reason(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture,
 ) -> None:

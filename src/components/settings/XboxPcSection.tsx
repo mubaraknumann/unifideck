@@ -10,8 +10,8 @@
  * unofficial notice once (`enableXboxPc`); after that, with Microsoft
  * connected in Store Connections, the components install and the Xbox PC
  * sign-in runs by themselves (`linkXboxPc`). Turning it off deletes nothing.
- * While it is on, a small line under the toggle shows the runtime version
- * or the download progress.
+ * While it is on, small lines under the toggle show the runtime and backend
+ * versions, or the download progress.
  */
 import { FC, useEffect, useState } from "react";
 import {
@@ -77,6 +77,32 @@ export function runtimeLine(
   return error ? xboxPcErrorText(error, t, runtime.source_dir) : undefined;
 }
 
+/** One short line per known value, so the runtime and backend stack. */
+const ComponentLines: FC<{ lines: (string | undefined)[] }> = ({ lines }) => {
+  const shown = lines.filter((line): line is string => Boolean(line));
+  if (shown.length === 0) return null;
+  return (
+    <>
+      {shown.map((line) => (
+        <div key={line}>{line}</div>
+      ))}
+    </>
+  );
+};
+
+/** The installed backend version, shown under the runtime line. */
+export function backendLine(
+  runtime: XboxPcStatus["runtime"],
+  t: TFunction,
+): string | undefined {
+  if (runtime.state === "installing" || !runtime.backend_version) {
+    return undefined;
+  }
+  return t("xboxPc.section.backendVersion", {
+    version: runtime.backend_version,
+  });
+}
+
 export const XboxPcSection: FC = () => {
   const { t } = useTranslation();
   const { status, error } = useXboxPcStatus();
@@ -105,7 +131,14 @@ export const XboxPcSection: FC = () => {
         <ToggleField
           label={t("xboxPc.section.enableDownloads")}
           description={
-            status.enabled ? runtimeLine(status.runtime, t) : undefined
+            status.enabled ? (
+              <ComponentLines
+                lines={[
+                  runtimeLine(status.runtime, t),
+                  backendLine(status.runtime, t),
+                ]}
+              />
+            ) : undefined
           }
           checked={status.enabled}
           disabled={busy}

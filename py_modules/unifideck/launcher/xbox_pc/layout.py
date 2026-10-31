@@ -127,6 +127,11 @@ def state_dir() -> Path:
     return data_root() / "state"
 
 
+def license_cache_dir() -> Path:
+    """Offline licences ``xodus-cli run`` keeps (0700, made by the CLI)."""
+    return data_root() / "license-cache"
+
+
 def account_state_path() -> Path:
     """``state/account.json``: the verified gamertag."""
     return state_dir() / "account.json"

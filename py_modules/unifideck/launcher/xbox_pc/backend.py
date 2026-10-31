@@ -40,6 +40,8 @@ class BackendPaths:
     service: Path
     directory: Path
     version: str
+    #: ``run`` keeps and uses offline licences (``--license-cache``).
+    offline_licences: bool = False
 
 
 def stream_digest(path: Path, algorithm: str) -> str:
@@ -84,8 +86,12 @@ def _cached_sha256(path: Path) -> str | None:
     return digest
 
 
-def _manifest_files(directory: Path, manifest_sha256: str) -> dict[str, str] | str:
-    """The manifest's ``files`` map, or a problem code."""
+#: The build-repo patch that adds ``run --license-cache`` (offline play).
+OFFLINE_LICENCE_PATCH = "ours-offline-play.patch"
+
+
+def _manifest(directory: Path, manifest_sha256: str) -> tuple[dict[str, str], frozenset[str]] | str:
+    """The manifest's ``files`` map and patch names, or a problem code."""
     manifest = directory / BACKEND_MANIFEST_NAME
     try:
         raw = manifest.read_bytes()
@@ -94,12 +100,15 @@ def _manifest_files(directory: Path, manifest_sha256: str) -> dict[str, str] | s
     if hashlib.sha256(raw).hexdigest() != manifest_sha256:
         return "backend_tampered"
     try:
-        files = json.loads(raw).get("files")
+        parsed = json.loads(raw)
+        files = parsed.get("files")
     except (ValueError, AttributeError):
         return "backend_tampered"
     if not isinstance(files, dict) or not {CLI_NAME, SERVICE_NAME} <= set(files):
         return "backend_tampered"
-    return {str(k): str(v) for k, v in files.items()}
+    patches = parsed.get("patches")
+    names = frozenset(str(p) for p in patches) if isinstance(patches, list) else frozenset()
+    return {str(k): str(v) for k, v in files.items()}, names
 
 
 def _file_problem(path: Path, expected: str, *, executable: bool) -> str | None:
@@ -121,9 +130,10 @@ def check_backend(active: ActiveComponents) -> tuple[BackendPaths | None, str | 
     manifest lists is checked, not only the two binaries.
     """
     directory = active.backend_dir
-    files = _manifest_files(directory, active.manifest_sha256)
-    if isinstance(files, str):
-        return None, files
+    manifest = _manifest(directory, active.manifest_sha256)
+    if isinstance(manifest, str):
+        return None, manifest
+    files, patches = manifest
     for name, expected in sorted(files.items()):
         if "/" in name or name in ("", ".", ".."):
             return None, "backend_tampered"
@@ -136,6 +146,7 @@ def check_backend(active: ActiveComponents) -> tuple[BackendPaths | None, str | 
         service=directory / SERVICE_NAME,
         directory=directory,
         version=active.backend_version,
+        offline_licences=OFFLINE_LICENCE_PATCH in patches,
     ), None
 
 

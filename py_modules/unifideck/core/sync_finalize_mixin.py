@@ -63,6 +63,40 @@ class _SyncFinalizeMixin:
             total: int,
         ) -> SyncResult: ...
 
+    def _adopt_libraries(
+        self, libraries: dict[str, list[Game]], errors: dict[str, str],
+    ) -> None:
+        """Give this run's games their app ids and make them the library."""
+        self._populate_app_ids(libraries)
+        self._all_games = self._with_unanswered_stores(libraries, errors)
+
+    def _with_unanswered_stores(
+        self, libraries: dict[str, list[Game]], errors: dict[str, str],
+    ) -> dict[str, list[Game]]:
+        """This run's libraries, plus the installed games of every registered
+        store that gave no answer: unavailable so never fetched (signed out
+        too), or failed with nothing. The rest of such a store's library is
+        dropped; its installed games stay listed as installed, as their
+        shortcuts already do (``shortcut/events._sweepable_stores``). A store
+        that answered with an empty library is still taken at its word.
+        """
+        registered = {store.store_name for store in self._registry.all()}
+        kept: dict[str, list[Game]] = {}
+        for name, games in self._all_games.items():
+            if name not in registered:
+                continue
+            if name in libraries and not (name in errors and not libraries[name]):
+                continue
+            installed = [game for game in games if game.installed]
+            if installed:
+                kept[name] = installed
+        if kept:
+            logger.info(
+                "[SyncService] keeping the installed games of stores with no answer: %s",
+                ", ".join(f"{name} ({len(games)})" for name, games in sorted(kept.items())),
+            )
+        return {**libraries, **kept}
+
     async def _finalize_sync(
         self,
         libraries: dict[str, list[Game]],
@@ -89,8 +123,7 @@ class _SyncFinalizeMixin:
         ``self._last_sync_time``.
         """
         duration_ms = int((time.monotonic() - started) * 1000)
-        self._populate_app_ids(libraries)
-        self._all_games = libraries
+        self._adopt_libraries(libraries, errors)
         total_games = sum(len(g) for g in libraries.values())
         self._progress.set_library_totals(total_games)
         skip_chain = self._chain_is_redundant(

@@ -326,6 +326,7 @@
       "xboxPcLicenseDenied": "沒有授權",
       "xboxPcLicenseInvalid": "授權無效",
       "xboxPcLicenseRateLimited": "請求次數過多",
+      "xboxPcLicenseDeviceLimit": "裝置數已達上限",
       "xboxPcLicenseUnavailable": "授權服務離線",
       "xboxPcMarketUnknown": "無法判斷地區",
       "xboxPcNeedsChoice": "有多個版本",
@@ -617,6 +618,7 @@
       "xboxPcNoPackage": "此遊戲沒有可安裝的 PC 套件。",
       "xboxPcLicenseDenied": "Microsoft 未授予此遊戲的授權。請檢查版本、訂閱以及 Store 地區。",
       "xboxPcLicenseRateLimited": "Microsoft 正在限制請求。請稍候幾分鐘後再試一次。",
+      "xboxPcLicenseDeviceLimit": "已達到 Microsoft Store 遊戲的裝置數量上限。請在 account.microsoft.com/devices/content 移除不再使用的裝置，然後再試一次。",
       "xboxPcLicenseUnavailable": "無法連線至 Microsoft 的授權服務。請稍後再試一次。",
       "xboxPcLicenseInvalid": "Microsoft 傳送的授權無法被此版本讀取。請收集記錄並回報此問題。",
       "xboxPcFilesystem": "此磁碟機不支援連結，因此無法存放 Xbox PC 遊戲。請選擇其他磁碟機。",
@@ -1292,6 +1294,7 @@
       "enableDownloads": "啟用實驗性 Xbox PC 下載",
       "runtimeVersion": "執行環境 {{version}}",
       "runtimeUpdateAvailable": "執行環境 {{version}}（有更新）",
+      "backendVersion": "後端 {{version}}",
       "runtimeDownloading": "正在下載… {{percent}}%",
       "runtimeInstalling": "正在安裝…"
     },

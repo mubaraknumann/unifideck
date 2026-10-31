@@ -326,6 +326,7 @@
       "xboxPcLicenseDenied": "Lisans yok",
       "xboxPcLicenseInvalid": "Lisans geçersiz",
       "xboxPcLicenseRateLimited": "Sınır aşıldı",
+      "xboxPcLicenseDeviceLimit": "Cihaz sınırı",
       "xboxPcLicenseUnavailable": "Lisans alınamadı",
       "xboxPcMarketUnknown": "Bölge bilinmiyor",
       "xboxPcNeedsChoice": "Birden çok sürüm",
@@ -617,6 +618,7 @@
       "xboxPcNoPackage": "Bu oyunun yüklenebilecek bir PC paketi yok.",
       "xboxPcLicenseDenied": "Microsoft bu oyun için lisans vermedi. Sürümü, aboneliği ve Store bölgesini kontrol edin.",
       "xboxPcLicenseRateLimited": "Microsoft istekleri sınırlıyor. Birkaç dakika bekleyip tekrar deneyin.",
+      "xboxPcLicenseDeviceLimit": "Microsoft'un Store oyunları için cihaz sınırına ulaşıldı. account.microsoft.com/devices/content adresinden artık kullanmadığınız bir cihazı kaldırıp yeniden deneyin.",
       "xboxPcLicenseUnavailable": "Microsoft lisans hizmetine ulaşılamadı. Daha sonra tekrar deneyin.",
       "xboxPcLicenseInvalid": "Microsoft bu sürümün okuyamadığı bir lisans gönderdi. Günlükleri toplayıp sorunu bildirin.",
       "xboxPcFilesystem": "Bu sürücü bağlantıları desteklemediği için Xbox PC oyunlarını barındıramaz. Başka bir sürücü seçin.",
@@ -1292,6 +1294,7 @@
       "enableDownloads": "Deneysel Xbox PC indirmelerini etkinleştir",
       "runtimeVersion": "Çalışma ortamı {{version}}",
       "runtimeUpdateAvailable": "Çalışma ortamı {{version}} (güncelleme hazır)",
+      "backendVersion": "Arka uç {{version}}",
       "runtimeDownloading": "İndiriliyor… %{{percent}}",
       "runtimeInstalling": "Kuruluyor…"
     },

@@ -61,10 +61,17 @@ def _obtain_xbl_user_token(
     v1) for an Azure AD v2 ``XboxLive.signin`` token such as xbox.com's
     device-code client. The likely one goes first so a sign-in costs one
     request, not a failed one plus a retry, on every relying party.
+
+    A ticket that already carries its prefix is sent as issued: backend
+    0.1.5+ (``xodus-xbox-jwe-ticket``) gives a JWE delegation ticket as
+    ``t=<jwe>``, and a second prefix makes Xbox Live answer 401.
     """
     live = [("2", f"t={access_token}"), ("1", f"d={access_token}"), ("1", f"t={access_token}")]
     aad = [("1", f"d={access_token}"), ("2", f"t={access_token}")]
-    candidates = aad if prefer_d else live
+    if access_token.startswith(("t=", "d=")):
+        candidates = [("1", access_token), ("2", access_token)]
+    else:
+        candidates = aad if prefer_d else live
     reasons: list[str] = []
     for contract_v, rps in candidates:
         resp = _try_xbl_request(

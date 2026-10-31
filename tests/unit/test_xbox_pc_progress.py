@@ -195,6 +195,7 @@ def _diags(*lines: str) -> Diagnostics:
     ("NEXUS_CONTENT_LICENSE_DIAGNOSTIC_V1 content-http 418", "xbox_license_invalid"),
     ("NEXUS_CONTENT_LICENSE_DIAGNOSTIC_V1 content-timeout 0", "xbox_license_unavailable"),
     ("NEXUS_CONTENT_LICENSE_DIAGNOSTIC_V1 content-not-entitled 200", "xbox_license_denied"),
+    ("NEXUS_CONTENT_LICENSE_DIAGNOSTIC_V1 content-device-limit 200", "xbox_license_device_limit"),
     ("NEXUS_CONTENT_LICENSE_DIAGNOSTIC_V1 content-xml 200", "xbox_license_invalid"),
 ])
 def test_license_stages(line: str, code: str) -> None:

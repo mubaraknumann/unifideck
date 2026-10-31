@@ -39,7 +39,10 @@ def probe_runtime(source_value: Any, enabled: bool = True) -> dict[str, Any]:
         view["error"], newer = e.code, False
     if active is None:
         return view
-    view.update(version=active.runtime_version, degraded=list(active.degraded))
+    view.update(
+        version=active.runtime_version, backend_version=active.backend_version,
+        degraded=list(active.degraded),
+    )
     problem = check_backend(active)[1]
     if problem is not None:
         view.update(state="failed", error=problem)

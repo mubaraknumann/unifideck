@@ -144,6 +144,7 @@ class XboxPc:
         bus: EventBus,
         *,
         xcloud_signed_in: Callable[[], bool] = lambda: False,
+        refresh_signed_in: Callable[[], Awaitable[bool]] | None = None,
         market_hint: Callable[[], str | None] = lambda: None,
         cli: XodusCli | None = None,
     ) -> None:
@@ -151,6 +152,7 @@ class XboxPc:
         self._config = config
         self._bus = bus
         self._xcloud_signed_in = xcloud_signed_in
+        self._refresh_signed_in = refresh_signed_in
         self._market_hint = market_hint
         #: The one ``XodusCli``. The PC library and the installer use it too.
         self.cli = cli or XodusCli()
@@ -214,6 +216,8 @@ class XboxPc:
             await self._signin.cancel()
         await self._set(XBOX_PC_ENABLED_KEY, bool(on))
         logger.info("%s turned %s", _LOG, "on" if on else "off")
+        if on and self._refresh_signed_in is not None:
+            await self._refresh_signed_in()  # the cached answer may be from while it was off
         await self._probe()
         self.notify()
         if on:

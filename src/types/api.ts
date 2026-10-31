@@ -204,6 +204,8 @@ export interface XboxPcStatus {
   runtime: {
     state: XboxPcRuntimeState;
     version: string | null;
+    /** The installed backend (`xodus-cli`, `xodus-service`) version. */
+    backend_version?: string | null;
     /** Where the components are installed from (named in errors). */
     source_dir: string;
     progress?: XboxPcRuntimeProgress;

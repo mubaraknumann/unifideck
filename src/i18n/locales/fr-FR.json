@@ -326,6 +326,7 @@
       "xboxPcLicenseDenied": "Pas de licence",
       "xboxPcLicenseInvalid": "Licence invalide",
       "xboxPcLicenseRateLimited": "Trop de requêtes",
+      "xboxPcLicenseDeviceLimit": "Limite appareils",
       "xboxPcLicenseUnavailable": "Licence en panne",
       "xboxPcMarketUnknown": "Région inconnue",
       "xboxPcNeedsChoice": "Choix d'édition",
@@ -617,6 +618,7 @@
       "xboxPcNoPackage": "Ce jeu n'a aucun paquet PC installable.",
       "xboxPcLicenseDenied": "Microsoft n'a pas accordé de licence pour ce jeu. Vérifiez l'édition, l'abonnement et la région du Store.",
       "xboxPcLicenseRateLimited": "Microsoft limite les requêtes. Patientez quelques minutes, puis réessayez.",
+      "xboxPcLicenseDeviceLimit": "La limite d'appareils de Microsoft pour les jeux du Store est atteinte. Retirez un appareil que vous n'utilisez plus sur account.microsoft.com/devices/content, puis réessayez.",
       "xboxPcLicenseUnavailable": "Le service de licences de Microsoft est injoignable. Réessayez plus tard.",
       "xboxPcLicenseInvalid": "Microsoft a envoyé une licence que cette version ne sait pas lire. Capturez les journaux et signalez-le.",
       "xboxPcFilesystem": "Ce disque ne peut pas accueillir de jeux Xbox PC, car il ne prend pas en charge les liens. Choisissez un autre disque.",
@@ -1292,6 +1294,7 @@
       "enableDownloads": "Activer les téléchargements Xbox PC expérimentaux",
       "runtimeVersion": "Environnement {{version}}",
       "runtimeUpdateAvailable": "Runtime {{version}} (mise à jour prête)",
+      "backendVersion": "Backend {{version}}",
       "runtimeDownloading": "Téléchargement… {{percent}} %",
       "runtimeInstalling": "Installation…"
     },

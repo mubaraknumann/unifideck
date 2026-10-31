@@ -326,6 +326,7 @@
       "xboxPcLicenseDenied": "Нет лицензии",
       "xboxPcLicenseInvalid": "Лицензия неверна",
       "xboxPcLicenseRateLimited": "Слишком часто",
+      "xboxPcLicenseDeviceLimit": "Лимит устройств",
       "xboxPcLicenseUnavailable": "Лицензии нет",
       "xboxPcMarketUnknown": "Регион не найден",
       "xboxPcNeedsChoice": "Несколько версий",
@@ -617,6 +618,7 @@
       "xboxPcNoPackage": "У этой игры нет пакета для ПК, который можно установить.",
       "xboxPcLicenseDenied": "Microsoft не выдал лицензию на эту игру. Проверьте издание, подписку и регион Store.",
       "xboxPcLicenseRateLimited": "Microsoft ограничивает количество запросов. Подождите несколько минут и повторите попытку.",
+      "xboxPcLicenseDeviceLimit": "Достигнут лимит устройств Microsoft для игр из Store. Удалите неиспользуемое устройство на account.microsoft.com/devices/content и повторите попытку.",
       "xboxPcLicenseUnavailable": "Не удалось связаться со службой лицензий Microsoft. Повторите попытку позже.",
       "xboxPcLicenseInvalid": "Microsoft прислал лицензию, которую эта версия не может прочитать. Соберите журналы и сообщите о проблеме.",
       "xboxPcFilesystem": "Этот диск не подходит для игр Xbox PC, потому что не поддерживает ссылки. Выберите другой диск.",
@@ -1292,6 +1294,7 @@
       "enableDownloads": "Включить экспериментальную загрузку игр Xbox PC",
       "runtimeVersion": "Среда {{version}}",
       "runtimeUpdateAvailable": "Среда {{version}} (есть обновление)",
+      "backendVersion": "Бэкенд {{version}}",
       "runtimeDownloading": "Загрузка… {{percent}}%",
       "runtimeInstalling": "Установка…"
     },

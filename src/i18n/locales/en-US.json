@@ -326,6 +326,7 @@
       "xboxPcLicenseDenied": "No license",
       "xboxPcLicenseInvalid": "Invalid license",
       "xboxPcLicenseRateLimited": "Rate limited",
+      "xboxPcLicenseDeviceLimit": "Device limit",
       "xboxPcLicenseUnavailable": "License offline",
       "xboxPcMarketUnknown": "Region unknown",
       "xboxPcNeedsChoice": "Several editions",
@@ -617,6 +618,7 @@
       "xboxPcNoPackage": "This game has no PC package that can be installed.",
       "xboxPcLicenseDenied": "Microsoft did not grant a license for this game. Check the edition, the subscription and the Store region.",
       "xboxPcLicenseRateLimited": "Microsoft is limiting requests. Wait a few minutes, then try again.",
+      "xboxPcLicenseDeviceLimit": "Microsoft's device limit for Store games is reached. Remove a device you no longer use at account.microsoft.com/devices/content, then try again.",
       "xboxPcLicenseUnavailable": "Microsoft's license service could not be reached. Try again later.",
       "xboxPcLicenseInvalid": "Microsoft sent a license this version can't read. Capture logs and report it.",
       "xboxPcFilesystem": "This drive can't hold Xbox PC games, because it does not support links. Pick another drive.",
@@ -1292,6 +1294,7 @@
       "enableDownloads": "Enable Experimental Xbox PC Downloads",
       "runtimeVersion": "Runtime {{version}}",
       "runtimeUpdateAvailable": "Runtime {{version}} (update ready)",
+      "backendVersion": "Backend {{version}}",
       "runtimeDownloading": "Downloading… {{percent}}%",
       "runtimeInstalling": "Installing…"
     },

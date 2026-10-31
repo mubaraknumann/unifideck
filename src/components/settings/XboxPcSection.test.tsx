@@ -14,7 +14,7 @@ vi.mock("../../hooks/useXboxPcStatus", () => ({}));
 vi.mock("../../stores/xbox-pc-store", () => ({}));
 vi.mock("../../services/store/xbox-pc-actions", () => ({}));
 
-import { runtimeLine } from "./XboxPcSection";
+import { backendLine, runtimeLine } from "./XboxPcSection";
 import type { XboxPcStatus } from "../../types/api";
 
 const t = ((key: string, vars?: Record<string, unknown>) =>
@@ -67,5 +67,20 @@ describe("runtimeLine", () => {
 
   it("is empty when nothing is installed and nothing failed", () => {
     expect(runtimeLine(runtime({}), t)).toBeUndefined();
+  });
+});
+
+describe("backendLine", () => {
+  it("names the installed backend version", () => {
+    expect(
+      backendLine(runtime({ state: "outdated", version: "0.1.16", backend_version: "0.1.3" }), t),
+    ).toBe('xboxPc.section.backendVersion {"version":"0.1.3"}');
+  });
+
+  it("is empty without a backend or while installing", () => {
+    expect(backendLine(runtime({ state: "installed", version: "0.1.16" }), t)).toBeUndefined();
+    expect(
+      backendLine(runtime({ state: "installing", backend_version: "0.1.3" }), t),
+    ).toBeUndefined();
   });
 });

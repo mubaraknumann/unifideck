@@ -137,6 +137,7 @@ class MicrosoftStore(BrowserAuthRebuildMixin, StoreBase):
             self._config_manager, lambda: self._edge, self._tokens,
             lambda: self._device_auth.running, bus,
             xcloud_signed_in=lambda: self._cached_available,
+            refresh_signed_in=self.is_available,
             market_hint=lambda: self._last_market,
         )
         # The one sign-in: with Xbox PC on, the Microsoft ticket comes from
