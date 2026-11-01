@@ -35,6 +35,11 @@
  * icon — three copies that all carry the same edition text (e.g. three
  * "Standard Edition" rows for Among Us) used to be indistinguishable
  * except for a 14px glyph.
+ *
+ * When a store lists several copies of one game whose store name and
+ * edition text are still identical, a trailing suffix built from the
+ * store's own `disambiguators` (see `lib/variant-labels`) tells them
+ * apart. Copies no entry separates keep identical labels.
  */
 import { FC, type ReactElement } from "react";
 import i18n from "i18next";
@@ -42,7 +47,11 @@ import { Dropdown, type SingleDropdownOption } from "@decky/ui";
 import { StoreIcon } from "../shared/StoreIcon";
 import { navigateToApp } from "../../lib/steam-bridge";
 import { appIdsMatch, type GroupSibling } from "../../lib/library-filters";
-import { storePriorityRank } from "../../lib/game-grouping";
+import { sortByStoreAndRank } from "../../lib/game-grouping";
+import {
+  disambiguationSuffixes,
+  labelCandidates,
+} from "../../lib/variant-labels";
 import type { StoreId } from "../../types/api";
 
 /** SteamOS's global top bar (search field, notifications, battery, clock,
@@ -79,31 +88,51 @@ interface Props {
   siblings: GroupSibling[];
 }
 
-function optionLabel(sibling: GroupSibling): ReactElement {
+/** Steam sizes the popup from its items, then centers it in a column limited
+ *  to 70% of the screen, so an item wider than that loses the start of its
+ *  text. The cap has to be a fixed length: a percentage is ignored while the
+ *  popup is being sized. */
+const LABEL_MAX_WIDTH_PX = 480;
+
+/** The icon, store name and edition never shrink or wrap. Only the suffix is
+ *  cut, with an ellipsis, so every row stays on one line and the most telling
+ *  entries stay visible. */
+const FIXED_PART_STYLE = { flexShrink: 0, whiteSpace: "nowrap" } as const;
+
+function optionLabel(sibling: GroupSibling, suffix: string): ReactElement {
   return (
-    <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      <StoreIcon store={sibling.store} size={14} />
-      <span>{storeName(sibling.store)}</span>
-      <span style={{ opacity: 0.7 }}>
+    <span
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        minWidth: 0,
+        maxWidth: LABEL_MAX_WIDTH_PX,
+        overflow: "hidden",
+      }}
+    >
+      <span style={{ ...FIXED_PART_STYLE, display: "flex" }}>
+        <StoreIcon store={sibling.store} size={14} />
+      </span>
+      <span style={FIXED_PART_STYLE}>{storeName(sibling.store)}</span>
+      <span style={{ ...FIXED_PART_STYLE, opacity: 0.7 }}>
         {sibling.editionLabel ?? defaultEditionLabel()}
       </span>
+      {suffix !== "" && (
+        <span
+          title={suffix}
+          style={{
+            opacity: 0.7,
+            minWidth: 0,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {suffix}
+        </span>
+      )}
     </span>
-  );
-}
-
-/** Same `STORE_PRIORITY` order `game-grouping`/`library-filters` use to pick
- *  a duplicate group's default (primary) tile — keeps the dropdown's listed
- *  order consistent with "which copy is the default" elsewhere, and pins
- *  Steam first every time since it leads that list unconditionally.
- *
- *  Uses {@link storePriorityRank} rather than a raw `indexOf` comparator —
- *  see its docstring: a store missing from `STORE_PRIORITY` must sort
- *  LAST, not first. */
-function sortByStorePriority(siblings: GroupSibling[]): GroupSibling[] {
-  return [...siblings].sort(
-    (a, b) =>
-      storePriorityRank(a.store) - storePriorityRank(b.store) ||
-      Number(a.editionLabel != null) - Number(b.editionLabel != null),
   );
 }
 
@@ -120,10 +149,14 @@ export const GameStoreSwitcher: FC<Props> = ({ appId, siblings }) => {
   const current = siblings.find((s) => appIdsMatch(s.appId, appId));
   const selectedOption = current?.appId ?? appId;
 
-  const options: SingleDropdownOption[] = sortByStorePriority(siblings).map(
+  const suffixes = disambiguationSuffixes(
+    labelCandidates(siblings, defaultEditionLabel()),
+  );
+
+  const options: SingleDropdownOption[] = sortByStoreAndRank(siblings).map(
     (sibling) => ({
       data: sibling.appId,
-      label: optionLabel(sibling),
+      label: optionLabel(sibling, suffixes.get(sibling.appId) ?? ""),
     }),
   );
 

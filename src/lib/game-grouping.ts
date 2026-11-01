@@ -48,14 +48,68 @@ export function storePriorityRank(store: StoreId): number {
  *  store; it never affects grouping. */
 const XBOX_ONE_ONLY_TAG = /\bxbox\s+one(?:\s+(?:edition|version))?\s*$/i;
 
-/** Index of the first candidate whose title ISN'T tagged "Xbox One"-only,
- *  or `-1` when every candidate is (or none has a title to check — a
- *  titleless entry never outranks a real one, so it's treated the same as
- *  "tagged"). An unsuffixed title or an explicit "Series X|S" release both
- *  outrank the older console's tag: the Series X|S copy plays on both
- *  consoles and reads as the more current listing. */
-export function indexOfFirstNonXboxOneTagged(
-  titles: (string | undefined)[],
+/** The items whose title isn't tagged "Xbox One"-only. A titleless item counts
+ *  as tagged, since it never outranks a real title. An unsuffixed or
+ *  "Series X|S" title outranks the older console's tag: the Series X|S copy
+ *  plays on both consoles and reads as the more current listing. */
+export function nonXboxOneTagged<T extends { title?: string }>(
+  items: readonly T[],
+): T[] {
+  return items.filter(
+    (i) => i.title != null && !XBOX_ONE_ONLY_TAG.test(i.title),
+  );
+}
+
+/** A member that may carry the rank its store gave it (`metadata.default_rank`,
+ *  lower wins). It only breaks ties between a store's own members. */
+export interface HasDefaultRank {
+  defaultRank?: number;
+}
+
+/** A store's `default_rank` from a row's `metadata`. Anything other than a
+ *  finite number >= 0 reads as unranked. */
+export function readDefaultRank(
+  metadata: Record<string, unknown> | undefined,
+): number | undefined {
+  const value = metadata?.default_rank;
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? value
+    : undefined;
+}
+
+/** Orders by ascending rank, with unranked members last. Equal ranks compare
+ *  as 0, so a stable sort keeps their order. */
+export function compareByDefaultRank(
+  a: HasDefaultRank,
+  b: HasDefaultRank,
 ): number {
-  return titles.findIndex((t) => t != null && !XBOX_ONE_ONLY_TAG.test(t));
+  const left = a.defaultRank ?? Number.POSITIVE_INFINITY;
+  const right = b.defaultRank ?? Number.POSITIVE_INFINITY;
+  if (left === right) return 0;
+  return left < right ? -1 : 1;
+}
+
+/** The lowest-ranked item, or the earliest among equals; `undefined` for an
+ *  empty list. With no ranks at all it is the first item. */
+export function firstByDefaultRank<T extends HasDefaultRank>(
+  items: readonly T[],
+): T | undefined {
+  let best: T | undefined;
+  for (const item of items) {
+    if (best === undefined || compareByDefaultRank(item, best) < 0) best = item;
+  }
+  return best;
+}
+
+/** The switcher's listing order: store priority, then members without an
+ *  edition label, then rank. Ties keep their incoming order. */
+export function sortByStoreAndRank<
+  T extends { store: StoreId; editionLabel?: string; defaultRank?: number },
+>(siblings: readonly T[]): T[] {
+  return [...siblings].sort(
+    (a, b) =>
+      storePriorityRank(a.store) - storePriorityRank(b.store) ||
+      Number(a.editionLabel != null) - Number(b.editionLabel != null) ||
+      compareByDefaultRank(a, b),
+  );
 }
