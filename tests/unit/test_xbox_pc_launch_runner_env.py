@@ -223,7 +223,7 @@ def test_runner_keeps_the_vkd3d_shader_cache_in_the_prefix(tmp_path: Path) -> No
     root = tmp_path / "runtime"
     calls = tmp_path / "calls"
     _fake_wine(root, calls)
-    (root / "files/bin/wine").write_text(f'#!/bin/sh\necho "cache=$VKD3D_SHADER_CACHE_PATH" >> {calls}\n')
+    (root / "files/bin/wine").write_text(f'#!/bin/sh\nprintf "cache=%s\\n" "$VKD3D_SHADER_CACHE_PATH" >> {calls}\n')
     compat = tmp_path / "prefix"
     compat.mkdir()
     runner = write_runner(Runtime(root), compat)

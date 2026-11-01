@@ -182,9 +182,11 @@ class SyncRequest:
     the lock releases.
 
     Attributes:
-        kind: ``"sync"`` or ``"force"``. When two requests merge,
-            ``"force"`` wins (a force-sync semantically supersedes
-            a normal sync).
+        kind: ``"sync"``, ``"force"`` or ``"artwork"``. When two
+            requests merge, ``"force"`` wins (a force-sync semantically
+            supersedes a normal sync), then ``"sync"``; ``"artwork"``
+            (re-download artwork, no library fetch) survives only when
+            both sides are artwork-only.
         source: provenance — ``"manual"`` | ``"auth:<store>"`` |
             ``"background"`` | ``"scheduled"``. Surfaced in logs and
             in the response so the frontend can distinguish
@@ -194,22 +196,40 @@ class SyncRequest:
             (one wants artwork → result wants artwork).
         resync_artwork: forwarded to ``SyncService.sync_all``.
             OR-ed on merge for the same reason.
+        stores: the stores to cover, or ``None`` for every available
+            store. Unioned on merge; ``None`` absorbs any set, since
+            "every store" already covers it.
     """
 
     kind: str = "sync"
     source: str = "manual"
     fetch_artwork: bool = True
     resync_artwork: bool = False
+    stores: frozenset[str] | None = None
 
     def merge(self, other: SyncRequest) -> SyncRequest:
         """Combine two queued requests; force wins, flags OR together.
 
         Returns a new request so neither input is mutated — easier
         to reason about in the queue logic.
+
+        An artwork-only request merged with a library sync becomes that
+        sync with ``resync_artwork`` set, over the union of both store
+        sets. That re-fetches the artwork-only side's library too, which
+        costs one store call and loses nothing.
         """
+        kinds = {self.kind, other.kind}
+        kind = next(
+            (k for k in ("force", "sync") if k in kinds), "artwork",
+        )
+        stores = (
+            None if self.stores is None or other.stores is None
+            else self.stores | other.stores
+        )
         return SyncRequest(
-            kind="force" if "force" in (self.kind, other.kind) else "sync",
+            kind=kind,
             source=other.source or self.source,
             fetch_artwork=self.fetch_artwork or other.fetch_artwork,
             resync_artwork=self.resync_artwork or other.resync_artwork,
+            stores=stores,
         )

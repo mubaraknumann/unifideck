@@ -79,7 +79,6 @@
     "validationErrors.notAbsolute": "Шлях має бути абсолютним",
     "validationErrors.systemDir": "Не можна використовувати системну папку",
     "validationErrors.notWritable": "У цій папці немає прав на запис",
-    "validationErrors.notFound": "Папка не існує",
     "validationErrors.homeRoot": "Не можна використовувати домашній кореневий каталог",
     "freeSpaceLabel": "{{label}} ({{freeSpace}} ГБ вільно)"
   },
@@ -149,7 +148,7 @@
     "uploadBlockedEmpty": "Завантаження в хмару для {{game}} пропущено. Локальні збереження не знайдено"
   },
   "storeConnections": {
-    "title": "ПІДКЛЮЧЕННЯ МАГАЗИНІВ",
+    "title": "МАГАЗИНИ",
     "epicGames": "Epic Games",
     "gog": "GOG",
     "amazonGames": "Amazon Games",
@@ -160,25 +159,29 @@
     "authenticate": "Увійти",
     "error": "Помилка. Перевірте журнали",
     "storefrontOpening": "Відкриття магазину {{store}}...",
-    "storefrontFailed": "Не вдалося відкрити магазин {{store}}"
-  },
-  "librarySync": {
-    "title": "СИНХРОНІЗАЦІЯ БІБЛІОТЕКИ",
-    "syncLibraries": "Синхронізувати бібліотеки",
-    "forceSync": "Примусова синхронізація",
-    "syncing": "Синхронізація...",
+    "storefrontFailed": "Не вдалося відкрити магазин {{store}}",
+    "allStores": "Усі магазини",
+    "notSynced": "Ще не синхронізовано",
+    "gameCount": "{{count}} гра",
+    "gameCount_other": "{{count}} ігор",
+    "queued": "У черзі",
+    "waiting": "Очікування…",
+    "done": "Готово",
+    "failed": "Помилка синхронізації",
+    "cancelled": "Скасовано",
+    "storesDone": "Готово {{done}} з {{total}}",
+    "syncGames": "Синхронізувати ігри",
+    "syncImages": "Синхронізувати обкладинки",
+    "openStore": "Відкрити магазин",
+    "signOut": "Вийти",
+    "syncAllGames": "Синхронізувати всі ігри",
+    "syncAllImages": "Синхронізувати всі обкладинки",
     "cancelSync": "Скасувати синхронізацію",
-    "retryStatusCheck": "Повторити перевірку статусу",
-    "gamesSynced": "Синхронізовано ігор: {{synced}} / {{total}}",
-    "artworkDownloaded": "Завантажено обкладинок: {{synced}} / {{total}}",
-    "metadataExtracted": "Вилучено метаданих: {{synced}} / {{total}}",
-    "steamMetadataDownloaded": "Метадані Steam: {{synced}} / {{total}}",
-    "unifidbMetadataDownloaded": "Метадані unifiDB: {{synced}} / {{total}}",
-    "metacriticMetadataDownloaded": "Дані Metacritic: {{synced}} / {{total}}",
-    "rawgMetadataDownloaded": "Метадані RAWG: {{synced}} / {{total}}",
-    "compatChecked": "Дані сумісності: {{synced}} / {{total}}",
     "cancelling": "Скасування…",
-    "error": "Помилка"
+    "progressGames": "{{done}}/{{count}} гра",
+    "progressGames_other": "{{done}}/{{count}} ігор",
+    "progressImages": "{{done}}/{{count}} обкладинка",
+    "progressImages_other": "{{done}}/{{count}} обкладинок"
   },
   "cleanup": {
     "title": "Очищення",
@@ -230,10 +233,6 @@
     "uninstallDescription": "Ви впевнені, що хочете видалити {{title}}?",
     "cancelTitle": "Підтвердження скасування",
     "cancelDescription": "Ви впевнені, що хочете скасувати завантаження {{title}}?",
-    "forceSyncTitle": "Параметри примусової синхронізації",
-    "forceSyncDescription": "Ви хочете заново синхронізувати всі обкладинки? Це перезапише будь-які ваші ручні зміни обкладинок. Виберіть 'Зберегти обкладинки', щоб завантажити тільки ті, яких бракує.",
-    "resyncArtwork": "Перезаписати обкладинки",
-    "keepArtwork": "Зберегти обкладинки",
     "steamRestartTitle": "Синхронізацію завершено!",
     "steamRestartDescription": "Будь ласка, перезапустіть Steam, щоб нові ігри та обкладинки з'явилися у бібліотеці",
     "steamRestartDescriptionStore": "Будь ласка, перезапустіть Steam, щоб нові ігри та обкладинки {{store}} з'явилися у бібліотеці",
@@ -739,7 +738,6 @@
       "status": "Статус:",
       "spaceRequired": "Необхідно місця",
       "lastPlayed": "Останній запуск",
-      "playTime": "Час у грі",
       "never": "Ніколи"
     },
     "compatibility": {
@@ -1040,7 +1038,6 @@
     "title": "Синхронізація збережень",
     "description": "Виберіть поведінку Unifideck у разі збою завантаження або надсилання хмарних збережень під час запуску гри.",
     "loadError": "Не вдалося завантажити поточні налаштування",
-    "saveError": "Не вдалося зберегти зміни. Будь ласка, спробуйте ще раз",
     "store_label": {
       "default": "За замовчуванням (усі магазини)",
       "epic": "Epic Games",
@@ -1070,7 +1067,6 @@
     "loading": "Завантаження логів…",
     "notAvailable": "Логи цього запуску більше не доступні (минув 7-денний термін зберігання).",
     "error": "Не вдалося прочитати логи: {{error}}",
-    "fileInfo": "{{path}}. Показано {{shown}} з {{total}} рядків",
     "filterLabel": "Показати",
     "filterInfo": "Інфо",
     "filterWarning": "Попередження",
@@ -1082,7 +1078,6 @@
   "settings": {
     "_comment": "Елементи керування UnifideckSettingsPanel, що не увійшли до інших компонентів (LanguageSelector, CloudSyncBehaviorPanel). refreshAll. Кнопка, що запускає sync_all() для всіх налаштованих магазинів; бібліотека виводить прогрес синхронізації через підписку на події SYNC_PROGRESS.",
     "storeConnections": "Підключення магазинів",
-    "librarySync": "Синхр. бібліотеки",
     "language": "Мова",
     "languageAuto": "Визначати автоматично",
     "refreshAll": {

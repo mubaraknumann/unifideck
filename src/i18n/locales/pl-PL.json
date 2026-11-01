@@ -79,7 +79,6 @@
     "validationErrors.notAbsolute": "Ścieżka musi być absolutna",
     "validationErrors.systemDir": "Nie można użyć katalogu systemowego",
     "validationErrors.notWritable": "Lokalizacja nie jest zapisywalna",
-    "validationErrors.notFound": "Katalog nie istnieje",
     "validationErrors.homeRoot": "Nie można użyć katalogu domowego root",
     "freeSpaceLabel": "{{label}} ({{freeSpace}} GB wolnego)"
   },
@@ -149,7 +148,7 @@
     "uploadBlockedEmpty": "Pominięto przesyłanie do chmury dla {{game}}. Nie znaleziono lokalnych zapisów"
   },
   "storeConnections": {
-    "title": "POŁĄCZENIA SKLEPÓW",
+    "title": "SKLEPY",
     "epicGames": "Epic Games",
     "gog": "GOG",
     "amazonGames": "Amazon Games",
@@ -160,25 +159,29 @@
     "authenticate": "Zaloguj się",
     "error": "Błąd - sprawdź logi",
     "storefrontOpening": "Otwieranie sklepu {{store}}...",
-    "storefrontFailed": "Nie można otworzyć sklepu {{store}}"
-  },
-  "librarySync": {
-    "title": "SYNCHRONIZACJA BIBLIOTEKI",
-    "syncLibraries": "Synchronizuj biblioteki",
-    "forceSync": "Wymuś synchronizację",
-    "syncing": "Synchronizacja...",
+    "storefrontFailed": "Nie można otworzyć sklepu {{store}}",
+    "allStores": "Wszystkie sklepy",
+    "notSynced": "Jeszcze nie zsynchronizowano",
+    "gameCount": "{{count}} gra",
+    "gameCount_other": "{{count}} gier",
+    "queued": "W kolejce",
+    "waiting": "Oczekiwanie…",
+    "done": "Gotowe",
+    "failed": "Synchronizacja nie powiodła się",
+    "cancelled": "Anulowano",
+    "storesDone": "Gotowe: {{done}} z {{total}}",
+    "syncGames": "Synchronizuj gry",
+    "syncImages": "Synchronizuj grafiki",
+    "openStore": "Otwórz sklep",
+    "signOut": "Wyloguj",
+    "syncAllGames": "Synchronizuj wszystkie gry",
+    "syncAllImages": "Synchronizuj wszystkie grafiki",
     "cancelSync": "Anuluj synchronizację",
-    "retryStatusCheck": "Ponów sprawdzenie statusu",
-    "gamesSynced": "{{synced}} / {{total}} gier zsynchronizowanych",
-    "artworkDownloaded": "{{synced}} / {{total}} okładek pobranych",
-    "metadataExtracted": "{{synced}} / {{total}} rekordów metadanych wyodrębnionych",
-    "steamMetadataDownloaded": "Metadane Steam: {{synced}} / {{total}}",
-    "unifidbMetadataDownloaded": "Metadane unifiDB: {{synced}} / {{total}}",
-    "metacriticMetadataDownloaded": "Dane Metacritic: {{synced}} / {{total}}",
-    "rawgMetadataDownloaded": "Metadane RAWG: {{synced}} / {{total}}",
-    "compatChecked": "Dane zgodności: {{synced}} / {{total}}",
     "cancelling": "Anulowanie…",
-    "error": "Błąd"
+    "progressGames": "{{done}}/{{count}} gra",
+    "progressGames_other": "{{done}}/{{count}} gier",
+    "progressImages": "{{done}}/{{count}} grafika",
+    "progressImages_other": "{{done}}/{{count}} grafik"
   },
   "cleanup": {
     "title": "Czyszczenie",
@@ -230,10 +233,6 @@
     "uninstallDescription": "Czy na pewno chcesz odinstalować {{title}}?",
     "cancelTitle": "Potwierdź anulowanie",
     "cancelDescription": "Czy na pewno chcesz anulować pobieranie {{title}}?",
-    "forceSyncTitle": "Ustawienia wymuszonej synchronizacji",
-    "forceSyncDescription": "Czy chcesz ponownie zsynchronizować wszystkie okładki? Spowoduje to nadpisanie wszelkich ręcznych zmian. Wybierz 'Zachowaj okładki', aby pobrać tylko brakujące.",
-    "resyncArtwork": "Ponowna synchronizacja okładek",
-    "keepArtwork": "Zachowaj okładki",
     "steamRestartTitle": "Synchronizacja zakończona!",
     "steamRestartDescription": "Uruchom ponownie Steam, aby zastosować nowe gry i okładki",
     "steamRestartDescriptionStore": "Uruchom ponownie Steam, aby zastosować nowe gry i okładki {{store}}",
@@ -739,7 +738,6 @@
       "status": "Status:",
       "spaceRequired": "Wymagane miejsce",
       "lastPlayed": "Ostatnio grano",
-      "playTime": "Czas gry",
       "never": "Nigdy"
     },
     "compatibility": {
@@ -1040,7 +1038,6 @@
     "title": "Zachowanie synchronizacji w chmurze",
     "description": "Wybierz, jak Unifideck powinien reagować, gdy pobieranie lub przesyłanie zapisu w chmurze nie powiedzie się podczas uruchamiania gry.",
     "loadError": "Nie udało się załadować bieżących ustawień",
-    "saveError": "Nie udało się zapisać zmiany. Spróbuj ponownie",
     "store_label": {
       "default": "Domyślnie (wszystkie sklepy)",
       "epic": "Epic Games",
@@ -1070,7 +1067,6 @@
     "loading": "Ładowanie logów…",
     "notAvailable": "Logi tego uruchomienia nie są już dostępne (poza 7-dniowym okresem przechowywania).",
     "error": "Nie można odczytać logów: {{error}}",
-    "fileInfo": "{{path}}. Wyświetlanie {{shown}} z {{total}} linii",
     "filterLabel": "Wyświetl",
     "filterInfo": "Informacje",
     "filterWarning": "Ostrzeżenie",
@@ -1082,7 +1078,6 @@
   "settings": {
     "_comment": "Kontrolki działań UnifideckSettingsPanel, które nie są obsługiwane przez bardziej szczegółowe komponenty (LanguageSelector, CloudSyncBehaviorPanel). refreshAll to przycisk wyzwalający sync_all() na wszystkich zarejestrowanych sklepach; widok biblioteki wyświetla postęp synchronizacji poprzez własną subskrypcję zdarzeń SYNC_PROGRESS.",
     "storeConnections": "Połączenia sklepów",
-    "librarySync": "Sync biblioteki",
     "language": "Język",
     "languageAuto": "Wykryj automatycznie",
     "refreshAll": {

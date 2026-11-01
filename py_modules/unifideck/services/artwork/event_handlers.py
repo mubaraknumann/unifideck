@@ -23,6 +23,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from unifideck.core.sync_generation import run_id_of
+from unifideck.core.sync_scope import scope_of, scoped_games
 from unifideck.core.types import Events
 from unifideck.event_bus.event_bus_devex import subscribe
 
@@ -268,7 +269,8 @@ class _EventHandlersMixin:
         # Same dead fallback as CompatibilityService carried; no emitter has
         # ever sent a flat ``games``. Audit register item 41.
         sync_kwargs = kwargs.get("sync_kwargs") or {}
-        games = sync_kwargs.get("games") or []
+        # Only the stores this run covers (``core/sync_scope.py``).
+        games = scoped_games(sync_kwargs.get("games") or [], sync_kwargs)
         bus = getattr(self, "_bus", None)
         grid_dir = getattr(self, "_grid_dir", None)
         if not bool(sync_kwargs.get("fetch_artwork", True)):
@@ -294,8 +296,15 @@ class _EventHandlersMixin:
             _emit_artwork_phase_done(bus, 0, sync_kwargs)
             return
         resync_artwork = bool(sync_kwargs.get("resync_artwork", False))
-        if resync_artwork:
+        # A scoped resync leaves the other stores' attempt records alone:
+        # ``force`` already bypasses them for the games being refetched,
+        # and clearing them would make every other store retry its
+        # genuinely-absent art on the next sync.
+        if resync_artwork and scope_of(sync_kwargs) is None:
             self._clear_resync_cache()
+        progress = _sync_progress(bus)
+        if progress is not None:
+            progress.begin_store_phase("artwork", games)
         logger.info(
             "[ArtworkService] phase=metadata done → checking artwork "
             "for %d games (grid_dir=%s, resync=%s)",
@@ -303,29 +312,6 @@ class _EventHandlersMixin:
         )
         self._dispatch_artwork_batch(
             games, grid_dir, bus, sync_kwargs, resync=resync_artwork,
-        )
-
-    def _clear_resync_cache(self: Any) -> None:
-        """Clear the SGDB attempt caches so resync refetches all games.
-
-        Without this, games whose missing-kind set is unchanged are
-        skipped; the ``force`` fetch below also bypasses the per-kind
-        on-disk check so every game gets a fresh download. Also clears
-        the legacy ``sgdb_fetch`` namespace so old installs upgrading
-        from the timestamp-cooldown era don't keep stale entries.
-        """
-        cache = getattr(self, "_cache", None)
-        if cache is None:
-            return
-        for namespace in ("artwork_attempts", "sgdb_fetch"):
-            try:
-                cache.clear(namespace)
-            except Exception:
-                logger.exception(
-                    "[ArtworkService] failed to clear %s cache", namespace,
-                )
-        logger.info(
-            "[ArtworkService] resync_artwork=True — cleared SGDB attempt caches",
         )
 
     def _dispatch_artwork_batch(
@@ -541,7 +527,7 @@ class _EventHandlersMixin:
         # in _setup_sync and clears it on completion.
         progress = _sync_progress(bus)
         if progress is not None:
-            await progress.increment_artwork(game.title)
+            await progress.increment_artwork(game.title, game.store)
         # "saved" only when a kind we were actually after got filled —
         # pre-existing covers (True in result but not in `missing`) don't
         # count, so the batch summary stays meaningful for backfills.

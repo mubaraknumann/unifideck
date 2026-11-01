@@ -1,10 +1,10 @@
 /**
  * useSyncCooldown — manual-sync rate limiter.
  *
- * After a sync completes, the manual Sync button is disabled
- * for `cooldownMs` so users don't hammer the backend with
- * redundant runs. The cooldown is module-level so it survives
- * QAM dismounts (legacy behaviour from staging's
+ * After a sync completes, the store rows' sync buttons are
+ * disabled for `cooldownMs` so users don't hammer the backend
+ * with redundant runs. The cooldown is module-level so it
+ * survives QAM dismounts (legacy behaviour from staging's
  * `LibrarySync.tsx` cooldown timer).
  *
  * Listens for `SYNC_COMPLETE` / `SYNC_FAILED` /

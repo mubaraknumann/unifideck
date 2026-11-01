@@ -35,6 +35,9 @@ def _bare_service() -> SyncService:
     svc._lock_acquired_at = None
     svc._request_lock = asyncio.Lock()
     svc._pending_request = None
+    svc._draining = False
+    svc._chain_idle = asyncio.Event()
+    svc._chain_idle.set()
     return svc
 
 

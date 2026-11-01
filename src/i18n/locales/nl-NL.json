@@ -79,7 +79,6 @@
     "validationErrors.notAbsolute": "Pad moet absoluut zijn",
     "validationErrors.systemDir": "Kan geen systeemmapp gebruiken",
     "validationErrors.notWritable": "Locatie is niet schrijfbaar",
-    "validationErrors.notFound": "Map bestaat niet",
     "validationErrors.homeRoot": "Kan de root van de gebruikersmap niet gebruiken",
     "freeSpaceLabel": "{{label}} ({{freeSpace}} GB vrij)"
   },
@@ -149,7 +148,7 @@
     "uploadBlockedEmpty": "Cloud-upload overgeslagen voor {{game}}. Geen lokale saves gevonden"
   },
   "storeConnections": {
-    "title": "WINKELVERBINDINGEN",
+    "title": "WINKELS",
     "epicGames": "Epic Games",
     "gog": "GOG",
     "amazonGames": "Amazon Games",
@@ -160,25 +159,29 @@
     "authenticate": "Aanmelden",
     "error": "Fout - Controleer logs",
     "storefrontOpening": "{{store}}-winkel wordt geopend...",
-    "storefrontFailed": "Kan de {{store}}-winkel niet openen"
-  },
-  "librarySync": {
-    "title": "BIBLIOTHEEK SYNC",
-    "syncLibraries": "Bibliotheken synchroniseren",
-    "forceSync": "Synchronisatie forceren",
-    "syncing": "Synchroniseren...",
+    "storefrontFailed": "Kan de {{store}}-winkel niet openen",
+    "allStores": "Alle winkels",
+    "notSynced": "Nog niet gesynchroniseerd",
+    "gameCount": "{{count}} spel",
+    "gameCount_other": "{{count}} spellen",
+    "queued": "In wachtrij",
+    "waiting": "Wachten…",
+    "done": "Klaar",
+    "failed": "Synchronisatie mislukt",
+    "cancelled": "Geannuleerd",
+    "storesDone": "{{done}} van {{total}} klaar",
+    "syncGames": "Spellen synchroniseren",
+    "syncImages": "Afbeeldingen synchroniseren",
+    "openStore": "Winkel openen",
+    "signOut": "Afmelden",
+    "syncAllGames": "Alle spellen synchroniseren",
+    "syncAllImages": "Alle afbeeldingen synchroniseren",
     "cancelSync": "Synchronisatie annuleren",
-    "retryStatusCheck": "Statuscontrole opnieuw proberen",
-    "gamesSynced": "{{synced}} / {{total}} games gesynchroniseerd",
-    "artworkDownloaded": "{{synced}} / {{total}} covers gedownload",
-    "metadataExtracted": "{{synced}} / {{total}} metadatarecords uitgepakt",
-    "steamMetadataDownloaded": "Steam-metadata: {{synced}} / {{total}}",
-    "unifidbMetadataDownloaded": "unifiDB-metadata: {{synced}} / {{total}}",
-    "metacriticMetadataDownloaded": "Metacritic-data: {{synced}} / {{total}}",
-    "rawgMetadataDownloaded": "RAWG-metadata: {{synced}} / {{total}}",
-    "compatChecked": "Compatibiliteitsdata: {{synced}} / {{total}}",
     "cancelling": "Annuleren…",
-    "error": "Fout"
+    "progressGames": "{{done}}/{{count}} spel",
+    "progressGames_other": "{{done}}/{{count}} spellen",
+    "progressImages": "{{done}}/{{count}} afbeelding",
+    "progressImages_other": "{{done}}/{{count}} afbeeldingen"
   },
   "cleanup": {
     "title": "Opruimen",
@@ -230,10 +233,6 @@
     "uninstallDescription": "Weet je zeker dat je {{title}} wilt deïnstalleren?",
     "cancelTitle": "Annulering bevestigen",
     "cancelDescription": "Weet je zeker dat je de download van {{title}} wilt annuleren?",
-    "forceSyncTitle": "Synchronisatie forceren instellingen",
-    "forceSyncDescription": "Wil je alle artwork opnieuw synchroniseren? Dit zal handmatige wijzigingen in het artwork overschrijven. Selecteer 'Artwork behouden' om alleen ontbrekend artwork te downloaden.",
-    "resyncArtwork": "Artwork opnieuw synchroniseren",
-    "keepArtwork": "Artwork behouden",
     "steamRestartTitle": "Synchronisatie voltooid!",
     "steamRestartDescription": "Start Steam opnieuw op om je nieuwe games en artwork toe te passen",
     "steamRestartDescriptionStore": "Start Steam opnieuw op om je nieuwe {{store}}-games and artwork toe te passen",
@@ -739,7 +738,6 @@
       "status": "Status:",
       "spaceRequired": "Benodigde ruimte",
       "lastPlayed": "Laatst gespeeld",
-      "playTime": "Speeltijd",
       "never": "Nooit"
     },
     "compatibility": {
@@ -1040,7 +1038,6 @@
     "title": "Cloudopslag-synchronisatiegedrag",
     "description": "Kies hoe Unifideck moet reageren als het downloaden of uploaden van cloudopslag mislukt bij het starten van een game.",
     "loadError": "Kan huidige instellingen niet laden",
-    "saveError": "Kan wijziging niet opslaan. Probeer het opnieuw",
     "store_label": {
       "default": "Standaard (alle winkels)",
       "epic": "Epic Games",
@@ -1070,7 +1067,6 @@
     "loading": "Logs laden…",
     "notAvailable": "Logs voor deze start zijn niet meer beschikbaar (buiten de bewaarperiode van 7 dagen).",
     "error": "Kan logs niet lezen: {{error}}",
-    "fileInfo": "{{path}}. Weergave van {{shown}} van {{total}} regels",
     "filterLabel": "Weergeven",
     "filterInfo": "Info",
     "filterWarning": "Waarschuwing",
@@ -1082,7 +1078,6 @@
   "settings": {
     "_comment": "Actieknoppen van UnifideckSettingsPanel die niet onder specifiekere componenten vallen (LanguageSelector, CloudSyncBehaviorPanel). refreshAll is een knop die sync_all() start voor alle geregistreerde winkels; de bibliotheekweergave toont de synchronisatievoortgang via haar eigen abonnement op SYNC_PROGRESS-gebeurtenissen.",
     "storeConnections": "Winkelverbindingen",
-    "librarySync": "Bibliotheek sync",
     "language": "Taal",
     "languageAuto": "Automatisch detecteren",
     "refreshAll": {

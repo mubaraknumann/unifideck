@@ -164,6 +164,33 @@ def test_a_runtime_composed_key_is_not_reported(mod, tmp_path, monkeypatch) -> N
     assert mod.find_unreferenced_keys({"errors.download.diskSpace"}) == []
 
 
+def test_a_plural_form_of_a_used_key_is_not_reported(
+    mod, tmp_path, monkeypatch,
+) -> None:
+    """``t("x.gameCount", {count})`` reaches ``x.gameCount_other`` too.
+
+    i18next picks the suffixed form itself, so the suffixed spelling
+    never appears in code. Before this rule every ``_other`` key in the
+    project had to be grandfathered as dead.
+    """
+    _isolate(
+        mod, tmp_path, monkeypatch,
+        {"src/a.tsx": 't("store.gameCount", { count })\n'},
+    )
+    assert mod.find_unreferenced_keys(
+        {"store.gameCount", "store.gameCount_other", "store.gameCount_few"},
+    ) == []
+
+
+def test_a_plural_form_of_a_dead_key_is_still_reported(
+    mod, tmp_path, monkeypatch,
+) -> None:
+    _isolate(mod, tmp_path, monkeypatch, {"src/a.tsx": 't("store.other")\n'})
+    assert mod.find_unreferenced_keys({"store.deadCount_other"}) == [
+        "store.deadCount_other",
+    ]
+
+
 def test_a_key_named_in_bin_is_not_reported(mod, tmp_path, monkeypatch) -> None:
     """``bin/`` holds the launcher, which also names keys."""
     _isolate(

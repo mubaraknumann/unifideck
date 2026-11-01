@@ -1,8 +1,9 @@
 /**
  * The preparation every sync needs, wherever it is triggered from.
  *
- * There are two callers and they used to disagree. `SyncContext.startSync`
- * and `forceSync` did all three steps below; `AuthDispatcher`, firing the
+ * There are two callers and they used to disagree. `SyncContext`'s
+ * user-triggered syncs (now `syncGames` / `syncImages`) did all three steps
+ * below; `AuthDispatcher`, firing the
  * post-login `requestAuthSync`, did none of them. The backend is the same for
  * both (`request_auth_sync` is a one-liner onto `sync_all`), so that gap was
  * the entire difference between a sync the user triggers, which worked, and
