@@ -106,6 +106,8 @@ def find_unreferenced_keys(source_keys: set[str]) -> list[str]:
     haystack = _reference_haystack()
     unreferenced = []
     for key in sorted(source_keys):
+        if key == "_comment":
+            continue  # top-level catalogue note, not a string anyone renders
         base = _plural_base(key)
         leaf = base.rsplit(".", 1)[-1]
         if base in haystack or leaf in haystack:

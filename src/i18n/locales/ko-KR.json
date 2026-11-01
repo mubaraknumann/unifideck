@@ -79,7 +79,6 @@
     "validationErrors.notAbsolute": "경로는 절대 경로여야 합니다",
     "validationErrors.systemDir": "시스템 디렉토리는 사용할 수 없습니다",
     "validationErrors.notWritable": "해당 위치에 쓰기 권한이 없습니다",
-    "validationErrors.notFound": "디렉토리가 존재하지 않습니다",
     "validationErrors.homeRoot": "사용자 루트 경로는 사용할 수 없습니다",
     "freeSpaceLabel": "{{label}} (여유 공간 {{freeSpace}} GB)"
   },
@@ -739,7 +738,6 @@
       "status": "상태:",
       "spaceRequired": "필요 공간",
       "lastPlayed": "최근 플레이",
-      "playTime": "플레이 시간",
       "never": "없음"
     },
     "compatibility": {
@@ -1040,7 +1038,6 @@
     "title": "클라우드 세이브 동기화 설정",
     "description": "게임 실행 시 클라우드 저장 데이터를 가져오거나 업로드하는 과정에 실패했을 때 Unifideck의 대응 방식을 선택하세요.",
     "loadError": "현재 설정 정보를 가져올 수 없습니다",
-    "saveError": "설정을 저장하지 못했습니다. 다시 시도해 주세요",
     "store_label": {
       "default": "기본 설정 (모든 상점)",
       "epic": "Epic Games",
@@ -1070,7 +1067,6 @@
     "loading": "로그 로드 중…",
     "notAvailable": "해당 실행 로그가 존재하지 않거나 보존 기간(7일)이 만료되었습니다.",
     "error": "로그 파일을 읽을 수 없습니다: {{error}}",
-    "fileInfo": "{{path}}. 전체 {{total}}행 중 {{shown}}행 표시 중",
     "filterLabel": "표시 대상",
     "filterInfo": "정보",
     "filterWarning": "경고",

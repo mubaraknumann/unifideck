@@ -79,7 +79,6 @@
     "validationErrors.notAbsolute": "O caminho deve ser absoluto",
     "validationErrors.systemDir": "Não é possível usar um diretório do sistema",
     "validationErrors.notWritable": "O local não permite escrita",
-    "validationErrors.notFound": "O diretório não existe",
     "validationErrors.homeRoot": "Não é possível usar a raiz do diretório do usuário",
     "freeSpaceLabel": "{{label}} ({{freeSpace}} GB livres)"
   },
@@ -739,7 +738,6 @@
       "status": "Status:",
       "spaceRequired": "Espaço Necessário",
       "lastPlayed": "Última vez jogado",
-      "playTime": "Tempo de jogo",
       "never": "Nunca"
     },
     "compatibility": {
@@ -1040,7 +1038,6 @@
     "title": "Comportamento de sinc. de save na nuvem",
     "description": "Escolha como o Unifideck deve reagire quando o download ou upload de save na nuvem falhar ao iniciar um jogo.",
     "loadError": "Não foi possível carregar as configurações atuais",
-    "saveError": "Não foi possível salvar sua alteração. Por favor, tente novamente",
     "store_label": {
       "default": "Padrão (todas as lojas)",
       "epic": "Epic Games",
@@ -1070,7 +1067,6 @@
     "loading": "Carregando logs…",
     "notAvailable": "Os logs desta inicialização não estão mais disponíveis (além do período de retenção de 7 dias).",
     "error": "Não foi possível ler os logs: {{error}}",
-    "fileInfo": "{{path}}. Exibindo {{shown}} de {{total}} linhas",
     "filterLabel": "Exibir",
     "filterInfo": "Informações",
     "filterWarning": "Aviso",

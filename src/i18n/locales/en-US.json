@@ -79,7 +79,6 @@
     "validationErrors.notAbsolute": "Path must be absolute",
     "validationErrors.systemDir": "Cannot use a system directory",
     "validationErrors.notWritable": "Location is not writable",
-    "validationErrors.notFound": "Directory does not exist",
     "validationErrors.homeRoot": "Cannot use home directory root",
     "freeSpaceLabel": "{{label}} ({{freeSpace}} GB free)"
   },
@@ -739,7 +738,6 @@
       "status": "Status:",
       "spaceRequired": "Space Required",
       "lastPlayed": "Last Played",
-      "playTime": "Play Time",
       "never": "Never"
     },
     "compatibility": {
@@ -1078,7 +1076,6 @@
     "title": "Cloud save sync behavior",
     "description": "Choose how Unifideck should react when a cloud save download or upload fails at game launch.",
     "loadError": "Could not load current settings",
-    "saveError": "Could not save your change. Please retry",
     "store_label": {
       "default": "Default (all stores)",
       "epic": "Epic Games",
@@ -1108,7 +1105,6 @@
     "loading": "Loading logs…",
     "notAvailable": "Logs for this launch are no longer available (past the 7-day retention window).",
     "error": "Couldn't read the logs: {{error}}",
-    "fileInfo": "{{path}}. Showing {{shown}} of {{total}} lines",
     "filterLabel": "Show",
     "filterInfo": "Info",
     "filterWarning": "Warning",

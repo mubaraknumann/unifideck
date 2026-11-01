@@ -79,7 +79,6 @@
     "validationErrors.notAbsolute": "路徑必須是絕對路徑",
     "validationErrors.systemDir": "無法使用系統目錄",
     "validationErrors.notWritable": "這個位置無法寫入",
-    "validationErrors.notFound": "目錄不存在",
     "validationErrors.homeRoot": "不能使用家目錄或根目錄",
     "freeSpaceLabel": "{{label}}（剩餘 {{freeSpace}} GB）"
   },
@@ -739,7 +738,6 @@
       "status": "狀態：",
       "spaceRequired": "所需空間",
       "lastPlayed": "上次遊玩",
-      "playTime": "遊玩時間",
       "never": "無記錄"
     },
     "compatibility": {
@@ -1078,7 +1076,6 @@
     "title": "雲端存檔同步行為",
     "description": "設定遊戲啟動前下載雲端存檔或結束後上傳雲端存檔失敗時，Unifideck 要如何通知你。",
     "loadError": "無法載入目前的設定",
-    "saveError": "無法儲存設定，請再試一次",
     "store_label": {
       "default": "預設設定（所有商店）",
       "epic": "Epic Games",
@@ -1108,7 +1105,6 @@
     "loading": "正在載入啟動紀錄…",
     "notAvailable": "這次啟動的紀錄已不存在（每日紀錄僅保留 7 天）。",
     "error": "無法讀取紀錄：{{error}}",
-    "fileInfo": "{{path}}。目前顯示 {{shown}} 行，總計 {{total}} 行",
     "filterLabel": "依層級顯示",
     "filterInfo": "資訊",
     "filterWarning": "警告",

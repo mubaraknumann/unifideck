@@ -79,7 +79,6 @@
     "validationErrors.notAbsolute": "Pad moet absoluut zijn",
     "validationErrors.systemDir": "Kan geen systeemmapp gebruiken",
     "validationErrors.notWritable": "Locatie is niet schrijfbaar",
-    "validationErrors.notFound": "Map bestaat niet",
     "validationErrors.homeRoot": "Kan de root van de gebruikersmap niet gebruiken",
     "freeSpaceLabel": "{{label}} ({{freeSpace}} GB vrij)"
   },
@@ -739,7 +738,6 @@
       "status": "Status:",
       "spaceRequired": "Benodigde ruimte",
       "lastPlayed": "Laatst gespeeld",
-      "playTime": "Speeltijd",
       "never": "Nooit"
     },
     "compatibility": {
@@ -1040,7 +1038,6 @@
     "title": "Cloudopslag-synchronisatiegedrag",
     "description": "Kies hoe Unifideck moet reageren als het downloaden of uploaden van cloudopslag mislukt bij het starten van een game.",
     "loadError": "Kan huidige instellingen niet laden",
-    "saveError": "Kan wijziging niet opslaan. Probeer het opnieuw",
     "store_label": {
       "default": "Standaard (alle winkels)",
       "epic": "Epic Games",
@@ -1070,7 +1067,6 @@
     "loading": "Logs laden…",
     "notAvailable": "Logs voor deze start zijn niet meer beschikbaar (buiten de bewaarperiode van 7 dagen).",
     "error": "Kan logs niet lezen: {{error}}",
-    "fileInfo": "{{path}}. Weergave van {{shown}} van {{total}} regels",
     "filterLabel": "Weergeven",
     "filterInfo": "Info",
     "filterWarning": "Waarschuwing",

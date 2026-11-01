@@ -79,7 +79,6 @@
     "validationErrors.notAbsolute": "パスは絶対パスで指定してください",
     "validationErrors.systemDir": "システムディレクトリは指定できません",
     "validationErrors.notWritable": "指定した場所への書き込み権限がありません",
-    "validationErrors.notFound": "ディレクトリが存在しません",
     "validationErrors.homeRoot": "ホームのルートディレクトリは指定できません",
     "freeSpaceLabel": "{{label}} (空き容量 {{freeSpace}} GB)"
   },
@@ -739,7 +738,6 @@
       "status": "ステータス:",
       "spaceRequired": "必要な容量",
       "lastPlayed": "最後にプレイ",
-      "playTime": "プレイ時間",
       "never": "なし"
     },
     "compatibility": {
@@ -1040,7 +1038,6 @@
     "title": "クラウド同期の挙動",
     "description": "ゲームの起動時にクラウドセーブのダウンロードまたはアップロードが失敗した場合の Unifideck の挙動を選択します。",
     "loadError": "現在の設定を読み込めませんでした",
-    "saveError": "変更を保存できませんでした。もう一度お試しください",
     "store_label": {
       "default": "デフォルト (すべてのストア)",
       "epic": "Epic Games",
@@ -1070,7 +1067,6 @@
     "loading": "ログを読み込み中…",
     "notAvailable": "この起動ログはすでに削除されています（保存期間の7日を過ぎています）。",
     "error": "ログを読み込めませんでした: {{error}}",
-    "fileInfo": "{{path}}。{{total}} 行中 {{shown}} 行を表示中",
     "filterLabel": "表示",
     "filterInfo": "情報",
     "filterWarning": "警告",

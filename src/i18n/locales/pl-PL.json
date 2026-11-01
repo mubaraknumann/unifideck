@@ -79,7 +79,6 @@
     "validationErrors.notAbsolute": "Ścieżka musi być absolutna",
     "validationErrors.systemDir": "Nie można użyć katalogu systemowego",
     "validationErrors.notWritable": "Lokalizacja nie jest zapisywalna",
-    "validationErrors.notFound": "Katalog nie istnieje",
     "validationErrors.homeRoot": "Nie można użyć katalogu domowego root",
     "freeSpaceLabel": "{{label}} ({{freeSpace}} GB wolnego)"
   },
@@ -739,7 +738,6 @@
       "status": "Status:",
       "spaceRequired": "Wymagane miejsce",
       "lastPlayed": "Ostatnio grano",
-      "playTime": "Czas gry",
       "never": "Nigdy"
     },
     "compatibility": {
@@ -1040,7 +1038,6 @@
     "title": "Zachowanie synchronizacji w chmurze",
     "description": "Wybierz, jak Unifideck powinien reagować, gdy pobieranie lub przesyłanie zapisu w chmurze nie powiedzie się podczas uruchamiania gry.",
     "loadError": "Nie udało się załadować bieżących ustawień",
-    "saveError": "Nie udało się zapisać zmiany. Spróbuj ponownie",
     "store_label": {
       "default": "Domyślnie (wszystkie sklepy)",
       "epic": "Epic Games",
@@ -1070,7 +1067,6 @@
     "loading": "Ładowanie logów…",
     "notAvailable": "Logi tego uruchomienia nie są już dostępne (poza 7-dniowym okresem przechowywania).",
     "error": "Nie można odczytać logów: {{error}}",
-    "fileInfo": "{{path}}. Wyświetlanie {{shown}} z {{total}} linii",
     "filterLabel": "Wyświetl",
     "filterInfo": "Informacje",
     "filterWarning": "Ostrzeżenie",

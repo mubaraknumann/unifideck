@@ -220,6 +220,10 @@
     "locales": "*",
     "reason": "Product name (Microsoft Edge), used as the toast header for its install. Not translated in any language."
   },
+  "xboxPc.section.backendVersion": {
+    "locales": ["de-DE", "es-ES", "fr-FR", "it-IT", "nl-NL", "pl-PL", "pt-BR"],
+    "reason": "'Backend' is the loanword these languages use for the plugin's server side in technical UI; ru-RU, ja-JP, ko-KR, zh-* and the rest are translated."
+  },
   "toasts.header.xboxPc": {
     "locales": "*",
     "reason": "Product name (Xbox PC games), the toast header for that feature. Not translated in any language."

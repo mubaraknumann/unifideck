@@ -79,7 +79,6 @@
     "validationErrors.notAbsolute": "Yol mutlak olmalıdır",
     "validationErrors.systemDir": "Sistem dizini kullanılamaz",
     "validationErrors.notWritable": "Konum yazılabilir değil",
-    "validationErrors.notFound": "Dizin mevcut değil",
     "validationErrors.homeRoot": "Ana dizin kökü kullanılamaz",
     "freeSpaceLabel": "{{label}} ({{freeSpace}} GB boş)"
   },
@@ -739,7 +738,6 @@
       "status": "Durum:",
       "spaceRequired": "Gerekli Alan",
       "lastPlayed": "Son Oynama",
-      "playTime": "Oynama Süresi",
       "never": "Hiçbir Zaman"
     },
     "compatibility": {
@@ -1040,7 +1038,6 @@
     "title": "Bulut Senkronizasyon Davranışı",
     "description": "Oyun başlatılırken bir bulut kayıt indirmesi veya yüklemesi başarısız olduğunda Unifideck'in nasıl tepki vereceğini seçin.",
     "loadError": "Mevcut ayarlar yüklenemedi",
-    "saveError": "Değişiklik kaydedilemedi. Lütfen tekrar deneyin",
     "store_label": {
       "default": "Varsayılan (Tüm Mağazalar)",
       "epic": "Epic Games",
@@ -1070,7 +1067,6 @@
     "loading": "Günlükler yükleniyor…",
     "notAvailable": "Bu başlatmanın günlükleri artık mevcut değil (7 günlük saklama süresinin dışında).",
     "error": "Günlükler okunamadı: {{error}}",
-    "fileInfo": "{{path}}. {{total}} satırdan {{shown}} satır gösteriliyor",
     "filterLabel": "Göster",
     "filterInfo": "Bilgi",
     "filterWarning": "Uyarı",

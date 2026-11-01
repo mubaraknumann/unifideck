@@ -79,7 +79,6 @@
     "validationErrors.notAbsolute": "Il percorso deve essere assoluto",
     "validationErrors.systemDir": "Impossibile utilizzare una directory di sistema",
     "validationErrors.notWritable": "Il percorso non è scrivibile",
-    "validationErrors.notFound": "La directory non esiste",
     "validationErrors.homeRoot": "Impossibile utilizzare la directory home principale",
     "freeSpaceLabel": "{{label}} ({{freeSpace}} GB disponibili)"
   },
@@ -739,7 +738,6 @@
       "status": "Stato:",
       "spaceRequired": "Spazio richiesto",
       "lastPlayed": "Ultima partita",
-      "playTime": "Tempo di gioco",
       "never": "Mai"
     },
     "compatibility": {
@@ -1040,7 +1038,6 @@
     "title": "Comportamento di sincr. salvataggi cloud",
     "description": "Scegli come Unifideck deve reagire quando il download o caricamento dei salvataggi cloud fallisce all'avvio del gioco.",
     "loadError": "Impossibile caricare le impostazioni correnti",
-    "saveError": "Impossibile salvare la modifica. Riprova",
     "store_label": {
       "default": "Predefinito (tutti i negozi)",
       "epic": "Epic Games",
@@ -1070,7 +1067,6 @@
     "loading": "Caricamento log…",
     "notAvailable": "I log per questo avvio non sono più disponibili (oltre il periodo di conservazione di 7 giorni).",
     "error": "Impossibile leggere i log: {{error}}",
-    "fileInfo": "{{path}}. Mostrate {{shown}} di {{total}} righe",
     "filterLabel": "Mostra",
     "filterInfo": "Info",
     "filterWarning": "Avviso",

@@ -79,7 +79,6 @@
     "validationErrors.notAbsolute": "يجب أن يكون المسار مطلقاً",
     "validationErrors.systemDir": "لا يمكن استخدام مجلد النظام",
     "validationErrors.notWritable": "الموقع غير قابل للكتابة",
-    "validationErrors.notFound": "المجلد غير موجود",
     "validationErrors.homeRoot": "لا يمكن استخدام مجلد المستخدم الرئيسي كجذر",
     "freeSpaceLabel": "{{label}} (المساحة المتبقية {{freeSpace}} جيجابايت)"
   },
@@ -739,7 +738,6 @@
       "status": "الحالة:",
       "spaceRequired": "المساحة المطلوبة",
       "lastPlayed": "آخر تشغيل",
-      "playTime": "وقت التشغيل",
       "never": "أبداً"
     },
     "compatibility": {
@@ -1040,7 +1038,6 @@
     "title": "سلوك المزامنة السحابية",
     "description": "حدد كيف يتصرف Unifideck عند حدوث مشكلة أثناء تنزيل الحفظ السحابي قبل اللعب أو رفعه بعد الخروج.",
     "loadError": "تعذر تحميل الإعدادات الحالية",
-    "saveError": "فشل حفظ الإعدادات، يرجى المحاولة مرة أخرى",
     "store_label": {
       "default": "الإعداد الافتراضي (جميع المتاجر)",
       "epic": "Epic Games",
@@ -1070,7 +1067,6 @@
     "loading": "جاري تحميل سجل التشغيل…",
     "notAvailable": "لم تعد سجلات هذا التشغيل متوفرة (تُحذف تلقائياً بعد مرور 7 أيام).",
     "error": "تعذر قراءة ملف السجل: {{error}}",
-    "fileInfo": "{{path}}. معروض حالياً {{shown}} أسطر من أصل {{total}}",
     "filterLabel": "تصفية حسب المستوى",
     "filterInfo": "معلومات",
     "filterWarning": "تحذير",

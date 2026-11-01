@@ -79,7 +79,6 @@
     "validationErrors.notAbsolute": "Шлях має бути абсолютним",
     "validationErrors.systemDir": "Не можна використовувати системну папку",
     "validationErrors.notWritable": "У цій папці немає прав на запис",
-    "validationErrors.notFound": "Папка не існує",
     "validationErrors.homeRoot": "Не можна використовувати домашній кореневий каталог",
     "freeSpaceLabel": "{{label}} ({{freeSpace}} ГБ вільно)"
   },
@@ -739,7 +738,6 @@
       "status": "Статус:",
       "spaceRequired": "Необхідно місця",
       "lastPlayed": "Останній запуск",
-      "playTime": "Час у грі",
       "never": "Ніколи"
     },
     "compatibility": {
@@ -1040,7 +1038,6 @@
     "title": "Синхронізація збережень",
     "description": "Виберіть поведінку Unifideck у разі збою завантаження або надсилання хмарних збережень під час запуску гри.",
     "loadError": "Не вдалося завантажити поточні налаштування",
-    "saveError": "Не вдалося зберегти зміни. Будь ласка, спробуйте ще раз",
     "store_label": {
       "default": "За замовчуванням (усі магазини)",
       "epic": "Epic Games",
@@ -1070,7 +1067,6 @@
     "loading": "Завантаження логів…",
     "notAvailable": "Логи цього запуску більше не доступні (минув 7-денний термін зберігання).",
     "error": "Не вдалося прочитати логи: {{error}}",
-    "fileInfo": "{{path}}. Показано {{shown}} з {{total}} рядків",
     "filterLabel": "Показати",
     "filterInfo": "Інфо",
     "filterWarning": "Попередження",

@@ -79,7 +79,6 @@
     "validationErrors.notAbsolute": "La ruta debe ser absoluta",
     "validationErrors.systemDir": "No se puede usar un directorio del sistema",
     "validationErrors.notWritable": "La ubicación no tiene permisos de escritura",
-    "validationErrors.notFound": "El directorio no existe",
     "validationErrors.homeRoot": "No se puede usar la raíz del directorio personal",
     "freeSpaceLabel": "{{label}} ({{freeSpace}} GB libres)"
   },
@@ -739,7 +738,6 @@
       "status": "Estado:",
       "spaceRequired": "Espacio requerido",
       "lastPlayed": "Última partida",
-      "playTime": "Tiempo de juego",
       "never": "Nunca"
     },
     "compatibility": {
@@ -1040,7 +1038,6 @@
     "title": "Comportamiento de sinc. de guardado en la nube",
     "description": "Elige cómo debe reaccionar Unifideck cuando falla una descarga o subida de guardado en la nube al iniciar un juego.",
     "loadError": "No se pudieron cargar los ajustes actuales",
-    "saveError": "No se pudo guardar tu cambio. Por favor, inténtalo de nuevo",
     "store_label": {
       "default": "Predeterminado (todas las tiendas)",
       "epic": "Epic Games",
@@ -1070,7 +1067,6 @@
     "loading": "Cargando registros…",
     "notAvailable": "Los registros de este inicio ya no están disponibles (fuera del periodo de retención de 7 días).",
     "error": "No se pudieron leer los registros: {{error}}",
-    "fileInfo": "{{path}}. Mostrando {{shown}} de {{total}} líneas",
     "filterLabel": "Mostrar",
     "filterInfo": "Información",
     "filterWarning": "Advertencia",

@@ -79,7 +79,6 @@
     "validationErrors.notAbsolute": "Путь должен быть абсолютным",
     "validationErrors.systemDir": "Нельзя использовать системную папку",
     "validationErrors.notWritable": "В эту папку нет прав на запись",
-    "validationErrors.notFound": "Папка не существует",
     "validationErrors.homeRoot": "Нельзя использовать корневую домашнюю папку",
     "freeSpaceLabel": "{{label}} ({{freeSpace}} ГБ свободно)"
   },
@@ -739,7 +738,6 @@
       "status": "Статус:",
       "spaceRequired": "Требуется места",
       "lastPlayed": "Последний запуск",
-      "playTime": "Время в игре",
       "never": "Никогда"
     },
     "compatibility": {
@@ -1040,7 +1038,6 @@
     "title": "Синхронизация сохранений",
     "description": "Выберите поведение Unifideck при сбое загрузки или отправки облачных сохранений во время запуска игры.",
     "loadError": "Не удалось загрузить текущие настройки",
-    "saveError": "Не удалось сохранить изменения. Пожалуйста, попробуйте еще раз",
     "store_label": {
       "default": "По умолчанию (все магазины)",
       "epic": "Epic Games",
@@ -1070,7 +1067,6 @@
     "loading": "Загрузка логов…",
     "notAvailable": "Логи этого запуска больше не доступны (истек 7-дневный срок хранения).",
     "error": "Не удалось прочитать логи: {{error}}",
-    "fileInfo": "{{path}}. Показано {{shown}} из {{total}} строк",
     "filterLabel": "Показать",
     "filterInfo": "Инфо",
     "filterWarning": "Предупреждение",

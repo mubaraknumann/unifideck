@@ -79,7 +79,6 @@
     "validationErrors.notAbsolute": "Le chemin doit être absolu",
     "validationErrors.systemDir": "Impossible d'utiliser un dossier système",
     "validationErrors.notWritable": "L'emplacement n'est pas accessible en écriture",
-    "validationErrors.notFound": "Le dossier n'existe pas",
     "validationErrors.homeRoot": "Impossible d'utiliser la racine du dossier personnel",
     "freeSpaceLabel": "{{label}} ({{freeSpace}} Go libres)"
   },
@@ -739,7 +738,6 @@
       "status": "Statut :",
       "spaceRequired": "Espace requis",
       "lastPlayed": "Dernière partie",
-      "playTime": "Temps de jeu",
       "never": "Jamais"
     },
     "compatibility": {
@@ -1040,7 +1038,6 @@
     "title": "Comportement de sync cloud",
     "description": "Choisissez comment Unifideck doit réagir lorsqu'un téléchargement ou téléversement de sauvegarde cloud échoue au lancement du jeu.",
     "loadError": "Impossible de charger les paramètres actuels",
-    "saveError": "Impossible d'enregistrer vos modifications. Veuillez réessayer",
     "store_label": {
       "default": "Par défaut (toutes les boutiques)",
       "epic": "Epic Games",
@@ -1070,7 +1067,6 @@
     "loading": "Chargement des journaux…",
     "notAvailable": "Les journaux de ce lancement ne sont plus disponibles (au-delà de la période de conservation de 7 jours).",
     "error": "Impossible de lire les journaux : {{error}}",
-    "fileInfo": "{{path}}. Affichage de {{shown}} sur {{total}} lignes",
     "filterLabel": "Afficher",
     "filterInfo": "Info",
     "filterWarning": "Avertissement",

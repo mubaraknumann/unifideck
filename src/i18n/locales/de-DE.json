@@ -79,7 +79,6 @@
     "validationErrors.notAbsolute": "Pfad muss absolut sein",
     "validationErrors.systemDir": "Systemverzeichnis kann nicht verwendet werden",
     "validationErrors.notWritable": "Ort ist nicht beschreibbar",
-    "validationErrors.notFound": "Verzeichnis existiert nicht",
     "validationErrors.homeRoot": "Benutzerverzeichnis-Root kann nicht verwendet werden",
     "freeSpaceLabel": "{{label}} ({{freeSpace}} GB frei)"
   },
@@ -739,7 +738,6 @@
       "status": "Status:",
       "spaceRequired": "Benötigter Speicher",
       "lastPlayed": "Zuletzt gespielt",
-      "playTime": "Spielzeit",
       "never": "Nie"
     },
     "compatibility": {
@@ -1040,7 +1038,6 @@
     "title": "Verhalten bei Cloud-Spielstand-Synchronisation",
     "description": "Wählen Sie aus, wie Unifideck reagieren soll, wenn ein Download oder Upload des Cloud-Spielstands beim Spielstart fehlschlägt.",
     "loadError": "Aktuelle Einstellungen konnten nicht geladen werden",
-    "saveError": "Ihre Änderung konnte nicht gespeichert werden – bitte versuchen Sie es erneut",
     "store_label": {
       "default": "Standard (alle Stores)",
       "epic": "Epic Games",
@@ -1070,7 +1067,6 @@
     "loading": "Protokolle werden geladen…",
     "notAvailable": "Protokolle für diesen Start sind nicht mehr verfügbar (die Aufbewahrungsfrist von 7 Tagen ist abgelaufen).",
     "error": "Protokolle konnten nicht gelesen werden: {{error}}",
-    "fileInfo": "{{path}}. Zeige {{shown}} von {{total}} Zeilen",
     "filterLabel": "Anzeigen",
     "filterInfo": "Info",
     "filterWarning": "Warnung",
