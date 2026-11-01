@@ -696,7 +696,8 @@
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
     "gamevault": "GameVault",
-    "itch": "itch.io"
+    "itch": "itch.io",
+    "romm": "RomM"
   },
   "unifiedLibrary": {
     "error": "Unifideck 错误",
@@ -1232,6 +1233,36 @@
     "errorUsernameRequired": "请输入用户名",
     "errorPasswordRequired": "请输入密码",
     "errorConnection": "连接 GameVault 服务器失败"
+  },
+  "romm": {
+    "connectTitle": "连接到 RomM",
+    "connect": "连接",
+    "connecting": "连接中…",
+    "cancel": "取消",
+    "finish": "完成",
+    "intro": "登录你的 RomM 服务器。只会导入 Linux 和 Windows 游戏。",
+    "serverUrl": "服务器地址",
+    "token": "客户端 API 令牌",
+    "tokenDescription": "需要 roms.read 和 platforms.read 权限。",
+    "verifySsl": "验证 SSL 证书",
+    "verifySslDescription": "自签名证书请禁用此选项",
+    "downloadDir": "归档下载目录",
+    "downloadDirDescription": "归档下载的临时目录。留空使用默认值。",
+    "downloadDirPlaceholder": "~/.local/share/unifideck/romm_downloads",
+    "browse": "浏览…",
+    "platformsTitle": "选择平台",
+    "platformsIntro": "选择要从此服务器导入的平台版本。",
+    "errorServerUrlRequired": "请输入服务器地址",
+    "errorNoPlatforms": "此服务器没有 Linux 或 Windows 平台",
+    "errorSelectOne": "请至少选择一个平台",
+    "errorConnection": "无法连接到 RomM 服务器",
+    "useToken": "改用 API 令牌",
+    "errorTokenRequired": "请输入 API 令牌",
+    "pairingTitle": "与 RomM 配对",
+    "pairingIntro": "用手机扫描，登录 RomM 并批准设备。手机必须能访问服务器。",
+    "pairingQrLabel": "RomM 配对二维码",
+    "waitingApproval": "等待批准…",
+    "pairingExpiry": "将在 {{minutes}} 分钟后过期。过期后请重新连接。"
   },
   "gameStoreSwitcher": {
     "defaultEdition": "标准版"

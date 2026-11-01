@@ -29,6 +29,8 @@ _DENY_NAMES: tuple[str, ...] = (
     # OAuth intermediate state — the URLs carry codes and verifiers.
     "*_auth_url.txt",
     "ubisoft_upc_session.txt",
+    # Holds a reusable RomM Bearer token under a name the patterns below miss.
+    "romm_config.json",
     # Store credentials. ``user.json`` is legendary's and nile's
     # account file; both live outside our data dir.
     "*token*.json",

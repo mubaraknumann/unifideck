@@ -141,11 +141,8 @@ const StoreRow: FC<{ storeId: StoreId; displayName: string }> = ({
   );
 };
 
-/**
- * Listed after the storefronts. GameVault is a self-hosted server rather
- * than a store, so it goes last instead of in alphabetical order.
- */
-const LISTED_LAST: readonly StoreId[] = ["gamevault"];
+/** Self-hosted libraries have no storefront, so list them after stores that do. */
+const LISTED_LAST: readonly StoreId[] = ["gamevault", "romm"];
 
 export const StoreConnections: FC = () => {
   const { t } = useTranslation();

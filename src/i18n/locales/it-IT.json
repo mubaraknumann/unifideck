@@ -696,7 +696,8 @@
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
     "gamevault": "GameVault",
-    "itch": "itch.io"
+    "itch": "itch.io",
+    "romm": "RomM"
   },
   "unifiedLibrary": {
     "error": "Errore Unifideck",
@@ -1232,6 +1233,36 @@
     "errorUsernameRequired": "Inserisci il tuo nome utente",
     "errorPasswordRequired": "Inserisci la tua password",
     "errorConnection": "Connessione al server GameVault non riuscita"
+  },
+  "romm": {
+    "connectTitle": "Connetti a RomM",
+    "connect": "Connetti",
+    "connecting": "Connessione…",
+    "cancel": "Annulla",
+    "finish": "Fine",
+    "intro": "Accedi al tuo server RomM. Vengono importati solo i giochi Linux e Windows.",
+    "serverUrl": "URL del server",
+    "token": "Token API client",
+    "tokenDescription": "Richiede roms.read e platforms.read.",
+    "verifySsl": "Verifica certificato SSL",
+    "verifySslDescription": "Disabilita per certificati autofirmati",
+    "downloadDir": "Directory download archivi",
+    "downloadDirDescription": "Directory temporanea per i download degli archivi. Lascia vuoto per usare quella predefinita.",
+    "downloadDirPlaceholder": "~/.local/share/unifideck/romm_downloads",
+    "browse": "Sfoglia…",
+    "platformsTitle": "Scegli le piattaforme",
+    "platformsIntro": "Scegli quali versioni di piattaforma importare da questo server.",
+    "errorServerUrlRequired": "Inserisci l'URL del server",
+    "errorNoPlatforms": "Questo server non ha piattaforme Linux o Windows",
+    "errorSelectOne": "Seleziona almeno una piattaforma",
+    "errorConnection": "Connessione al server RomM non riuscita",
+    "useToken": "Usa un token API",
+    "errorTokenRequired": "Inserisci un token API",
+    "pairingTitle": "Associa a RomM",
+    "pairingIntro": "Scansiona con il telefono, accedi a RomM e autorizza questo dispositivo. Il telefono deve poter raggiungere il server.",
+    "pairingQrLabel": "Codice QR per RomM",
+    "waitingApproval": "In attesa di autorizzazione…",
+    "pairingExpiry": "Scade tra {{minutes}} minuti. Se scade, connettiti di nuovo."
   },
   "gameStoreSwitcher": {
     "defaultEdition": "Edizione standard"

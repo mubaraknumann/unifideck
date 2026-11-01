@@ -268,10 +268,15 @@ export interface LastSessionAchievements {
 export interface Result {
   success: boolean;
   error?: string;
+  /** Machine-readable failure or warning class, when the backend sets one. */
+  error_code?: string;
+  /** Store-specific extras, such as RomM's platform variants. */
+  metadata?: Record<string, unknown>;
 }
 
 /** Auth start/complete/logout response. */
 export interface AuthResult extends Result {
+  action?: string;
   url?: string;
   token?: string;
   store: StoreId;
@@ -362,6 +367,7 @@ export type StoreId =
   | "ubisoft"
   | "battlenet"
   | "gamevault"
+  | "romm"
   | "itch";
 
 /**

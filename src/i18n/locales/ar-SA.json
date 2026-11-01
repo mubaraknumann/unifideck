@@ -696,7 +696,8 @@
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
     "gamevault": "GameVault",
-    "itch": "itch.io"
+    "itch": "itch.io",
+    "romm": "RomM"
   },
   "unifiedLibrary": {
     "error": "خطأ في Unifideck",
@@ -1232,6 +1233,36 @@
     "errorUsernameRequired": "الرجاء إدخال اسم المستخدم",
     "errorPasswordRequired": "الرجاء إدخال كلمة المرور",
     "errorConnection": "فشل الاتصال بخادم GameVault"
+  },
+  "romm": {
+    "connectTitle": "الاتصال بـ RomM",
+    "connect": "اتصال",
+    "connecting": "جارٍ الاتصال…",
+    "cancel": "إلغاء",
+    "finish": "إنهاء",
+    "intro": "سجّل الدخول إلى خادم RomM الخاص بك. يتم استيراد ألعاب Linux وWindows فقط.",
+    "serverUrl": "رابط الخادم",
+    "token": "رمز واجهة برمجة التطبيقات للعميل",
+    "tokenDescription": "يتطلب roms.read وplatforms.read.",
+    "verifySsl": "التحقق من شهادة SSL",
+    "verifySslDescription": "تعطيل للشهادات الموقعة ذاتياً",
+    "downloadDir": "مجلد تنزيل الأرشيف",
+    "downloadDirDescription": "مجلد مؤقت لتنزيلات الأرشيف. اتركه فارغاً للافتراضي.",
+    "downloadDirPlaceholder": "~/.local/share/unifideck/romm_downloads",
+    "browse": "استعراض…",
+    "platformsTitle": "اختيار المنصات",
+    "platformsIntro": "اختر إصدارات المنصات التي تريد استيرادها من هذا الخادم.",
+    "errorServerUrlRequired": "الرجاء إدخال رابط الخادم",
+    "errorNoPlatforms": "لا يحتوي هذا الخادم على منصات Linux أو Windows",
+    "errorSelectOne": "اختر منصة واحدة على الأقل",
+    "errorConnection": "تعذّر الاتصال بخادم RomM",
+    "useToken": "استخدام رمز API",
+    "errorTokenRequired": "أدخل رمز API",
+    "pairingTitle": "الاقتران مع RomM",
+    "pairingIntro": "امسح بهاتفك، وسجّل الدخول إلى RomM ووافق على الجهاز. يجب أن يتمكن هاتفك من الوصول إلى الخادم.",
+    "pairingQrLabel": "رمز QR للاقتران مع RomM",
+    "waitingApproval": "في انتظار الموافقة…",
+    "pairingExpiry": "تنتهي الصلاحية خلال {{minutes}} دقائق. أعد الاتصال إذا انتهت."
   },
   "gameStoreSwitcher": {
     "defaultEdition": "الإصدار القياسي"

@@ -696,7 +696,8 @@
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
     "gamevault": "GameVault",
-    "itch": "itch.io"
+    "itch": "itch.io",
+    "romm": "RomM"
   },
   "unifiedLibrary": {
     "error": "Unifideck Error",
@@ -1232,6 +1233,36 @@
     "errorUsernameRequired": "Please enter your username",
     "errorPasswordRequired": "Please enter your password",
     "errorConnection": "Failed to connect to GameVault server"
+  },
+  "romm": {
+    "connectTitle": "Connect to RomM",
+    "connect": "Connect",
+    "connecting": "Connecting…",
+    "cancel": "Cancel",
+    "finish": "Finish",
+    "intro": "Sign in to your RomM server. Only Linux and Windows games are imported.",
+    "serverUrl": "Server URL",
+    "token": "Client API token",
+    "tokenDescription": "Requires roms.read and platforms.read.",
+    "verifySsl": "Verify SSL certificate",
+    "verifySslDescription": "Disable for self-signed certificates",
+    "downloadDir": "Archive download directory",
+    "downloadDirDescription": "Temporary directory for archive downloads. Leave empty to use the default.",
+    "downloadDirPlaceholder": "~/.local/share/unifideck/romm_downloads",
+    "browse": "Browse…",
+    "platformsTitle": "Choose platforms",
+    "platformsIntro": "Choose which platform versions to import from this server.",
+    "errorServerUrlRequired": "Please enter the server URL",
+    "errorNoPlatforms": "This server has no Linux or Windows platforms",
+    "errorSelectOne": "Select at least one platform",
+    "errorConnection": "Failed to connect to RomM server",
+    "useToken": "Use an API token instead",
+    "errorTokenRequired": "Enter an API token",
+    "pairingTitle": "Pair with RomM",
+    "pairingIntro": "Scan with your phone, sign in to RomM and approve this device. Your phone must be able to reach the server.",
+    "pairingQrLabel": "RomM pairing QR code",
+    "waitingApproval": "Waiting for approval…",
+    "pairingExpiry": "This code expires in {{minutes}} minutes. If it expires, connect again."
   },
   "gameStoreSwitcher": {
     "defaultEdition": "Standard Edition"

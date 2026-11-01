@@ -696,7 +696,8 @@
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
     "gamevault": "GameVault",
-    "itch": "itch.io"
+    "itch": "itch.io",
+    "romm": "RomM"
   },
   "unifiedLibrary": {
     "error": "Unifideck エラー",
@@ -1232,6 +1233,36 @@
     "errorUsernameRequired": "ユーザー名を入力してください",
     "errorPasswordRequired": "パスワードを入力してください",
     "errorConnection": "GameVaultサーバーへの接続に失敗しました"
+  },
+  "romm": {
+    "connectTitle": "RomMに接続",
+    "connect": "接続",
+    "connecting": "接続中…",
+    "cancel": "キャンセル",
+    "finish": "完了",
+    "intro": "RomMサーバーにサインインします。インポートされるのはLinuxとWindowsのゲームのみです。",
+    "serverUrl": "サーバーURL",
+    "token": "クライアントAPIトークン",
+    "tokenDescription": "roms.read と platforms.read が必要です。",
+    "verifySsl": "SSL証明書の確認",
+    "verifySslDescription": "自己署名証明書の場合は無効にしてください",
+    "downloadDir": "アーカイブダウンロードディレクトリ",
+    "downloadDirDescription": "アーカイブダウンロード用の一時ディレクトリ。空欄のままにするとデフォルトが使用されます。",
+    "downloadDirPlaceholder": "~/.local/share/unifideck/romm_downloads",
+    "browse": "参照…",
+    "platformsTitle": "プラットフォームを選択",
+    "platformsIntro": "このサーバーからインポートするプラットフォームのバージョンを選んでください。",
+    "errorServerUrlRequired": "サーバーURLを入力してください",
+    "errorNoPlatforms": "このサーバーにはLinuxまたはWindowsのプラットフォームがありません",
+    "errorSelectOne": "プラットフォームを1つ以上選択してください",
+    "errorConnection": "RomMサーバーに接続できませんでした",
+    "useToken": "APIトークンを使用する",
+    "errorTokenRequired": "APIトークンを入力してください",
+    "pairingTitle": "RomMとペアリング",
+    "pairingIntro": "スマートフォンで読み取り、RomMにログインしてデバイスを承認してください。スマートフォンからサーバーにアクセスできる必要があります。",
+    "pairingQrLabel": "RomMペアリング用QRコード",
+    "waitingApproval": "承認を待っています…",
+    "pairingExpiry": "{{minutes}}分後に期限切れになります。期限切れの場合は再接続してください。"
   },
   "gameStoreSwitcher": {
     "defaultEdition": "スタンダードエディション"

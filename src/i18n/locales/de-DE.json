@@ -696,7 +696,8 @@
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
     "gamevault": "GameVault",
-    "itch": "itch.io"
+    "itch": "itch.io",
+    "romm": "RomM"
   },
   "unifiedLibrary": {
     "error": "Unifideck-Fehler",
@@ -1232,6 +1233,36 @@
     "errorUsernameRequired": "Bitte Benutzername eingeben",
     "errorPasswordRequired": "Bitte Passwort eingeben",
     "errorConnection": "Verbindung zum GameVault-Server fehlgeschlagen"
+  },
+  "romm": {
+    "connectTitle": "Mit RomM verbinden",
+    "connect": "Verbinden",
+    "connecting": "Verbinde…",
+    "cancel": "Abbrechen",
+    "finish": "Fertig",
+    "intro": "Melde dich bei deinem RomM-Server an. Es werden nur Linux- und Windows-Spiele importiert.",
+    "serverUrl": "Server-URL",
+    "token": "Client-API-Token",
+    "tokenDescription": "Benötigt roms.read und platforms.read.",
+    "verifySsl": "SSL-Zertifikat prüfen",
+    "verifySslDescription": "Deaktivieren für selbstsignierte Zertifikate",
+    "downloadDir": "Archiv-Download-Verzeichnis",
+    "downloadDirDescription": "Temporäres Verzeichnis für Archiv-Downloads. Leer lassen für den Standard.",
+    "downloadDirPlaceholder": "~/.local/share/unifideck/romm_downloads",
+    "browse": "Durchsuchen…",
+    "platformsTitle": "Plattformen auswählen",
+    "platformsIntro": "Wähle, welche Plattformversionen von diesem Server importiert werden.",
+    "errorServerUrlRequired": "Bitte Server-URL eingeben",
+    "errorNoPlatforms": "Dieser Server hat keine Linux- oder Windows-Plattformen",
+    "errorSelectOne": "Wähle mindestens eine Plattform aus",
+    "errorConnection": "Verbindung zum RomM-Server fehlgeschlagen",
+    "useToken": "API-Token verwenden",
+    "errorTokenRequired": "API-Token eingeben",
+    "pairingTitle": "Mit RomM koppeln",
+    "pairingIntro": "Mit dem Handy scannen, bei RomM anmelden und das Gerät bestätigen. Das Handy muss den Server erreichen können.",
+    "pairingQrLabel": "QR-Code zur RomM-Kopplung",
+    "waitingApproval": "Warte auf Bestätigung…",
+    "pairingExpiry": "Der Code läuft in {{minutes}} Minuten ab. Verbinde dich danach erneut."
   },
   "gameStoreSwitcher": {
     "defaultEdition": "Standardedition"

@@ -1,10 +1,15 @@
-"""services/metadata_sources.py — third-party metadata source fetchers.
+"""Stateless metadata fetchers and store catalog fallbacks.
 
-Stateless async fetchers split out of ``metadata_service.py`` (which had
-crossed the 550-LOC volumetry cap). Each queries one external source
-(Steam Store, UnifiDB, Metacritic) and returns a plain dict (``{}`` on any
-failure), with no dependency on ``MetadataService`` state — the service's
-``enrich`` and the Metacritic backfill pass both call these directly.
+Fetchers query Steam Store, UnifiDB, or Metacritic and return a plain dict
+(``{}`` on failure), with no dependency on ``MetadataService`` state: the
+service's ``enrich`` and the Metacritic backfill both call them directly.
+Split out of ``metadata_service.py`` when that file crossed the 550-LOC
+volumetry cap.
+
+The catalog fallbacks fill gaps after a cache lookup without rewriting the
+cached value. They are applied to the returned value after the cache write, so
+a store's own data is never cached as though a fetcher had returned it, and a
+game no fetcher knows still gets a negative cache marker and is retried.
 """
 from __future__ import annotations
 
@@ -18,6 +23,16 @@ if TYPE_CHECKING:
     from unifideck.core.types import Game
 
 logger = logging.getLogger(__name__)
+
+
+def with_catalog_release_date(game: Game, enriched: dict[str, Any]) -> dict[str, Any]:
+    """Fill a missing release date from the store catalog without changing the cache."""
+    if enriched.get("release_date"):
+        return enriched
+    own = (getattr(game, "metadata", None) or {}).get("release_date")
+    if isinstance(own, str) and own:
+        return {**enriched, "release_date": own}
+    return enriched
 
 
 async def fetch_steam_store(

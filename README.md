@@ -1,6 +1,6 @@
 # Unifideck - Unified Game Library for Steam Deck
 
-A Decky Loader plugin that brings together Steam, Epic Games Store, GOG, Amazon Games, Ubisoft Connect, Battle.net, GameVault, itch.io, and Xbox Cloud Gaming in a single library experience on your Steam Deck.
+A Decky Loader plugin that brings together Steam, Epic Games Store, GOG, Amazon Games, Ubisoft Connect, Battle.net, GameVault, RomM, itch.io, and Xbox Cloud Gaming in a single library experience on your Steam Deck.
 
 ![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Steam%20OS-orange.svg)
@@ -30,7 +30,7 @@ A Decky Loader plugin that brings together Steam, Epic Games Store, GOG, Amazon 
 
 Unifideck brings your games from other stores into Steam, so they show up in your library and play just like Steam games — same Play button, same Gaming Mode, same controller-friendly feel. No switching to desktop mode, no juggling separate launchers.
 
-- **All your games in one place** — Your Epic, GOG, Amazon, Ubisoft, Battle.net, GameVault, itch.io, and Xbox titles sit right alongside your Steam library, in tabs you can browse like any other.
+- **All your games in one place** — Your Epic, GOG, Amazon, Ubisoft, Battle.net, GameVault, RomM, itch.io, and Xbox titles sit right alongside your Steam library, in tabs you can browse like any other.
 - **Install and play like a Steam game** — Press Install, watch the progress, then press Play — all from the game's page in Gaming Mode, exactly the way Steam games work.
 - **Install games wherever you like** — Internal storage, an SD card, or a folder you pick yourself.
 - **Proton handled for you** — Most Windows games just work; Unifideck sets up a recent Proton automatically. If a game is picky, you can force a specific version from Steam's usual Compatibility menu.
@@ -89,6 +89,7 @@ Installed games are playable immediately after install. The Steam restart is sti
 - **[Cloud Saves](docs/cloud-saves.md)** - How Epic/GOG cloud sync works, conflict handling, and custom save paths.
 - **[Microsoft / xCloud](docs/microsoft-xcloud.md)** - Xbox Game Pass and cloud-streaming integration.
 - **[GameVault Setup](docs/gamevault-setup.md)** - Connecting your own GameVault server, or a local folder of game archives.
+- **[RomM Setup](docs/romm-setup.md)** - Connecting your own RomM server and choosing which PC platforms to import.
 
 **Developer / reference**
 
@@ -175,7 +176,7 @@ Common flows (`build-plugin.sh`):
 - **Frontend** - React, TypeScript, Rollup, `@decky/api`, `@decky/ui`, `i18next`
 - **Backend** - Python, Decky Loader RPC, a layered architecture with an EventBus and dependency-injection core, CDP-based auth and browser helpers
 - **Store tooling** - legendary, gogdl, nile, comet, butler, winetricks, umu-launcher
-- **Services and data** - SteamGridDB, Epic/GOG/Amazon/Microsoft/itch.io APIs, self-hosted GameVault servers, Microsoft Edge, Metacritic, compatibility metadata
+- **Services and data** - SteamGridDB, Epic/GOG/Amazon/Microsoft/itch.io APIs, self-hosted GameVault and RomM servers, Microsoft Edge, Metacritic, compatibility metadata
 
 ## Credits
 
@@ -204,4 +205,4 @@ Numan Mubarak (numanmuabrak@protonmail.com)
 
 ## Disclaimer
 
-This is an unofficial third-party tool. It is not affiliated with Valve, Epic Games, CD Projekt / GOG, Amazon, Ubisoft, Blizzard Entertainment, GameVault, itch corp, or Microsoft.
+This is an unofficial third-party tool. It is not affiliated with Valve, Epic Games, CD Projekt / GOG, Amazon, Ubisoft, Blizzard Entertainment, GameVault, RomM, itch corp, or Microsoft.

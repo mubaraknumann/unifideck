@@ -696,7 +696,8 @@
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
     "gamevault": "GameVault",
-    "itch": "itch.io"
+    "itch": "itch.io",
+    "romm": "RomM"
   },
   "unifiedLibrary": {
     "error": "Error de Unifideck",
@@ -1232,6 +1233,36 @@
     "errorUsernameRequired": "Por favor ingresa tu nombre de usuario",
     "errorPasswordRequired": "Por favor ingresa tu contraseña",
     "errorConnection": "Error al conectar con el servidor GameVault"
+  },
+  "romm": {
+    "connectTitle": "Conectar con RomM",
+    "connect": "Conectar",
+    "connecting": "Conectando…",
+    "cancel": "Cancelar",
+    "finish": "Finalizar",
+    "intro": "Inicia sesión en tu servidor RomM. Solo se importan juegos de Linux y Windows.",
+    "serverUrl": "URL del servidor",
+    "token": "Token de API de cliente",
+    "tokenDescription": "Requiere roms.read y platforms.read.",
+    "verifySsl": "Verificar certificado SSL",
+    "verifySslDescription": "Deshabilitar para certificados autofirmados",
+    "downloadDir": "Directorio de descarga de archivos",
+    "downloadDirDescription": "Directorio temporal para descargas de archivos. Dejar vacío para usar el predeterminado.",
+    "downloadDirPlaceholder": "~/.local/share/unifideck/romm_downloads",
+    "browse": "Explorar…",
+    "platformsTitle": "Elegir plataformas",
+    "platformsIntro": "Elige qué versiones de plataforma importar desde este servidor.",
+    "errorServerUrlRequired": "Por favor ingresa la URL del servidor",
+    "errorNoPlatforms": "Este servidor no tiene plataformas Linux ni Windows",
+    "errorSelectOne": "Selecciona al menos una plataforma",
+    "errorConnection": "No se pudo conectar con el servidor RomM",
+    "useToken": "Usar un token de API",
+    "errorTokenRequired": "Introduce un token de API",
+    "pairingTitle": "Vincular con RomM",
+    "pairingIntro": "Escanea con tu teléfono, inicia sesión en RomM y autoriza este dispositivo. El teléfono debe poder acceder al servidor.",
+    "pairingQrLabel": "Código QR de vinculación con RomM",
+    "waitingApproval": "Esperando autorización…",
+    "pairingExpiry": "Caduca en {{minutes}} minutos. Si caduca, vuelve a conectar."
   },
   "gameStoreSwitcher": {
     "defaultEdition": "Edición estándar"

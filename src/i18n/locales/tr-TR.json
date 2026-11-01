@@ -696,7 +696,8 @@
     "microsoft": "Microsoft",
     "battlenet": "Battle.net",
     "gamevault": "GameVault",
-    "itch": "itch.io"
+    "itch": "itch.io",
+    "romm": "RomM"
   },
   "unifiedLibrary": {
     "error": "Unifideck Hatası",
@@ -1232,6 +1233,36 @@
     "errorUsernameRequired": "Lütfen kullanıcı adınızı girin",
     "errorPasswordRequired": "Lütfen şifrenizi girin",
     "errorConnection": "GameVault sunucusuna bağlanılamadı"
+  },
+  "romm": {
+    "connectTitle": "RomM’a bağlan",
+    "connect": "Bağlan",
+    "connecting": "Bağlanıyor…",
+    "cancel": "İptal",
+    "finish": "Bitir",
+    "intro": "RomM sunucunda oturum aç. Yalnızca Linux ve Windows oyunları içe aktarılır.",
+    "serverUrl": "Sunucu URL",
+    "token": "İstemci API belirteci",
+    "tokenDescription": "roms.read ve platforms.read gerektirir.",
+    "verifySsl": "SSL Sertifikasını Doğrula",
+    "verifySslDescription": "Kendinden imzalı sertifikalar için devre dışı bırakın",
+    "downloadDir": "Arşiv indirme dizini",
+    "downloadDirDescription": "Arşiv indirmeleri için geçici dizin. Varsayılanı kullanmak için boş bırakın.",
+    "downloadDirPlaceholder": "~/.local/share/unifideck/romm_downloads",
+    "browse": "Gözat…",
+    "platformsTitle": "Platformları seç",
+    "platformsIntro": "Bu sunucudan hangi platform sürümlerinin içe aktarılacağını seç.",
+    "errorServerUrlRequired": "Lütfen sunucu URL'sini girin",
+    "errorNoPlatforms": "Bu sunucuda Linux veya Windows platformu yok",
+    "errorSelectOne": "En az bir platform seç",
+    "errorConnection": "RomM sunucusuna bağlanılamadı",
+    "useToken": "API belirteci kullan",
+    "errorTokenRequired": "API belirtecini girin",
+    "pairingTitle": "RomM ile eşleştir",
+    "pairingIntro": "Telefonunuzla tarayın, RomM oturumu açın ve cihazı onaylayın. Telefonunuz sunucuya erişebilmelidir.",
+    "pairingQrLabel": "RomM eşleştirme QR kodu",
+    "waitingApproval": "Onay bekleniyor…",
+    "pairingExpiry": "Kod {{minutes}} dakika içinde sona erer. Süresi dolarsa yeniden bağlanın."
   },
   "gameStoreSwitcher": {
     "defaultEdition": "Standart Sürüm"
