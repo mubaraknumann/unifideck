@@ -16,13 +16,10 @@
  * accidental cancellations during animation flashes.
  */
 import { FC, useCallback, useState } from "react";
-import { DialogButton, ConfirmModal, showModal } from "@decky/ui";
+import { DialogButton } from "@decky/ui";
 import { useTranslation } from "react-i18next";
 import { FaTimes } from "react-icons/fa";
-import { useDownloads } from "../../contexts/DownloadContext";
-import { useGameActions } from "../../hooks/useGameActions";
-import { useToast } from "../../hooks/useToast";
-import { toastText, headerText } from "../../services/toast-text";
+import { usePlayActions } from "../../hooks/usePlayActions";
 import { SteamBridge } from "../../lib/steam-bridge";
 import type { DownloadItem } from "../../types/downloads";
 import { showsPercent } from "../../lib/download-phase";
@@ -30,6 +27,7 @@ import { PlayShell, actionBtnStyle, actionBtnClass } from "./PlayMeta";
 import { DownloadProgressRow } from "../downloads/DownloadProgressRow";
 
 interface Props {
+  appId: number;
   download: DownloadItem;
   bridge?: SteamBridge;
 }
@@ -37,50 +35,21 @@ interface Props {
 const defaultBridge = new SteamBridge();
 
 export const DownloadingButtons: FC<Props> = ({
+  appId,
   download,
   bridge = defaultBridge,
 }) => {
   const { t } = useTranslation();
-  const actions = useGameActions(bridge);
-  const downloads = useDownloads();
-  const toast = useToast();
+  const play = usePlayActions(appId, bridge);
   const [cancelled, setCancelled] = useState(false);
-
-  const doCancel = useCallback(async () => {
-    setCancelled(true);
-    const result = await actions.cancel(download.id);
-    if (!result?.success) {
-      setCancelled(false);
-      // Re-read the queue before saying anything. A cancel fails mainly
-      // because this row outlived the operation it describes, and without a
-      // refetch nothing else would ever replace it — the button stayed live
-      // and the user could sit here failing the same cancel forever.
-      void downloads.refresh();
-      console.error("[DownloadingButtons] cancel failed:", result?.error);
-      toast.error(
-        headerText("toasts.header.download"),
-        toastText("toasts.cancelFailed"),
-      );
-    }
-  }, [actions, download.id, downloads, toast]);
 
   const onCancelClick = useCallback(() => {
     if (cancelled) return;
-    showModal(
-      <ConfirmModal
-        strTitle={t("play.cancelConfirmTitle")}
-        strDescription={t("play.cancelConfirmBody", {
-          title: download.game_title,
-        })}
-        strOKButtonText={t("play.cancelConfirmConfirm")}
-        strCancelButtonText={t("play.cancelConfirmCancel")}
-        bDestructiveWarning
-        onOK={() => {
-          void doCancel();
-        }}
-      />,
-    );
-  }, [cancelled, doCancel, download.game_title, t]);
+    play.cancelDownload(download, {
+      onCancelling: () => setCancelled(true),
+      onFailed: () => setCancelled(false),
+    });
+  }, [cancelled, download, play]);
 
   return (
     // autoFocus is intentional: claims gamepad focus for the primary action
@@ -88,7 +57,7 @@ export const DownloadingButtons: FC<Props> = ({
     <PlayShell autoFocus>
       <DialogButton
         className={actionBtnClass("unifideck-cancel-btn")}
-        disabled={cancelled || actions.isWorking}
+        disabled={cancelled || play.isWorking}
         onClick={onCancelClick}
         style={actionBtnStyle}
       >

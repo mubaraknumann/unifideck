@@ -1,7 +1,11 @@
 /**
- * app-context-menu-patch — inject "Change executable…" into the native game
- * context menu (the gear / right-click menu with Add to Favorites, Manage,
- * Properties…).
+ * app-context-menu-patch — inject "Change executable…" and "Uninstall" into
+ * the native game context menu (the gear / right-click menu with Add to
+ * Favorites, Manage, Properties…).
+ *
+ * Uninstall lives here because that is where Steam puts its own: the native
+ * game page has no trash button. It is offered for every INSTALLED
+ * Unifideck shortcut and opens the same confirmation as before.
  *
  * Technique ported from decky-steamgriddb's `contextMenuPatch.tsx`: resolve the
  * `LibraryContextMenu` component, `afterPatch` its `render` (+ the inner
@@ -27,6 +31,7 @@ import { createElement } from "react";
 import i18n from "i18next";
 import { getUnifideckGame } from "../library-filters";
 import { ChangeExecutableModal } from "../../components/modals/ChangeExecutableModal";
+import { UninstallFlowModal } from "../../components/modals/UninstallFlowModal";
 
 /** Stores whose launch target the user can override (see ExecutableRPCMixin). */
 const SUPPORTED_STORES = new Set([
@@ -37,8 +42,10 @@ const SUPPORTED_STORES = new Set([
   "itch",
 ]);
 
-/** Stable key so re-renders can dedupe our injected item. */
+/** Stable keys so re-renders can dedupe our injected items. */
 const MENU_ITEM_KEY = "unifideck-change-exe";
+const UNINSTALL_ITEM_KEY = "unifideck-uninstall";
+const OUR_KEYS = new Set([MENU_ITEM_KEY, UNINSTALL_ITEM_KEY]);
 
 export interface AppContextMenuPatchHandle {
   unpatch: () => void;
@@ -84,8 +91,13 @@ function openModal(appId: number): void {
   );
 }
 
-/** Insert our item before "Properties…" (matched by its onSelected source). */
-function spliceItem(children: unknown[], appId: number): void {
+/** An installed Unifideck shortcut, which the menu may uninstall. */
+function canUninstall(appId: number): boolean {
+  return !!getUnifideckGame(appId)?.isInstalled;
+}
+
+/** Insert an item before "Properties…" (matched by its onSelected source). */
+function spliceItem(children: unknown[], node: unknown): void {
   const propsIdx = children.findIndex((item) =>
     findInReactTree(
       item,
@@ -93,21 +105,36 @@ function spliceItem(children: unknown[], appId: number): void {
         !!x?.onSelected && x.onSelected.toString().includes("AppProperties"),
     ),
   );
-  const node = createElement(
-    MenuItem,
-    { key: MENU_ITEM_KEY, onSelected: () => openModal(appId) },
-    i18n.t("play.exe.menuItem"),
-  );
   if (propsIdx >= 0) children.splice(propsIdx, 0, node);
   else children.push(node);
 }
 
-/** Drop a previously-injected item so a re-render can't duplicate it. */
-function dedupe(children: unknown[]): void {
-  const idx = children.findIndex(
-    (x) => (x as { key?: string } | null)?.key === MENU_ITEM_KEY,
+function changeExeItem(appId: number): unknown {
+  return createElement(
+    MenuItem,
+    { key: MENU_ITEM_KEY, onSelected: () => openModal(appId) },
+    i18n.t("play.exe.menuItem"),
   );
-  if (idx !== -1) children.splice(idx, 1);
+}
+
+function uninstallItem(appId: number): unknown {
+  return createElement(
+    MenuItem,
+    {
+      key: UNINSTALL_ITEM_KEY,
+      tone: "destructive",
+      onSelected: () => showModal(createElement(UninstallFlowModal, { appId })),
+    },
+    i18n.t("gameInfoPanel.buttons.uninstall"),
+  );
+}
+
+/** Drop previously-injected items so a re-render can't duplicate them. */
+function dedupe(children: unknown[]): void {
+  for (let i = children.length - 1; i >= 0; i--) {
+    const key = (children[i] as { key?: string } | null)?.key;
+    if (key && OUR_KEYS.has(key)) children.splice(i, 1);
+  }
 }
 
 /** Re-resolve the appid from the menu's OWN React tree (not a stale closure).
@@ -147,8 +174,8 @@ function resolveItemsAppId(
 function patchMenuItems(menuItems: unknown[], fallbackAppId: number): void {
   dedupe(menuItems);
   const appId = resolveItemsAppId(menuItems, fallbackAppId);
-  if (!eligible(appId)) return;
-  spliceItem(menuItems, appId);
+  if (eligible(appId)) spliceItem(menuItems, changeExeItem(appId));
+  if (canUninstall(appId)) spliceItem(menuItems, uninstallItem(appId));
 }
 
 /** Heuristic that this is the app context menu (vs a screenshot/other menu). */

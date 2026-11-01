@@ -136,3 +136,4 @@ build-plugin.sh
 test_ubisoft_launch.py
 /tmp
 docs/feasibility/xbox-pc-plan.md
+docs/feasibility/native-app-details.md

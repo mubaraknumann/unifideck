@@ -25,7 +25,7 @@ import { SteamControllerIcon, SteamGearIcon } from "../shared";
 import { useAppRunning } from "../../hooks/useAppRunning";
 import { useGameActions } from "../../hooks/useGameActions";
 import { SteamBridge } from "../../lib/steam-bridge";
-import { launchAppWithControllerLayout } from "../../utils/controllerConfig";
+import { usePlayActions } from "../../hooks/usePlayActions";
 import {
   PlayShell,
   MetaInline,
@@ -65,16 +65,11 @@ export const BrowserGameButtons: FC<Props> = ({
   const isRunning = useAppRunning(appId);
   const actions = useGameActions(defaultBridge);
 
-  const onPlay = useCallback(async () => {
-    const launched = await launchAppWithControllerLayout(
-      appId,
-      stream ? "gamepad" : "web-browser",
-    );
-    if (!launched && url) {
-      // Steam's Apps surface is unavailable: open the game directly.
-      window.open(`steam://openurl/${url}`, "_blank");
-    }
-  }, [appId, stream, url]);
+  const play = usePlayActions(appId, defaultBridge);
+  const onPlay = useCallback(
+    () => play.playBrowser(variant, url),
+    [play, variant, url],
+  );
 
   return (
     // autoFocus is intentional: claims gamepad focus for the primary action

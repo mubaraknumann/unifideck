@@ -226,10 +226,30 @@ class _StatusMixin:
         mirror/backup has files, ``False`` when the store has no cloud support,
         else ``None`` (unknown without a full download).
         """
+        # The local half (save-dir resolution can walk the whole Wine prefix,
+        # then snapshot it) is synchronous file-system work. On the event loop
+        # it stalled every other RPC for seconds — get_game_info measured at
+        # 2.6 s instead of 2 ms while this ran — and the App-Details page
+        # requests both at once. So it runs in a worker thread.
+        status, remote = await asyncio.to_thread(self._local_status, store, game_id)
+        if not status["supported"]:
+            return status
+        cloud_info = await self._real_cloud_info(store, game_id)
+        self._merge_cloud_info(status, cloud_info, remote)
+        return status
+
+    def _local_status(
+        self, store: str, game_id: str
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Blocking half of :meth:`get_cloud_status`: everything on disk.
+
+        Returns the status with its local fields filled, plus the local cloud
+        mirror snapshot. Run off the event loop (``asyncio.to_thread``).
+        """
         supported = store in self._strategies
         status = self._base_status(store, game_id, supported)
         if not supported:
-            return status
+            return status, {}
         save_dir: str | None = ""
         try:
             save_dir = self.get_local_save_dir(store, game_id)
@@ -238,10 +258,7 @@ class _StatusMixin:
         status["browse_start"] = self._browse_start(game_id, save_dir)
         status.update(self._local_save_status(save_dir))
         status["save_path_is_override"] = self._has_save_path_override(game_id)
-        remote = self._cloud_snapshot(store, game_id)
-        cloud_info = await self._real_cloud_info(store, game_id)
-        self._merge_cloud_info(status, cloud_info, remote)
-        return status
+        return status, self._cloud_snapshot(store, game_id)
 
     async def _real_cloud_info(
         self, store: str, game_id: str

@@ -11,22 +11,18 @@
  * unknown plan, or a package choice v1 cannot make). An installed row keeps
  * its Uninstall: uninstalling is never gated on the toggle.
  */
-import { FC, useCallback } from "react";
-import { DialogButton, showModal } from "@decky/ui";
+import { FC } from "react";
+import { DialogButton } from "@decky/ui";
 import { useTranslation } from "react-i18next";
 import { FaBan, FaTrash } from "react-icons/fa";
 import { SteamControllerIcon, SteamGearIcon } from "../shared";
 import { useGameInfo } from "../../hooks/useGameInfo";
-import { useGameActions } from "../../hooks/useGameActions";
-import { useToast } from "../../hooks/useToast";
-import { downloadErrorToast } from "../../lib/download-errors";
-import { toastText, headerText } from "../../services/toast-text";
+import { usePlayActions } from "../../hooks/usePlayActions";
 import { SteamBridge } from "../../lib/steam-bridge";
 import {
   pcUnsupportedKey,
   type PcUnsupportedReason,
 } from "../../lib/xbox-pc-errors";
-import { UninstallConfirmModal } from "../modals/UninstallConfirmModal";
 import {
   PlayShell,
   MetaInline,
@@ -48,8 +44,9 @@ interface Props {
 
 const defaultBridge = new SteamBridge();
 
-/** The disabled primary button's label for each kind of reason. */
-function buttonKey(reason: PcUnsupportedReason): string {
+/** The disabled primary button's label for each kind of reason. Also the
+ *  native play bar's status label for the same state. */
+export function pcUnsupportedButtonKey(reason: PcUnsupportedReason): string {
   if (reason === "disabled") return "xboxPc.unsupported.offButton";
   if (reason === "status_unavailable") {
     return "xboxPc.unsupported.unknownButton";
@@ -86,33 +83,8 @@ export const PcUnsupportedButtons: FC<Props> = ({
 }) => {
   const { t } = useTranslation();
   const { data: game, loading } = useGameInfo(appId);
-  const actions = useGameActions(bridge);
-  const toast = useToast();
-
-  const onUninstall = useCallback(() => {
-    if (!game) return;
-    showModal(
-      <UninstallConfirmModal
-        gameId={appId}
-        gameTitle={game.title}
-        onConfirm={async (deletePrefix) => {
-          const r = await actions.uninstall(appId, deletePrefix);
-          if (r.success) {
-            toast.success(
-              headerText("toasts.header.uninstall"),
-              toastText("toasts.uninstallDone"),
-            );
-          } else {
-            toast.error(
-              headerText("toasts.header.uninstall"),
-              downloadErrorToast(r.error),
-            );
-          }
-        }}
-        closeModal={() => {}}
-      />,
-    );
-  }, [actions, appId, game, toast]);
+  const play = usePlayActions(appId, bridge);
+  const onUninstall = play.uninstall;
 
   return (
     // autoFocus is intentional: claims gamepad focus for the primary action
@@ -123,7 +95,7 @@ export const PcUnsupportedButtons: FC<Props> = ({
         disabled
         style={actionBtnStyle}
       >
-        <FaBan /> {t(buttonKey(reason))}
+        <FaBan /> {t(pcUnsupportedButtonKey(reason))}
       </DialogButton>
       <PcReasonLine reason={reason} />
       {installed && (
@@ -157,7 +129,7 @@ export const PcUnsupportedButtons: FC<Props> = ({
           <DialogButton
             className={iconBtnClass()}
             style={iconBtnStyle}
-            disabled={loading || actions.isWorking}
+            disabled={loading || play.isWorking}
             onClick={onUninstall}
             aria-label={t("play.uninstall")}
           >

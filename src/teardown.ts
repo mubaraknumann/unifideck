@@ -27,6 +27,7 @@ import { xboxPcStore } from "./stores/xbox-pc-store";
  */
 export interface TeardownHandles {
   routerPatch?: RouterPatchHandle | null;
+  nativeAppDetails?: (() => void) | null;
   cacheAutoload?: (() => void) | null;
   libraryPatch?: RouterPatchHandle | null;
   collectionManager?: CollectionManagerHandle | null;
@@ -93,6 +94,8 @@ const DISPOSERS: Record<keyof TeardownHandles, (h: TeardownHandles) => void> = {
   // subscription had no disposer at all until this table existed.
   cacheAutoload: (h) => h.cacheAutoload?.(),
   routerPatch: (h) => h.routerPatch?.remove(),
+  // Restores Steam's action button, play bar row and tabbed page.
+  nativeAppDetails: (h) => h.nativeAppDetails?.(),
 };
 
 export function runTeardown(handles: TeardownHandles): void {

@@ -27,6 +27,7 @@ import {
 import { RootProvider } from "./contexts/RootProvider";
 import { QuickAccessPanel } from "./views/QuickAccessPanel";
 import { applyAppDetailsPatch } from "./views/AppDetailsPatch";
+import { startNativeAppDetails } from "./views/native-app-details";
 import { applyLibraryPatch } from "./lib/steam-bridge/library-patch";
 import { startUnifideckCacheAutoload } from "./lib/library-filters";
 import { startCollectionManager } from "./lib/steam-bridge/collection-manager";
@@ -62,6 +63,15 @@ export default definePlugin(() => {
   console.log("[Unifideck] Plugin loaded");
   const bridge = new SteamBridge();
   const handles: TeardownHandles = {};
+  // Steam renders our game pages itself, steered with our data and actions.
+  // Boot-time, before any game page mounts: React caches the tabbed page's
+  // inner function on a fiber at mount. Returns null (legacy page stays in
+  // charge) when Steam's components can't be found on this build.
+  try {
+    handles.nativeAppDetails = startNativeAppDetails();
+  } catch (e) {
+    console.error("[Unifideck] native App-Details start failed:", e);
+  }
   // Apply the App Details patch immediately so the very
   // first navigation to a game's page shows our overrides.
   try {

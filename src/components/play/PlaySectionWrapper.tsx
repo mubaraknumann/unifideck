@@ -102,7 +102,7 @@ export const PlaySectionWrapper: FC<PlaySectionWrapperProps> = ({ appId }) => {
         );
         break;
       case "downloading":
-        body = <DownloadingButtons download={state.download} />;
+        body = <DownloadingButtons appId={appId} download={state.download} />;
         break;
       case "installed":
         body = <InstalledButtons appId={state.appId} />;

@@ -12,23 +12,12 @@
  * Meta is inline (label+value pairs side by side), icons
  * float to the right via ``marginLeft: auto``.
  */
-import {
-  CSSProperties,
-  FC,
-  ReactNode,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { CSSProperties, FC, ReactNode, useEffect, useRef } from "react";
 import { DialogButton, Focusable } from "@decky/ui";
 import { useTranslation } from "react-i18next";
-import { useCircuitState } from "../../hooks/useCircuitState";
-import { useGameSize } from "../../hooks/useGameSize";
-import { useGamePlaytime } from "../../hooks/useGamePlaytime";
-import { useGameMetadata } from "../../hooks/useGameMetadata";
+import { usePlayStats } from "../../hooks/usePlayStats";
 import { getThemeableClasses } from "../../lib/steam-bridge";
 import { PLAY_FOCUS_CSS } from "./play.css";
-import { useStoreCapability } from "../../hooks/useStoreCapability";
 
 /**
  * Class-name builders that make our buttons visible to CSS Loader
@@ -310,6 +299,11 @@ const CLOUD_SAVE_VALUE_KEY: Record<string, string> = {
   undefined: "playMeta.cloudUnknown",
 };
 
+/** i18n key for a `cloud_saves` value (see {@link CLOUD_SAVE_VALUE_KEY}). */
+export function cloudSaveValueKey(value: unknown): string {
+  return CLOUD_SAVE_VALUE_KEY[String(value)] ?? "playMeta.cloudUnknown";
+}
+
 /** One label/value column inside {@link MetaInline}. */
 const MetaItem: FC<{ label: string; value: string }> = ({ label, value }) => (
   <div>
@@ -363,88 +357,24 @@ export const MetaInline: FC<MetaInlineProps> = ({
   installed = false,
 }) => {
   const { t } = useTranslation();
-  const [steamLastPlayed, setSteamLastPlayed] = useState<number | null>(null);
-  // Cloud-save availability sits with the other at-a-glance facts rather than
-  // in the info panel below: it is a *decision* input (which storefront's copy
-  // to install), so it belongs next to Space Required / Last Played.
-  //
-  // Free to read here — `useGameMetadata` is appId-keyed with a 60 s TTL and
-  // in-flight de-duplication, and GameInfoPanel already requests the same
-  // appId, so both consumers share one fetch. It resolves to null first and
-  // never blocks this row.
-  const metadata = useGameMetadata(appId ?? null);
-  // Only for a NOT-installed game. Once it is installed the cloud-save icon
-  // button sits right there in the same row and reports the live state
-  // (syncing / in sync / no support / unresolved), so a static
-  // "Supported/Unknown" beside it is redundant at best and contradictory at
-  // worst — an enabled button next to the word "Unknown" reads like a bug.
-  // Second copy of the same set, removed — its own comment said it mirrored
-  // useCloudSaveStatus. Both now read the backend-derived capability.
-  const supportsCloudSaves = useStoreCapability(store, "supports_cloud_saves");
-  const showCloudSaves = !installed && !!store && supportsCloudSaves;
-  // Circuit-breaker state. Rendered only while the breaker is actually open,
-  // so an ordinary game never carries a diagnostic badge — but when it IS
-  // open the user previously got nothing at all: no message, no badge, and
-  // no way to reset short of waiting out the window (audit item 4a).
-  const circuit = useCircuitState(store, gameId);
-  // Size is fetched out-of-band (see useGameSize) so a slow store
-  // lookup never blocks this row from rendering. Keyed on `installed`
-  // so the on-disk size replaces the pre-install download size once
-  // the game finishes installing. Prefer the fetched value; fall back
-  // to any size the caller already had.
-  const fetchedSize = useGameSize(appId ?? null, installed);
-  const resolvedSize = fetchedSize && fetchedSize > 0 ? fetchedSize : sizeBytes;
-
-  // Our own tracking DB (set when the caller knows the store/game pair).
-  // Preferred source for both the total and last-played; Steam's value
-  // is only used as a fallback when we have no local record.
-  const playtime = useGamePlaytime(
-    showLastPlayed ? store : null,
-    showLastPlayed ? gameId : null,
-  );
-
-  useEffect(() => {
-    if (!showLastPlayed || appId == null) return;
-    let cancelled = false;
-    const apps = (
-      window as unknown as {
-        SteamClient?: {
-          Apps?: {
-            GetPlaytime?: (
-              id: number,
-            ) => Promise<{ rtLastTimePlayed?: number }>;
-          };
-        };
-      }
-    ).SteamClient?.Apps;
-    if (!apps?.GetPlaytime) return;
-    apps
-      .GetPlaytime(appId)
-      .then((res) => {
-        if (cancelled) return;
-        setSteamLastPlayed(res?.rtLastTimePlayed ?? null);
-      })
-      .catch(() => {
-        /* ignore */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [appId, showLastPlayed]);
-
-  // Total played: store's cross-device total (GOG/Epic) when present,
-  // else our local total. Only rendered once we have a tracked record.
-  const totalSecs =
-    playtime != null
-      ? playtime.store_total_secs ?? playtime.total_seconds
-      : undefined;
-  const showPlayed = showLastPlayed && totalSecs != null && totalSecs > 0;
-
-  // Last played: prefer our DB's timestamp; fall back to Steam's only
-  // when we have no local record (e.g. a Steam-native game we don't track).
+  // One source for these numbers, shared with the native play bar
+  // (usePlayStats): size, played, last played, cloud saves, circuit.
+  const stats = usePlayStats({
+    appId,
+    store,
+    gameId,
+    sizeBytes,
+    installed,
+    withPlaytime: showLastPlayed,
+  });
+  const { circuit } = stats;
+  const resolvedSize = stats.sizeBytes;
+  const totalSecs = stats.playedSecs;
+  const showPlayed = showLastPlayed && totalSecs != null;
+  const showCloudSaves = stats.cloudSaves !== "hidden";
   const lastPlayedValue =
-    formatLastPlayedISO(playtime?.last_played) ??
-    (steamLastPlayed ? formatLastPlayed(steamLastPlayed) : null);
+    formatLastPlayedISO(stats.lastPlayedIso) ??
+    (stats.steamLastPlayed ? formatLastPlayed(stats.steamLastPlayed) : null);
 
   return (
     <div
@@ -481,7 +411,7 @@ export const MetaInline: FC<MetaInlineProps> = ({
       {showCloudSaves && (
         <MetaItem
           label={t("playMeta.cloudSaves")}
-          value={t(CLOUD_SAVE_VALUE_KEY[String(metadata.data?.cloud_saves)])}
+          value={t(cloudSaveValueKey(stats.cloudSaves))}
         />
       )}
       {circuit.open && (
@@ -507,7 +437,7 @@ export const MetaInline: FC<MetaInlineProps> = ({
  * noise on a healthy game and would make the badge easy to ignore on an
  * unhealthy one.
  */
-const CircuitBadge: FC<{
+export const CircuitBadge: FC<{
   failureCount: number;
   onReset: () => void;
   onForceLaunch: () => void;

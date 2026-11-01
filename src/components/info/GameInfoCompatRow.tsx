@@ -18,13 +18,9 @@ import { FC, useCallback, useMemo } from "react";
 import { DialogButton, Focusable, showModal } from "@decky/ui";
 import { useTranslation } from "react-i18next";
 import { useGameInfo } from "../../hooks/useGameInfo";
-import { useGameActions } from "../../hooks/useGameActions";
+import { usePlayActions } from "../../hooks/usePlayActions";
 import { useDownloads } from "../../contexts/DownloadContext";
-import { useToast } from "../../hooks/useToast";
-import { downloadErrorToast } from "../../lib/download-errors";
-import { toastText, headerText } from "../../services/toast-text";
 import { SteamBridge } from "../../lib/steam-bridge";
-import { UninstallConfirmModal } from "../modals/UninstallConfirmModal";
 import { GameInfoDetailsModal } from "./GameInfoDetailsModal";
 import { CompatBadge, asCategory } from "./CompatBadge";
 import { GameAchievementsModal } from "./GameAchievementsModal";
@@ -65,8 +61,7 @@ export const GameInfoCompatRow: FC<Props> = ({
   const { t } = useTranslation();
   const { data: game } = useGameInfo(appId);
   const downloads = useDownloads();
-  const actions = useGameActions(bridge);
-  const toast = useToast();
+  const play = usePlayActions(appId, bridge);
   // Was `game?.store === "gog" || game?.store === "epic"` inline — the exact
   // twin of `_ACHIEVEMENT_STORES` in rpc/mixins/achievements.py with nothing
   // linking them (audit register item 31). Adding a store to one side only
@@ -89,30 +84,7 @@ export const GameInfoCompatRow: FC<Props> = ({
 
   const isDownloading = activeDownload != null;
 
-  const showUninstallConfirm = useCallback(() => {
-    if (!game) return;
-    showModal(
-      <UninstallConfirmModal
-        gameId={appId}
-        gameTitle={game.title}
-        onConfirm={async (deletePrefix) => {
-          const r = await actions.uninstall(appId, deletePrefix);
-          if (r.success) {
-            toast.success(
-              headerText("toasts.header.uninstall"),
-              toastText("toasts.uninstallDone"),
-            );
-          } else {
-            toast.error(
-              headerText("toasts.header.uninstall"),
-              downloadErrorToast(r.error),
-            );
-          }
-        }}
-        closeModal={() => {}}
-      />,
-    );
-  }, [actions, appId, game, toast]);
+  const showUninstallConfirm = play.uninstall;
 
   const onDetails = useCallback(() => {
     showModal(<GameInfoDetailsModal meta={meta} closeModal={() => {}} />);
@@ -209,7 +181,7 @@ export const GameInfoCompatRow: FC<Props> = ({
           <DialogButton
             className="unifideck-nav-button unifideck-install-button uninstall-state"
             style={buttonStyle}
-            disabled={actions.isWorking}
+            disabled={play.isWorking}
             onClick={showUninstallConfirm}
           >
             {t("gameInfoPanel.buttons.uninstall")}

@@ -13,16 +13,13 @@
  * A merged Xbox PC + xCloud row passes ``streamUrl``: a secondary Stream
  * button then sits beside Install (Install stays primary).
  */
-import { FC, useCallback } from "react";
+import { FC } from "react";
 import { DialogButton } from "@decky/ui";
 import { useTranslation } from "react-i18next";
 import { FaDownload } from "react-icons/fa";
 import { SteamControllerIcon, SteamGearIcon } from "../shared";
 import { useGameInfo } from "../../hooks/useGameInfo";
-import { useInstallFlow } from "../../hooks/useInstallFlow";
-import { useToast } from "../../hooks/useToast";
-import { downloadErrorToast } from "../../lib/download-errors";
-import { toastText, headerText } from "../../services/toast-text";
+import { usePlayActions } from "../../hooks/usePlayActions";
 import { SteamBridge } from "../../lib/steam-bridge";
 import {
   PlayShell,
@@ -53,26 +50,8 @@ export const NotInstalledButtons: FC<Props> = ({
 }) => {
   const { t } = useTranslation();
   const { data: game, loading } = useGameInfo(appId);
-  const installFlow = useInstallFlow(bridge);
-  const toast = useToast();
-
-  const onInstall = useCallback(async () => {
-    if (!game) return;
-    const result = await installFlow.start(game);
-    if (result == null) return;
-    if (result.success) {
-      toast.success(
-        headerText("toasts.header.download"),
-        toastText("toasts.downloadQueued"),
-      );
-    } else {
-      // A refusal code (`xbox_pc_disabled`, ...) becomes its friendly line.
-      toast.error(
-        headerText("toasts.header.downloadGame", { title: game.title }),
-        downloadErrorToast(result.error),
-      );
-    }
-  }, [installFlow, game, toast]);
+  const play = usePlayActions(appId, bridge);
+  const onInstall = play.install;
 
   return (
     // autoFocus is intentional: claims gamepad focus for the primary action
@@ -80,14 +59,12 @@ export const NotInstalledButtons: FC<Props> = ({
     <PlayShell autoFocus>
       <DialogButton
         className={actionBtnClass("unifideck-install-btn")}
-        disabled={loading || installFlow.isWorking || !game}
+        disabled={loading || play.isWorking || !game}
         onClick={onInstall}
         style={actionBtnStyle}
       >
         <FaDownload />
-        {installFlow.isWorking
-          ? t("playButton.installing")
-          : t("playButton.install")}
+        {play.isWorking ? t("playButton.installing") : t("playButton.install")}
       </DialogButton>
       {streamUrl && <StreamSecondaryButton appId={appId} url={streamUrl} />}
 
