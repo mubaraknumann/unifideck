@@ -5,6 +5,30 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 PathLike = str | Path
+
+#: Where every per-game prefix outside the wrapper stores lives (launcher
+#: invariant 2). Expanded at call time so a test can point ``HOME`` elsewhere.
+PREFIXES_DIR = "~/.local/share/unifideck/prefixes"
+
+
+def prefixes_dir() -> Path:
+    """The parent of every per-game prefix, expanded."""
+    return Path(PREFIXES_DIR).expanduser()
+
+
+def game_prefix_root(game_id: str) -> Path:
+    """The prefix root of a game that is not a wrapper-store title.
+
+    ``<prefixes>/<game_id>``, with any trailing ``pfx`` component dropped so
+    the result is always the root and never umu's ``pfx`` self-link. Builds
+    the path only and creates nothing.
+    """
+    path = prefixes_dir() / game_id
+    while path.name == "pfx":
+        path = path.parent
+    return path
+
+
 def normalize_prefix_root(prefix_path: PathLike) -> Path:
     """Normalize prefix root."""
     p = Path(prefix_path).resolve() if isinstance(prefix_path, str) \

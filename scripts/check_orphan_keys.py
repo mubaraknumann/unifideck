@@ -191,8 +191,8 @@ def _load_unused_baseline() -> set[str]:
     return set(data.get("keys", []))
 
 # Regexes to capture literal string keys in translation calls.
-# 1. t("key") or t('key') or t(`key`)
-T_REGEX = re.compile(r"\bt\(\s*(?:'([^']+)'|\"([^\"]+)\"|`([^`]+)`)\s*")
+# 1. t("key") or t('key') or t(`key`), and toastText/headerText("key") (toast-text.ts)
+T_REGEX = re.compile(r"\b(?:t|toastText|headerText)\(\s*(?:'([^']+)'|\"([^\"]+)\"|`([^`]+)`)\s*")
 # 2. i18nKey="key" or i18nKey='key' or i18nKey={"key"}
 I18NKEY_REGEX = re.compile(r"\bi18nKey\s*=\s*(?:['\"]([^'\"]+)['\"]|\{\s*(?:'([^']+)'|\"([^\"]+)\")\s*\})")
 

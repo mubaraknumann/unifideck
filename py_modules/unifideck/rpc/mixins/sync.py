@@ -8,6 +8,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from unifideck.rpc import RpcError
 from unifideck.rpc.mixins.sync_cleanup import CleanupRPCMixin
 from unifideck.services.installed_disk_info import collect_installed_disk_info
 from unifideck.services.size_cache import get_size_cache
@@ -135,7 +136,7 @@ class SyncRPCMixin(CleanupRPCMixin):
         count = save_frontend_owned_games(pairs) if pairs else len(titles)
 
         if self.sync_service is not None:
-            await asyncio.to_thread(self.sync_service.refresh_duplicate_groups)
+            await self.sync_service.refresh_duplicate_groups()
         return {"count": count}
 
     async def set_active_steam_user(self, account_id: str) -> Any:
@@ -194,7 +195,17 @@ class SyncRPCMixin(CleanupRPCMixin):
         # section while it waits. Size resolution therefore lives in
         # the separate, non-blocking ``get_game_size_bytes`` RPC, which
         # the frontend fetches on its own (like Last Played).
-        return self.sync_service.get_game_info(app_id) if self.sync_service else None
+        #
+        # Decky serves RPCs while ``_main`` is still booting, so this can
+        # run before ``boot_plugin`` has set ``sync_service``. Answering
+        # ``None`` there would read as "not a Unifideck game" and the
+        # frontend would stop asking; an error lets ``useGameInfo`` retry
+        # until the library is loaded. ``RpcError`` rather than a bare
+        # exception so each retry doesn't log a traceback.
+        sync_service = getattr(self, "sync_service", None)
+        if sync_service is None:
+            raise RpcError("service_unavailable", "backend still starting")
+        return sync_service.get_game_info(app_id)
 
     async def get_game_size_bytes(self, app_id: int) -> int:
         """Resolve the "Space Required" size (bytes) for one AppID.

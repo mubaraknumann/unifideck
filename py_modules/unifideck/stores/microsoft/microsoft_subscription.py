@@ -10,7 +10,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Any
 
-from unifideck.core.net import ssl_ctx_permissive as _ssl
+from unifideck.core.net import ssl_ctx_strict
 from unifideck.core.types import SubscriptionTier
 
 logger = logging.getLogger(__name__)
@@ -225,9 +225,7 @@ def _do_probe_http(
         with urllib.request.urlopen(
             req,
             timeout=timeout_seconds,
-            context=_ssl(
-                "Microsoft subscription — outdated Deck cert store",
-            ),
+            context=ssl_ctx_strict(),
         ) as resp:
             return resp.status, resp.read().decode(
                 "utf-8", errors="replace",

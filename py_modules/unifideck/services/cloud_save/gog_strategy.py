@@ -8,10 +8,11 @@ from typing import Any
 
 from unifideck.core.binaries import clean_cli_env
 from unifideck.launcher.proton.infrastructure.prefix_layout import resolve_drive_c
-from unifideck.services.cloud_save import safety
+from unifideck.services.cloud_save import gog_native, safety
 from unifideck.services.cloud_save.gog_cloud_api import (
     GOG_DEFAULT_NAMESPACE,
     fetch_gog_client_id,
+    fetch_gog_save_locations,
     head_object_local_mtime,
     list_cloud_objects,
     resolve_gog_save_locations,
@@ -53,6 +54,9 @@ class GOGCloudSaveStrategy(GOGStateMixin, CloudSaveStrategy):
         # split saves across several, e.g. BioShock Remastered's
         # ``saves``+``saves2``); the whole set is synced, not just the primary.
         self._cached_targets: dict[str, list[tuple[str, str]]] = {}
+        # Native DOSBox games: the staging dirs standing in for their Windows
+        # ``cloud_saves`` overlay (see ``gog_native``).
+        self._native_staging: dict[str, list[str]] = {}
 
         # Resolve path to the bundled gogdl binary. Use the canonical
         # plugin-root resolver (same one the launch path uses) — bin/ is a
@@ -80,8 +84,8 @@ class GOGCloudSaveStrategy(GOGStateMixin, CloudSaveStrategy):
         dispatcher uses). Native games have NO Wine prefix and save to real
         ``$HOME``/XDG dirs, so they need Linux-mode resolution.
         """
-        install = self._install_dir(game_id)
-        return bool(install) and os.path.isfile(os.path.join(install, "start.sh"))
+        from unifideck.core.native_entry import gog_linux_start_script
+        return gog_linux_start_script(self._install_dir(game_id)) is not None
 
     def _resolve_store_save_dir(self, game_id: str) -> str | None:
         """GOG-specific save-dir resolution (config override + memo in base).
@@ -98,9 +102,9 @@ class GOGCloudSaveStrategy(GOGStateMixin, CloudSaveStrategy):
         Returns ``None`` when no real location exists yet.
         """
         if self._is_native_linux(game_id):
-            # No Wine prefix; GOG remote-config cloudStorage is Windows/Mac
-            # only — resolve the Linux save path from enriched metadata.
-            return self._resolve_enriched(
+            # No Wine prefix. GOG's cloud config is Windows/Mac only, so map
+            # it onto the Linux build first, then try enriched metadata.
+            return self._resolve_native_from_metadata(game_id) or self._resolve_enriched(
                 game_id, prefix_path="",
                 install_path=self._install_dir(game_id), native_linux=True,
             )
@@ -134,6 +138,66 @@ class GOGCloudSaveStrategy(GOGStateMixin, CloudSaveStrategy):
         # of stranding saves in a folder nothing uses.
         logger.info("[GOGSync] No save dir resolved for %s (no prefix yet)", game_id)
         return None
+
+    def _resolve_native_from_metadata(self, game_id: str) -> str | None:
+        """GOG's cloud locations mapped onto a Linux-native install.
+
+        In-memory only: the on-disk ``gog_save_dirs`` record belongs to the
+        Proton path, and a game can be reinstalled as the other build.
+        """
+        install = self._install_dir(game_id)
+        targets: list[tuple[str, str]] = []
+        staged: list[str] = []
+        try:
+            client_id = fetch_gog_client_id(game_id)
+            for name, template in fetch_gog_save_locations(client_id) if client_id else []:
+                stage = gog_native.staging_dir(self.local_save_root, game_id, name)
+                mapped = gog_native.map_location(template, install, stage)
+                if mapped is None:
+                    logger.info("[GOGSync] %s: no Linux mapping for %s", game_id, template)
+                    continue
+                targets.append((str(mapped[0]), name))
+                if mapped[1]:
+                    staged.append(str(mapped[0]))
+        except Exception as e:
+            logger.warning("[GOGSync] native save mapping failed for %s: %s", game_id, e)
+            return None
+        if not targets:
+            return None
+        primary = select_primary_save_target([(Path(d), n) for d, n in targets])
+        if primary is None:
+            return None
+        self._cached_namespace[game_id] = primary[1]
+        self._cached_targets[game_id] = targets
+        self._native_staging[game_id] = staged
+        logger.info(
+            "[GOGSync] Native save dir for %s from GOG metadata: %s (namespace %r%s)",
+            game_id, primary[0], primary[1], ", DOSBox staging" if staged else "",
+        )
+        return str(primary[0])
+
+    def _stage_native(self, game_id: str) -> list[str]:
+        """Refresh a native DOSBox game's staging dirs from its drive C."""
+        self.get_local_save_dir(game_id)
+        staged = self._native_staging.get(game_id, [])
+        for stage in staged:
+            count = gog_native.stage_in(self._install_dir(game_id), Path(stage))
+            logger.info("[GOGSync] staged %d game-written file(s) into %s", count, stage)
+        return staged
+
+    async def sync_down(self, game_id: str, force: bool = False) -> bool:
+        """Base sync_down, wrapped by DOSBox staging for native installs."""
+        staged = self._stage_native(game_id)
+        ok = await super().sync_down(game_id, force)
+        for stage in staged if ok else []:
+            count = gog_native.stage_out(Path(stage), self._install_dir(game_id))
+            logger.info("[GOGSync] copied %d downloaded file(s) into drive C", count)
+        return ok
+
+    async def sync_up(self, game_id: str) -> bool:
+        """Base sync_up, after refreshing DOSBox staging for native installs."""
+        self._stage_native(game_id)
+        return await super().sync_up(game_id)
 
     def _resolve_by_title(self, game_id: str, drive_c: Path) -> str | None:
         """Heuristic: match an existing prefix subfolder by game title."""
@@ -260,22 +324,46 @@ class GOGCloudSaveStrategy(GOGStateMixin, CloudSaveStrategy):
         """
         return await asyncio.to_thread(self._query_cloud_info_blocking, game_id)
 
+    def _cloud_listing_blocking(
+        self, game_id: str,
+    ) -> tuple[list[dict[str, Any]], str, str, str] | None:
+        """``(objects, user_id, client_id, token)`` for the game's cloud, or None."""
+        creds = self._read_gog_credentials() or {}
+        user_id = creds.get("user_id")
+        refresh_token = creds.get("refresh_token")
+        if not user_id or not refresh_token:
+            return None
+        client_id, client_secret = fetch_gog_client_creds(game_id)
+        if not client_id or not client_secret:
+            return None
+        token = exchange_game_token(client_id, client_secret, refresh_token)
+        if not token:
+            return None
+        objects = list_cloud_objects(user_id, client_id, token)
+        if objects is None:
+            return None
+        return objects, user_id, client_id, token
+
+    def _cloud_namespaces_blocking(self, game_id: str) -> set[str] | None:
+        """Namespaces holding at least one cloud object, or None if unknown."""
+        try:
+            listing = self._cloud_listing_blocking(game_id)
+        except Exception as e:
+            logger.info("[GOGSync] cloud listing failed for %s: %s", game_id, e)
+            return None
+        if listing is None:
+            return None
+        return {
+            str(o.get("name", "")).split("/", 1)[0]
+            for o in listing[0] if isinstance(o, dict) and o.get("name")
+        }
+
     def _query_cloud_info_blocking(self, game_id: str) -> dict[str, Any] | None:
         try:
-            creds = self._read_gog_credentials() or {}
-            user_id = creds.get("user_id")
-            refresh_token = creds.get("refresh_token")
-            if not user_id or not refresh_token:
+            listing = self._cloud_listing_blocking(game_id)
+            if listing is None:
                 return None
-            client_id, client_secret = fetch_gog_client_creds(game_id)
-            if not client_id or not client_secret:
-                return None
-            token = exchange_game_token(client_id, client_secret, refresh_token)
-            if not token:
-                return None
-            objects = list_cloud_objects(user_id, client_id, token)
-            if objects is None:
-                return None
+            objects, user_id, client_id, token = listing
 
             def resolve_local_mtime(name: str) -> float | None:
                 return head_object_local_mtime(user_id, client_id, token, name)
@@ -308,21 +396,23 @@ class GOGCloudSaveStrategy(GOGStateMixin, CloudSaveStrategy):
     async def _run_gogdl_save_sync(
         self, auth_file: str, local_dir: str, game_id: str,
         ts: str, namespace: str, direction_flag: str,
-        os_platform: str = "windows",
     ) -> bool:
         """Run one ``gogdl save-sync`` for a single location. Updates that
         location's per-namespace timestamp on success. Returns success.
 
-        ``os_platform`` is ``linux`` for native-Linux GOG builds (GOG cloud is
-        a Galaxy/Windows feature, so this may simply no-op for them — local
-        backup via the service's mirror still protects the saves)."""
+        ``--os`` is always ``windows``, native-Linux installs included. gogdl
+        uses it only to pick the build manifest it reads the game's Galaxy
+        clientId from, and that id is the same for every platform. GOG's
+        builds API answers ``os/linux`` with 404 "Unsupported OS" for every
+        product, so ``--os linux`` crashed gogdl and failed every save sync
+        of a native GOG game."""
         cmd = [
             self.gogdl_bin,
             "--auth-config-path", auth_file,
             "save-sync",
             local_dir,
             game_id,
-            "--os", os_platform,
+            "--os", "windows",
             "--ts", ts,
             "--name", namespace,
             direction_flag,
@@ -373,9 +463,19 @@ class GOGCloudSaveStrategy(GOGStateMixin, CloudSaveStrategy):
             logger.error("[GOGSync] Cannot sync down: GOG credentials conversion failed")
             return False
 
-        os_platform = "linux" if self._is_native_linux(game_id) else "windows"
+        cloud = await asyncio.to_thread(self._cloud_namespaces_blocking, game_id)
         overall_ok = True
         for tdir, namespace in self._resolve_sync_targets(game_id, local_dir):
+            # gogdl's save-sync uploads everything when the cloud namespace is
+            # empty, even with --skip-upload (its "No files in cloud,
+            # uploading" branch runs before the flag is checked), and a clean
+            # pull would first empty the local dir. Nothing to download: skip.
+            if cloud is not None and namespace not in cloud:
+                logger.info(
+                    "[GOGSync] cloud namespace %r is empty for %s; nothing to download",
+                    namespace, game_id,
+                )
+                continue
             os.makedirs(tdir, exist_ok=True)
             # The base snapshots the primary dir; snapshot any extra location
             # too so a bad/destructive pull stays recoverable.
@@ -400,7 +500,6 @@ class GOGCloudSaveStrategy(GOGStateMixin, CloudSaveStrategy):
                 self._clear_save_dir(tdir)
             ok = await self._run_gogdl_save_sync(
                 auth_file, tdir, game_id, ts, namespace, "--skip-upload",
-                os_platform,
             )
             overall_ok = overall_ok and ok
         if overall_ok:
@@ -423,7 +522,6 @@ class GOGCloudSaveStrategy(GOGStateMixin, CloudSaveStrategy):
             logger.error("[GOGSync] Cannot sync up: GOG credentials conversion failed")
             return False
 
-        os_platform = "linux" if self._is_native_linux(game_id) else "windows"
         overall_ok = True
         for tdir, namespace in self._resolve_sync_targets(game_id, local_dir):
             if not safety.has_save_data(tdir):
@@ -435,7 +533,6 @@ class GOGCloudSaveStrategy(GOGStateMixin, CloudSaveStrategy):
             ts = self._get_saved_timestamp(game_id, namespace)
             ok = await self._run_gogdl_save_sync(
                 auth_file, tdir, game_id, ts, namespace, "--skip-download",
-                os_platform,
             )
             overall_ok = overall_ok and ok
         if overall_ok:

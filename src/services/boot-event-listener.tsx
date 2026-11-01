@@ -9,64 +9,53 @@
  *   - `STORE_AUTH_COMPLETE`  → navigate to /library/home
  *
  * Started from `definePlugin` and torn down on `onDismount`.
- * Uses the same imperative APIs (`toaster.toast`, `showModal`,
+ * Uses the same imperative APIs (`showToast`, `showModal`,
  * `Navigation.Navigate`) that `launcherToasts.tsx` already uses
  * from non-React code, confirmed safe by Decky's `@decky/ui`
  * implementation (showModal resolves the SP window via findSP()).
  */
-import { toaster } from "@decky/api";
 import { showModal, Navigation } from "@decky/ui";
-import i18n from "i18next";
 import { EventBusClient } from "../api/event-bus-client";
 import { type ToastActionPayload } from "../types/events";
 import { CloudSaveConflictModal } from "../components/modals/CloudSaveConflictModal";
 import { resolveToastDuration } from "./toast-duration";
-import { buildToastParams } from "./toast-params";
-import { isConflictAction, resolveToastAction } from "./toast-action";
-
-/** Show a toast via the imperative Decky toaster API. */
-function showToast(
-  title: string,
-  body: string,
-  severity?: "info" | "warning" | "error",
-  durationMs?: number,
-  onClick?: (() => void) | null,
-  actionLabel?: string,
-): void {
-  try {
-    toaster.toast({
-      title,
-      body,
-      duration: resolveToastDuration(durationMs, severity),
-      ...(onClick ? { onClick } : {}),
-      ...(actionLabel ? { subtext: actionLabel } : {}),
-    });
-  } catch {
-    console.log(`[BootEventListener] ${title}: ${body}`);
-  }
-}
+import { isConflictAction } from "./toast-action";
+import { showStageToast } from "./stage-toast";
+import { toastText, headerText, type ToastKey } from "./toast-text";
+import { showToast } from "./show-toast";
 
 /**
- * `SYNC_SKIPPED.reason` → the i18n key explaining the skip.
+ * `SYNC_SKIPPED.reason` → the toast body explaining the skip, under the
+ * shared Xbox Library header.
  *
  * A skip is an intentional no-op with a user-facing explanation, as distinct
- * from `SYNC_FAILED`. `MicrosoftStore` is the only emitter today: any of these
- * three outcomes drops the entire xCloud library from the sync while the bar
- * still reports success for the other five stores, which reads as "my Game
- * Pass games vanished". The strings existed and were translated in all 16
- * locales the whole time — the event was polled and dropped on the floor
- * (audit §1.3).
+ * from `SYNC_FAILED`. `MicrosoftStore` is the only emitter today. The first
+ * three rows drop the entire xCloud library from the sync while the bar still
+ * reports success for the other stores, which reads as "my Game Pass games
+ * vanished". The strings existed and were translated in all 16 locales the
+ * whole time — the event was polled and dropped on the floor (audit §1.3).
+ *
+ * The `xbox_pc_*` rows come from the Xbox PC list (`stores/microsoft/
+ * pc_library`). Each is sent once until a good read resets it, so a toast
+ * here never repeats on every sync.
  *
  * Keyed by reason rather than by store, and unknown reasons fall through
  * silently, so a future subscription store (EA Play, Ubisoft+) emitting its own
  * reason adds a row here and nothing else.
  */
-const SYNC_SKIPPED_KEYS: Record<string, string> = {
-  no_active_subscription: "microsoft.syncSkippedNoSubscription",
-  subscription_tier_unknown: "microsoft.syncSkippedTierUnknown",
-  subscription_check_error: "microsoft.subscriptionCheckFailed",
+const SYNC_SKIPPED_KEYS: Record<string, ToastKey> = {
+  no_active_subscription: "toasts.syncSkipped.noSubscription",
+  subscription_tier_unknown: "toasts.syncSkipped.tierUnknown",
+  subscription_check_error: "toasts.syncSkipped.checkFailed",
   // Not a whole-store skip: the free titles synced, the Game Pass part did not.
-  free_titles_only: "microsoft.syncFreeTitlesOnly",
+  free_titles_only: "toasts.syncSkipped.freeTitlesOnly",
+  // The Xbox PC list could not be refreshed; the last good one was kept.
+  xbox_pc_list_kept: "toasts.syncSkipped.xboxPcListKept",
+  xbox_pc_signin_needed: "toasts.syncSkipped.xboxPcSignInNeeded",
+  xbox_pc_account_changed: "toasts.syncSkipped.xboxPcAccountChanged",
+  xbox_pc_installed_unreadable: "toasts.syncSkipped.xboxPcInstalledUnreadable",
+  // Sent after `no_active_subscription`: the PC games did sync.
+  xbox_pc_only: "toasts.syncSkipped.xboxPcOnly",
 };
 
 /**
@@ -80,13 +69,6 @@ export function startBootEventListener(): () => void {
   unsubs.push(
     EventBusClient.subscribe("launcher_stage", (payload) => {
       const p = payload as ToastActionPayload;
-      // `game_title` arrives as a top-level field while the strings
-      // interpolate `{{gameTitle}}`; merging it here is what stops every
-      // launcher toast rendering with the placeholder unfilled.
-      const params = buildToastParams(p);
-      const message = p.i18n_key ? String(i18n.t(p.i18n_key, params)) : "";
-      if (!message) return;
-
       // Cloud-save conflict → modal. Discriminated on the SNAPSHOTS, not
       // the verb: `cloud_failure` also sends `retry-sync` for a transient
       // failure with nothing to choose between, and branching on the verb
@@ -130,20 +112,7 @@ export function startBootEventListener(): () => void {
         return;
       }
 
-      // Generic toast, optionally clickable. Decky toasts take an onClick
-      // rather than a button, so the whole toast is the affordance and the
-      // action's label goes in the body.
-      const onClick = resolveToastAction(p.action);
-      const label =
-        onClick && p.action?.i18n_label_key
-          ? String(i18n.t(p.action.i18n_label_key))
-          : "";
-      if (p.i18n_title_key) {
-        const title = String(i18n.t(p.i18n_title_key, params));
-        showToast(title, message, p.severity, p.duration_ms, onClick, label);
-      } else {
-        showToast(message, label, p.severity, p.duration_ms, onClick, label);
-      }
+      showStageToast(p);
     }),
   );
 
@@ -152,7 +121,11 @@ export function startBootEventListener(): () => void {
     EventBusClient.subscribe("sync_skipped", (payload) => {
       const key = SYNC_SKIPPED_KEYS[String(payload.reason)];
       if (!key) return;
-      showToast(String(i18n.t(key)), "", "warning");
+      showToast({
+        title: headerText("toasts.header.xboxLibrary"),
+        body: toastText(key),
+        duration: resolveToastDuration(undefined, "warning"),
+      });
     }),
   );
 

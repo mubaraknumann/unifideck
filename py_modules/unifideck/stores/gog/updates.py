@@ -19,8 +19,10 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
+from unifideck.core.native_entry import gog_linux_start_script
 from unifideck.core.types import Result
 
+from . import linux_updates
 from .config import GOGConfig
 from .http import fetch_json_get
 from .tokens import GOGTokenManager
@@ -126,6 +128,8 @@ class GOGUpdatesChecker:
                 game_id,
             )
             return None
+        if gog_linux_start_script(install_path):
+            return await self._check_linux_update(game_id, install_path)
         local_build_id = self.get_local_build_id(
             install_path,
             game_id,
@@ -154,6 +158,33 @@ class GOGUpdatesChecker:
                 game_id,
             )
         return has_update
+
+    async def _linux_remote_version(self, game_id: str, install_path: str) -> str | None:
+        """The current Linux installer version, in the install's language."""
+        return await linux_updates.fetch_linux_installer_version(
+            game_id,
+            linux_updates.read_marker(install_path).get("language"),
+            api_url=self._config.api_gog_url,
+            user_agent=self._config.user_agent,
+            bearer=self._tokens.access_token,
+        )
+
+    async def _check_linux_update(self, game_id: str, install_path: str) -> bool | None:
+        """Update check for a Linux install, by installer version.
+
+        Never compares against the Windows build: see ``linux_updates``.
+        """
+        remote = await self._linux_remote_version(game_id, install_path)
+        state = linux_updates.linux_update_state(install_path, remote)
+        logger.info(
+            "[GOGUpdatesChecker] %s (Linux build): installed=%s, remote=%s, update=%s",
+            game_id,
+            linux_updates.read_marker(install_path).get(linux_updates.MARKER_KEY)
+            or linux_updates.gameinfo_version(install_path),
+            remote,
+            "unknown" if state is None else state,
+        )
+        return state
 
     async def _fetch_remote_build_id(self, game_id: str) -> str | None:
         """Fetch remote build ID."""
@@ -263,7 +294,18 @@ class GOGUpdatesChecker:
                 error="gogdl_spawn_failed",
             )
         await self._update_drain_output(proc)
-        return await self._update_finalize(proc, game_id)
+        result = await self._update_finalize(proc, game_id)
+        if result.success:
+            await self._record_linux_version(game_id, resolved_path)
+        return result
+
+    async def _record_linux_version(self, game_id: str, install_path: str) -> None:
+        """After a Linux install's update, remember the installed version."""
+        if gog_linux_start_script(install_path) is None:
+            return
+        remote = await self._linux_remote_version(game_id, install_path)
+        if remote:
+            linux_updates.record_version(install_path, remote)
 
     def _update_resolve_path(self, game_id: str, install_path: str | None) -> tuple[Any, ...]:
         """Update resolve path."""
@@ -278,7 +320,13 @@ class GOGUpdatesChecker:
         )
 
     async def _update_spawn_gogdl(self, game_id: str, install_path: str) -> Any | None:
-        """Update spawn GOGDL."""
+        """Update spawn GOGDL.
+
+        A Linux install updates from the Linux installer. Always asking
+        gogdl for "windows" downloaded the Windows build into the Linux
+        folder.
+        """
+        platform = "linux" if gog_linux_start_script(install_path) else "windows"
         try:
             env, creds_path, cleanup = await self._tokens.acquire_gogdl_creds()
             cmd = [
@@ -290,7 +338,7 @@ class GOGUpdatesChecker:
                 "--path",
                 install_path,
                 "--platform",
-                "windows",
+                platform,
             ]
             proc = await asyncio.create_subprocess_exec(
                 *cmd,

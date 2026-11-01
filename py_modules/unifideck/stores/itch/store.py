@@ -21,7 +21,6 @@ from typing import TYPE_CHECKING, Any, cast
 from unifideck.auth.browser import OAuthBrowserMonitor
 from unifideck.auth.orchestrator import AuthOrchestrator
 from unifideck.auth.url_file import write_url_file_atomically
-from unifideck.core.safe_delete import canonical_prefix, safe_rmtree
 from unifideck.core.store_urls import storefront_target_path
 from unifideck.core.types import AuthResult, CLITool, Events, Game, InstallResult, Result, StoreInfo
 from unifideck.stores.shared.browser_auth_rebuild import BrowserAuthRebuildMixin
@@ -153,7 +152,7 @@ class ItchStore(BrowserAuthRebuildMixin, StoreBase):
             await self._bus.emit(
                 Events.LAUNCHER_STAGE,
                 severity="warning",
-                i18n_title_key="toasts.itchKeyRejected",
+                i18n_title_key="toasts.header.itch",
                 i18n_key="toasts.itchKeyRejectedMessage",
                 duration_ms=12000,
                 store="itch",
@@ -220,14 +219,12 @@ class ItchStore(BrowserAuthRebuildMixin, StoreBase):
         ``GAME_UNINSTALLED`` is what flips the shortcut back to "Not
         Installed" and drops the games.map row (``ShortcutService``); without
         it the files were gone while Steam still offered Play (measured on
-        the first device run). ``delete_prefix`` removes the per-game Proton
-        prefix, the same contract Amazon and Epic honour.
+        the first device run). The Proton prefix is the uninstall RPC's job
+        (``core.safe_delete.delete_game_prefix``), shared by every store.
         """
         result = await self._installer.uninstall(game_id)
         if not result.success:
             return result
-        if kwargs.get("delete_prefix"):
-            await asyncio.to_thread(safe_rmtree, canonical_prefix(game_id))
         await self._emit(Events.GAME_UNINSTALLED, store="itch", game_id=game_id)
         return result
 

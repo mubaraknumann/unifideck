@@ -26,8 +26,18 @@ vi.mock("./tab-container", () => ({
   ],
   isTabMasterInstalled: () => false,
 }));
+// `filterHolder` decides what every tab matches; `cacheGate` stands in for
+// the game-cache load the sync must wait for. Both are read at call time,
+// never at mock-factory time, so the hoisted factory can close over them.
+const filterHolder = { matches: true };
+const cacheGate: { promise: Promise<void> } = { promise: Promise.resolve() };
+// The compat tab's caches load on their own RPCs; the sync awaits them.
+vi.mock("../library-facets", () => ({ loadFacets: async () => {} }));
+vi.mock("../protondb-cache", () => ({ loadCompatCacheFromBackend: async () => {} }));
 vi.mock("../library-filters", () => ({
-  runFilters: () => true,
+  runFilters: () => filterHolder.matches,
+  whenUnifideckCacheLoaded: () => cacheGate.promise,
+  UNIFIDECK_CACHE_UPDATED_EVENT: "unifideck-cache-updated",
 }));
 // `call` is the only @decky/api binding reachable from here (via
 // event-bus-client, which the manager subscribes to for install/uninstall).
@@ -76,19 +86,27 @@ import {
 const COLLECTIONS_ENABLED_KEY = "unifideck:collections.enabled";
 const COLLECTIONS_CLEANED_KEY = "unifideck:collections.cleaned";
 
+interface MockApp {
+  appid: number;
+  display_name: string;
+}
+
 interface MockCollection {
   id: string;
   displayName: string;
-  allApps: unknown[];
+  allApps: MockApp[];
+  saves: number;
   AsDragDropCollection: () => {
-    AddApps: (o: unknown[]) => void;
-    RemoveApps: (o: unknown[]) => void;
+    AddApps: (o: MockApp[]) => void;
+    RemoveApps: (o: MockApp[]) => void;
   };
   Save: () => Promise<void>;
   Delete: () => Promise<void>;
 }
 
-function makeStore(names: string[]) {
+const game = (appid: number): MockApp => ({ appid, display_name: `Game ${appid}` });
+
+function makeStore(names: string[], games: MockApp[] = [game(1)]) {
   const map = new Map<string, MockCollection>();
   let nextId = 1;
   const make = (name: string): MockCollection => {
@@ -97,8 +115,19 @@ function makeStore(names: string[]) {
       id,
       displayName: name,
       allApps: [],
-      AsDragDropCollection: () => ({ AddApps: () => {}, RemoveApps: () => {} }),
-      Save: async () => {},
+      saves: 0,
+      AsDragDropCollection: () => ({
+        AddApps: (o) => {
+          c.allApps = [...c.allApps, ...o];
+        },
+        RemoveApps: (o) => {
+          const gone = new Set(o.map((a) => a.appid));
+          c.allApps = c.allApps.filter((a) => !gone.has(a.appid));
+        },
+      }),
+      Save: async () => {
+        c.saves += 1;
+      },
       // Mutates the backing Map mid-iteration — the exact behavior
       // that made the old live-iterator deletion skip entries.
       Delete: async () => {
@@ -111,9 +140,7 @@ function makeStore(names: string[]) {
   names.forEach(make);
   const store = {
     userCollections: map,
-    GetCollection: vi.fn((id: string) =>
-      id === "type-games" ? { allApps: [{ appid: 1, display_name: "Game" }] } : map.get(id),
-    ),
+    GetCollection: vi.fn((id: string) => (id === "type-games" ? { allApps: games } : map.get(id))),
     GetCollectionIDByUserTag: vi.fn((tag: string) => {
       for (const c of map.values()) if (c.displayName === tag) return c.id;
       return null;
@@ -122,9 +149,9 @@ function makeStore(names: string[]) {
   };
   (window as unknown as { collectionStore: unknown }).collectionStore = store;
   (window as unknown as { appStore: unknown }).appStore = {
-    GetAppOverviewByAppID: () => ({ appid: 1, display_name: "Game" }),
+    GetAppOverviewByAppID: (id: number) => games.find((g) => g.appid === id) ?? null,
   };
-  return { map, store };
+  return { map, store, games };
 }
 
 // This vitest/jsdom combination's `window.localStorage` doesn't implement
@@ -157,7 +184,12 @@ Object.defineProperty(window, "localStorage", {
 
 beforeEach(() => {
   window.localStorage.clear();
+  filterHolder.matches = true;
+  cacheGate.promise = Promise.resolve();
 });
+
+const byName = (map: Map<string, MockCollection>, name: string) =>
+  Array.from(map.values()).find((c) => c.displayName === name);
 
 describe("deleteAllUnifideckCollections", () => {
   it("deletes every [Unifideck] collection despite Map mutation during Delete()", async () => {
@@ -292,5 +324,79 @@ describe("collectSteamOwnedGames", () => {
       { title: "Owned", appid: 10 },
       { title: "Older client", appid: 30 },
     ]);
+  });
+});
+
+describe("collection ids stay stable for TabMaster", () => {
+  /**
+   * TabMaster stores a collection filter as the collection's id. Steam gives
+   * a re-created collection a new id, so deleting one broke every TabMaster
+   * tab built on it ("Collection: [Unifideck] Epic no longer exists").
+   */
+  it("empties a collection whose tab matches nothing instead of deleting it", async () => {
+    const { map, store } = makeStore(["[Unifideck] Alpha"]);
+    const alpha = byName(map, "[Unifideck] Alpha")!;
+    alpha.allApps = [game(1)];
+    window.localStorage.setItem(COLLECTIONS_ENABLED_KEY, "1");
+    filterHolder.matches = false;
+
+    await syncUnifideckCollections();
+
+    expect(byName(map, "[Unifideck] Alpha")?.id).toBe(alpha.id);
+    expect(alpha.allApps).toEqual([]);
+    // ...and still never creates an empty shell for a tab with no games.
+    expect(store.NewUnsavedCollection).not.toHaveBeenCalled();
+  });
+
+  it("does not sync until the game cache has loaded", async () => {
+    const { map, store } = makeStore([]);
+    window.localStorage.setItem(COLLECTIONS_ENABLED_KEY, "1");
+    let release!: () => void;
+    cacheGate.promise = new Promise<void>((r) => {
+      release = r;
+    });
+
+    const sync = syncUnifideckCollections();
+    // Well past the 5 ms device-type await: only the cache gate is holding it.
+    await new Promise((r) => setTimeout(r, 30));
+    expect(store.NewUnsavedCollection).not.toHaveBeenCalled();
+
+    release();
+    await sync;
+    expect(byName(map, "[Unifideck] Alpha")?.allApps.map((a) => a.appid)).toEqual([1]);
+  });
+});
+
+describe("collection updates", () => {
+  it("adds and removes only what changed, with one save, and skips a no-op", async () => {
+    const { map } = makeStore(["[Unifideck] Alpha"], [game(2), game(3)]);
+    const alpha = byName(map, "[Unifideck] Alpha")!;
+    alpha.allApps = [game(1), game(2)];
+    window.localStorage.setItem(COLLECTIONS_ENABLED_KEY, "1");
+
+    await syncUnifideckCollections();
+    expect(alpha.allApps.map((a) => a.appid).sort()).toEqual([2, 3]);
+    expect(alpha.saves).toBe(1);
+
+    await syncUnifideckCollections();
+    expect(alpha.saves).toBe(1);
+  });
+
+  it("rebuilds when the game cache reloads", async () => {
+    const { map, games } = makeStore([]);
+    window.localStorage.setItem(COLLECTIONS_ENABLED_KEY, "1");
+    const handle = startCollectionManager();
+    try {
+      await new Promise((r) => setTimeout(r, 30));
+      expect(byName(map, "[Unifideck] Alpha")?.allApps.map((a) => a.appid)).toEqual([1]);
+
+      games.push(game(5));
+      window.dispatchEvent(new CustomEvent("unifideck-cache-updated"));
+      await new Promise((r) => setTimeout(r, 30));
+
+      expect(byName(map, "[Unifideck] Alpha")?.allApps.map((a) => a.appid)).toEqual([1, 5]);
+    } finally {
+      handle.remove();
+    }
   });
 });

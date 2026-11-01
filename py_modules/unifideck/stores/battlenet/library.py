@@ -223,6 +223,26 @@ def family_from_catalog(catalog: MergedCatalog, uid: str) -> str | None:
     return None
 
 
+def installed_version_fields(
+    drive_c: Path | None, uid: str, installed: InstalledGame | None,
+) -> dict[str, Any]:
+    """``family`` and ``client_selects`` for the version just installed.
+
+    The same rule a sync records (:func:`_version_family_and_client_selects`),
+    applied at install time. Without it the id map keeps the family it had
+    before the install: Classic Era installed under the ``wow`` tile kept
+    ``WoW``, and the next Play opened the client on Retail until a sync ran.
+    Empty when the catalog cannot answer, which leaves the record as it was.
+    """
+    if drive_c is None or installed is None:
+        return {}
+    entry = read_catalog(drive_c).entry_for_uid(uid)
+    if entry is None:
+        return {}
+    family, selects = _version_family_and_client_selects(entry, installed, 1)
+    return {"family": family or entry.program_id, "client_selects": selects}
+
+
 def _presumed_facts(catalog: MergedCatalog, facts: AccountFacts) -> AccountFacts:
     """``facts`` with a game account assumed for every program in the catalog."""
     return AccountFacts(

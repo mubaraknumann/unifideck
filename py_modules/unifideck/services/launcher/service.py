@@ -119,8 +119,9 @@ class LauncherService:
     async def launch(self, ctx: LaunchContext) -> Result:
         """Launch a game described by the immutable ``LaunchContext``.
 
-        Dispatch matrix: browser game → ``browser_game.run_browser_game``; Windows →
-        ``_launch_windows``; native Linux → ``_launch_native``.
+        Dispatch matrix: browser game → ``browser_game.run_browser_game``;
+        Xbox PC → ``xbox_pc_game``; Windows → ``_launch_windows``; native
+        Linux → ``_launch_native``.
         Wrapped in circuit-breaker check + error-toast emission.
         Returns a ``Result`` summarising exit code + elapsed time.
 
@@ -194,12 +195,15 @@ class LauncherService:
         """
         if not ctx.is_launch_action:
             return await self._handle_auth_path(ctx)
-        await emit_stage(
-            self._bus,
-            i18n_key="toasts.launcher.launchingGame",
-            game_title=ctx.game_key,
-            priority="low",
-        )
+        if not ctx.is_xbox_pc_notice:
+            # A notice launches nothing; its own toast is the whole answer.
+            await emit_stage(
+                self._bus,
+                i18n_title_key="toasts.header.gameLaunch",
+                i18n_key="toasts.launcher.launchingGame",
+                game_title=ctx.game_key,
+                priority="low",
+            )
         res = await self._dispatch_launch_kind(ctx, state)
         if res.metadata is None:
             res.metadata = {}  # type: ignore[unreachable]  # guard 'if res.metadata is None'
@@ -353,7 +357,10 @@ class LauncherService:
     async def _dispatch_launch_kind(
         self, ctx: LaunchContext, state: RuntimeState,
     ) -> Result:
-        """Select the launch backend for ``ctx`` (browser game / Windows / native).
+        """Select the launch backend for ``ctx``.
+
+        In order: browser game, Xbox PC notice, Xbox PC game (Xodus),
+        Windows (Proton/umu), native Linux.
 
         Pure dispatch: each branch is one async call. Extracted
         from ``launch`` (lot 13a) to keep that method's fan-out
@@ -362,6 +369,14 @@ class LauncherService:
         """
         if ctx.is_browser_game:
             return await run_browser_game(self, ctx)
+        # Xbox PC titles come before the Windows check: they are Windows
+        # games, but the Xodus runtime runs them, never umu (I-017).
+        if ctx.is_xbox_pc_notice:
+            from .xbox_pc_game import run_xbox_pc_notice
+            return await run_xbox_pc_notice(self, ctx)
+        if ctx.is_xbox_pc_game:
+            from .xbox_pc_game import run_xbox_pc_game
+            return await run_xbox_pc_game(self, ctx, state)
         if ctx.is_windows_game:
             return await self._launch_windows(ctx, state)
         return await self._launch_native(ctx, state)

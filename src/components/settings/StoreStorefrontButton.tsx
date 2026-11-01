@@ -15,10 +15,11 @@
  */
 import { FC, useCallback, useState } from "react";
 import { DialogButton } from "@decky/ui";
-import { useTranslation } from "react-i18next";
 import { FiShoppingCart } from "react-icons/fi";
+import { useTranslation } from "react-i18next";
 import { openStorefront } from "../../services/store/StorefrontLauncher";
 import { useToast } from "../../hooks/useToast";
+import { toastText, headerText } from "../../services/toast-text";
 import { STORE_VISUALS } from "../../types/store";
 import type { StoreId } from "../../types/api";
 
@@ -55,22 +56,28 @@ export const StoreStorefrontButton: FC<Props> = ({
   const open = useCallback(async () => {
     setOpening(true);
     window.setTimeout(() => setOpening(false), PRESS_LOCKOUT_MS);
-    toast.info(t("storeConnections.storefrontOpening", { store: storeName }));
+    toast.info(
+      headerText("toasts.header.store", { storeName }),
+      toastText("toasts.storefrontOpening"),
+    );
+    let error: unknown = null;
     try {
       const result = await openStorefront(store);
-      if (!result.success) {
-        toast.error(
-          t("storeConnections.storefrontFailed", { store: storeName }),
-          result.error,
-        );
-      }
+      if (!result.success) error = result.error;
     } catch (e) {
+      error = e;
+    }
+    if (error !== null) {
+      console.error(
+        `[StoreStorefrontButton] ${store} storefront failed:`,
+        error,
+      );
       toast.error(
-        t("storeConnections.storefrontFailed", { store: storeName }),
-        e instanceof Error ? e.message : String(e),
+        headerText("toasts.header.store", { storeName }),
+        toastText("toasts.storefrontFailed"),
       );
     }
-  }, [store, storeName, toast, t]);
+  }, [store, storeName, toast]);
 
   if (!isConnected) return null;
   return (

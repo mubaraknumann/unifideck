@@ -569,6 +569,14 @@ SHARED_HELPERS: dict[str, str] = {
     # had their own; the two ``_refresh_token`` copies had diverged, and each
     # carried a defect the other had fixed. Register item 47.
     "_refresh_token": "stores/epic/launcher_auth.py",
+    # Cross-process ``fcntl.flock`` with a bounded wait. The GE-Proton
+    # installer was its first user and the Xbox PC component store its
+    # second; a third hand-rolled ``LOCK_NB`` poll loop is what this stops.
+    "flock_path": "launcher/proton/infrastructure/file_lock.py",
+    # Drain a store CLI's output, kill its process tree on a stall or any
+    # exception, then reap it. Promoted ahead of its second user (Xbox PC)
+    # so check 13 does not flag a copy of Epic's envelope.
+    "run_drained_cli": "stores/shared/cli_install_helpers.py",
 }
 
 DIVERGENCE_RE = re.compile(r"#\s*intentional-divergence:\s*\S")

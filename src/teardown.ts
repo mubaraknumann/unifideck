@@ -18,6 +18,7 @@ import { downloadStore } from "./stores/download-store";
 import { syncStore } from "./stores/sync-store";
 import { authStore } from "./stores/auth-store";
 import { storeInfoStore } from "./stores/store-info-store";
+import { xboxPcStore } from "./stores/xbox-pc-store";
 /**
  * Handles captured during bootstrap that {@link runTeardown}
  * must dispose on plugin unload. Currently the lifetime
@@ -39,6 +40,7 @@ export interface TeardownHandles {
   pluginUpdateNotice?: (() => void) | null;
   bootEventListener?: (() => void) | null;
   signedOutTabs?: (() => void) | null;
+  groupDuplicatesRefresh?: (() => void) | null;
 }
 /**
  * Run every disposer captured during bootstrap, in
@@ -66,6 +68,8 @@ const DISPOSERS: Record<keyof TeardownHandles, (h: TeardownHandles) => void> = {
   bootEventListener: (h) => h.bootEventListener?.(),
   launcherToastPoll: (h) => h.launcherToastPoll?.(),
   pluginUpdateNotice: (h) => h.pluginUpdateNotice?.(),
+  // Its window listener outlives a reload and would rebuild a stale tabManager.
+  groupDuplicatesRefresh: (h) => h.groupDuplicatesRefresh?.(),
   signedOutTabs: (h) => h.signedOutTabs?.(),
   // Unregisters from Steam's store-browser callback list and the router
   // history; a leak here would keep drawing ribbons after unload.
@@ -110,6 +114,11 @@ export function runTeardown(handles: TeardownHandles): void {
     storeInfoStore.stop();
   } catch (e) {
     console.warn("[Teardown] storeInfoStore stop failed:", e);
+  }
+  try {
+    xboxPcStore.stop();
+  } catch (e) {
+    console.warn("[Teardown] xboxPcStore stop failed:", e);
   }
   for (const [name, dispose] of Object.entries(DISPOSERS)) {
     try {

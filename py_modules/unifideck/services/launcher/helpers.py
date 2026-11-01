@@ -101,8 +101,28 @@ def prepare_native_env(ctx: LaunchContext) -> dict[str, str]:
 
 
 def _is_gog_dosbox_wrapper(ctx: LaunchContext) -> bool:
-    """Whether ``ctx`` is a GOG Linux-depot DOSBox title (``start.sh``)."""
-    return ctx.store == "gog" and ctx.exe_path.name == "start.sh"
+    """Whether ``ctx`` is a GOG Linux-depot DOSBox title.
+
+    Every GOG Linux build launches through ``start.sh``, so the script
+    alone does not mark a DOSBox title: the bundled ``dosbox/`` folder
+    beside it does, and it is what ``gog_linux_dosbox`` runs.
+    """
+    return (
+        ctx.store == "gog"
+        and ctx.exe_path.name == "start.sh"
+        and (ctx.exe_path.parent / "dosbox").is_dir()
+    )
+
+
+def _running_interpreter() -> str:
+    """Path of the Python running this launcher.
+
+    ``sys.executable`` was observed empty in a real Steam launch (the
+    launcher had been re-exec'd as a bare ``python3``), and exec'ing ``""``
+    crashed every GOG DOSBox launch. ``/proc/self/exe`` is the same
+    interpreter and needs no PATH.
+    """
+    return sys.executable or os.path.realpath("/proc/self/exe")
 
 
 def build_native_argv(
@@ -120,15 +140,15 @@ def build_native_argv(
     argv: list[str] = []
     if _is_gog_dosbox_wrapper(ctx):
         logger.info("[Helpers] using GOG DOSBox wrapper module for %s", exe_path)
-        # ``sys.executable`` — the interpreter already running this code
-        # (whatever ``unifideck-launcher``'s shebang resolved) — not a
-        # bare "python3" looked up on PATH, which can resolve to a
-        # different/absent interpreter depending on the scrubbed launch
-        # env. The module is stdlib-only, so no ABI-matching concern
-        # like umu's cryptography/cffi dependency (see
-        # ``find_python_3_10_plus``) applies here.
+        # The interpreter already running this code (whatever
+        # ``unifideck-launcher``'s shebang resolved) — not a bare "python3"
+        # looked up on PATH, which can resolve to a different/absent
+        # interpreter depending on the scrubbed launch env. The module is
+        # stdlib-only, so no ABI-matching concern like umu's
+        # cryptography/cffi dependency (see ``find_python_3_10_plus``)
+        # applies here.
         argv.extend([
-            sys.executable, "-m",
+            _running_interpreter(), "-m",
             "unifideck.launcher.proton.handlers.gog_linux_dosbox",
             str(exe_path),
         ])
@@ -160,57 +180,6 @@ def native_cwd(ctx: LaunchContext) -> Path:
     if exe_dir != ctx.work_dir and ctx.work_dir in exe_dir.parents:
         return exe_dir
     return ctx.work_dir
-
-
-async def run_native_subprocess(
-    svc: LauncherService, ctx: LaunchContext, state: RuntimeState,
-) -> int:
-    """Set up and run a native Linux game's subprocess, returning its exit code.
-
-    Chmods the executable bit (GOG's Linux depots don't always ship
-    one set), builds the DOSBox-aware/Steam-Runtime-wrapped argv, and
-    restores the Steam Overlay/Input env before spawning — see
-    ``build_native_argv``/``prepare_native_env``.
-    """
-    import asyncio
-
-    try:
-        await asyncio.to_thread(ctx.exe_path.chmod, 0o755)
-    except OSError as e:
-        logger.debug("[Helpers] chmod 755 failed on %s: %s", ctx.exe_path, e)
-
-    env = prepare_native_env(ctx)
-    cmd = build_native_argv(ctx, state, ctx.exe_path)
-    logger.info("[Helpers] Spawning native launch: %s", cmd)
-
-    # The DOSBox wrapper is itself a Python subprocess that can fail
-    # before ever exec'ing the real game (bad PYTHONPATH, missing
-    # module) — capture its stderr so that class of failure is logged
-    # instead of vanishing silently, as it did the first time this path
-    # actually ran (see ``prepare_native_env``'s PYTHONPATH fix). Every
-    # other native title inherits the parent's stdout/stderr directly,
-    # unchanged, since some expect a real terminal (console output,
-    # audio subsystem probes).
-    capture_stderr = _is_gog_dosbox_wrapper(ctx)
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        cwd=str(native_cwd(ctx)),
-        env=env,
-        stderr=asyncio.subprocess.PIPE if capture_stderr else None,
-    )
-    svc._active_subprocess = proc
-    try:
-        if capture_stderr:
-            _, stderr = await proc.communicate()
-            if proc.returncode != 0 and stderr:
-                logger.warning(
-                    "[Helpers] DOSBox wrapper exited %s: %s",
-                    proc.returncode, stderr.decode(errors="replace").strip(),
-                )
-            return proc.returncode or 0
-        return await proc.wait()
-    finally:
-        svc._active_subprocess = None
 
 
 @functools.lru_cache(maxsize=1)
@@ -252,12 +221,12 @@ async def _emit_cloud_unavailable_toast(
 
         await emit_stage(
             svc._bus,
-            i18n_key="cloudSync.unavailableNativeDep",
+            i18n_title_key="toasts.header.cloudSaves",
+            i18n_key="toasts.cloudSavesOffBody",
             game_title=getattr(ctx, "game_key", None)
             or f"{ctx.store}:{ctx.game_id}",
             priority="low",
             severity="warning",
-            i18n_params={"python": py_ver},
         )
     except Exception as e:  # never let a toast break a launch
         logger.debug("[Helpers] cloud-unavailable toast failed: %s", e)

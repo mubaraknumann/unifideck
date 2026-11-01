@@ -512,11 +512,21 @@ setStoreCountSink((counts) => {
   if (tabManager.isInitialized()) tabManager.rebuildTabs();
 });
 
-// Force every tab's ``buildCollection`` to re-run when the "Group
-// duplicates" setting flips, so grouping takes effect immediately
-// instead of waiting for the next unrelated re-render. The filter
-// functions themselves read the setting live either way (no caching),
-// so this is a live-refresh nicety, not a correctness requirement.
-window.addEventListener(GROUP_DUPLICATES_EVENT, () => {
+function onGroupDuplicatesChange(): void {
   if (tabManager.isInitialized()) tabManager.rebuildTabs();
-});
+}
+
+/** Re-run every tab's ``buildCollection`` when the "Group duplicates"
+ *  setting flips, so grouping takes effect immediately instead of waiting
+ *  for the next unrelated re-render. The filter functions read the setting
+ *  on every pass either way, so this is a live-refresh nicety, not a
+ *  correctness requirement.
+ *
+ *  Attached from plugin init and disposed through `teardown.ts`, not at
+ *  module scope: `window` outlives a Decky reload, so a module-level
+ *  listener piled up one per reload, each rebuilding a stale `tabManager`. */
+export function attachGroupDuplicatesRefresh(): () => void {
+  window.addEventListener(GROUP_DUPLICATES_EVENT, onGroupDuplicatesChange);
+  return () =>
+    window.removeEventListener(GROUP_DUPLICATES_EVENT, onGroupDuplicatesChange);
+}

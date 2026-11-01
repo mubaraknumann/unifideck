@@ -22,6 +22,14 @@ though ``bsdtar`` reads every one of them. They now map to
 means "the ladder knows what this is". A format the host's libarchive was
 built without still fails, but with the ladder's "tried bsdtar, 7z" message,
 which names the missing tool.
+
+**A zip is only unpacked by the stdlib when the stdlib can read every member.**
+The zip container allows compression methods Python's ``zipfile`` does not
+decode — Zstandard (method 93) before Python 3.14, Deflate64, PPMd. Such a
+zip used to fail at the first member with "That compression method is not
+supported", which reads as "this file type is not supported" even though
+``bsdtar`` on the same Deck reads it. ``_zip_needs_tool`` checks the central
+directory first and sends those zips down the extractor ladder instead.
 """
 
 from __future__ import annotations
@@ -70,6 +78,20 @@ _ISO_MAGIC = b"CD001"
 _EXTRACTORS: tuple[str, ...] = ("bsdtar", "7z", "unrar")
 
 _SFX_SCAN_BYTES = 512 * 1024
+
+# Compression methods the running ``zipfile`` decodes. Zstandard joins the
+# set on Python 3.14+, where the stdlib gained it.
+_STDLIB_ZIP_METHODS: frozenset[int] = frozenset(
+    method
+    for method in (
+        zipfile.ZIP_STORED,
+        zipfile.ZIP_DEFLATED,
+        zipfile.ZIP_BZIP2,
+        zipfile.ZIP_LZMA,
+        getattr(zipfile, "ZIP_ZSTANDARD", None),
+    )
+    if method is not None
+)
 
 
 def mkdir_p(path: Path) -> None:
@@ -146,9 +168,30 @@ async def extract_archive(archive: Path, dest: Path) -> None:
         raise RuntimeError(f"Unknown archive format: {archive.name}")
     await asyncio.to_thread(mkdir_p, dest)
     if fmt == _ARCH_ZIP:
-        await _extract_zip_interruptible(archive, dest)
-        return
+        foreign = await asyncio.to_thread(_zip_needs_tool, archive)
+        if not foreign:
+            await _extract_zip_interruptible(archive, dest)
+            return
+        logger.info(
+            "%s %s uses zip compression method(s) %s the stdlib cannot read; "
+            "extracting with an external tool",
+            _LOG_PREFIX, archive.name, sorted(foreign),
+        )
     await _extract_with_tool(archive, dest, fmt)
+
+
+def _zip_needs_tool(archive: Path) -> frozenset[int]:
+    """The compression methods in *archive* the stdlib cannot decode.
+
+    Empty means ``zipfile`` can unpack every member. Reads only the central
+    directory, so it costs the same for a 100 GB archive as for a small one.
+    """
+    with zipfile.ZipFile(archive, "r") as zf:
+        return frozenset(
+            info.compress_type
+            for info in zf.infolist()
+            if info.compress_type not in _STDLIB_ZIP_METHODS
+        )
 
 
 async def _extract_zip_interruptible(archive: Path, dest: Path) -> None:

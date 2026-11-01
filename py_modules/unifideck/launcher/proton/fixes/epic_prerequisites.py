@@ -69,7 +69,7 @@ async def apply_epic_prerequisites(plan: ProtonLaunchPlan) -> bool:
     )
     launcher_toast(
         "toasts.launcher.installingPrerequisites",
-        i18n_title_key="toasts.launcher.prerequisitesTitle",
+        i18n_title_key="toasts.header.gameSetup",
         game_title=plan.context.game_key,
     )
     ok = await _run_prerequisite(plan, prereq, prefix_root)
@@ -81,7 +81,7 @@ async def apply_epic_prerequisites(plan: ProtonLaunchPlan) -> bool:
         )
         launcher_toast(
             "toasts.launcher.prerequisitesInstalled",
-            i18n_title_key="toasts.launcher.prerequisitesReady",
+            i18n_title_key="toasts.header.gameSetup",
             game_title=plan.context.game_key,
         )
     else:
@@ -90,7 +90,7 @@ async def apply_epic_prerequisites(plan: ProtonLaunchPlan) -> bool:
         )
         launcher_toast(
             "toasts.launcher.prerequisitesFailedMessage",
-            i18n_title_key="toasts.launcher.prerequisitesFailed",
+            i18n_title_key="toasts.header.gameSetup",
             game_title=plan.context.game_key,
             severity="warning",
         )

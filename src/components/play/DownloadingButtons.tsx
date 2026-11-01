@@ -7,12 +7,13 @@
  *   [ Cancel ]   Extracting · 76% · 404 MB / 564 MB · 19.6 MB/s · ETA 00:00:08
  *               ────────────────────  (progress bar)
  *
- * Indeterminate phases (``extracting`` / ``verifying``) render
- * the slide animation instead of a fractional bar so the user
- * still sees a "working" signal. Cancel opens a ``ConfirmModal``
- * (destructive) before dispatching the cancel RPC — the staging
- * UX had instant cancel which led to accidental cancellations
- * during animation flashes.
+ * Indeterminate phases (``starting`` / ``extracting`` /
+ * ``verifying`` / ``finalizing`` and the rest listed in
+ * ``lib/download-phase``) render the slide animation instead of a
+ * fractional bar so the user still sees a "working" signal. Cancel
+ * opens a ``ConfirmModal`` (destructive) before dispatching the
+ * cancel RPC — the staging UX had instant cancel which led to
+ * accidental cancellations during animation flashes.
  */
 import { FC, useCallback, useState } from "react";
 import { DialogButton, ConfirmModal, showModal } from "@decky/ui";
@@ -21,8 +22,10 @@ import { FaTimes } from "react-icons/fa";
 import { useDownloads } from "../../contexts/DownloadContext";
 import { useGameActions } from "../../hooks/useGameActions";
 import { useToast } from "../../hooks/useToast";
+import { toastText, headerText } from "../../services/toast-text";
 import { SteamBridge } from "../../lib/steam-bridge";
 import type { DownloadItem } from "../../types/downloads";
+import { showsPercent } from "../../lib/download-phase";
 import { PlayShell, actionBtnStyle, actionBtnClass } from "./PlayMeta";
 import { DownloadProgressRow } from "../downloads/DownloadProgressRow";
 
@@ -53,14 +56,13 @@ export const DownloadingButtons: FC<Props> = ({
       // refetch nothing else would ever replace it — the button stayed live
       // and the user could sit here failing the same cancel forever.
       void downloads.refresh();
+      console.error("[DownloadingButtons] cancel failed:", result?.error);
       toast.error(
-        t("toasts.cancelFailed"),
-        t("downloadsTab.toastCancelFailedBody", {
-          error: result?.error ?? t("common.unknown"),
-        }),
+        headerText("toasts.header.download"),
+        toastText("toasts.cancelFailed"),
       );
     }
-  }, [actions, download.id, downloads, t, toast]);
+  }, [actions, download.id, downloads, toast]);
 
   const onCancelClick = useCallback(() => {
     if (cancelled) return;
@@ -93,13 +95,11 @@ export const DownloadingButtons: FC<Props> = ({
         <FaTimes />
         {cancelled
           ? t("play.cancelling")
-          : download.download_phase === "manual" ||
-            download.download_phase === "preparing" ||
-            download.download_phase === "extracting"
-          ? t("play.cancel")
-          : `${t("play.cancel")} (${Math.round(
+          : showsPercent(download.download_phase)
+          ? `${t("play.cancel")} (${Math.round(
               Math.max(0, Math.min(100, download.progress_percent)),
-            )}%)`}
+            )}%)`
+          : t("play.cancel")}
       </DialogButton>
       <DownloadProgressRow download={download} marginInlineStart={20} />
     </PlayShell>

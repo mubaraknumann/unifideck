@@ -222,7 +222,7 @@ def _handle_proton_change(
         if _should_reset_for_proton(plan, previous, current):
             launcher_toast(
                 "toasts.launcher.resettingPrefix",
-                i18n_title_key="toasts.launcher.protonUpgrade",
+                i18n_title_key="toasts.header.proton",
                 i18n_params={"version": current},
                 game_title=plan.context.game_key,
                 severity="warning",
@@ -231,7 +231,7 @@ def _handle_proton_change(
         else:
             launcher_toast(
                 "toasts.launcher.protonSwitchedTo",
-                i18n_title_key="toasts.launcher.protonUpgrade",
+                i18n_title_key="toasts.header.proton",
                 i18n_params={"version": current},
                 game_title=plan.context.game_key,
             )
@@ -318,7 +318,7 @@ async def _ensure_created(plan: ProtonLaunchPlan, prefix_root: Path) -> None:
     logger.info("[prefix_init] initialising prefix %s", prefix_root)
     launcher_toast(
         "toasts.launcher.initializingPrefix",
-        i18n_title_key="toasts.launcher.firstTimeSetup",
+        i18n_title_key="toasts.header.gameSetup",
         game_title=plan.context.game_key,
     )
     # ``_handle_proton_change`` (called just before) already created the
@@ -335,7 +335,7 @@ async def _ensure_created(plan: ProtonLaunchPlan, prefix_root: Path) -> None:
         await restore_or_migrate_saves(plan, prefix_root)
         launcher_toast(
             "toasts.launcher.prefixInitialized",
-            i18n_title_key="toasts.launcher.setupCompleteTitle",
+            i18n_title_key="toasts.header.gameSetup",
             game_title=plan.context.game_key,
         )
         return
@@ -344,7 +344,7 @@ async def _ensure_created(plan: ProtonLaunchPlan, prefix_root: Path) -> None:
     logger.warning("[prefix_init] createprefix failed; trying wineboot --init")
     launcher_toast(
         "toasts.launcher.fallbackInitialization",
-        i18n_title_key="toasts.launcher.setupFallback",
+        i18n_title_key="toasts.header.gameSetup",
         game_title=plan.context.game_key,
         severity="warning",
     )
@@ -408,7 +408,7 @@ async def _run_createprefix_with_retry(
         if attempt < _CREATEPREFIX_ATTEMPTS:
             launcher_toast(
                 "toasts.launcher.retryingUmu",
-                i18n_title_key="toasts.launcher.launchRetry",
+                i18n_title_key="toasts.header.gameSetup",
                 i18n_params={
                     "seconds": wait,
                     "attempt": attempt + 1,

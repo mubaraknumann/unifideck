@@ -143,8 +143,76 @@ async def test_catalog_failure_still_serves_the_cached_entry(
 
 @pytest.mark.asyncio
 async def test_negative_entry_short_circuits_before_topup(_stub_fetch) -> None:
-    cache = _Cache({"gog:1207666643": {"_negative": True}})
+    cache = _Cache({"gog:1207666643": {"_negative": True, "title": "Bastion"}})
     calls = _stub_fetch(_FRESH_UNIFIDB)
 
     assert await _service(cache).enrich(_game()) == {}
     assert calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("marker", [
+    {"_negative": True, "title": "Bastion FitGirl"},
+    {"_negative": True},  # written before the title was recorded
+])
+async def test_negative_entry_for_another_title_is_retried(
+    _stub_fetch, monkeypatch, marker,
+) -> None:
+    """A miss is about the title that was searched; a corrected title
+    (an uploader tag stripped, a curated rename) must be asked about."""
+    async def no_steam(*_a, **_k):
+        return {}
+    monkeypatch.setattr(
+        metadata_service.metadata_sources, "fetch_steam_store", no_steam,
+    )
+    cache = _Cache({"gog:1207666643": dict(marker)})
+    calls = _stub_fetch(_FRESH_UNIFIDB)
+
+    out = await _service(cache).enrich(_game())
+
+    assert calls == ["Bastion"]
+    assert out["description"] == "An action RPG."
+    assert "_negative" not in cache.store["gog:1207666643"]
+
+
+@pytest.mark.asyncio
+async def test_a_new_miss_records_the_title_it_searched(
+    _stub_fetch, monkeypatch,
+) -> None:
+    async def no_steam(*_a, **_k):
+        return {}
+    monkeypatch.setattr(
+        metadata_service.metadata_sources, "fetch_steam_store", no_steam,
+    )
+    cache = _Cache()
+    _stub_fetch({})
+
+    assert await _service(cache).enrich(_game()) == {}
+    assert cache.store["gog:1207666643"] == {"_negative": True, "title": "Bastion"}
+
+
+@pytest.mark.asyncio
+async def test_topup_fills_empty_description_and_publisher(_stub_fetch) -> None:
+    """Both were read under names the catalog never used, so every cached
+    entry holds them empty; the top-up fills them without re-fetching Steam."""
+    entry = {"description": "", "publisher": "", "genres": ["RPG"]}
+    cache = _Cache({"gog:1207666643": entry})
+    _stub_fetch({"description": "An action RPG.", "publisher": "Supergiant"})
+
+    out = await _service(cache).enrich(_game())
+
+    assert out["description"] == "An action RPG."
+    assert out["publisher"] == "Supergiant"
+    assert out["genres"] == ["RPG"]
+
+
+@pytest.mark.asyncio
+async def test_topup_never_overwrites_a_filled_description(_stub_fetch) -> None:
+    entry = {"description": "Steam copy.", "publisher": "Steam Pub"}
+    cache = _Cache({"gog:1207666643": entry})
+    _stub_fetch({"description": "Catalog copy.", "publisher": "Catalog Pub"})
+
+    out = await _service(cache).enrich(_game())
+
+    assert out["description"] == "Steam copy."
+    assert out["publisher"] == "Steam Pub"

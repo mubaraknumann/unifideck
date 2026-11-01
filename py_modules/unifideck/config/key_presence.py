@@ -136,6 +136,9 @@ RUNTIME_REQUIRED_KEYS: tuple[str, ...] = (
     "stores.epic.user_file",
     "stores.gog.client_secret",
     "stores.microsoft.subscription_check_url",
+    "stores.microsoft.xbox_pc.enabled",
+    "stores.microsoft.xbox_pc.notice_ack_version",
+    "stores.microsoft.xbox_pc.source",
     # sync
     "sync.artwork_concurrency",
     # ui

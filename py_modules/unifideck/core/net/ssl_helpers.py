@@ -32,10 +32,14 @@ _permissive_warned = False
 def ssl_ctx_strict() -> ssl.SSLContext:
     """Return the shared strict-mode SSLContext (singleton).
 
-    Equivalent to ``ssl.create_default_context()`` —
-    enforces hostname check + full cert chain verification.
-    Used everywhere by default; should be the first choice
-    unless the endpoint is known broken.
+    Enforces hostname check + full cert chain verification against the
+    system trust store **plus** the vendored ``certifi`` bundle. Adding
+    certifi's roots (never replacing the system's) answers the "outdated
+    Deck cert store" problem that ``ssl_ctx_permissive`` was reached for:
+    a stale OS store still verifies against a current Mozilla root set,
+    and a host the OS trusts keeps working. Should be the first choice
+    for every endpoint, and the only one for anything carrying a
+    credential.
 
     Returns:
         The cached strict context. Subsequent calls are
@@ -45,15 +49,32 @@ def ssl_ctx_strict() -> ssl.SSLContext:
     if _strict_ctx is None:
         with _strict_lock:
             if _strict_ctx is None:
-                _strict_ctx = ssl.create_default_context()
+                ctx = ssl.create_default_context()
+                _add_certifi_roots(ctx)
+                _strict_ctx = ctx
     return _strict_ctx
+
+
+def _add_certifi_roots(ctx: ssl.SSLContext) -> None:
+    """Load the vendored certifi bundle into ``ctx``, if it is present."""
+    try:
+        import certifi  # vendored in py_modules/
+
+        ctx.load_verify_locations(cafile=certifi.where())
+    except (ImportError, OSError, ssl.SSLError) as exc:
+        logger.warning(
+            "[ssl_helpers] certifi bundle unavailable (%s); verifying "
+            "against the system trust store only", exc,
+        )
 
 def ssl_ctx_permissive(reason: str) -> ssl.SSLContext:
     """Return the permissive SSLContext (hostname + cert checks disabled).
 
-    Used only for a handful of stores that ship
-    self-signed certs (CDP-driven Microsoft login pages,
-    certain Ubisoft endpoints). The first call logs at
+    Never for an endpoint that sends or returns a credential
+    (OAuth, Xbox Live / XSTS, store sessions): an attacker on
+    the same network can impersonate any host to it. Every
+    Microsoft endpoint uses :func:`ssl_ctx_strict`, and a test
+    keeps it that way (``test_microsoft_strict_tls``). The first call logs at
     WARN with the caller-supplied ``reason`` so operators
     can audit why permissive mode was needed.
 

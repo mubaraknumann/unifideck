@@ -268,3 +268,19 @@ def test_default_tier_skips_a_manifestless_cached_ge(tmp_path, monkeypatch):
     )
 
     assert selector._default_latest_ge([]) == (experimental, "proton_experimental")
+
+
+def test_damage_marked_ge_is_not_installed(tmp_path, monkeypatch):
+    """A tree a failed run found damaged stops being picked, so it gets replaced."""
+    from unifideck.launcher.proton.infrastructure import proton_integrity
+
+    root = _managed_root(tmp_path, monkeypatch)
+    proton = _make_proton(root / _TAG)
+    assert ge_installer.installed_ge_proton_path(_TAG) == proton
+
+    proton_integrity.mark_damaged(root / _TAG, "x86_64-windows/shell32.dll replaced")
+
+    assert ge_installer.installed_ge_proton_path(_TAG) is None
+    assert ge_installer.proton_install_problem(proton) == (
+        "damaged: x86_64-windows/shell32.dll replaced"
+    )

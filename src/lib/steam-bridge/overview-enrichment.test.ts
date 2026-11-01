@@ -80,6 +80,8 @@ interface TestOverview {
   rt_steam_release_date?: number;
   review_score_with_bombs?: number;
   review_percentage_with_bombs?: number;
+  review_score_without_bombs?: number;
+  review_percentage_without_bombs?: number;
   steam_hw_compat_category_packed?: number;
   m_setStoreCategories?: Set<number>;
   m_setStoreTags?: Set<number>;
@@ -134,6 +136,9 @@ describe("overview enrichment — rt_purchased_time", () => {
     expect(ov.rt_steam_release_date).toBe(RELEASE_UNIX);
     expect(ov.review_score_with_bombs).toBe(8);
     expect(ov.review_percentage_with_bombs).toBe(95);
+    // Steam reads this pair under the default review preference.
+    expect(ov.review_score_without_bombs).toBe(8);
+    expect(ov.review_percentage_without_bombs).toBe(95);
     // Each device's rating lands in its own 2-bit slot: deck at 0,
     // steamos at 4, machine at 6. Writing only the Deck's is what made
     // our shortcuts invisible to a Steam Machine's native filters.

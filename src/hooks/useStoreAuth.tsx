@@ -17,12 +17,17 @@
 import { useCallback, useState } from "react";
 import { call } from "@decky/api";
 import { showModal } from "@decky/ui";
-import { useTranslation } from "react-i18next";
 import { rpcRoutes } from "../api/rpc-routes";
 import { prepareForSync } from "../lib/steam-bridge/prepare-sync";
 import { useAuth } from "../contexts/AuthContext";
 import { useStores } from "../contexts/StoreContext";
 import { useToast } from "./useToast";
+import {
+  toastText,
+  headerText,
+  type ToastKey,
+  type ToastString,
+} from "../services/toast-text";
 import { AuthDispatcher } from "../services/auth/AuthDispatcher";
 import { ChromiumInstallModal } from "../components/modals/ChromiumInstallModal";
 import { STORE_VISUALS } from "../types/store";
@@ -48,26 +53,37 @@ const NETWORK_ERROR_CODES = new Set([
  * time before it shows the API-keys page, and a new account has to press
  * "Generate new API key" there once.
  */
-const SIGN_IN_HINT_KEYS: Partial<Record<StoreId, string>> = {
-  itch: "auth.hints.itch",
-  microsoft: "auth.hints.microsoft",
+const SIGN_IN_HINT_KEYS: Partial<Record<StoreId, ToastKey>> = {
+  itch: "toasts.auth.hintItch",
+  microsoft: "toasts.auth.hintMicrosoft",
 };
 
 /**
  * Backend sign-in failures that have a sentence of their own (the Microsoft
  * device-code flow, `MicrosoftDeviceAuth`, and itch.io's "no key on the page
- * can read the library", `stores/itch/auth.py`). Anything else shows its raw
- * code under the generic "sign-in failed" title, as before.
+ * can read the library", `stores/itch/auth.py`). Anything else is logged
+ * and shows the generic reason under the "sign-in failed" title: a toast has
+ * no room for a raw code.
  */
-const ERROR_KEYS: Record<string, string> = {
-  device_code_expired: "auth.errors.codeExpired",
-  access_denied: "auth.errors.accessDenied",
-  no_xbox_profile: "auth.errors.noXboxProfile",
-  child_account: "auth.errors.childAccount",
-  region_unavailable: "auth.errors.regionUnavailable",
-  client_rejected: "auth.errors.clientRejected",
-  itch_key_limited: "auth.errors.itchKeyLimited",
+const ERROR_KEYS: Record<string, ToastKey> = {
+  device_code_expired: "toasts.auth.codeExpired",
+  access_denied: "toasts.auth.accessDenied",
+  no_xbox_profile: "toasts.auth.noXboxProfile",
+  child_account: "toasts.auth.childAccount",
+  region_unavailable: "toasts.auth.regionUnavailable",
+  client_rejected: "toasts.auth.clientRejected",
+  itch_key_limited: "toasts.auth.itchKeyLimited",
+  // With Xbox PC on, Connect Microsoft is the Xodus sign-in (I-062).
+  xbox_refused: "toasts.downloadError.xboxRefused",
 };
+
+/** The reason a sign-in failed, short enough for the toast body. */
+function failureReason(store: StoreId, error: string | undefined): ToastString {
+  const key = error ? ERROR_KEYS[error] : undefined;
+  if (key) return toastText(key);
+  console.error(`[useStoreAuth:${store}] sign-in failed:`, error);
+  return toastText("toasts.auth.generic");
+}
 
 /** The user pressed Cancel; telling them it failed would be noise. */
 const SILENT_ERRORS = new Set(["cancelled"]);
@@ -100,7 +116,6 @@ export function useStoreAuth(store: StoreId): UseStoreAuthResult {
   const auth = useAuth();
   const { stores } = useStores();
   const toast = useToast();
-  const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   const info = stores.find((s) => s.name === store) ?? null;
   const status = auth.statuses[store];
@@ -126,7 +141,10 @@ export function useStoreAuth(store: StoreId): UseStoreAuthResult {
       if (result === null) return null;
       if (result.success) {
         auth.notifyConnected(store);
-        toast.success(t("auth.toasts.connected", { store: storeName }));
+        toast.success(
+          headerText("toasts.header.store", { storeName }),
+          toastText("toasts.auth.connected"),
+        );
         // The dispatcher's post-login sync, which this branch never reaches.
         // Fire-and-forget for the same reason it is there: the backend queues
         // it behind any in-flight sync (SyncService._enqueue), and awaiting
@@ -142,8 +160,8 @@ export function useStoreAuth(store: StoreId): UseStoreAuthResult {
           });
       } else {
         toast.error(
-          t("auth.toasts.failed", { store: storeName }),
-          result.error,
+          headerText("toasts.header.store", { storeName }),
+          failureReason(store, result.error),
         );
       }
       return result;
@@ -153,8 +171,8 @@ export function useStoreAuth(store: StoreId): UseStoreAuthResult {
     try {
       const hintKey = SIGN_IN_HINT_KEYS[store];
       toast.info(
-        t("auth.toasts.signingIn", { store: storeName }),
-        hintKey ? t(hintKey) : undefined,
+        headerText("toasts.header.store", { storeName }),
+        hintKey ? toastText(hintKey) : toastText("toasts.auth.signingIn"),
       );
       const result = await AuthDispatcher.start(store);
       // Browser-based OAuth needs Microsoft Edge. When the
@@ -175,34 +193,35 @@ export function useStoreAuth(store: StoreId): UseStoreAuthResult {
       }
       if (result.success) {
         auth.notifyConnected(store);
-        toast.success(t("auth.toasts.connected", { store: storeName }));
+        toast.success(
+          headerText("toasts.header.store", { storeName }),
+          toastText("toasts.auth.connected"),
+        );
       } else if (result.error && SILENT_ERRORS.has(result.error)) {
         // Cancelled by the user: nothing to report.
-      } else if (result.error && ERROR_KEYS[result.error]) {
-        toast.error(
-          t("auth.toasts.failed", { store: storeName }),
-          t(ERROR_KEYS[result.error]),
-        );
       } else if (result.error && NETWORK_ERROR_CODES.has(result.error)) {
         toast.error(
-          t("auth.errors.networkTitle"),
-          t("auth.errors.networkBody"),
+          headerText("toasts.header.store", { storeName }),
+          toastText("toasts.auth.networkBody"),
         );
       } else {
         toast.error(
-          t("auth.toasts.failed", { store: storeName }),
-          result.error,
+          headerText("toasts.header.store", { storeName }),
+          failureReason(store, result.error),
         );
       }
       return result;
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      toast.error(t("auth.toasts.failed", { store: storeName }), message);
+      toast.error(
+        headerText("toasts.header.store", { storeName }),
+        failureReason(store, message),
+      );
       return { success: false, store, error: message };
     } finally {
       setBusy(false);
     }
-  }, [store, storeName, toast, auth, t]);
+  }, [store, storeName, toast, auth]);
 
   const disconnect = useCallback(async () => {
     setBusy(true);

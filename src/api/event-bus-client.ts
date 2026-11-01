@@ -39,6 +39,7 @@ const WATCHED_EVENTS: EventName[] = [
   "store_auth_failed",
   "store_logout",
   "store_registered",
+  "xbox_pc_state_changed",
   "sync_started",
   "sync_progress",
   "sync_complete",
@@ -111,6 +112,10 @@ const STALE_ON_RELOAD_EVENTS = new Set<string>([
   "sync_skipped",
   "post_sync_phase_changed",
   "shortcut_reconcile_complete",
+  // A whole Xbox PC status snapshot. One replayed from a prior session
+  // would overwrite the fresh status that `xbox-pc-store` fetches on start
+  // (a runtime install that ended long ago would show as running again).
+  "xbox_pc_state_changed",
 ]);
 
 type Handler = (payload: Record<string, unknown>) => void;

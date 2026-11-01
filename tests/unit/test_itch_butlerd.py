@@ -35,7 +35,9 @@ class _Server:
             self.received.append(msg)
             if "method" in msg:
                 for out in await self.handler(msg):
-                    writer.write((json.dumps(out) + "\n").encode())
+                    # bytes go out verbatim, so a test can send a broken frame
+                    raw = out if isinstance(out, bytes) else (json.dumps(out) + "\n").encode()
+                    writer.write(raw)
                     await writer.drain()
         writer.close()
 
@@ -151,6 +153,38 @@ async def test_dropped_connection_fails_waiting_calls_instead_of_hanging() -> No
         srv.close()
 
 
+async def test_a_broken_frame_is_skipped_not_fatal() -> None:
+    async def handler(msg: dict[str, Any]) -> list[Any]:
+        return [b"this is not json\n", "a json string, not an object", _ok(msg, {"n": 1})]
+
+    conn, _, srv = await _connect(handler)
+    try:
+        assert await conn.call("A") == {"n": 1}
+        assert not conn.closed
+    finally:
+        await conn.close()
+        srv.close()
+
+
+async def test_a_failing_notification_handler_does_not_end_the_connection() -> None:
+    async def handler(msg: dict[str, Any]) -> list[dict[str, Any]]:
+        return [
+            {"jsonrpc": "2.0", "method": "Progress", "params": {"progress": 0.5}},
+            _ok(msg, {"n": 1}),
+        ]
+
+    def broken_hook(_method: str, _params: dict[str, Any]) -> None:
+        raise RuntimeError("bug in a progress hook")
+
+    conn, _, srv = await _connect(handler, on_notification=broken_hook)
+    try:
+        assert await conn.call("A") == {"n": 1}
+        assert await conn.call("B") == {"n": 1}
+    finally:
+        await conn.close()
+        srv.close()
+
+
 # ── ButlerDaemon against a fake butler executable ─────────────────────
 _FAKE_BUTLER = textwrap.dedent('''\
     #!{python}
@@ -186,6 +220,8 @@ _FAKE_BUTLER = textwrap.dedent('''\
         finally:
             conns.discard(writer)
     async def main():
+        if os.environ.get("FAKE_BUTLER_SILENT"):
+            await asyncio.sleep(3600)   # alive, but never announces its port
         srv = await asyncio.start_server(serve, "127.0.0.1", 0)
         port = srv.sockets[0].getsockname()[1]
         print(json.dumps({{"type": "log", "level": "info", "message": "creating new DB"}}), flush=True)
@@ -280,3 +316,40 @@ def test_has_database_reflects_the_file(tmp_path: Path) -> None:
     assert daemon.has_database is False
     db.write_text("")
     assert daemon.has_database is True
+
+
+async def test_a_daemon_that_never_listens_is_killed_and_retried(
+    fake_butler: tuple[Path, Path], tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A slow start used to leave a live, port-less daemon behind: every
+    later call skipped the restart and failed until the plugin restarted."""
+    from unifideck.stores.itch import butlerd
+
+    exe, _ = fake_butler
+    monkeypatch.setattr(butlerd, "_LISTEN_TIMEOUT_S", 0.5)
+    monkeypatch.setenv("FAKE_BUTLER_SILENT", "1")
+    daemon = ButlerDaemon(str(exe), str(tmp_path / "butler.db"))
+    spawned: list[Any] = []
+    real_spawn = daemon._spawn
+
+    async def spy(cli_path: str) -> Any:
+        spawned.append(await real_spawn(cli_path))
+        return spawned[-1]
+
+    monkeypatch.setattr(daemon, "_spawn", spy)
+    try:
+        with pytest.raises(ButlerdError, match="did not start"):
+            await daemon.call("Profile.List")
+        assert spawned[0].returncode is not None  # the silent daemon was killed
+
+        monkeypatch.delenv("FAKE_BUTLER_SILENT")
+        assert (await daemon.call("Profile.List"))["profiles"] == [{"id": 7}]
+        assert len(spawned) == 2
+    finally:
+        await daemon.shutdown()
+
+
+async def test_an_unrunnable_binary_is_a_butlerd_error(tmp_path: Path) -> None:
+    daemon = ButlerDaemon(str(tmp_path / "no-such-butler"), str(tmp_path / "butler.db"))
+    with pytest.raises(ButlerdError, match="did not start"):
+        await daemon.call("Profile.List")

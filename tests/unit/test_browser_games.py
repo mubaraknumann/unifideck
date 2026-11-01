@@ -63,6 +63,18 @@ def test_microsoft_title_missing_from_the_cache_is_still_a_stream(cache: Any) ->
     assert target is not None and target.kind == "stream" and target.url.endswith("/ABC")
 
 
+def test_pc_only_xbox_title_is_not_a_stream(cache: Any) -> None:
+    cache({"microsoft": [{"store_game_id": "9PK087LNGJC5", "tags": ["xbox_pc"], "metadata": {}}]})
+    assert browser_target("microsoft", "9PK087LNGJC5") is None
+
+
+def test_merged_xbox_pc_title_without_install_still_streams(cache: Any) -> None:
+    url = "https://www.xbox.com/play/launch/9PK087LNGJC5"
+    cache({"microsoft": [{"store_game_id": "9PK087LNGJC5", "tags": ["xcloud", "browser", "xbox_pc"],
+                          "metadata": {"browser_url": url}}]})
+    assert browser_target("microsoft", "9PK087LNGJC5") == BrowserTarget(url=url, kind="stream")
+
+
 def test_unreadable_cache_means_no_record(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     bad = tmp_path / "library_cache.json"
     bad.write_text("{not json")
@@ -79,3 +91,99 @@ def test_microsoft_catalog_marks_xcloud_titles_as_browser_games() -> None:
     )
     assert games[0].tags == ["xcloud", "browser"]
     assert games[0].metadata["browser_url"] == "https://www.xbox.com/play/launch/9NBLGGH4PNC7"
+
+
+# ── Only allowed origins open, and web games never see the sign-in profile ──
+@pytest.mark.parametrize(("url", "kind", "allowed"), [
+    ("https://poncle.itch.io/vampire-survivors", "web", True),
+    ("https://itch.io/embed-upload/123", "web", True),
+    ("http://poncle.itch.io/game", "web", False),            # not https
+    ("javascript:alert(1)", "web", False),
+    ("file:///home/deck/.ssh/id_rsa", "web", False),
+    ("https://itch.io.evil.example/login", "web", False),     # look-alike host
+    ("https://evilitch.io/game", "web", False),
+    ("https://www.xbox.com/play/launch/9NBLGGH4PNC7", "web", False),
+    ("https://www.xbox.com/play/launch/9NBLGGH4PNC7", "stream", True),
+    ("https://poncle.itch.io/game", "stream", False),
+    ("https://login.example/xbox.com", "stream", False),
+])
+def test_is_allowed_browser_url(url: str, kind: str, allowed: bool) -> None:
+    assert browser_games.is_allowed_browser_url(url, kind) is allowed
+
+
+def test_a_web_game_with_a_foreign_url_is_not_launched(cache: Any) -> None:
+    cache({"itch": [{"store_game_id": "1", "tags": ["browser"],
+                     "metadata": {"browser_url": "https://phish.example/itch-login"}}]})
+    assert browser_target("itch", "1") is None
+
+
+def test_a_stream_with_a_foreign_url_falls_back_to_xbox(cache: Any) -> None:
+    cache({"microsoft": [{"store_game_id": "ABC", "tags": ["xcloud", "browser"],
+                          "metadata": {"browser_url": "https://phish.example/play"}}]})
+    assert browser_target("microsoft", "ABC") == BrowserTarget(
+        url="https://www.xbox.com/play/launch/ABC", kind="stream")
+
+
+def _spawned_args(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, kind: str) -> list[str]:
+    from unifideck.auth.edge_browser import edge, launch
+
+    monkeypatch.setattr(edge, "WEB_GAME_PROFILE_DIR", str(tmp_path / "edge-webgames"))
+    monkeypatch.setattr(launch, "_prepare_for_launch", lambda _b: ["edge"])
+    captured: list[list[str]] = []
+    monkeypatch.setattr(
+        launch, "_spawn_edge_process",
+        lambda _b, args, **_k: captured.append(args) or True,
+    )
+
+    class _Browser:
+        def browser_game_cdp_port(self) -> int:
+            return 9223
+
+        def locale_fn(self) -> str:
+            return "en-US"
+
+    assert launch.launch_browser_game(_Browser(), "https://x", kind=kind)  # type: ignore[arg-type]
+    return captured[0]
+
+
+def test_web_game_runs_in_its_own_profile(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from unifideck.auth.edge_browser.edge import PROFILE_DIR
+
+    args = _spawned_args(monkeypatch, tmp_path, "web")
+    assert f"--user-data-dir={tmp_path / 'edge-webgames'}" in args
+    assert f"--user-data-dir={PROFILE_DIR}" not in args
+    assert (tmp_path / "edge-webgames").is_dir()
+
+
+def test_xcloud_stream_keeps_the_sign_in_profile(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from unifideck.auth.edge_browser.edge import PROFILE_DIR
+
+    args = _spawned_args(monkeypatch, tmp_path, "stream")
+    assert f"--user-data-dir={PROFILE_DIR}" in args
+
+
+async def test_run_browser_game_refuses_a_foreign_url() -> None:
+    from types import SimpleNamespace
+
+    from unifideck.services.launcher.browser_game import run_browser_game
+
+    launched: list[str] = []
+    events: list[Any] = []
+
+    async def emit(*a: Any, **k: Any) -> None:
+        events.append((a, k))
+
+    svc = SimpleNamespace(
+        _edge_browser=SimpleNamespace(
+            is_installed=True,
+            launch_browser_game=lambda url, **_k: launched.append(url) or True,
+        ),
+        _bus=SimpleNamespace(emit=emit),
+    )
+    ctx = SimpleNamespace(browser_url="https://phish.example/", browser_kind="web",
+                          store="itch", game_id="1", game_key="itch:1")
+
+    result = await run_browser_game(svc, ctx)  # type: ignore[arg-type]
+
+    assert result.success is False and result.error == "browser_url_refused"
+    assert launched == [] and events == []

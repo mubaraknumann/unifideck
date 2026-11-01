@@ -25,6 +25,7 @@ async def emit_stage(
  i18n_params: dict[str, Any] | None = None,
  severity: str | None = None,
  duration_ms: int | None = None,
+ action: dict[str, Any] | None = None,
 ) -> None:
     """Emit a LAUNCHER_STAGE toast event.
 
@@ -40,6 +41,9 @@ async def emit_stage(
     pass it when the message is long enough that the default truncates
     the read (the shortcut write-refusal paragraph is the case that
     added this).
+
+    ``action`` makes the toast tappable: ``{verb, args, i18n_label_key}``,
+    the one shape the frontend's ``resolveToastAction`` reads.
     """
     logger.debug(
     "[launcher.rpc] stage: key=%s title=%s game=%s prio=%s",
@@ -62,4 +66,6 @@ async def emit_stage(
         payload["severity"] = severity
     if duration_ms is not None:
         payload["duration_ms"] = duration_ms
+    if action is not None:
+        payload["action"] = action
     await bus.emit(Events.LAUNCHER_STAGE, **payload)

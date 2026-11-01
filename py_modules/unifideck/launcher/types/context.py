@@ -67,13 +67,31 @@ class LaunchContext:
     # because ``work_dir`` is a ``Path``, which collapses ``https://``.
     browser_url: str | None = None
     browser_kind: str = "web"
+    # Xbox PC titles (``launcher/xbox_pc``). ``"xodus"`` runs an installed
+    # game through our own Xodus build; ``"xodus_notice"`` launches nothing
+    # and shows why (``notice_reason``: ``disabled`` or ``not_installed``).
+    # None for every other launch. Never umu, GE or ``setup_prefix``.
+    launch_backend: str | None = None
+    notice_reason: str | None = None
     @property
     def is_browser_game(self) -> bool:
         """Played in an Edge window at ``browser_url``; nothing installed."""
         return self.browser_url is not None
     @property
+    def is_xbox_pc_game(self) -> bool:
+        """An installed Xbox PC game, run by the Xodus launch path."""
+        return self.launch_backend == "xodus"
+    @property
+    def is_xbox_pc_notice(self) -> bool:
+        """An Xbox PC title that cannot run here; the launch shows a notice."""
+        return self.launch_backend == "xodus_notice"
+    @property
     def is_windows_game(self) -> bool:
         """Check whether windows game."""
+        # Xbox PC games are Windows games, but they must never reach the
+        # Proton/umu path: the Xodus runtime launches them itself.
+        if self.launch_backend is not None:
+            return False
         # Wrapper stores launch through a vendor client; their games
         # legitimately carry no exe_path, so the extension sniff below
         # would misroute them to the native path.
@@ -83,6 +101,8 @@ class LaunchContext:
     @property
     def is_native_linux(self) -> bool:
         """Check whether native linux."""
+        if self.launch_backend is not None:
+            return False
         return not self.is_browser_game and not self.is_windows_game
     @property
     def game_key(self) -> str:
@@ -101,6 +121,8 @@ class LaunchContext:
             "auth_store": self.auth_store,
             "action": self.action,
             "bypass_circuit_breaker": self.bypass_circuit_breaker,
+            "launch_backend": self.launch_backend,
+            "notice_reason": self.notice_reason,
         }
 
 @dataclass

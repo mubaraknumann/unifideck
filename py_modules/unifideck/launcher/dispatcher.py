@@ -7,20 +7,26 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from unifideck.core.native_entry import gog_linux_start_script
 from unifideck.core.types.results import Result
 
 from .argv_options import env_overrides_from, parse_argv, promote_env_tokens
-from .browser_games import BrowserTarget, browser_target, cached_game
+from .browser_games import browser_context, browser_target, cached_game
+from .launch_flags import resolve_bypass_flag
 from .types.context import LaunchContext
 from .types.errors import GameNotFoundError, LauncherError
 from .types.exit_codes import ExitCode
 from .wrapper_prefix_probe import wrapper_prefix_is_populated
 from .wrapper_stores import is_wrapper_store
+from .xbox_pc.layout import is_xodus_store
 
 if TYPE_CHECKING:
     from unifideck.services.shortcut import ShortcutService
 
 logger = logging.getLogger(__name__)
+
+#: ``UNIFIDECK_MICROSOFT_ACTION=xbox-pc-auth``: the Xbox PC sign-in window.
+XBOX_PC_AUTH_ACTION = "xbox-pc-auth"
 def _resolve_plugin_dir() -> Path:
     """Resolve plugin dir."""
     from unifideck.core.paths import resolve_plugin_dir
@@ -58,8 +64,8 @@ def _resolve_exe_from_install(store: str, install_path: str) -> str | None:
         # Native Linux games (notably GOG) launch via a ``start.sh``
         # wrapper at the install root — ``exe_finder`` only finds
         # ``.exe`` files, so check for it explicitly first.
-        start_sh = Path(install_path) / "start.sh"
-        if start_sh.is_file():
+        start_sh = gog_linux_start_script(install_path)
+        if start_sh is not None:
             return str(start_sh)
         return exe_finder.find(install_path)
     except Exception:
@@ -73,8 +79,9 @@ def _resolve_exe_from_install(store: str, install_path: str) -> str | None:
 async def _build_context(
     argv: list[str],
     shortcut_svc: ShortcutService,
+    config: Any | None = None,
 ) -> LaunchContext:
-    """Build context."""
+    """Build context. ``config`` is the user config (the Xbox PC toggle)."""
     game_key, raw_options = parse_argv(argv)
     store, game_id = game_key.split(":", 1)
 
@@ -94,6 +101,13 @@ async def _build_context(
     special = _special_action_context(store, game_id, raw_options, game_key)
     if special is not None:
         return special
+    # Every Microsoft title routes here, before the exe lookup: an Xbox PC
+    # install must never reach the exe repair guess or umu (I-017).
+    if is_xodus_store(store):
+        from .xbox_pc.routing import microsoft_context
+        return await microsoft_context(
+            shortcut_svc, config, game_id, raw_options, plugin_dir=_resolve_plugin_dir(),
+        )
 
     exe, work_dir, has_entry, app_id = await _resolve_game_exe(
         shortcut_svc, store, game_id, game_key,
@@ -127,7 +141,9 @@ def _context_without_exe(
             "[launcher.dispatcher] %s is a browser game (%s), opening %s",
             game_key, target.kind, target.url[:80],
         )
-        return _browser_context(store, game_id, raw_options, target)
+        return browser_context(
+            store, game_id, raw_options, target, _resolve_plugin_dir(),
+        )
     if is_wrapper_store(store):
         # An *installed* wrapper-store title legitimately has no resolvable
         # exe: its vendor client launches the game (Ubisoft via the
@@ -203,7 +219,26 @@ async def _resolve_game_exe(
                 game_key, resolved,
             )
             exe = resolved
+    if store == "gog":
+        exe = _prefer_gog_start_script(exe, work_dir, game_key)
     return exe, work_dir, has_entry, app_id
+
+
+def _prefer_gog_start_script(exe: str, work_dir: str, game_key: str) -> str:
+    """Launch a GOG Linux-native install through its ``start.sh``.
+
+    Rows written before the resolver preferred ``start.sh`` name the play
+    task's binary (``game/SOR4``), which skips GOG's own entry script.
+    Swapping here fixes those installs without a reinstall or a resync.
+    """
+    start_sh = gog_linux_start_script(work_dir)
+    if not exe or start_sh is None or Path(exe) == start_sh:
+        return exe
+    logger.info(
+        "[launcher.dispatcher] %s is a GOG Linux build, launching %s "
+        "instead of %s", game_key, start_sh, exe,
+    )
+    return str(start_sh)
 
 
 def _special_action_context(
@@ -286,27 +321,6 @@ def _wrapper_install_context(
     )
 
 
-def _browser_context(
-    store: str, game_id: str, raw_options: str, target: BrowserTarget,
-) -> LaunchContext:
-    """Context for a browser game: no exe, the URL in its own field."""
-    plugin_dir = _resolve_plugin_dir()
-    return LaunchContext(
-        store=store,
-        game_id=game_id,
-        exe_path=Path("browser"),
-        work_dir=plugin_dir,
-        plugin_dir=plugin_dir,
-        raw_options=raw_options,
-        env_overrides=env_overrides_from(raw_options),
-        is_launch_action=True,
-        auth_store=None,
-        bypass_circuit_breaker=False,
-        browser_url=target.url,
-        browser_kind=target.kind,
-    )
-
-
 def _game_context(
     store: str, game_id: str, exe: str, work_dir: str, raw_options: str,
     app_id: int = 0,
@@ -332,7 +346,7 @@ def _game_context(
         is_launch_action=True,
         auth_store=None,
         steam_app_id=str(app_id) if app_id else None,
-        bypass_circuit_breaker=_resolve_bypass_flag(store, game_id),
+        bypass_circuit_breaker=resolve_bypass_flag(store, game_id, plugin_dir),
     )
 
 def _detect_special_action() -> tuple[str | None, str | None, bool]:
@@ -370,29 +384,11 @@ def _detect_special_action() -> tuple[str | None, str | None, bool]:
             return candidate_store, "storefront", False
         if action == "install" and is_wrapper_store(candidate_store):
             return candidate_store, "install", False
+        # The Xbox PC sign-in opens the same Edge window as the Microsoft
+        # auth action (``ms_auth_url.txt``, CDP on 9222); the plugin drives it.
+        if action == XBOX_PC_AUTH_ACTION and is_xodus_store(candidate_store):
+            return candidate_store, XBOX_PC_AUTH_ACTION, False
     return None, None, True
-def _resolve_bypass_flag(store: str, game_id: str) -> bool:
-    """Resolve bypass flag."""
-    bypass_raw = os.environ.get(
-        "UNIFIDECK_BYPASS_CIRCUIT_BREAKER", "",
-    )
-    bypass_env = bypass_raw.strip().lower() in (
-        "1", "true", "yes",
-    )
-    try:
-        from unifideck.config.config_manager import ConfigManager
-        from unifideck.config.defaults_path import resolve_defaults_config_path
-        from unifideck.services.launch_history import LaunchHistoryService
-        # See ``launcher/bootstrap._load_standalone_config``: the nested
-        # ``defaults/`` path does not exist on a Decky CLI build.
-        cfg = ConfigManager(
-            resolve_defaults_config_path(_resolve_plugin_dir()),
-        )
-        lh = LaunchHistoryService(cfg)
-        bypass_flag = lh.consume_bypass(f"{store}:{game_id}")
-    except Exception:
-        bypass_flag = False
-    return bypass_env or bypass_flag
 async def _run(argv: list[str]) -> int:
     """Run."""
     from .diagnostics.correlation import launch_id_scope, new_launch_id
@@ -439,7 +435,9 @@ async def _run_with_id(argv: list[str]) -> int:
         logger.exception("[launcher.dispatcher] bootstrap failed")
         return int(ExitCode.DEPENDENCY_MISSING)
     try:
-        ctx = await _build_context(argv, launcher_service._shortcut_svc)
+        ctx = await _build_context(
+            argv, launcher_service._shortcut_svc, launcher_service._config,
+        )
     except LauncherError as err:
         logger.exception(
             "[launcher.dispatcher] context build failed: %s",

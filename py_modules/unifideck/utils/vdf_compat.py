@@ -332,6 +332,17 @@ def parse_global_default_compat_tool(content: str) -> str:
     return name_match.group(1) if name_match else ""
 
 
+def compat_tool_names(content: str) -> set[str]:
+    """Every tool name in ``CompatToolMapping``: per-app rows and the default."""
+    if not content:
+        return set()
+    marker_pos = content.find('"CompatToolMapping"')
+    if marker_pos < 0:
+        return set()
+    block = _extract_kv_block(content, marker_pos)
+    return {n for n in re.findall(r'"name"\s+"([^"]*)"', block) if n}
+
+
 def _manifest_tools(manifest: Path, base_dir: Path) -> Iterator[tuple[str, Path]]:
     """Yield ``(name, proton_path)`` for each tool in one ``.vdf`` manifest.
 

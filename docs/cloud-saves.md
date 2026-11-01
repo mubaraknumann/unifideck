@@ -43,6 +43,32 @@ next to the game's install directory) are resolved against the game's actual
 Proton prefix and **your chosen install location** (games can live on the SD card
 or an external drive; saves are found wherever the game actually writes them).
 
+### Native Linux GOG games
+
+A GOG game installed as its Linux build has no Proton prefix. GOG's cloud
+configuration only lists Windows and Mac save locations, so Unifideck maps them
+onto where the Linux build really writes. Two kinds of game map exactly:
+
+- **Unity games.** The Windows save folder under `AppData/LocalLow/<Company>/<Product>`
+  is the same folder the Linux build keeps in `~/.config/unity3d/<Company>/<Product>`.
+  It syncs as it is.
+- **DOSBox games.** On Windows, GOG keeps everything the game writes in a
+  `cloud_saves` folder. The Linux build writes into its own `data/` folder
+  instead, mixed in with the game files. Before each sync, Unifideck copies every
+  file in `data/` that the installer did not ship (or that has changed since) into
+  a staging folder, and syncs that. After a download, the files are copied back
+  into `data/`. This needs the `.gogdl-linux-manifest` file the installer leaves in
+  the game folder.
+
+Any other GOG location (Documents, Roaming AppData and so on) has no reliable
+Linux equivalent and is not mapped. For those games Unifideck falls back to the
+Linux save path from its game database when it has one; otherwise the button
+shows **"Save location not found"**.
+
+A save folder that would contain the game's own install folder, or that is a
+single file, is always rejected. A download empties the save folder first and an
+upload sends all of it, so such a path would delete the game or upload it whole.
+
 ### When saves sync
 
 - **Download (cloud → device) happens automatically when you launch a game.**
@@ -170,12 +196,14 @@ location automatically.
 | What                                         | Location                                                          |
 | -------------------------------------------- | ---------------------------------------------------------------- |
 | Game prefixes (where in‑prefix saves live)   | `~/.local/share/unifideck/prefixes/<game id>/`                   |
+| Native DOSBox staging (GOG Linux builds)     | `~/.local/share/unifideck/native-staging/<game id>/<namespace>/` |
 | Versioned pre‑upload backups (newest 5 kept) | `~/.local/share/unifideck/save_backups/<store>/<game id>/<ts>/`  |
 | Local backup mirror (write‑only copy)        | `~/Save Games Backup/<store>/<game id>/`                         |
 
 > The `~/Save Games Backup/` mirror is a **write‑only safety copy** — Unifideck
 > writes to it but never restores from it. Your real saves always live inside the
-> game's Proton prefix; the cloud is the source of truth for syncing.
+> game's Proton prefix (or, for a native Linux game, where that build writes
+> them); the cloud is the source of truth for syncing.
 
 ---
 

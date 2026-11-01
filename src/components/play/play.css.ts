@@ -110,6 +110,7 @@ export const PLAY_FOCUS_CSS = `
 .unifideck-stop-btn,
 .unifideck-cancel-btn,
 .unifideck-update-btn,
+.unifideck-unsupported-btn,
 .unifideck-icon-btn {
   transition: background 0.15s ease, filter 0.15s ease, transform 0.1s ease !important;
 }
@@ -118,7 +119,8 @@ export const PLAY_FOCUS_CSS = `
 .unifideck-play-btn,
 .unifideck-resume-btn,
 .unifideck-cancel-btn,
-.unifideck-update-btn {
+.unifideck-update-btn,
+.unifideck-unsupported-btn {
   background: rgba(255, 255, 255, 0.10) !important;
 }
 
@@ -141,7 +143,8 @@ export const PLAY_FOCUS_CSS = `
 .unifideck-install-btn { min-width: 200px; height: 48px; }
 .unifideck-play-btn,
 .unifideck-resume-btn,
-.unifideck-update-btn { min-width: 200px; height: 48px; }
+.unifideck-update-btn,
+.unifideck-unsupported-btn { min-width: 200px; height: 48px; }
 .unifideck-stop-btn,
 .unifideck-icon-btn { width: 48px; height: 48px; padding: 0 !important; }
 .unifideck-cancel-btn { min-width: 160px; height: 44px; }
@@ -229,6 +232,16 @@ export const PLAY_FOCUS_CSS = `
 .unifideck-icon-btn.gpfocus svg {
   color: #1a1a1a !important;
   fill: #1a1a1a !important;
+}
+/* An Xbox PC row that cannot install: the button is disabled, so its
+ * focus state stays muted grey. It still needs one, so a gamepad that
+ * lands on it sees where it is. */
+.unifideck-unsupported-btn:hover,
+.unifideck-unsupported-btn:focus,
+.unifideck-unsupported-btn:focus-within,
+.unifideck-unsupported-btn.gpfocus {
+  background: rgba(255, 255, 255, 0.18) !important;
+  box-shadow: 0 0 0 2px rgba(143, 152, 160, 0.55) inset !important;
 }
 .unifideck-update-btn:hover,
 .unifideck-update-btn:focus,

@@ -18,15 +18,30 @@
 const GROUP_DUPLICATES_KEY = "unifideck:group-duplicates.enabled";
 export const GROUP_DUPLICATES_EVENT = "unifideck:group-duplicates-change";
 
+/** The setting, read from storage once. The tab filters ask for it once per
+ *  app on every filter pass (thousands of calls per library render), and
+ *  {@link setGroupDuplicatesEnabled} is the only writer in this JS context,
+ *  so the cached value cannot go stale. */
+let cached: boolean | null = null;
+
 export function isGroupDuplicatesEnabled(): boolean {
-  try {
-    return window.localStorage.getItem(GROUP_DUPLICATES_KEY) === "1";
-  } catch {
-    return false;
+  if (cached === null) {
+    try {
+      cached = window.localStorage.getItem(GROUP_DUPLICATES_KEY) === "1";
+    } catch {
+      cached = false;
+    }
   }
+  return cached;
+}
+
+/** Test seam: forget the cached value so the next read goes to storage. */
+export function resetGroupDuplicatesCache(): void {
+  cached = null;
 }
 
 export function setGroupDuplicatesEnabled(on: boolean): void {
+  cached = on;
   try {
     window.localStorage.setItem(GROUP_DUPLICATES_KEY, on ? "1" : "0");
   } catch {

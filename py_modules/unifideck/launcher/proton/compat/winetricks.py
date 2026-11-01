@@ -112,7 +112,7 @@ async def apply_winetricks(plan: ProtonLaunchPlan) -> bool:
     _write_marker(marker, "installing: " + ", ".join(packages))
     launcher_toast(
         "toasts.launcher.installingRedistributables",
-        i18n_title_key="toasts.launcher.dependenciesTitle",
+        i18n_title_key="toasts.header.gameSetup",
         game_title=plan.context.game_key,
     )
 
@@ -153,7 +153,7 @@ def _handle_winetricks_rc(
         )
         launcher_toast(
             "toasts.launcher.redistributablesInstalled",
-            i18n_title_key="toasts.launcher.dependenciesReady",
+            i18n_title_key="toasts.header.gameSetup",
             game_title=plan.context.game_key,
         )
         return False
@@ -170,7 +170,7 @@ def _handle_winetricks_rc(
         )
         launcher_toast(
             "toasts.launcher.checkLogs",
-            i18n_title_key="toasts.launcher.dependenciesStatus",
+            i18n_title_key="toasts.header.gameSetup",
             game_title=plan.context.game_key,
             severity="warning",
         )
@@ -182,7 +182,7 @@ def _handle_winetricks_rc(
     )
     launcher_toast(
         "toasts.launcher.checkLogs",
-        i18n_title_key="toasts.launcher.dependenciesStatus",
+        i18n_title_key="toasts.header.gameSetup",
         game_title=plan.context.game_key,
         severity="warning",
     )

@@ -44,7 +44,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-import os
 import shutil
 import ssl
 import urllib.request
@@ -52,12 +51,14 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from unifideck.launcher.proton.infrastructure.proton_health import check_after_failure
 from unifideck.launcher.wrapper_locale import bootstrapper_locale
 from unifideck.stores.battlenet import paths
 from unifideck.stores.shared.wine_env import WineEnvResolver
 from unifideck.utils.vulkan import Vulkan32, detect_32bit_vulkan
 
 from . import tweaks
+from .stall_watchdog import stall_watchdog
 
 logger = logging.getLogger(__name__)
 
@@ -68,9 +69,9 @@ DOWNLOAD_TIMEOUT_SECONDS = 300
 INSTALL_TIMEOUT_SECONDS = 1800
 # Applied only when the host is *proven* to lack a 32-bit Vulkan driver: how
 # long the installer may write nothing at all before we call it wedged.
-# Measured against progress, never the clock — see :func:`_stall_watchdog`.
+# Measured against progress, never the clock — see
+# :func:`~.stall_watchdog.stall_watchdog`.
 NO_VULKAN_STALL_SECONDS = 300.0
-STALL_POLL_SECONDS = 15.0
 
 # Pre-answer the two bootstrapper screens that otherwise wait for a click.
 # Without them the wizard stops on the language screen forever — see
@@ -201,77 +202,6 @@ def has_32bit_vulkan() -> bool:
     return detect_32bit_vulkan().verdict is Vulkan32.PRESENT
 
 
-def _tree_bytes(root: Path) -> int:
-    """Total bytes under ``root``. Never raises; unreadable entries count 0."""
-    total = 0
-    stack = [root]
-    while stack:
-        size, children = _scan_dir(stack.pop())
-        total += size
-        stack.extend(children)
-    return total
-
-
-def _scan_dir(current: Path) -> tuple[int, list[Path]]:
-    """``(bytes in this dir, subdirectories)``. An unreadable dir is ``(0, [])``.
-
-    Split from :func:`_tree_bytes` so neither function nests past the cap;
-    the swallow-everything behaviour is the point — this feeds a stall
-    watchdog, and a permission error partway down a Wine prefix must read as
-    "no growth here", never as an exception that kills the install.
-    """
-    size = 0
-    children: list[Path] = []
-    try:
-        with os.scandir(current) as entries:
-            for entry in entries:
-                size += _entry_bytes(entry, children)
-    except OSError:
-        return 0, []
-    return size, children
-
-
-def _entry_bytes(entry: os.DirEntry[str], children: list[Path]) -> int:
-    """Bytes for one entry, appending it to ``children`` when it is a dir."""
-    try:
-        if entry.is_dir(follow_symlinks=False):
-            children.append(Path(entry.path))
-            return 0
-        if entry.is_file(follow_symlinks=False):
-            return entry.stat().st_size
-    except OSError:
-        return 0
-    return 0
-
-
-async def _stall_watchdog(prefix: Path, proc: asyncio.subprocess.Process, budget: float) -> None:
-    """Kill ``proc`` once the prefix stops growing for ``budget`` seconds.
-
-    A wall-clock cap cannot tell a frozen installer from a slow download —
-    it kills both — so this measures *progress* instead. The freeze this
-    exists for (a 32-bit client with no 32-bit Vulkan driver) writes nothing
-    at all from the moment it wedges, while even a crawling download keeps
-    adding bytes.
-    """
-    last = -1
-    idle = 0.0
-    while True:
-        await asyncio.sleep(STALL_POLL_SECONDS)
-        size = await asyncio.to_thread(_tree_bytes, prefix)
-        if size != last:
-            last, idle = size, 0.0
-            continue
-        idle += STALL_POLL_SECONDS
-        if idle >= budget:
-            logger.error(
-                "[Battlenet] installer wrote nothing for %.0fs — stalled, killing it",
-                budget,
-            )
-            with contextlib.suppress(ProcessLookupError, OSError):
-                proc.kill()
-            return
-
-
 async def run_silent_install(
     installer: Path,
     prefix: Path,
@@ -290,7 +220,7 @@ async def run_silent_install(
     the resolver to choose, which is still the right answer for a caller
     that has no launch plan to speak from.
 
-    ``stall_timeout`` arms :func:`_stall_watchdog` for hosts proven to lack
+    ``stall_timeout`` arms :func:`stall_watchdog` for hosts proven to lack
     a 32-bit Vulkan driver. ``None`` — every other path — keeps the plain
     30-minute budget and no polling.
 
@@ -320,19 +250,8 @@ async def run_silent_install(
         logger.error("[Battlenet] umu-run not found — cannot install the client")
         return InstallOutcome(installed=False)
 
-    env = resolver.build_env(prefix, GAMEID, proton_path=proton_path)
-    logger.info(
-        "[Battlenet] installer PROTONPATH=%s (%s)",
-        env.get("PROTONPATH"),
-        "from the launch plan" if proton_path else "resolver's choice",
-    )
-    if not env.get("DISPLAY") and not env.get("WAYLAND_DISPLAY"):
-        # Headless Decky env: a Wine process with no display hangs instead
-        # of failing, so refuse rather than burn the timeout.
-        logger.error(
-            "[Battlenet] no DISPLAY/WAYLAND_DISPLAY available — refusing to "
-            "run the installer (it would hang rather than fail)",
-        )
+    env = _installer_env(resolver, prefix, proton_path)
+    if env is None:
         return InstallOutcome(installed=False)
 
     await asyncio.to_thread(Path(prefix).mkdir, parents=True, exist_ok=True)
@@ -350,7 +269,31 @@ async def run_silent_install(
         logger.exception("[Battlenet] could not spawn the installer")
         return InstallOutcome(installed=False)
 
-    return await _await_installer(proc, prefix, stall_timeout)
+    outcome = await _await_installer(proc, prefix, stall_timeout)
+    if not outcome.installed:  # a damaged Proton kills the installer in seconds
+        await asyncio.to_thread(check_after_failure, env)
+    return outcome
+
+
+def _installer_env(
+    resolver: WineEnvResolver, prefix: Path, proton_path: str | None,
+) -> dict[str, str] | None:
+    """The installer's umu environment, or None when there is no display."""
+    env = resolver.build_env(prefix, GAMEID, proton_path=proton_path)
+    logger.info(
+        "[Battlenet] installer PROTONPATH=%s (%s)",
+        env.get("PROTONPATH"),
+        "from the launch plan" if proton_path else "resolver's choice",
+    )
+    if not env.get("DISPLAY") and not env.get("WAYLAND_DISPLAY"):
+        # Headless Decky env: a Wine process with no display hangs instead
+        # of failing, so refuse rather than burn the timeout.
+        logger.error(
+            "[Battlenet] no DISPLAY/WAYLAND_DISPLAY available — refusing to "
+            "run the installer (it would hang rather than fail)",
+        )
+        return None
+    return env
 
 
 async def _await_installer(
@@ -361,7 +304,7 @@ async def _await_installer(
     """Wait out the installer, with the stall watchdog when one is armed."""
     watchdog: asyncio.Task[None] | None = None
     if stall_timeout:
-        watchdog = asyncio.ensure_future(_stall_watchdog(Path(prefix), proc, stall_timeout))
+        watchdog = asyncio.ensure_future(stall_watchdog(Path(prefix), proc, stall_timeout))
     try:
         completed, err = await _run_installer_to_exit(proc)
     finally:

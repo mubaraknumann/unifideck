@@ -22,8 +22,9 @@
  * costs nothing, and keeping the frequency cap here keeps it next to the
  * localStorage it needs.
  */
-import { call, toaster } from "@decky/api";
-import i18n from "i18next";
+import { call } from "@decky/api";
+import { toastText, headerText } from "./toast-text";
+import { showToast } from "./show-toast";
 import { rpcRoutes } from "../api/rpc-routes";
 import { unwrapRpcEnvelope } from "../api/useRPC";
 import { setUpdatePending, type UpdateCheckResult } from "../lib/plugin-update";
@@ -84,14 +85,9 @@ function shouldToast(record: NoticeRecord, now: number): boolean {
 }
 
 function showNotice(version: string): void {
-  toaster.toast({
-    title: i18n.t("updater.noticeTitle", {
-      defaultValue: "Unifideck Update Available",
-    }),
-    body: i18n.t("updater.noticeBody", {
-      version,
-      defaultValue: `v${version} is ready to install from the Unifideck settings panel.`,
-    }),
+  showToast({
+    title: headerText("toasts.header.unifideckUpdate"),
+    body: toastText("toasts.updater.noticeBody", { version }),
     duration: 8000,
     // No onClick: this is informational. The badge is what persists, and
     // the QAM settings panel is where the user acts on it.

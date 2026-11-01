@@ -274,19 +274,21 @@ class ShortcutService(
         reached neither, so this toast never fired once since it was
         written — the very silence its docstring exists to prevent.
 
-        ``duration_ms`` is explicit because the string is a full paragraph
-        and the frontend's 7.5s error default cuts the read short.
+        ``duration_ms`` is explicit: the library looking stale is easy to
+        miss, so the toast stays up longer than the 7.5s error default.
         """
         from unifideck.launcher.rpc import emit_stage
 
+        # The toast has no room for the reason; this line is where it lives.
+        logger.error("[ShortcutService] shortcuts.vdf left untouched: %s", reason)
         try:
             await emit_stage(
                 self._bus,
+                i18n_title_key="toasts.header.librarySync",
                 i18n_key="toasts.shortcuts.writeRefused",
                 game_title="",
                 severity="error",
                 duration_ms=12000,
-                i18n_params={"reason": reason},
             )
         except Exception as e:
             logger.warning(

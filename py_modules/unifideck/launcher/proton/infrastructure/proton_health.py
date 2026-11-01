@@ -11,7 +11,7 @@ from pathlib import Path
 
 from unifideck.launcher.types.errors import ProtonUnavailableError
 
-from . import ge_installer
+from . import ge_installer, proton_integrity
 
 logger = logging.getLogger(__name__)
 
@@ -48,3 +48,46 @@ def assert_proton_still_complete(env: dict[str, str] | None) -> None:
         raise ProtonUnavailableError(
             f"Proton at {proton_dir} is unusable at launch time: {problem}",
         )
+
+
+def check_after_failure(env: dict[str, str] | None) -> str | None:
+    """After a failed umu run, check whether the Proton it used is damaged.
+
+    A failed run is usually the game's own problem, and this leaves those
+    alone: it reads a dozen DLL headers and stats the shipped file list
+    (under half a second for ~8,000 entries), and does nothing when the
+    tree is intact. When files GE shipped are missing or replaced, every
+    game on this Proton will fail the same way, so it marks the tree (the next launch routes around it
+    and the plugin's startup audit re-downloads it) and tells the user.
+    Returns the problem it found. Never raises.
+    """
+    proton_dir = (env or {}).get("PROTONPATH")
+    if not proton_dir:
+        return None
+    root = Path(proton_dir)
+    try:
+        if not (root / "proton").is_file() or proton_integrity.damaged_marker(root):
+            return None
+        problem = proton_integrity.quick_problem(root)
+        if not problem:
+            return None
+        proton_integrity.mark_damaged(root, problem)
+    except Exception:
+        logger.warning("[launcher.proton] post-failure Proton check failed", exc_info=True)
+        return None
+    logger.warning(
+        "[launcher.proton] %s is damaged (%s) — every game on it fails until it "
+        "is re-downloaded; routing launches around it", root, problem,
+    )
+    try:
+        from unifideck.launcher.frontend_bridge import launcher_toast
+
+        launcher_toast(
+            "toasts.launcher.protonDamagedMessage",
+            i18n_title_key="toasts.header.proton",
+            i18n_params={"version": root.name},
+            severity="error",
+        )
+    except Exception:
+        logger.debug("[launcher.proton] damaged-Proton toast failed", exc_info=True)
+    return problem

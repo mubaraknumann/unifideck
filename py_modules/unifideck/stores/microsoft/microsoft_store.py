@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
 from unifideck.auth.browser import OAuthBrowserMonitor
@@ -29,8 +30,13 @@ from .microsoft_catalog import MicrosoftCatalogReader
 from .microsoft_config import MicrosoftConfig
 from .microsoft_device_auth import MS_AUTH_URL_FILE, MicrosoftDeviceAuth
 from .ownership import MicrosoftOwnershipReader, OwnedFetch
+from .pc_library.library import PC_ONLY, XboxPcLibrary, has_pc_rows
 from .session_health import SessionHealth
 from .tokens import MicrosoftTokenManager, TokenState
+from .xodus import auto_components, single_signin
+from .xodus.store_hooks import XboxPcStoreHooks
+from .xodus.ticket import XodusTicket
+from .xodus.xbox_pc import XboxPc
 
 if TYPE_CHECKING:
     from unifideck.config import ConfigManager
@@ -38,6 +44,24 @@ if TYPE_CHECKING:
     from unifideck.event_bus.event_bus import EventBus
     from unifideck.services.microsoft_subscription import MicrosoftSubscriptionService
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class _XcloudRead:
+    """What ``_read_xcloud`` found. ``games`` None = could not read."""
+
+    games: list[Game] | None
+    verdict: GateVerdict | None = None
+    market: str | None = None
+    #: The Xbox PC library read, started next to the xCloud read.
+    pending: asyncio.Task[Any] | None = None
+
+
+def _cancel(task: asyncio.Task[Any] | None) -> None:
+    if task is not None and not task.done():
+        task.cancel()
+
+
 class MicrosoftStore(BrowserAuthRebuildMixin, StoreBase):
     """Microsoft store."""
     store_info = StoreInfo(
@@ -45,7 +69,7 @@ class MicrosoftStore(BrowserAuthRebuildMixin, StoreBase):
         display_name="Microsoft",
         auth_method="oauth",
         icon_asset="microsoft.png",
-        supports_install=False,
+        supports_install=True,
     )
 
     def __init__(
@@ -70,6 +94,9 @@ class MicrosoftStore(BrowserAuthRebuildMixin, StoreBase):
             self._ms_config.describe(),
         )
         self._config_manager = config
+        self._cached_available = False
+        #: The last xCloud session market (the Xbox PC market hint).
+        self._last_market: str | None = None
         self._shortcut_service = shortcut_service
         self._edge = edge_browser
         self._subscription_service = subscription_service
@@ -85,6 +112,7 @@ class MicrosoftStore(BrowserAuthRebuildMixin, StoreBase):
             config=self._ms_config,
             config_manager=self._config_manager,
         )
+        self._build_xbox_pc_parts(bus, cache)
         # Auth is late-bound : at boot ``browser_monitor`` is
         # ``None`` (auto-discovery doesn't see the service
         # container yet). The injector sets ``_browser_monitor``
@@ -103,6 +131,35 @@ class MicrosoftStore(BrowserAuthRebuildMixin, StoreBase):
         self._device_auth = MicrosoftDeviceAuth(
             bus, self._tokens, self._ms_config, lambda: self._edge,
         )
+        # Xbox PC (Xodus). Its sign-in and ours share the Edge auth window,
+        # so each refuses while the other runs.
+        self._xbox_pc = XboxPc(
+            self._config_manager, lambda: self._edge, self._tokens,
+            lambda: self._device_auth.running, bus,
+            xcloud_signed_in=lambda: self._cached_available,
+            refresh_signed_in=self.is_available,
+            market_hint=lambda: self._last_market,
+        )
+        # The one sign-in: with Xbox PC on, the Microsoft ticket comes from
+        # the Xodus credential. Its sign-out drops the cached ticket.
+        ticket = XodusTicket(self._xbox_pc.cli, self._xbox_pc.enabled)
+        self._tokens.xodus_ticket = ticket
+        self._xbox_pc.sign_out_listeners.append(ticket.forget)
+
+    def _build_xbox_pc_parts(self, bus: EventBus, cache: CacheManager) -> None:
+        """The PC library and the install hooks, over the one ``XboxPc``."""
+        self._pc_library = XboxPcLibrary(
+            self._config_manager, self._xbox_pc, self._xbox_pc.cli, cache=cache, bus=bus,
+        )
+        self._xbox_pc.sign_out_listeners.append(self._pc_library.clear)
+        self._xbox_hooks = XboxPcStoreHooks(
+            bus, self._xbox_pc, self._xbox_pc.cli, self._pc_library.title_for,
+        )
+
+    @property
+    def xbox_pc(self) -> XboxPc:
+        """The Xbox PC facade (read by ``XboxPcRPCMixin``)."""
+        return self._xbox_pc
 
     def _build_auth_flow(
         self, orchestrator: AuthOrchestrator,
@@ -153,12 +210,22 @@ class MicrosoftStore(BrowserAuthRebuildMixin, StoreBase):
             self._poll_task = None
 
     async def shutdown(self) -> None:
-        """Plugin unload: stop the token-refresh loop and any sign-in poll."""
+        """Plugin unload: stop the token-refresh loop, any sign-in and Xbox PC."""
         await self.stop_token_refresh_polling()
         await self._device_auth.cancel()
+        await self._xbox_pc.shutdown()
 
     async def _token_poll_loop(self) -> None:
-        """Internal loop: refresh (if stale) every poll interval."""
+        """Internal loop: refresh (if stale) every poll interval.
+
+        It checks the sign-in once at start. Until then the cached answer
+        reads "signed out", and the Xbox PC install refused with "connect
+        Microsoft first" after every restart (ISSUES.md I-036).
+        """
+        try:
+            await self.is_available()
+        except Exception:
+            logger.exception("[MicrosoftStore] startup sign-in check failed")
         while True:
             try:
                 await asyncio.sleep(self.TOKEN_POLL_INTERVAL_SECONDS)
@@ -194,21 +261,31 @@ class MicrosoftStore(BrowserAuthRebuildMixin, StoreBase):
         alike signed out every Deck that refreshed while offline.
         """
         if not self._ms_config.is_valid():
-            self._cached_available = False
-            return False
+            return self._set_available(False)
         loaded = await self._tokens.load()
         if not loaded:
             if self._tokens.client_mismatch:
                 await self._health.on_client_changed()
-            self._cached_available = False
-            return False
+            return self._set_available(False)
         state = await self._tokens.refresh_if_stale()
         if state is TokenState.DEAD:
             await self._health.on_session_dead(self._tokens.last_token_error)
-            self._cached_available = False
-            return False
-        self._cached_available = True
-        return True
+            return self._set_available(False)
+        return self._set_available(True)
+
+    def _set_available(self, available: bool) -> bool:
+        """Cache the answer; the Xbox PC status shows it, so tell it on a flip.
+
+        A flip to signed in also brings the Xbox PC components up to date
+        (``auto_components``): this is the first moment the backend knows
+        Microsoft is connected, which the frontend's boot step cannot wait for.
+        """
+        if available != self._cached_available:
+            self._cached_available = available
+            self._xbox_pc.notify()
+            if available:
+                auto_components.schedule(self._xbox_pc)
+        return available
 
     async def start_auth(self, **kwargs: Any) -> AuthResult:
         """Start the sign-in for the configured flow (see ``MicrosoftConfig``).
@@ -218,6 +295,8 @@ class MicrosoftStore(BrowserAuthRebuildMixin, StoreBase):
         clears them first: it needs a fresh login form to capture a code
         from, while the device-code flow is happy to reuse the session.
         """
+        if self._xbox_pc.sign_in_running:
+            return AuthResult(success=False, error="auth_in_progress", store="microsoft")
         if self._edge is None or not self._edge.is_installed:
             logger.info(
                 "[MicrosoftStore] Edge not installed — "
@@ -231,6 +310,10 @@ class MicrosoftStore(BrowserAuthRebuildMixin, StoreBase):
                 metadata={"needs_2fa": False},
             )
         EdgeBrowser.ensure_controller_permissions()
+        if self._xbox_pc.enabled():
+            # One sign-in: with Xbox PC on, connecting Microsoft is the Xbox
+            # PC sign-in, and xCloud runs on its ticket (``xodus/ticket.py``).
+            return await single_signin.start_connect(self._xbox_pc, self._bus)
         if self._ms_config.uses_device_code:
             return cast("AuthResult", await self._device_auth.start_auth())
         if self._auth is None:
@@ -274,7 +357,8 @@ class MicrosoftStore(BrowserAuthRebuildMixin, StoreBase):
             store="microsoft",
         )
     async def logout(self) -> Result:
-        """Logout."""
+        """Logout. Stops an Xbox PC sign-in first: it uses the Edge we kill."""
+        await self._xbox_pc.on_microsoft_logout()
         await self._device_auth.cancel()
         if self._auth is not None:
             result = await self._auth.logout()
@@ -295,69 +379,73 @@ class MicrosoftStore(BrowserAuthRebuildMixin, StoreBase):
                     "[MicrosoftStore] Edge cleanup error: "
                     "%s", e,
                 )
+        self._set_available(False)
         return result
 
     async def get_library(self, *, force: bool = False) -> list[Game] | None:
-        """The entitled xCloud titles, or ``None`` when they can't be read.
+        """The xCloud titles plus the Xbox PC titles, or ``None`` when unread.
 
         A list, even an empty one, is authoritative: the post-sync
-        reconcile deletes every xCloud shortcut missing from it. So every
+        reconcile deletes every Microsoft shortcut missing from it. So every
         "could not read" path returns ``None`` (keep the shortcuts), and
         ``[]`` is reserved for Microsoft saying the account has no
-        subscription (see ``library_gate``).
+        subscription (see ``library_gate``) and no PC rows remaining. The
+        PC rows come from ``pc_library``, which needs the xCloud sign-in.
+        """
+        started = self._pc_library.now()
+        read = await self._read_xcloud()
+        if read.verdict is GateVerdict.EMPTY:
+            rows = await self._pc_library.compose([], market=self._last_market, started=started)
+            if has_pc_rows(rows):
+                await self._pc_library.notify_once(PC_ONLY)
+            return rows
+        if read.games is None:
+            _cancel(read.pending)
+            return None
+        return await self._pc_library.compose(
+            read.games, market=read.market, pending_read=read.pending, started=started,
+        )
 
-        Flow:
-          1. Tokens must be loaded + not stale.
-          2. The subscription gate must report an active tier — this
-             also captures the xCloud session (gsToken + regions)
-             into the service for catalog reuse.
-          3. The catalog fetches ``/v2/titles`` from the regional core
-             endpoint and keeps the entitled titles (Game Pass + owned
-             Play Anywhere); ``hasEntitlement`` encodes tier access
-             server-side.
+    async def _read_xcloud(self) -> _XcloudRead:
+        """The entitled xCloud titles (``games`` None when unread).
+
+        1. Tokens must be loaded + not stale.
+        2. The subscription gate must report an active tier. This also
+           captures the xCloud session (gsToken + regions) for the catalog.
+        3. The catalog fetches ``/v2/titles`` and keeps the entitled titles
+           (Game Pass + owned Play Anywhere).
+
+        The Xbox PC read starts as soon as the session market is known.
         """
         if not await self.is_available():
-            logger.info(
-                "[MicrosoftStore] not authenticated; library not read",
-            )
-            return None
+            logger.info("[MicrosoftStore] not authenticated; library not read")
+            return _XcloudRead(None)
         state = await self._tokens.refresh_if_stale()
         if state is TokenState.DEAD:
             await self._health.on_session_dead(self._tokens.last_token_error)
-            return None
+            return _XcloudRead(None)
         if state is TokenState.TRANSIENT:
             logger.warning(
                 "[MicrosoftStore] could not refresh the Microsoft sign-in "
                 "(offline?); library not read, xCloud shortcuts kept",
             )
-            return None
+            return _XcloudRead(None)
         verdict = await check_subscription_gate(
             self._subscription_service, self._tokens, self._bus,
         )
-        if verdict is GateVerdict.EMPTY:
-            return []
-        if verdict is GateVerdict.UNREADABLE:
-            return None
-        if self._subscription_service is None:
-            logger.warning(
-                "[MicrosoftStore] no subscription_service injected "
-                "— cannot get xCloud session; library not read",
-            )
-            return None
-        session = await self._subscription_service.get_session(
-            self._tokens,
-        )
-        if session is None or not session.gs_token:
-            logger.warning(
-                "[MicrosoftStore] no usable xCloud session "
-                "(no gsToken); library not read",
-            )
-            return None
+        if verdict in (GateVerdict.EMPTY, GateVerdict.UNREADABLE):
+            return _XcloudRead(None, verdict)
+        session = await self._xcloud_session()
+        if session is None:
+            return _XcloudRead(None, verdict)
+        self._last_market = session.market
+        pending = self._pc_library.start_read(session.market)
         try:
             games = await self._catalog.fetch_games(session)
         except Exception:
             logger.exception("[MicrosoftStore] get_library failed")
-            return None
+            _cancel(pending)
+            return _XcloudRead(None, verdict)
         if games is not None and self._catalog.has_subscription is False:
             # The Game Pass part of the library is what was skipped: say so,
             # or a lapsed subscriber sees their shortcuts vanish unexplained.
@@ -366,99 +454,70 @@ class MicrosoftStore(BrowserAuthRebuildMixin, StoreBase):
                 "synced %d title(s) it can stream for free", len(games),
             )
             await self._bus.emit(
-                Events.SYNC_SKIPPED, store="microsoft",
-                reason="free_titles_only",
+                Events.SYNC_SKIPPED, store="microsoft", reason="free_titles_only",
             )
-        return games
+        return _XcloudRead(games, verdict, session.market, pending)
 
-    # ── Install lifecycle: refused, not faked ────────────────────────────
+    async def _xcloud_session(self) -> Any:
+        """The xCloud session with a gsToken, or None (logged)."""
+        if self._subscription_service is None:
+            logger.warning(
+                "[MicrosoftStore] no subscription_service injected "
+                "— cannot get xCloud session; library not read",
+            )
+            return None
+        session = await self._subscription_service.get_session(self._tokens)
+        if session is None or not session.gs_token:
+            logger.warning(
+                "[MicrosoftStore] no usable xCloud session "
+                "(no gsToken); library not read",
+            )
+            return None
+        return session
+
+    # ── Install lifecycle: Xbox PC titles, through Xodus ─────────────────
     #
-    # This store's titles are Xbox Cloud Gaming streams. There is nothing to
-    # download, nothing on disk, and nothing to update — so the three
-    # ``StoreBase`` install hooks the ABC requires cannot be satisfied and
-    # say so.
-    #
-    # They used to return ``success=True`` and do nothing, which is a
-    # phantom success: the caller is told a game was installed (or
-    # uninstalled) that never was.
-    #
-    # Install and update were unreachable — two independent guards, neither
-    # of them ``store_info.supports_install``, which gates nothing at all
-    # because it has no readers (audit register item 26). ``usePlaySection``
-    # short-circuits any game carrying the ``xcloud`` tag to its own play
-    # state before the not-installed branch, so the Install button never
-    # mounts; and ``DownloadWorker._execute_install`` carried its own
-    # store-name rejection ahead of the dispatch. That second guard is gone
-    # now, because a refusal here does its job better (see the note there).
-    #
-    # **Uninstall never had a backend guard**, only the frontend's
-    # ``is_installed`` gate — so it is the one of the three that a caller
-    # could actually reach, and the one whose ``success=True`` would have
-    # let a shortcut flip out of an install state it never held.
-    #
-    # The obvious next feature for this store — PC Game Pass, i.e. titles
-    # that really do install — is exactly a Microsoft game *without* the
-    # ``xcloud`` tag, which is what makes refusing here worth doing: it
-    # arrives as a visible failure instead of a phantom success.
-    _NOT_SUPPORTED = "not_supported"
+    # A stream-only title (no Xbox PC facts, no record) is refused with
+    # ``not_supported`` by the hooks, never a phantom success.
+
+    async def install_precondition(self, game_id: str) -> str | None:
+        """Why ``game_id`` cannot be queued yet (``xbox_pc_*``), or None."""
+        return await self._xbox_hooks.precondition(game_id)
 
     async def install_game(
-        self,
-        game_id: str,
-        base_path: str | None = None,
-        progress_cb: Any = None,
-        **kwargs: Any,
+        self, game_id: str, base_path: str | None = None, progress_cb: Any = None, **kwargs: Any,
     ) -> InstallResult:
-        """Refuse: xCloud titles stream, so there is nothing to install."""
-        logger.warning(
-            "[MicrosoftInstall] refusing install for game_id=%s — xCloud "
-            "titles stream and have no local install", game_id,
-        )
-        return InstallResult(
-            success=False,
-            store="microsoft",
-            game_id=game_id,
-            install_path=None,
-            error=self._NOT_SUPPORTED,
-            error_code=self._NOT_SUPPORTED,
-        )
-    async def uninstall_game(
-        self, game_id: str, **kwargs: Any,
-    ) -> Result:
-        """Refuse: nothing was installed, so nothing can be reclaimed.
+        """Install an Xbox PC title through Xodus."""
+        return await self._xbox_hooks.install(game_id, base_path, progress_cb)
 
-        Reporting success here told the caller a game had been uninstalled
-        and let the shortcut flip out of its installed state, both untrue.
-        """
-        return Result(
-            success=False,
-            store="microsoft",
-            error=self._NOT_SUPPORTED,
-            error_code=self._NOT_SUPPORTED,
+    async def uninstall_game(self, game_id: str, **kwargs: Any) -> Result:
+        """Uninstall an Xbox PC title. Not gated by the toggle or the sign-in."""
+        return await self._xbox_hooks.uninstall(
+            game_id, delete_prefix=bool(kwargs.get("delete_prefix")),
         )
 
     async def update_game(
-        self,
-        game_id: str,
-        progress_cb: Any = None,
-        **kwargs: Any,
+        self, game_id: str, progress_cb: Any = None, **kwargs: Any,
     ) -> InstallResult:
-        """Refuse: the stream is always current, so there is no update."""
-        return InstallResult(
-            success=False,
-            store="microsoft",
-            game_id=game_id,
-            error=self._NOT_SUPPORTED,
-            error_code=self._NOT_SUPPORTED,
-        )
+        """Update an installed Xbox PC title."""
+        return await self._xbox_hooks.update(game_id, progress_cb)
+
     async def check_for_updates(self) -> list[str]:
-        """Check for updates."""
-        return []
-    async def get_game_size(
-        self, game_id: str,
-    ) -> int | None:
-        """Get game size."""
-        return None
+        """The installed Xbox PC titles with a newer package."""
+        return await self._xbox_hooks.check_for_updates()
+
+    async def get_game_size(self, game_id: str) -> int | None:
+        """The planned download size of an Xbox PC title, or None."""
+        return self._pc_library.size_for(game_id)
+
+    async def get_installed_path(self, game_id: str) -> str | None:
+        """The record's ``installRoot``, or None."""
+        return await asyncio.to_thread(self._pc_library.installed_path, game_id)
+
+    async def find_installed_exe(self, install_path: str, game_id: str) -> str | None:
+        """The record's absolute exe, so nothing guesses one."""
+        return await asyncio.to_thread(self._pc_library.installed_exe, game_id)
+
     async def install_edge(self) -> Result:
         """Install edge."""
         if self._edge is None:

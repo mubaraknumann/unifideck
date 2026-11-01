@@ -208,7 +208,7 @@ def launch_storefront(browser: EdgeBrowser, url: str) -> bool:
     )
 
 
-def launch_browser_game(browser: EdgeBrowser, url: str) -> bool:
+def launch_browser_game(browser: EdgeBrowser, url: str, *, kind: str) -> bool:
     """Launch Edge in kiosk mode on a browser game's URL.
 
     Browser games are xCloud streams and itch.io HTML5 games
@@ -225,15 +225,21 @@ def launch_browser_game(browser: EdgeBrowser, url: str) -> bool:
       - Autoplay policy relaxed so the stream starts without
         requiring a click-to-play gesture.
 
-    Shares the same profile as launch_auth so session cookies
-    persist between OAuth and streaming — the whole point of using
-    Edge specifically is that Microsoft's Xbox session cookies
-    survive across flows.
+    Profile, by ``kind``:
+      - ``"stream"`` (xCloud) shares launch_auth's profile, so the Xbox
+        session cookies from sign-in carry over to the stream — the
+        whole point of using Edge specifically.
+      - anything else (an itch.io HTML5 game) runs in its own
+        ``WEB_GAME_PROFILE_DIR``. That page and its scripts are written
+        by the game's creator and the window has no address bar, so they
+        must not run beside the Microsoft, itch.io and store sessions.
+        A paid web game asks for an itch.io sign-in once, inside it.
 
     Args:
       url: Target URL: ``https://www.xbox.com/play/launch/{productId}``
         for a stream, the game's itch.io page for an HTML5 game. It
         comes from ``LaunchContext.browser_url``.
+      kind: ``LaunchContext.browser_kind``: ``"stream"`` or ``"web"``.
 
     Returns:
       True if Edge was launched. False on missing browser or
@@ -245,7 +251,18 @@ def launch_browser_game(browser: EdgeBrowser, url: str) -> bool:
         logger.warning("[Edge] No compatible browser found for a browser game")
         return False
     from .display import auth_window_flags
-    from .edge import _BASE_FLAGS, PROFILE_DIR
+    from .edge import (
+        _BASE_FLAGS,
+        PROFILE_DIR,
+        WEB_GAME_PROFILE_DIR,
+        _make_web_game_profile_manager,
+    )
+
+    profile_dir = PROFILE_DIR
+    if kind != "stream":
+        profile_dir = WEB_GAME_PROFILE_DIR
+        Path(profile_dir).mkdir(parents=True, exist_ok=True)
+        _make_web_game_profile_manager().cleanup_stale_state()
 
     # xCloud uses a distinct CDP port so the auth browser (on
     # browser.cdp_port, typically 9222) and the xCloud session
@@ -258,8 +275,8 @@ def launch_browser_game(browser: EdgeBrowser, url: str) -> bool:
     # handheld scaling.
     env = clean_env()
     window_flags = auth_window_flags(env)
-    args = [*cmd, "--kiosk", "--class=unifideck-browser-game", f"--remote-debugging-port={game_cdp_port}", f"--user-data-dir={PROFILE_DIR}", *_BASE_FLAGS, "--autoplay-policy=no-user-gesture-required", *window_flags, f"--lang={browser.locale_fn().split('-')[0]}", url]
-    logger.info("[Edge] Launching browser game kiosk: %s", url[:80])
+    args = [*cmd, "--kiosk", "--class=unifideck-browser-game", f"--remote-debugging-port={game_cdp_port}", f"--user-data-dir={profile_dir}", *_BASE_FLAGS, "--autoplay-policy=no-user-gesture-required", *window_flags, f"--lang={browser.locale_fn().split('-')[0]}", url]
+    logger.info("[Edge] Launching browser game kiosk (%s): %s", kind, url[:80])
     return _spawn_edge_process(
         browser, args, log_mode="a", label="Browser game", env=env,
     )

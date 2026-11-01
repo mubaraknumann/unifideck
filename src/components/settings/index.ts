@@ -2,7 +2,7 @@
  * Settings — barrel export.
  *
  * The panels rendered in the QuickAccess Settings tab, in display
- * order : StoreConnections (store rows + library sync), LanguageSelector,
+ * order : StoreConnections (store rows + library sync), XboxPcSection, LanguageSelector,
  * GameDetailsViewModeToggle, CollectionsToggle, StoreOwnershipToggle,
  * PluginUpdater, CleanupSection, CaptureLogsSection. Plus StoreAuthButton, which is
  * not a panel — it is the per-store button used inside
@@ -11,6 +11,7 @@
  * All are presentational and reach into hooks/contexts for state.
  */
 export { StoreConnections } from "./StoreConnections";
+export { XboxPcSection } from "./XboxPcSection";
 export { LanguageSelector } from "./LanguageSelector";
 export { GameDetailsViewModeToggle } from "./GameDetailsViewModeToggle";
 export { CollectionsToggle } from "./CollectionsToggle";

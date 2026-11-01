@@ -13,6 +13,11 @@ Two rules govern that, and they answer different questions: what we
 whether we still keep our own copy as ``ge_fallback``'s recovery floor
 is ``external_ge.is_ge_sufficiently_fresh`` (a tolerance).
 
+After that, the same task audits every GE-Proton tree something uses
+against the official release (``ge_repair``) and replaces a damaged one.
+A tree can pass every structural check with its Windows DLLs replaced,
+and then every game on it fails within seconds.
+
 This service used to have a second job: forcing a per-store compat tool
 into Steam's ``config.vdf`` on ``GAME_INSTALLED``. That path was removed
 because it could never run, for four independent reasons — the event had
@@ -37,6 +42,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from unifideck.event_bus.event_bus import EventBus
+    from unifideck.launcher.proton.infrastructure import ge_repair
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +65,62 @@ class ProtonService:
         back to Proton Experimental at launch time. The task reference
         is retained so it isn't garbage-collected mid-flight.
         """
-        self._ge_task = asyncio.create_task(self._ensure_latest_ge())
+        self._ge_task = asyncio.create_task(self._maintain_ge())
+
+    async def _maintain_ge(self) -> None:
+        """Install the latest GE, then audit the GE trees in use."""
+        await self._ensure_latest_ge()
+        await self._audit_in_use_ges()
+
+    async def _audit_in_use_ges(self) -> None:
+        """Re-download any in-use GE-Proton whose files no longer match GE's release.
+
+        Sequential and off the event loop: each audit hashes a ~1.6 GB tree
+        (~4-8 s) and a repair downloads ~600 MB. A tree with no manifest yet
+        gets one download to build it. Never deletes a Proton; only our own
+        download leftovers are swept afterwards.
+        """
+        try:
+            from unifideck.launcher.proton.infrastructure import ge_repair
+
+            loop = asyncio.get_running_loop()
+
+            def _announce(tag: str, _problem: str) -> None:
+                asyncio.run_coroutine_threadsafe(
+                    self._emit_proton_toast(
+                        "toasts.header.proton",
+                        "toasts.launcher.attemptingInstall",
+                        tag,
+                    ),
+                    loop,
+                )
+
+            for tag in await asyncio.to_thread(ge_repair.ge_trees_in_use):
+                result = await asyncio.to_thread(ge_repair.audit_ge, tag, on_repair=_announce)
+                await self._report_audit(result)
+            await asyncio.to_thread(ge_repair.sweep_stale_staging)
+        except Exception:
+            logger.exception("[ProtonService] GE-Proton audit failed")
+
+    async def _report_audit(self, result: ge_repair.AuditResult) -> None:
+        """Log one audit outcome; toast when a damaged tree was replaced."""
+        if result.status == "repaired":
+            logger.warning(
+                "[ProtonService] repaired %s (was: %s)", result.tag, result.problem,
+            )
+            await self._emit_proton_toast(
+                "toasts.header.proton",
+                "toasts.launcher.protonReadyBody",
+                result.tag,
+            )
+        elif result.status == "failed":
+            logger.error(
+                "[ProtonService] %s could not be verified or repaired (%s); "
+                "launches route around it if it is damaged",
+                result.tag, result.problem,
+            )
+        else:
+            logger.info("[ProtonService] %s audit: %s", result.tag, result.status)
 
     async def _ensure_latest_ge(self) -> None:
         """Background-install the latest GE-Proton, toasting a new install.
@@ -90,7 +151,7 @@ class ProtonService:
                 return
             # A download is needed → tell the user it's happening.
             await self._emit_proton_toast(
-                "toasts.launcher.installingProton",
+                "toasts.header.proton",
                 "toasts.launcher.attemptingInstall",
                 tag,
             )
@@ -102,7 +163,7 @@ class ProtonService:
             _path, installed_tag = result
             logger.info("[ProtonService] latest GE-Proton ready: %s", installed_tag)
             await self._emit_proton_toast(
-                "toasts.launcher.protonReadyTitle",
+                "toasts.header.proton",
                 "toasts.launcher.protonReadyBody",
                 installed_tag,
             )
@@ -188,7 +249,7 @@ class ProtonService:
             current_ver, tag,
         )
         await self._emit_proton_toast(
-            "toasts.launcher.externalProtonOutdatedTitle",
+            "toasts.header.proton",
             "toasts.launcher.externalProtonOutdatedBody",
             tag,
         )

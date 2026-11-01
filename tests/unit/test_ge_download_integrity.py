@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import pytest
 
-from unifideck.launcher.proton.infrastructure import ge_installer
+from unifideck.launcher.proton.infrastructure import ge_download
 
 
 class _FakeResponse:
@@ -56,7 +56,7 @@ def _serve(monkeypatch):
         def _fake_urlopen(_req, *_a, **_kw):
             return _FakeResponse(body, declared)
         monkeypatch.setattr(
-            ge_installer.urllib.request, "urlopen", _fake_urlopen,
+            ge_download.urllib.request, "urlopen", _fake_urlopen,
         )
     return _install
 
@@ -67,14 +67,14 @@ def test_short_body_against_declared_length_raises(_serve, tmp_path):
     dest = tmp_path / "GE-Proton.tar.gz"
 
     with pytest.raises(OSError, match="truncated"):
-        ge_installer._download("https://example/GE.tar.gz", dest, None)
+        ge_download.download("https://example/GE.tar.gz", dest, None)
 
 
 def test_complete_body_is_accepted(_serve, tmp_path):
     _serve(b"x" * 1000, declared=1000)
     dest = tmp_path / "GE-Proton.tar.gz"
 
-    ge_installer._download("https://example/GE.tar.gz", dest, None)
+    ge_download.download("https://example/GE.tar.gz", dest, None)
 
     assert dest.stat().st_size == 1000
 
@@ -84,18 +84,18 @@ def test_absent_content_length_is_not_treated_as_truncation(_serve, tmp_path):
     _serve(b"x" * 700, declared=None)
     dest = tmp_path / "GE-Proton.tar.gz"
 
-    ge_installer._download("https://example/GE.tar.gz", dest, None)
+    ge_download.download("https://example/GE.tar.gz", dest, None)
 
     assert dest.stat().st_size == 700
 
 
 def test_retry_wrapper_converts_truncation_into_a_retry(_serve, tmp_path, monkeypatch):
     """A short read must cost a retry, not a silently broken install."""
-    monkeypatch.setattr(ge_installer.time, "sleep", lambda _s: None)
+    monkeypatch.setattr(ge_download.time, "sleep", lambda _s: None)
     _serve(b"x" * 10, declared=999)
     dest = tmp_path / "GE-Proton.tar.gz"
 
-    ok = ge_installer._download_with_retry(
+    ok = ge_download.download_with_retry(
         "https://example/GE.tar.gz", dest, None, attempts=2,
     )
 

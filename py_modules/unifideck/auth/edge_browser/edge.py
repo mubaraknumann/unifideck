@@ -69,6 +69,14 @@ LOG_FILE = str(Path(
     "~/.local/share/unifideck/edge-auth.log",
 ).expanduser())
 
+#: HTML5 web games (itch.io) get their own profile. Their pages and scripts
+#: are written by game creators, so they must not run where the Microsoft /
+#: Xbox, itch.io and store sign-in sessions live. Only xCloud streams, which
+#: need the Xbox session cookies, open in ``PROFILE_DIR``.
+WEB_GAME_PROFILE_DIR = str(Path(
+    "~/.local/share/unifideck/edge-webgames",
+).expanduser())
+
 # Legacy paths, used only for the one-shot migration. The
 # _migrate_legacy_profile() call moves the old directory into the
 # new name at first use and logs the action. After migration
@@ -105,6 +113,21 @@ _BASE_FLAGS = [
     "--disable-dev-shm-usage",
     "--disable-background-networking",
 ]
+
+
+def _make_web_game_profile_manager() -> EdgeProfileManager:
+    """An EdgeProfileManager for the isolated web-game profile.
+
+    Only its singleton cleanup is used: there is no legacy directory to
+    migrate and no cookie set that logout has to clear.
+    """
+    return EdgeProfileManager(
+        profile_dir=WEB_GAME_PROFILE_DIR,
+        log_file=LOG_FILE,
+        legacy_profile_dir=WEB_GAME_PROFILE_DIR,
+        legacy_log_file=LOG_FILE,
+        cookie_domain_patterns=(),
+    )
 
 
 def _make_profile_manager() -> EdgeProfileManager:
@@ -319,9 +342,9 @@ class EdgeBrowser:
         """Launch a browsable store window — delegate to launch module."""
         return _launch.launch_storefront(self, url)
 
-    def launch_browser_game(self, url: str) -> bool:
+    def launch_browser_game(self, url: str, *, kind: str) -> bool:
         """Launch Edge in kiosk mode on a browser game: delegate to launch module."""
-        return _launch.launch_browser_game(self, url)
+        return _launch.launch_browser_game(self, url, kind=kind)
 
     def kill(self) -> None:
         """Gracefully terminate the auth browser process.

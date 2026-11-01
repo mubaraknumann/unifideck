@@ -20,6 +20,7 @@ from pathlib import Path
 import pytest
 
 from unifideck.stores.gamevault.archive import (
+    _zip_needs_tool,
     available_extractors,
     detect_format,
     extract_archive,
@@ -200,6 +201,63 @@ async def test_extract_zip_uses_the_stdlib_and_needs_no_tool(tmp_path):
     await extract_archive(archive, dest)
 
     assert (dest / "Game.exe").read_bytes() == b"x" * 100
+
+
+def _zip_with_method(tmp_path: Path, name: str, method: int) -> Path:
+    """A one-member stored zip relabelled to *method* in both headers.
+
+    The stdlib cannot write Zstandard (method 93) before Python 3.14, so the
+    method field is patched in place — the central directory is all
+    ``_zip_needs_tool`` reads.
+    """
+    archive = tmp_path / name
+    with zipfile.ZipFile(archive, "w", zipfile.ZIP_STORED) as zf:
+        zf.writestr("Game.exe", b"x" * 100)
+    data = bytearray(archive.read_bytes())
+    method_bytes = method.to_bytes(2, "little")
+    data[8:10] = method_bytes  # local file header
+    central = data.index(b"PK\x01\x02")
+    data[central + 10:central + 12] = method_bytes
+    archive.write_bytes(bytes(data))
+    return archive
+
+
+def test_zip_needs_tool_is_empty_for_a_stdlib_zip(tmp_path):
+    archive = _zip_with(tmp_path, "g.zip", {"Game.exe": b"x" * 100})
+
+    assert _zip_needs_tool(archive) == frozenset()
+
+
+def test_zip_needs_tool_names_a_zstandard_member(tmp_path):
+    archive = _zip_with_method(tmp_path, "g.zip", 93)
+
+    if getattr(zipfile, "ZIP_ZSTANDARD", None) == 93:
+        assert _zip_needs_tool(archive) == frozenset()
+    else:
+        assert _zip_needs_tool(archive) == frozenset({93})
+
+
+async def test_extract_zip_the_stdlib_cannot_read_uses_the_ladder(
+    tmp_path, monkeypatch,
+):
+    """A zip named ``.rar`` with Zstandard members (a real 107 GB vault
+    upload) failed with "That compression method is not supported" although
+    ``bsdtar`` on the same Deck reads it. Such zips must reach the ladder.
+    """
+    import unifideck.stores.gamevault.archive as archive_mod
+
+    archive = _zip_with_method(tmp_path, "Game.rar", 98)  # PPMd
+    calls: list[tuple[Path, Path, str]] = []
+
+    async def fake_ladder(src: Path, dest: Path, fmt: str) -> None:
+        calls.append((src, dest, fmt))
+
+    monkeypatch.setattr(archive_mod, "_extract_with_tool", fake_ladder)
+    dest = tmp_path / "out"
+
+    await extract_archive(archive, dest)
+
+    assert calls == [(archive, dest, "zip")]
 
 
 async def test_extract_unknown_format_raises(tmp_path):

@@ -50,7 +50,7 @@ async def launch_xcloud(
                 "url": target_url,
             },
         )
-    started = edge_browser.launch_browser_game(target_url)
+    started = edge_browser.launch_browser_game(target_url, kind="stream")
     if not started:
         return Result(
             success=False,

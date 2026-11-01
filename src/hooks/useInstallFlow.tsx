@@ -17,6 +17,12 @@
  *    (`services/store/claim-flow.tsx`). Also run when `install_game`
  *    answers `*_claim_required`, for a tile whose tags predate the claim
  *    rule, then the install is retried once.
+ *  - An Xbox PC title (tag `xbox_pc`): the setup modal opens first when
+ *    the live status says setup is incomplete (`needsXboxPcSetup`): it is
+ *    finished in place, with no dialog (`linkXboxPc`). When
+ *    `install_game` refuses with a setup code (`xbox_pc_disabled`,
+ *    `_runtime_missing`, `_not_signed_in`), setup runs and the install is
+ *    retried once. No language picker: Xodus picks the package.
  *  - Other stores: pass straight through.
  */
 import { useCallback, useState } from "react";
@@ -36,6 +42,13 @@ import {
   isClaimRequiredError,
   needsClaim,
 } from "../services/store/claim-flow";
+import {
+  isXboxPcRow,
+  isXboxPcSetupError,
+  needsXboxPcSetup,
+  runXboxPcSetup,
+} from "../services/store/xbox-pc-flow";
+import { xboxPcSnapshot } from "./useXboxPcStatus";
 
 /** Steam bridge shape — same minimal surface useGameActions
  *  consumes. */
@@ -104,6 +117,9 @@ export function useInstallFlow(bridge: SteamBridgeShape): UseInstallFlowResult {
           const claim = await claimBeforeInstall(game);
           if (!claim?.success) return claim;
         }
+        if (needsXboxPcSetup(game, xboxPcSnapshot().status)) {
+          if (!(await runXboxPcSetup())) return null;
+        }
         const install = async (opts: {
           storage: string;
           language?: string;
@@ -114,10 +130,17 @@ export function useInstallFlow(bridge: SteamBridgeShape): UseInstallFlowResult {
             game.store_game_id,
             args,
           );
-          if (!isClaimRequiredError(result?.error)) return result;
+          const retry = () =>
+            actions.install(game.store, game.store_game_id, args);
+          if (isXboxPcSetupError(result.error)) {
+            // The status was stale (or not loaded): setup, then once more.
+            if (!(await runXboxPcSetup())) return result;
+            return retry();
+          }
+          if (!isClaimRequiredError(result.error)) return result;
           const claim = await claimBeforeInstall(game);
           if (!claim?.success) return claim ?? result;
-          return actions.install(game.store, game.store_game_id, args);
+          return retry();
         };
         // `useStorageConfig` fetches once at row-mount time, which can be
         // long before the user opens this picker (e.g. an SD card inserted
@@ -156,9 +179,11 @@ export function useInstallFlow(bridge: SteamBridgeShape): UseInstallFlowResult {
           customPath ?? "none",
         );
 
-        const fetchLangs = storeHasCapability(game.store, "has_language_picker")
-          ? LANGUAGE_ROUTE[game.store]
-          : undefined;
+        const fetchLangs =
+          !isXboxPcRow(game) &&
+          storeHasCapability(game.store, "has_language_picker")
+            ? LANGUAGE_ROUTE[game.store]
+            : undefined;
         if (!fetchLangs) {
           console.log(
             "[useInstallFlow] installing %s/%s with storage=%s",

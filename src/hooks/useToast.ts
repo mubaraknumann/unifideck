@@ -1,37 +1,35 @@
 /**
- * useToast — typed wrapper around Decky's `toaster.toast`.
+ * useToast — typed wrapper around {@link showToast}.
  *
- * Wraps the global toaster with three semantics-bearing
- * methods (`info`, `success`, `error`) and a base `show` for
- * full control. Components import this hook instead of
- * `toaster` directly so :
- *  - duration defaults are centralised (no scattered "5000")
- *  - a future swap to a different notification system is a
- *    one-file change
- *  - a no-op fallback is provided when the @decky/api
- *    toaster is unavailable (test environments)
+ * Three semantics-bearing methods (`info`, `success`, `error`) and a base
+ * `show` for full control. The title is a `ToastHeader` (`headerText`), the
+ * feature's shared name; the body a `ToastString` (`toastText`), what
+ * happened. `showToast` clamps both to the toast budget.
  */
-import { toaster } from "@decky/api";
 import { useCallback } from "react";
+import { DEFAULT_DURATION, ERROR_DURATION } from "../services/toast-duration";
+import { type ToastHeader, type ToastString } from "../services/toast-text";
+import { showToast } from "../services/show-toast";
 
 interface ToastOptions {
   duration?: number;
-  body?: string;
+  body?: ToastString;
   onClick?: () => void;
 }
-
-const DEFAULT_DURATION = 5000;
-const ERROR_DURATION = 7500;
 
 /**
  * Shape returned by {@link useToast}. The single field is
  * a stable `showToast(args)` callback — no other state.
  */
 export interface UseToastResult {
-  show: (title: string, body?: string, options?: ToastOptions) => void;
-  info: (title: string, body?: string) => void;
-  success: (title: string, body?: string) => void;
-  error: (title: string, body?: string) => void;
+  show: (
+    title: ToastHeader,
+    body?: ToastString,
+    options?: ToastOptions,
+  ) => void;
+  info: (title: ToastHeader, body?: ToastString) => void;
+  success: (title: ToastHeader, body?: ToastString) => void;
+  error: (title: ToastHeader, body?: ToastString) => void;
 }
 
 /**
@@ -43,33 +41,29 @@ export interface UseToastResult {
  */
 export function useToast(): UseToastResult {
   const show = useCallback(
-    (title: string, body?: string, options: ToastOptions = {}) => {
-      try {
-        toaster.toast({
-          title,
-          body: body ?? options.body ?? "",
-          duration: options.duration ?? DEFAULT_DURATION,
-          onClick: options.onClick,
-        });
-      } catch {
-        console.log(`[Toast] ${title}: ${body ?? ""}`);
-      }
+    (title: ToastHeader, body?: ToastString, options: ToastOptions = {}) => {
+      showToast({
+        title,
+        body: body ?? options.body,
+        duration: options.duration ?? DEFAULT_DURATION,
+        ...(options.onClick ? { onClick: options.onClick } : {}),
+      });
     },
     [],
   );
 
   const info = useCallback(
-    (title: string, body?: string) => show(title, body),
+    (title: ToastHeader, body?: ToastString) => show(title, body),
     [show],
   );
 
   const success = useCallback(
-    (title: string, body?: string) => show(title, body),
+    (title: ToastHeader, body?: ToastString) => show(title, body),
     [show],
   );
 
   const error = useCallback(
-    (title: string, body?: string) =>
+    (title: ToastHeader, body?: ToastString) =>
       show(title, body, { duration: ERROR_DURATION }),
     [show],
   );

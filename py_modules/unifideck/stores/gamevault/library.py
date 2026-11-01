@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 
 from unifideck.core.types import Game
 
-from .filename import leaf_name, parse_archive_name
+from .filename import leaf_name, parse_archive_name, strip_source_tags
 
 if TYPE_CHECKING:
     from .auth import GameVaultAuth
@@ -212,9 +212,11 @@ class RemoteCatalog:
             if isinstance(title, str) and title:
                 return title
 
+        # The server derives this one from the filename, so it carries the
+        # same uploader tags. ``metadata`` above is curated and left alone.
         top_level = item.get("title")
         if isinstance(top_level, str) and top_level:
-            return top_level
+            return strip_source_tags(top_level)
 
         # Last resort: derive from the file path.
         file_path = item.get("file_path") or item.get("path", "")
@@ -255,7 +257,7 @@ def _parse_title_from_filename(file_path: str) -> str:
     path as an ``AppName`` is precisely the reported symptom, and it should
     not survive even the last-ditch branch.
     """
-    return parse_archive_name(file_path).title or leaf_name(file_path)
+    return parse_archive_name(file_path).display_title or leaf_name(file_path)
 
 
 async def _read_page(

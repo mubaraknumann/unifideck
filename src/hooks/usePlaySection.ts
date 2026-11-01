@@ -6,40 +6,30 @@
  *
  *  - Steam-native game → no override (returns
  *    `{ shouldOverride: false }`)
+ *  - backend not answering → `unavailable`, also no override, so
+ *    the page falls back to Steam's own Play section
  *  - Unifideck game, NOT installed → expose `installAction`
  *  - Unifideck game, IN download queue → expose
  *    `cancelDownloadAction` + the live download item
  *  - Unifideck game, installed → expose `playAction` plus
  *    `uninstallAction`
+ *  - Xbox PC row that cannot install right now → `pc-unsupported`
  *
- * The decision is recomputed reactively when the underlying
- * `useGameInfo` data or the download queue snapshot changes.
- * The render component reads `shouldOverride` and the
- * action functions; it stays presentational.
+ * The decision itself is the pure `resolvePlaySection`; this hook only
+ * gathers its inputs (game info, the download queue, the Xbox PC status)
+ * and recomputes when any of them changes. The render component reads
+ * `shouldOverride` and the state; it stays presentational.
  */
 import { useMemo } from "react";
 import { useGameInfo } from "./useGameInfo";
+import { useXboxPcStatus } from "./useXboxPcStatus";
 import { useDownloads } from "../contexts/DownloadContext";
-import type { DownloadItem } from "../types/downloads";
+import {
+  resolvePlaySection,
+  type PlaySectionState,
+} from "./resolvePlaySection";
 
-/**
- * Discriminated union of the Play-section states. Drives
- * which variant of the Play button is rendered
- * (NotInstalled / Downloading / Installed / Launching).
- */
-export type PlaySectionState =
-  | { kind: "steam-native"; shouldOverride: false }
-  | { kind: "not-installed"; shouldOverride: true; installable: true }
-  | { kind: "downloading"; shouldOverride: true; download: DownloadItem }
-  | { kind: "installed"; shouldOverride: true; appId: number }
-  | {
-      kind: "browser";
-      shouldOverride: true;
-      appId: number;
-      /** "stream" = xCloud (Play on Cloud); "web" = an HTML5 game. */
-      variant: "stream" | "web";
-      url: string;
-    };
+export type { PlaySectionState } from "./resolvePlaySection";
 
 /**
  * Hook that resolves the current Play-section state
@@ -54,83 +44,11 @@ export type PlaySectionState =
 export function usePlaySection(appId: number | null): PlaySectionState {
   const info = useGameInfo(appId);
   const downloads = useDownloads();
+  const xbox = useXboxPcStatus();
 
-  return useMemo<PlaySectionState>(() => {
-    if (appId == null || !info.data) {
-      return { kind: "steam-native", shouldOverride: false };
-    }
-
-    const game = info.data;
-    // Filter out games whose store is plain Steam — we never override those.
-    if (game.store === "steam") {
-      return { kind: "steam-native", shouldOverride: false };
-    }
-
-    // Browser games (xCloud streams, itch.io HTML5 games) open in an Edge
-    // window and install nothing, so they are always playable: surface a
-    // Play state regardless of is_installed. The launcher finds the URL in
-    // the library cache (backend `launcher/browser_games`). `xcloud` alone
-    // still counts, for a library cached before the `browser` tag existed.
-    const tags = game.store_tags ?? [];
-    if (tags.includes("browser") || tags.includes("xcloud")) {
-      const stream = tags.includes("xcloud");
-      return {
-        kind: "browser",
-        shouldOverride: true,
-        appId,
-        variant: stream ? "stream" : "web",
-        url:
-          game.browser_url ??
-          (stream ? `https://www.xbox.com/play/launch/${game.id}` : ""),
-      };
-    }
-
-    // Check the live queue first — a download in progress
-    // takes precedence over `is_installed` flag staleness.
-    const inQueue =
-      findInQueue(downloads.queue?.current, game.id) ??
-      downloads.queue?.queued.find(
-        (d) => d.game_id === game.id && !isTerminal(d),
-      ) ??
-      null;
-    if (inQueue) {
-      return { kind: "downloading", shouldOverride: true, download: inQueue };
-    }
-    if (!game.is_installed) {
-      return { kind: "not-installed", shouldOverride: true, installable: true };
-    }
-
-    return { kind: "installed", shouldOverride: true, appId };
-  }, [appId, info.data, downloads.queue]);
-}
-
-/**
- * Statuses meaning the item is finished with. A finished download must never
- * render as an active one: the "downloading" branch above deliberately
- * outranks `is_installed`, so a stale row does not just look wrong, it hides
- * the Play button behind a progress bar whose Cancel cannot succeed.
- *
- * The backend filters these out of `current` too (`get_queue`). This is the
- * second line of defence, and it is worth having: the queue snapshot is only
- * replaced when a download event arrives, there is no polling refetch, and the
- * event that clears a row is the same one that races the backend's own
- * cleanup.
- */
-const TERMINAL_STATUSES: ReadonlySet<string> = new Set([
-  "complete",
-  "failed",
-  "cancelled",
-]);
-
-function isTerminal(item: DownloadItem): boolean {
-  return TERMINAL_STATUSES.has(item.status);
-}
-
-function findInQueue(
-  current: DownloadItem | null | undefined,
-  gameId: string,
-): DownloadItem | null {
-  if (!current || isTerminal(current)) return null;
-
-  return current.game_id === gameId ? current : null;
+  const { data, status } = info;
+  return useMemo<PlaySectionState>(
+    () => resolvePlaySection(appId, { data, status }, downloads.queue, xbox),
+    [appId, data, status, downloads.queue, xbox],
+  );
 }

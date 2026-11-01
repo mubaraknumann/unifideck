@@ -136,6 +136,33 @@ def _select_rows(
     return rows
 
 
+def _is_safe_save_dir(candidate: str, install_path: str) -> bool:
+    """Whether ``candidate`` can be a save directory at all.
+
+    Rows like ``<base>/SAVE*.SAV`` stop at their wildcard and resolve to the
+    install folder itself, and ``<base>/EOBDATA.SAV`` resolves to a file. A
+    forced download first empties the save dir and an upload sends all of
+    it, so the install folder (or anything containing it) would mean
+    deleting the game or uploading it whole. Rejected here, logged so the
+    gap stays visible.
+    """
+    if os.path.isfile(candidate):
+        reason = "is a file"
+    elif install_path and _contains(candidate, install_path):
+        reason = "contains the install folder"
+    else:
+        return True
+    logger.info("[SaveLoc] rejected save dir %s: %s", candidate, reason)
+    return False
+
+
+def _contains(outer: str, inner: str) -> bool:
+    """True when ``inner`` is ``outer`` or lies inside it."""
+    outer_p = os.path.realpath(outer)
+    inner_p = os.path.realpath(inner)
+    return inner_p == outer_p or inner_p.startswith(outer_p.rstrip(os.sep) + os.sep)
+
+
 def resolve_save_dir(
     store: str,
     game_id: str,
@@ -165,7 +192,10 @@ def resolve_save_dir(
         resolved = WinePrefixResolver.resolve_ludusavi_path(
             loc["path"], prefix_path, install_path, native_linux=native_linux,
         )
-        if resolved and resolved not in candidates:
+        if (
+            resolved and resolved not in candidates
+            and _is_safe_save_dir(resolved, install_path)
+        ):
             candidates.append(resolved)
     for candidate in candidates:
         if os.path.isdir(candidate):

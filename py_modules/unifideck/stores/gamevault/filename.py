@@ -112,6 +112,16 @@ class ParsedName:
         return self.game_type in _LINUX_TYPES
 
     @property
+    def display_title(self) -> str:
+        """``title`` without trailing uploader tags — the name people see.
+
+        Not used for :attr:`identity`: the ``lv_`` ids, and so the appIds,
+        playtime and artwork of every installed local game, derive from the
+        raw title. Cleaning that would re-key them all.
+        """
+        return strip_source_tags(self.title)
+
+    @property
     def identity(self) -> str:
         """The key that groups every version of one game.
 
@@ -223,6 +233,41 @@ def _normalise_title(raw: str) -> str:
     """Separator characters to spaces, whitespace collapsed."""
     text = re.sub(r"[_\-]+", " ", raw).strip()
     return re.sub(r"\s{2,}", " ", text).strip()
+
+
+# Uploader, repack and download-site names that end up as a bare last word of
+# an archive name (``Alan-Wake-2-AnkerGames.rar``). They say where a file came
+# from, not what the game is called. Bracketed tags are already dropped by
+# ``_classify_token``. Names that are also ordinary title words (Codex, Rune,
+# Empress, Plaza) are left out on purpose: stripping one from a real title is
+# worse than leaving one on a repack. The list is never complete; a rename in
+# Steam covers the rest (``services/shortcut/user_title.py``).
+_SOURCE_TAGS = frozenset({
+    "ankergames", "darksiders", "dodi", "elamigos", "fitgirl", "gog",
+    "igggames", "kaos", "razor1911", "repack", "repacks", "skidrow",
+    "steamrip", "steamunlocked", "tenoke", "tinyrepacks", "xatab",
+})
+
+
+def strip_source_tags(title: str) -> str:
+    """*title* without trailing uploader tags, never stripped to nothing.
+
+    Whole words only, compared case-insensitively, so ``Repack`` never cuts
+    into ``Repackaged``. Several tags in a row go together
+    (``Game FitGirl Repack`` → ``Game``), and so does a separator a removed
+    tag leaves dangling (``Game - FitGirl`` → ``Game``).
+    """
+    words = title.split()
+    stripped = False
+    while len(words) > 1:
+        last = words[-1]
+        is_tag = last.lower() in _SOURCE_TAGS
+        is_dangling = stripped and not any(ch.isalnum() for ch in last)
+        if not (is_tag or is_dangling):
+            break
+        stripped = stripped or is_tag
+        words.pop()
+    return " ".join(words)
 
 
 def _normalise_for_identity(title: str) -> str:

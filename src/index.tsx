@@ -20,7 +20,10 @@ import { definePlugin } from "@decky/api";
 import { FC } from "react";
 import { initI18n } from "./i18n";
 import { SteamBridge } from "./lib/steam-bridge";
-import { tabManager } from "./lib/steam-bridge/tab-container";
+import {
+  attachGroupDuplicatesRefresh,
+  tabManager,
+} from "./lib/steam-bridge/tab-container";
 import { RootProvider } from "./contexts/RootProvider";
 import { QuickAccessPanel } from "./views/QuickAccessPanel";
 import { applyAppDetailsPatch } from "./views/AppDetailsPatch";
@@ -42,6 +45,8 @@ import { downloadStore } from "./stores/download-store";
 import { syncStore } from "./stores/sync-store";
 import { authStore } from "./stores/auth-store";
 import { storeInfoStore } from "./stores/store-info-store";
+import { xboxPcStore } from "./stores/xbox-pc-store";
+import { linkXboxPc } from "./services/store/xbox-pc-link";
 import { runTeardown, type TeardownHandles } from "./teardown";
 // Eager translation load — Decky's UI mounts before any
 // async work resolves, so we kick this off at module import.
@@ -137,7 +142,12 @@ export default definePlugin(() => {
     );
   handles.signedOutTabs = authStore.subscribe(syncSignedOutTabs);
   syncSignedOutTabs();
+  handles.groupDuplicatesRefresh = attachGroupDuplicatesRefresh();
   storeInfoStore.start();
+  xboxPcStore.start();
+  // Toggle on and Microsoft connected: make sure the components are there.
+  // No sign-in at boot, so an Edge window never opens unasked.
+  void linkXboxPc({ signIn: false });
   downloadStore.start();
   syncStore.start();
   // Boot-time event listener — handles STORE_ERROR, LAUNCHER_STAGE,

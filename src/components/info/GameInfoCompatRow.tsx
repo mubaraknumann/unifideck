@@ -21,6 +21,8 @@ import { useGameInfo } from "../../hooks/useGameInfo";
 import { useGameActions } from "../../hooks/useGameActions";
 import { useDownloads } from "../../contexts/DownloadContext";
 import { useToast } from "../../hooks/useToast";
+import { downloadErrorToast } from "../../lib/download-errors";
+import { toastText, headerText } from "../../services/toast-text";
 import { SteamBridge } from "../../lib/steam-bridge";
 import { UninstallConfirmModal } from "../modals/UninstallConfirmModal";
 import { GameInfoDetailsModal } from "./GameInfoDetailsModal";
@@ -95,12 +97,22 @@ export const GameInfoCompatRow: FC<Props> = ({
         gameTitle={game.title}
         onConfirm={async (deletePrefix) => {
           const r = await actions.uninstall(appId, deletePrefix);
-          if (r?.success) toast.success(t("toasts.uninstallComplete"));
+          if (r.success) {
+            toast.success(
+              headerText("toasts.header.uninstall"),
+              toastText("toasts.uninstallDone"),
+            );
+          } else {
+            toast.error(
+              headerText("toasts.header.uninstall"),
+              downloadErrorToast(r.error),
+            );
+          }
         }}
         closeModal={() => {}}
       />,
     );
-  }, [actions, appId, game, t, toast]);
+  }, [actions, appId, game, toast]);
 
   const onDetails = useCallback(() => {
     showModal(<GameInfoDetailsModal meta={meta} closeModal={() => {}} />);

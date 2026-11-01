@@ -10,7 +10,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from unifideck.core.types import Game
-
 from unifideck.stores.gamevault.library import (
     GameVaultFetchError,
     GameVaultLibraryReader,
@@ -52,6 +51,10 @@ def _game(game_id: str = "1", title: str = "My Game") -> Game:
 
 
 # ── _parse_title_from_filename ───────────────────────────────────────
+def test_parse_title_from_filename_drops_uploader_tags():
+    assert _parse_title_from_filename("Alan-Wake-2-AnkerGames.rar") == "Alan Wake 2"
+
+
 def test_parse_title_strips_extension_and_year():
     assert _parse_title_from_filename("Half-Life 2 (2004).zip") == "Half Life 2"
 
@@ -106,6 +109,22 @@ def test_extract_title_falls_back_to_file_path_parsing():
     reader = _reader()
     item = {"file_path": "My Game (2021).zip"}
     assert reader._extract_title(item) == "My Game"
+
+
+def test_extract_title_strips_uploader_tags_from_the_server_title():
+    """A remote server derives ``title`` from the filename, tags and all."""
+    reader = _reader()
+    item = {"title": "Alan Wake 2 AnkerGames", "file_path": "x.rar"}
+    assert reader._extract_title(item) == "Alan Wake 2"
+
+
+def test_extract_title_leaves_a_curated_metadata_title_alone():
+    """``metadata`` is the owner's or a provider's choice, not a filename."""
+    reader = _reader()
+    item = {"metadata": {"title": "Repack"}, "title": "Repack Repack"}
+    assert reader._extract_title(item) == "Repack"
+    item = {"metadata": {"title": "Space Game GOG"}}
+    assert reader._extract_title(item) == "Space Game GOG"
 
 
 def test_extract_title_falls_back_to_id_placeholder():

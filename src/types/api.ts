@@ -120,6 +120,115 @@ export interface Game {
    *  URL or an itch.io game page. From the backend's
    *  ``metadata.browser_url``; absent for every installable game. */
   browser_url?: string;
+  /** Xbox PC install facts (``GameTag`` ``xbox_pc``), from the backend's
+   *  ``metadata.xbox_pc``. Absent on every other row. */
+  xbox_pc?: XboxPcInfo;
+}
+
+/** Why an Xbox PC title can be listed but not installed. */
+export type XboxPcAccess =
+  | "owned"
+  | "gamepass"
+  | "ea_play"
+  | "ubisoft_plus"
+  | "unknown_plan"
+  | "none";
+
+/** One installable package of an Xbox PC title with several choices. */
+export interface XboxPcChoice {
+  content_id: string;
+  product_id: string;
+  title: string;
+  kind: string;
+  size_bytes: number | null;
+}
+
+/** ``metadata.xbox_pc`` on a row tagged ``xbox_pc``.
+ *
+ *  ``state`` says what Install can do: ``ready`` installs, ``choice`` needs
+ *  a package choice (no picker in v1), ``not_supported`` is listed only
+ *  (``reason`` says why), and ``license_not_confirmed`` is an installed
+ *  game whose entitlement the last library read did not confirm. */
+export interface XboxPcInfo {
+  v: number;
+  state: "ready" | "choice" | "not_supported" | "license_not_confirmed";
+  reason: string | null;
+  access: XboxPcAccess;
+  plan_id: string | null;
+  product_id: string;
+  target_id: string;
+  content_id: string | null;
+  choices: XboxPcChoice[];
+  size_bytes: number | null;
+  market: string;
+  end_date: string | null;
+}
+
+export type XboxPcRuntimeState =
+  | "missing"
+  | "installing"
+  | "installed"
+  | "outdated"
+  | "failed";
+
+export type XboxPcAccountState =
+  | "unknown"
+  | "signed_out"
+  | "signing_in"
+  | "signed_in"
+  | "mismatch"
+  | "unverified"
+  | "error";
+
+/** Component (backend + runtime) install progress. ``total_bytes`` is null
+ *  while the size is unknown; show an indeterminate bar then. */
+export interface XboxPcRuntimeProgress {
+  stage: string;
+  done_bytes: number;
+  total_bytes: number | null;
+}
+
+/** The Xbox PC status snapshot: the ``get_xbox_pc_status`` RPC result and
+ *  the ``xbox_pc_state_changed`` event payload. It never carries a
+ *  top-level ``success`` key, and never the account email. */
+export interface XboxPcStatus {
+  /** Whether this build offers the feature at all. Hide the section when
+   *  false. */
+  available: boolean;
+  enabled: boolean;
+  /** The notice version the user must acknowledge before enabling. */
+  notice_version: number;
+  notice_ack_version: number;
+  /** The PC library still needs the Microsoft (xCloud) sign-in. */
+  xcloud_signed_in: boolean;
+  runtime: {
+    state: XboxPcRuntimeState;
+    version: string | null;
+    /** The installed backend (`xodus-cli`, `xodus-service`) version. */
+    backend_version?: string | null;
+    /** Where the components are installed from (named in errors). */
+    source_dir: string;
+    progress?: XboxPcRuntimeProgress;
+    error?: string;
+    /** Missing runtime features, e.g. ``cloud_saves``. Shown to the user. */
+    degraded: string[];
+  };
+  account: {
+    state: XboxPcAccountState;
+    gamertag?: string;
+    error?: string;
+    /** While `signing_in`: `device` once Microsoft confirms this device. */
+    step?: string;
+  };
+  library: {
+    installable: number;
+    not_supported: number;
+    choice: number;
+    skipped: number;
+    stale: boolean;
+    /** Unix seconds of the last good library read, null before one. */
+    last_read: number | null;
+  };
 }
 
 /** One achievement (definition + this user's unlock status). */
@@ -296,4 +405,8 @@ export type GameTag =
   | "browser"
   // Paid for but not yet claimed on the store's site (an itch.io bundle
   // game). The install flow opens the claim page first.
-  | "claim_required";
+  | "claim_required"
+  // A Microsoft title Unifideck installs and runs itself through its own
+  // Xodus build. Present on every installed row, even with the feature
+  // off. Details in `Game.xbox_pc`.
+  | "xbox_pc";

@@ -5,7 +5,7 @@ import urllib.parse
 import urllib.request
 from typing import Any, cast
 
-from unifideck.core.net import ssl_ctx_permissive as _ssl
+from unifideck.core.net import ssl_ctx_strict
 
 logger = logging.getLogger(__name__)
 __all__ = [
@@ -19,19 +19,19 @@ def http_post(url: str, data: dict[str, Any], headers: dict[str, Any]) -> dict[s
     body = urllib.parse.urlencode(data).encode()
     req = urllib.request.Request(
         url, data=body, headers=headers, method="POST")
-    with urllib.request.urlopen(req, timeout=15, context=_ssl("Microsoft OAuth — outdated Deck cert store")) as r:
+    with urllib.request.urlopen(req, timeout=15, context=ssl_ctx_strict()) as r:
         return cast(dict[str, Any], json.loads(r.read().decode()))
 def http_post_json(url: str, payload: dict[str, Any], headers: dict[str, Any]) -> dict[str, Any]:
     """Http post JSON."""
     body = json.dumps(payload).encode()
     req = urllib.request.Request(
         url, data=body, headers=headers, method="POST")
-    with urllib.request.urlopen(req, timeout=20, context=_ssl("Microsoft OAuth — outdated Deck cert store")) as r:
+    with urllib.request.urlopen(req, timeout=20, context=ssl_ctx_strict()) as r:
         return cast(dict[str, Any], json.loads(r.read().decode()))
 def http_get(url: str, headers: dict[str, Any]) -> dict[str, Any]:
     """Http get."""
     req = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(req, timeout=15, context=_ssl("Microsoft OAuth — outdated Deck cert store")) as r:
+    with urllib.request.urlopen(req, timeout=15, context=ssl_ctx_strict()) as r:
         return cast(dict[str, Any], json.loads(r.read().decode()))
 
 def request_xsts_token(
@@ -61,13 +61,21 @@ def _obtain_xbl_user_token(
     v1) for an Azure AD v2 ``XboxLive.signin`` token such as xbox.com's
     device-code client. The likely one goes first so a sign-in costs one
     request, not a failed one plus a retry, on every relying party.
+
+    A ticket that already carries its prefix is sent as issued: backend
+    0.1.5+ (``xodus-xbox-jwe-ticket``) gives a JWE delegation ticket as
+    ``t=<jwe>``, and a second prefix makes Xbox Live answer 401.
     """
     live = [("2", f"t={access_token}"), ("1", f"d={access_token}"), ("1", f"t={access_token}")]
     aad = [("1", f"d={access_token}"), ("2", f"t={access_token}")]
-    candidates = aad if prefer_d else live
+    if access_token.startswith(("t=", "d=")):
+        candidates = [("1", access_token), ("2", access_token)]
+    else:
+        candidates = aad if prefer_d else live
+    reasons: list[str] = []
     for contract_v, rps in candidates:
         resp = _try_xbl_request(
-            contract_v, rps, locale, xbl_auth_url, xbl_user_agent,
+            contract_v, rps, locale, xbl_auth_url, xbl_user_agent, reasons,
         )
         if resp is not None and resp.get("Token"):
             logger.info(
@@ -75,8 +83,11 @@ def _obtain_xbl_user_token(
                 contract_v, rps[:2],
             )
             return resp
+    # Microsoft's reason is the only way to tell a refused account or device
+    # from a network fault, so it goes out at the failure's level (rule 8).
     logger.error(
-        "[MS] XBL user token failed with all contract/prefix combos",
+        "[MS] XBL user token failed with all contract/prefix combos: %s",
+        "; ".join(reasons) or "no reply",
     )
     return None
 def _try_xbl_request(
@@ -85,8 +96,9 @@ def _try_xbl_request(
     locale: str,
     xbl_auth_url: str,
     xbl_user_agent: str,
+    reasons: list[str] | None = None,
 ) -> dict[str, Any] | None:
-    """Try XBL request."""
+    """Try XBL request. Why it failed is appended to ``reasons``."""
     body = {
         "Properties": {
             "AuthMethod": "RPS",
@@ -107,16 +119,21 @@ def _try_xbl_request(
         return http_post_json(xbl_auth_url, body, headers)
     except urllib.error.HTTPError as e:
         body_text = _read_http_error_body(e)
-        logger.debug(
-            "[MS] XBL failed (v%s, %r): HTTP %d %s",
-            contract_v, rps[:2], e.code, body_text[:500],
-        )
+        challenge = (e.headers.get("WWW-Authenticate") if e.headers else None) or ""
+        reason = f"v{contract_v} {rps[:2]} HTTP {e.code}"
+        if challenge:
+            reason += f" [{challenge[:200]}]"
+        if body_text.strip():
+            reason += f" {body_text.strip()[:200]}"
+        logger.debug("[MS] XBL failed: %s", reason)
+        if reasons is not None:
+            reasons.append(reason)
         return None
     except Exception as e:
-        logger.debug(
-            "[MS] XBL failed (v%s, %r): %s",
-            contract_v, rps[:2], e,
-        )
+        reason = f"v{contract_v} {rps[:2]} {type(e).__name__}: {e}"[:300]
+        logger.debug("[MS] XBL failed: %s", reason)
+        if reasons is not None:
+            reasons.append(reason)
         return None
 def _extract_user_hash(xbl_resp: dict[str, Any]) -> str | None:
     """Extract user hash."""

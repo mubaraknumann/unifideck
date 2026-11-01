@@ -162,8 +162,10 @@ def test_our_own_orphan_is_still_reclaimed(tmp_path) -> None:
     """The feature still works for entries that are actually ours."""
     svc = _service(tmp_path)
     appid = -515151
-    # Ours, but Steam mangled the LaunchOptions away.
-    shortcuts = {"0": _ours(appid, "", AppName="Stale Name")}
+    # Ours, but Steam mangled the LaunchOptions away. The name is the one we
+    # last wrote, so it follows the store (a different one is a user rename,
+    # pinned in test_shortcut_user_title.py).
+    shortcuts = {"0": _ours(appid, "", AppName="Old Title")}
     registry = {"epic:abc": {"appid": appid, "title": "Old Title"}}
 
     reclaimed = svc._try_reclaim_orphan(

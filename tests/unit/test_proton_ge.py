@@ -981,7 +981,8 @@ def _svc_with_external(monkeypatch, tmp_path, *, ext_ver, latest, cached=None):
 
 
 def _toast_keys(svc):
-    return [c.args[0] for c in svc._emit_proton_toast.await_args_list]
+    """The body key of each Proton toast; the header is the same for all."""
+    return [c.args[1] for c in svc._emit_proton_toast.await_args_list]
 
 
 async def test_external_outdated_toast_fires_once_per_release(tmp_path, monkeypatch):
@@ -992,7 +993,7 @@ async def test_external_outdated_toast_fires_once_per_release(tmp_path, monkeypa
     await svc._ensure_latest_ge()
     await svc._ensure_latest_ge()
     await svc._ensure_latest_ge()
-    assert _toast_keys(svc).count("toasts.launcher.externalProtonOutdatedTitle") == 1
+    assert _toast_keys(svc).count("toasts.launcher.externalProtonOutdatedBody") == 1
 
 
 async def test_external_outdated_toast_fires_again_on_a_new_release(tmp_path, monkeypatch):
@@ -1002,7 +1003,7 @@ async def test_external_outdated_toast_fires_again_on_a_new_release(tmp_path, mo
     await svc._ensure_latest_ge()
     monkeypatch.setattr(ge_installer, "get_latest_ge_tag", lambda timeout=8.0: "GE-Proton11-6")
     await svc._ensure_latest_ge()
-    assert _toast_keys(svc).count("toasts.launcher.externalProtonOutdatedTitle") == 2
+    assert _toast_keys(svc).count("toasts.launcher.externalProtonOutdatedBody") == 2
 
 
 async def test_no_outdated_toast_when_we_are_not_using_the_external_tool(tmp_path, monkeypatch):
@@ -1018,9 +1019,9 @@ async def test_no_outdated_toast_when_we_are_not_using_the_external_tool(tmp_pat
     )
     await svc._ensure_latest_ge()
     keys = _toast_keys(svc)
-    assert "toasts.launcher.externalProtonOutdatedTitle" not in keys
-    assert "toasts.launcher.installingProton" in keys
-    assert "toasts.launcher.protonReadyTitle" in keys
+    assert "toasts.launcher.externalProtonOutdatedBody" not in keys
+    assert "toasts.launcher.attemptingInstall" in keys
+    assert "toasts.launcher.protonReadyBody" in keys
     ensure.assert_called_once()
 
 

@@ -21,6 +21,7 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any, cast
 
+from unifideck.core.native_entry import gog_linux_start_script
 from unifideck.core.types import Result
 
 from .config import GOGConfig
@@ -294,7 +295,9 @@ class GOGDlcManager:
                 "repair",
                 dlc_id,
                 "--platform",
-                "windows",
+                # A Linux install takes the Linux DLC; "windows" wrote the
+                # Windows build into it (see ``linux_updates``).
+                "linux" if gog_linux_start_script(base_path) else "windows",
                 "--path",
                 base_path,
                 "--lang",

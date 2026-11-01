@@ -62,6 +62,7 @@ def test_probe_reports_the_missing_manifest(tmp_path, monkeypatch):
     assert block["dirs"] == [{
         "path": str(tool),
         "problem": "toolmanifest.vdf missing, empty or unreadable",
+        "manifest": False,
     }]
 
 
@@ -70,8 +71,22 @@ def test_probe_reports_a_complete_build(tmp_path, monkeypatch):
     tool = _tool(root)
 
     assert probe_proton.managed_ge_block() == {
-        "tag": _TAG, "dirs": [{"path": str(tool), "problem": None}],
+        "tag": _TAG, "dirs": [{"path": str(tool), "problem": None, "manifest": False}],
     }
+
+
+def test_probe_reports_replaced_core_dlls(tmp_path, monkeypatch):
+    """The field failure: complete layout, gutted builtins, and a PASS verdict."""
+    root = _probe(tmp_path, monkeypatch, _TAG)
+    tool = _tool(root)
+    pe = tool / "files" / "lib" / "wine" / "x86_64-windows"
+    pe.mkdir(parents=True)
+    (pe / "shell32.dll").write_bytes(b"\0" * 0x40 + b"Wine placeholder DLL" + b"\0" * 64)
+
+    (entry,) = probe_proton.managed_ge_block()["dirs"]
+
+    assert entry["problem"] == "x86_64-windows/shell32.dll is a Wine placeholder, not the builtin"
+    assert _verdict({"tag": _TAG, "dirs": [entry]}).status == "fail"
 
 
 def test_probe_reports_a_symlinked_root_once(tmp_path, monkeypatch):
@@ -109,6 +124,15 @@ def test_verdict_passes_when_any_copy_is_complete():
     ]})
     assert verdict.status == "pass"
     assert "/b/GE-Proton11-7" in verdict.detail
+    assert "no release manifest yet" in verdict.detail
+
+
+def test_verdict_names_a_release_manifest_when_present():
+    verdict = _verdict({"tag": _TAG, "dirs": [
+        {"path": "/b/GE-Proton11-7", "problem": None, "manifest": True},
+    ]})
+    assert "release manifest" in verdict.detail
+    assert "no release manifest" not in verdict.detail
 
 
 def test_verdict_warns_when_recorded_but_absent():

@@ -101,6 +101,7 @@ def launcher_toast(
     severity: str | None = None,
     game_title: str = "",
     duration_ms: int | None = None,
+    action: dict[str, Any] | None = None,
 ) -> None:
     """Emit a LAUNCHER_STAGE toast from launcher code that has no bus.
 
@@ -133,6 +134,8 @@ def launcher_toast(
         payload["severity"] = severity
     if duration_ms is not None:
         payload["duration_ms"] = duration_ms
+    if action is not None:
+        payload["action"] = action
     record_event(_LAUNCHER_STAGE, payload)
 
 

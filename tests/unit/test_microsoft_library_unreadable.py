@@ -16,7 +16,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from unifideck.core.types import Events, SubscriptionTier
+from unifideck.core.types import Events, Game, GameTag, SubscriptionTier
 from unifideck.services.microsoft_subscription.service import (
     MicrosoftSubscriptionService,
     TierAnswer,
@@ -86,6 +86,44 @@ class _Session:
     market = "US"
 
 
+class _XboxPc:
+    """The facade, as the store's xCloud read sees it."""
+
+    def __init__(self) -> None:
+        self.notified = 0
+
+    def notify(self) -> None:
+        self.notified += 1
+
+
+class _PcLibrary:
+    """Passes xCloud through and records what the store handed it."""
+
+    def __init__(self, extra: list[Any] | None = None) -> None:
+        self.extra = extra or []
+        self.reads: list[str | None] = []
+        self.composed: list[dict[str, Any]] = []
+        self.pending: asyncio.Future[Any] | None = None
+        self.notices: list[str] = []
+
+    async def notify_once(self, reason: str) -> None:
+        self.notices.append(reason)
+
+    def start_read(self, market: str | None) -> asyncio.Future[Any]:
+        self.reads.append(market)
+        self.pending = asyncio.get_running_loop().create_future()
+        return self.pending
+
+    def now(self) -> float:
+        return 1000.0
+
+    async def compose(self, xcloud: list[Any], *, market: str | None, pending_read: Any = None,
+                      started: float | None = None) -> list[Any]:
+        assert started == 1000.0, "the budget counts from the start of get_library"
+        self.composed.append({"xcloud": list(xcloud), "market": market, "pending": pending_read})
+        return [*xcloud, *self.extra]
+
+
 class _Catalog:
     def __init__(self, result: Any, *, has_subscription: bool | None = None) -> None:
         self.result = result
@@ -97,8 +135,14 @@ class _Catalog:
         return self.result
 
 
-def _store(service: Any, *, catalog: Any = None, tokens: _Tokens | None = None) -> MicrosoftStore:
+def _store(
+    service: Any, *, catalog: Any = None, tokens: _Tokens | None = None, pc: _PcLibrary | None = None,
+) -> MicrosoftStore:
     store = MicrosoftStore.__new__(MicrosoftStore)
+    store._cached_available = False
+    store._last_market = None
+    store._xbox_pc = _XboxPc()  # type: ignore[assignment]
+    store._pc_library = pc or _PcLibrary()  # type: ignore[assignment]
     store._ms_config = _Config()
     store._tokens = tokens or _Tokens()
     store._bus = _Bus()
@@ -192,6 +236,56 @@ async def test_library_passes_the_catalog_answer_through() -> None:
     games = ["game"]
     store = _store(_Service(_ACTIVE, session=_Session()), catalog=_Catalog(games))
     assert await store.get_library() == games
+
+
+# ── the Xbox PC half rides on the xCloud read ────────────────────────
+
+async def test_the_pc_read_starts_with_the_session_market_and_is_handed_on() -> None:
+    pc = _PcLibrary()
+    store = _store(_Service(_ACTIVE, session=_Session()), catalog=_Catalog(["game"]), pc=pc)
+    await store.get_library()
+    assert pc.reads == ["US"]
+    assert pc.composed == [{"xcloud": ["game"], "market": "US", "pending": pc.pending}]
+
+
+async def test_a_failed_catalog_cancels_the_pc_read_and_keeps_everything() -> None:
+    """``None`` keeps every Microsoft shortcut, PC ones included."""
+    pc = _PcLibrary()
+    store = _store(_Service(_ACTIVE, session=_Session()), catalog=_Catalog(RuntimeError("x")), pc=pc)
+    assert await store.get_library() is None
+    assert pc.pending is not None and pc.pending.cancelled()
+    assert pc.composed == []
+
+
+async def test_an_unreadable_catalog_cancels_the_pc_read() -> None:
+    pc = _PcLibrary()
+    store = _store(_Service(_ACTIVE, session=_Session()), catalog=_Catalog(None), pc=pc)
+    assert await store.get_library() is None
+    assert pc.pending is not None and pc.pending.cancelled()
+
+
+async def test_no_subscription_still_lists_pc_rows_and_says_so() -> None:
+    row = Game(app_id=0, store="microsoft", store_game_id="9PK087LNGJC5", title="Balatro",
+               tags=[GameTag.XBOX_PC])
+    pc = _PcLibrary(extra=[row])
+    store = _store(_Service(TierAnswer(SubscriptionTier.NONE, authoritative=True)), pc=pc)
+    assert await store.get_library() == [row]
+    assert pc.composed[0]["xcloud"] == [] and pc.composed[0]["pending"] is None
+    assert pc.notices == ["xbox_pc_only"]
+
+
+async def test_no_subscription_and_no_pc_rows_is_still_empty() -> None:
+    pc = _PcLibrary()
+    store = _store(_Service(TierAnswer(SubscriptionTier.NONE, authoritative=True)), pc=pc)
+    assert await store.get_library() == []
+    assert pc.notices == []
+
+
+async def test_the_sign_in_flip_tells_the_xbox_pc_status() -> None:
+    store = _store(_Service(_ACTIVE))
+    assert await store.is_available() is True
+    assert await store.is_available() is True
+    assert store._xbox_pc.notified == 1  # type: ignore[attr-defined]
 
 
 # ── the catalog reader: a failed or empty /v2/titles is not "no games" ──

@@ -47,6 +47,7 @@ from unifideck.launcher.proton.handlers import battlenet_bootstrap as bootstrap
 from unifideck.launcher.proton.handlers import battlenet_exec as bnet_exec
 from unifideck.launcher.proton.handlers import battlenet_login_state as login_state
 from unifideck.launcher.proton.handlers import battlenet_session as session
+from unifideck.launcher.proton.handlers import battlenet_versions as versions
 from unifideck.launcher.proton.handlers import battlenet_watch as watch
 from unifideck.launcher.proton.handlers import battlenet_wc3, battlenet_wsi, wrapper_clients
 from unifideck.launcher.proton.handlers.battlenet_client import (
@@ -100,7 +101,7 @@ def _fail(
     """
     launcher_toast(
         f"toasts.launcher.{key}Message",
-        i18n_title_key=f"toasts.launcher.{key}",
+        i18n_title_key="toasts.header.battlenet",
         game_title=resolve_title(plan.context.game_key) if titled else "",
         severity="error",
     )
@@ -286,7 +287,7 @@ async def _try_start(plan: ProtonLaunchPlan, launcher_exe: Path) -> bool:
     proc = await _start_client_detached(plan, launcher_exe)
     launcher_toast(
         "toasts.launcher.battlenetStartingClientMessage",
-        i18n_title_key="toasts.launcher.battlenetStartingClient",
+        i18n_title_key="toasts.header.battlenet",
         game_title=resolve_title(plan.context.game_key),
     )
     return await watch.wait_for_client_ready(
@@ -320,7 +321,32 @@ async def _require_signed_in(plan: ProtonLaunchPlan) -> None:
 async def battlenet_launch(plan: ProtonLaunchPlan) -> int:
     """Launch an installed Battle.net game through the resident client."""
     uid = plan.context.game_id
-    family = resolve_family(uid)
+    family, selects = await _launch_family(plan, uid)
+    launcher_toast(
+        "toasts.launcher.startingBattlenetGame",
+        i18n_title_key="toasts.header.battlenet",
+        game_title=resolve_title(plan.context.game_key),
+    )
+    battlenet_wc3.apply_wc3_crypt32_fix(plan, family)
+    client_exe = await _bring_up_client(plan)
+    await _require_signed_in(plan)
+    pid, before = await bnet_exec.issue_and_confirm(
+        plan, client_exe, uid, family, fail=_fail, client_selects=selects,
+    )
+    await _await_session_end(plan, pid, before)
+    plan.state.game_exit_code = 0
+    return 0
+
+
+async def _launch_family(plan: ProtonLaunchPlan, uid: str) -> tuple[str, bool]:
+    """``(family, client_selects)`` for the version installed right now.
+
+    Read from the prefix at launch time, so a version installed since the
+    last library sync is launched as what it is (see ``battlenet_versions``).
+    The id map is the fallback when the prefix cannot answer.
+    """
+    found = await asyncio.to_thread(versions.resolve, plan.prefix_path, uid)
+    family = found.family or resolve_family(uid)
     if not family:
         # Never fall back to "open the client bare". Battle.net's failure is
         # silent, so the user would see the client open and nothing happen.
@@ -330,23 +356,8 @@ async def battlenet_launch(plan: ProtonLaunchPlan) -> int:
             f"No Battle.net family code known for {uid}",
             uid=uid,
         )
-
-    launcher_toast(
-        "toasts.launcher.startingBattlenetGame",
-        i18n_title_key="toasts.launcher.launchingGame",
-        game_title=resolve_title(plan.context.game_key),
-    )
-    battlenet_wc3.apply_wc3_crypt32_fix(plan, family)
-    client_exe = await _bring_up_client(plan)
-    await _require_signed_in(plan)
-    selects = client_selects_version(uid)
-    pid, before = await bnet_exec.issue_and_confirm(
-        plan, client_exe, uid, family, fail=_fail, client_selects=selects,
-    )
-
-    await _await_session_end(plan, pid, before)
-    plan.state.game_exit_code = 0
-    return 0
+    selects = found.selects if found.versions else client_selects_version(uid)
+    return family, selects
 
 
 async def _await_session_end(
@@ -478,7 +489,7 @@ async def battlenet_install_launch(plan: ProtonLaunchPlan) -> int:
         )
     launcher_toast(
         "toasts.launcher.installingBattlenetMessage",
-        i18n_title_key="toasts.launcher.installingBattlenet",
+        i18n_title_key="toasts.header.battlenet",
         game_title=resolve_title(plan.context.game_key),
     )
     client_exe = await _bring_up_client(plan)

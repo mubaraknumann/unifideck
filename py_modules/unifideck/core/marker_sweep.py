@@ -31,6 +31,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 from unifideck.core.safe_delete import safe_rmtree
+from unifideck.launcher.xbox_pc.install_records import list_install_records
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,9 @@ def collect_install_roots() -> set[Path]:
     """Library roots where Unifideck has recorded installs.
 
     Union of the parent directories of every install path in nile's and
-    legendary's ``installed.json`` and our ``games.map``. These records
+    legendary's ``installed.json``, our ``games.map`` and the Xbox PC install
+    records (``installRoot`` is ``<base>/Xbox/<PID>``, so the root is
+    ``<base>/Xbox``; ``partial`` records count too). These records
     survive the cleanup's auth wipe (the CLI configs are Heroic-shared and
     left intact), but ``games.map`` is deleted by the data-dir wipe — so
     callers that wipe state must collect roots *before* that step.
@@ -67,6 +70,7 @@ def collect_install_roots() -> set[Path]:
     _add_paths(roots, _nile_install_paths())
     _add_paths(roots, _legendary_install_paths())
     _add_paths(roots, _games_map_work_dirs())
+    _add_paths(roots, _xbox_pc_install_roots())
     return {
         r for r in roots
         if len(r.parts) >= _MIN_ROOT_DEPTH
@@ -113,6 +117,21 @@ def _games_map_work_dirs() -> Iterator[str]:
         fields = line.split("=", 1)[1].split("\t")
         if len(fields) >= 2 and fields[1]:
             yield fields[1]
+
+def _xbox_pc_install_roots() -> Iterator[str]:
+    """``installRoot`` of every Xbox PC install record, partial ones included.
+
+    The marker sits in ``installRoot`` itself, so its parent is the library
+    root. A record without an absolute ``installRoot`` is skipped.
+    """
+    try:
+        records, _unreadable = list_install_records()
+    except OSError:
+        return
+    for record in records:
+        root = record.get("installRoot")
+        if isinstance(root, str) and Path(root).is_absolute():
+            yield root
 
 def _parse_marker(marker: Path) -> tuple[str, str] | None:
     """Return ``(store, game_id)`` recorded in a marker file, or None."""

@@ -23,6 +23,7 @@ import { FaCheck, FaFolderOpen, FaUndo } from "react-icons/fa";
 import { rpcRoutes } from "../../api/rpc-routes";
 import { useRPCQuery, useRPCMutation } from "../../api/useRPC";
 import { useToast } from "../../hooks/useToast";
+import { toastText, headerText } from "../../services/toast-text";
 
 export interface ExecCandidate {
   rel: string;
@@ -89,13 +90,22 @@ export const ChangeExecutableModal: FC<Props> = ({
     try {
       const res = await setExe.mutate(store, gameId, rel);
       if (res && res.success !== false) {
-        toast.success(t("play.exe.changed"), res.executable ?? rel);
+        toast.success(
+          headerText("toasts.header.executable"),
+          toastText("toasts.exeChanged"),
+        );
         await list.refetch();
       } else {
-        toast.error(t("play.exe.changeFailed"), rel);
+        toast.error(
+          headerText("toasts.header.executable"),
+          toastText("toasts.exeChangeFailed"),
+        );
       }
     } catch {
-      toast.error(t("play.exe.changeFailed"), rel);
+      toast.error(
+        headerText("toasts.header.executable"),
+        toastText("toasts.exeChangeFailed"),
+      );
     } finally {
       setBusy(false);
     }
@@ -106,10 +116,16 @@ export const ChangeExecutableModal: FC<Props> = ({
     try {
       const res = await resetExe.mutate(store, gameId);
       if (res && res.success !== false) {
-        toast.success(t("play.exe.reset"), gameTitle);
+        toast.success(
+          headerText("toasts.header.executable"),
+          toastText("toasts.exeReset"),
+        );
         await list.refetch();
       } else {
-        toast.error(t("play.exe.changeFailed"), gameTitle);
+        toast.error(
+          headerText("toasts.header.executable"),
+          toastText("toasts.exeChangeFailed"),
+        );
       }
     } finally {
       setBusy(false);

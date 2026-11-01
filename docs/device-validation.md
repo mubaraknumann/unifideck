@@ -24,7 +24,7 @@ install.
 
 ## Where to start
 
-There are 164 steps here. Do **not** work top to bottom — that order is by
+There are 202 steps here. Do **not** work top to bottom — that order is by
 register item, not by value, and most of it is regression cover for changes
 that are very unlikely to have broken anything.
 
@@ -777,3 +777,41 @@ layout was never seen when this was written: DV-Z3 is the first look.
 | DV-Z4 | Claim it on the page, close the window | The storage picker follows and the install runs; the next sync shows the game as owned (no `claim_required`) | ( ) | |
 | DV-Z5 | Install another unclaimed game, close the window without claiming | Toast "The game was not claimed…"; nothing is queued; the game is still unclaimed on itch.io (no silent API claim) | ( ) | |
 | DV-Z6 | Desktop Mode: repeat DV-Z3/Z4 once | Same result | ( ) | |
+
+## 0.7.7: register 72 and 83-96
+
+Run every step against the **built** plugin (`./build-plugin.sh dev install`),
+never the checkout (CLAUDE.md rule 7). The GOG steps need a GOG account that
+owns a game with a Linux build. DV-GS2 needs a Unity game with a Linux build
+and cloud saves; DV-GS3 needs a DOSBox game. DV-GS1 to DV-GS3 cover different
+code paths, so run all three.
+
+| ID | Step | Expected | Status | Evidence |
+|---|---|---|---|---|
+| DV-GL1 | Install a GOG game as its **Linux** build, then run Check for Updates | `.unifideck-id` holds `linux_installer_version`; the log shows `[GOGUpdatesChecker] <id> (Linux build): installed=X, remote=X, update=False`; no update is offered | ( ) | |
+| DV-GL2 | Take a Linux install made **before** 0.7.7 (no `linux_installer_version` in its marker) and check for updates | Either `update=False` (its `gameinfo` line 2 matches) or no answer (`update=None`); never an offered update. No Windows `.exe` files appear in the folder | ( ) | |
+| DV-GL3 | Install a Linux build in a non-English language that GOG offers as a separate Linux installer | The recorded version is the one for that language's installer, not the English one | ( ) | |
+| DV-GS1 | Linux-native GOG game with no supported mapping: open the cloud-save window | The log shows `[GOGSync] <id>: no Linux mapping for <template>`; the button shows the unifiDB path if the game has one, otherwise "Save location not found". Nothing is uploaded | ( ) | |
+| DV-GS2 | **Unity** Linux build with cloud saves on GOG: launch it (auto-pull), play and save, quit, Upload | Log: `Native save dir for <id> from GOG metadata: ~/.config/unity3d/<Company>/<Product>`; after the upload, GOG Galaxy on Windows (or a second device) sees the save | ( ) | |
+| DV-GS3 | **DOSBox** Linux build: save in game, quit, Upload. Then delete the in-game save file under `data/` and Download | Upload logs `staged N game-written file(s)` and sends only those files (no game data). The download logs `copied N downloaded file(s) into drive C`, and the save loads in game | ( ) | |
+| DV-GS4 | A game whose GOG cloud namespace is empty: launch it | Log: `cloud namespace '<name>' is empty for <id>; nothing to download`; no upload happens during the pull | ( ) | |
+| DV-RN1 | Rename a Unifideck shortcut through Steam's Properties, then Sync and Force Sync | The new name survives both syncs and a Steam restart. A store-side title change to a game you did **not** rename still reaches Steam | ( ) | |
+| DV-TM1 | Install TabMaster, turn collections on, build a TabMaster tab on `[Unifideck] Epic`. Restart Steam, Sync, then sign out of Epic and Sync | The tab keeps working throughout. After the sign-out the collection is empty, but it still exists with the **same id**; it is never deleted and re-created. With collections off, the setting row shows the TabMaster hint | ( ) | |
+| DV-BU1 | Open a Unifideck game page during `plugin_loader` boot, then once with the backend stopped | During boot: skeleton, then the Unifideck Play section once the backend answers. Backend stopped: after about 10 s, Steam's own Play button with "Unifideck isn't responding". After `./build-plugin.sh dev quick-install`, the unit's cgroup holds no leftover loader processes | ( ) | |
+| DV-GZ1 | GameVault: install an archive zipped with Zstandard (method 93) | Log: `uses zip compression method(s) [93] the stdlib cannot read; extracting with an external tool`; the install completes and the game launches | ( ) | |
+| DV-MT1 | Microsoft: sign in, Sync, open the Game Pass catalog, launch an xCloud game | All succeed with no `CERTIFICATE_VERIFY_FAILED` and no permissive-TLS WARN for a Microsoft host in the backend log | ( ) | |
+| DV-UP1 | Uninstall one game each from GOG, Epic, Amazon, itch.io and GameVault with "also delete the Proton prefix" ticked; uninstall a Ubisoft game the same way | Each `prefixes/<id>` is gone and the log shows `[safe_delete] deleted prefix …` once per game. The Ubisoft prefix is removed by Ubisoft's own path, not `delete_game_prefix`. No other game's prefix is touched | ( ) | **DESTRUCTIVE**: use throwaway installs, ask first |
+| DV-SP1 | Sync a large library (1,000+ games) with the progress bar open | The bar and the compat counter reach their final values (for example 1305/1305), not one short | ( ) | |
+| DV-GV1 | GameVault: install a native Linux archive | `games.map` holds the native target GameVault chose, not an `.exe` or an empty path; the game launches without Change Executable | ( ) | |
+
+### Contributor PRs #475-#479: register 92-96
+
+| ID | Step | Expected | Status | Evidence |
+|---|---|---|---|---|
+| DV-PR1 | itch.io: with `~/Games` a symlink to the SD card, install a native game there | The install finishes and the game launches; no `relative_to` error in the log after the download | ( ) | |
+| DV-PR2 | itch.io: `pkill -STOP butler` straight after a plugin restart, start an install, wait 25 s, `pkill -CONT butler`, then start the install again | The first attempt fails (`itch_install_failed` in the log) instead of hanging; the second starts a fresh daemon and installs, with no plugin restart | ( ) | |
+| DV-PR3 | Gaming Mode: play an itch.io HTML5 game, then an xCloud game | The web game opens with `--user-data-dir` under `edge-webgames` (check `ps -ef`); it is not signed in to Xbox or other stores. The xCloud game still opens signed in, in the shared profile | ( ) | |
+| DV-PR4 | Signed in to Battle.net, open the Steam Store page for Overwatch 2 (a presumed title) and for a Battle.net game you bought | No "already owned" ribbon on Overwatch 2; the bought game still gets one | ( ) | |
+| DV-PR5 | Sync, and during the metadata phase toggle "Group duplicates" twice. Then start "Delete all Unifideck data" while a sync runs | Grouping ends consistent (no game both hidden and shown as a sibling); after the delete and a Steam restart, no library comes back from `library_cache.json` | ( ) | **DESTRUCTIVE**: the delete wipes the library, ask first |
+| DV-PR6 | Open the page of a game owned on two stores, install the other copy from another page, return | The store switcher on the open page shows the new install state without leaving the page | ( ) | |
+| DV-PR7 | Reload the plugin five times (Decky reload), then in the SharedJSContext console (`steam-debug`, command-line API on) run `getEventListeners(window)["unifideck:group-duplicates-change"].length` | `1`, not `6` | ( ) | |

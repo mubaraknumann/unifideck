@@ -14,7 +14,13 @@ import {
   type UnifideckTab,
 } from "./tab-container";
 import { COMPAT_TAB_TITLE_KEYS, awaitDeviceType } from "../device-type";
-import { runFilters } from "../library-filters";
+import { loadFacets } from "../library-facets";
+import { loadCompatCacheFromBackend } from "../protondb-cache";
+import {
+  runFilters,
+  UNIFIDECK_CACHE_UPDATED_EVENT,
+  whenUnifideckCacheLoaded,
+} from "../library-filters";
 import { EventBusClient } from "../../api/event-bus-client";
 import { Events } from "../../types/events";
 import type { SteamAppOverview } from "../../types/steam";
@@ -282,37 +288,57 @@ async function getOrCreateCollection(tag: string): Promise<Collection | null> {
   return created;
 }
 
-async function clearCollection(c: Collection): Promise<void> {
-  const apps = c.allApps ?? [];
-  if (apps.length === 0) return;
-  c.AsDragDropCollection().RemoveApps(apps);
+/**
+ * Make `c` hold exactly `wanted`, touching only what differs, with at most
+ * one `Save()`. The old clear-then-refill emptied every collection on every
+ * sync: two cloud writes each, and anything watching the collection (a
+ * TabMaster tab) rebuilt once while it was empty.
+ */
+async function reconcileCollection(
+  c: Collection,
+  wanted: AppStoreOverview[],
+): Promise<void> {
+  const current = c.allApps ?? [];
+  const wantedIds = new Set(wanted.map((o) => o.appid));
+  const currentIds = new Set(current.map((o) => o.appid));
+  const extras = current.filter((o) => !wantedIds.has(o.appid));
+  const missing = wanted.filter((o) => !currentIds.has(o.appid));
+  if (extras.length === 0 && missing.length === 0) return;
+  const dragDrop = c.AsDragDropCollection();
+  if (extras.length > 0) dragDrop.RemoveApps(extras);
+  if (missing.length > 0) dragDrop.AddApps(missing);
   await c.Save();
+}
+
+function findCollection(cs: CollectionStore, tag: string): Collection | null {
+  const id = cs.GetCollectionIDByUserTag(tag);
+  return typeof id === "string" ? cs.GetCollection(id) ?? null : null;
 }
 
 async function syncTab(
   tab: UnifideckTab,
   allApps: SteamAppOverview[],
 ): Promise<boolean> {
+  const cs = getCollectionStore();
+  if (!cs) return false;
   const matches = allApps.filter(
     (a) => a.appid > 0 && runFilters(tab.filters, a),
   );
   if (matches.length === 0) {
-    // Nothing to show — don't create an empty `[Unifideck]` shell, and
-    // drop any leftover one from a previous sync.
-    const cs = getCollectionStore();
-    if (!cs) return false;
-    const id = cs.GetCollectionIDByUserTag(tabName(tab));
-    if (typeof id === "string") {
-      const existing = cs.GetCollection(id);
-      if (existing) await deleteCollection(existing);
-    }
+    // Nothing to show. Never create an empty `[Unifideck]` shell, but never
+    // delete an existing one either: empty it. Steam gives a re-created
+    // collection a NEW id, and TabMaster stores its collection filters by
+    // id, so a delete broke every TabMaster tab built on it for good
+    // ("Collection: [Unifideck] Epic no longer exists"). A store going to
+    // zero, or a user removing all their own shortcuts, must not do that.
+    const existing = findCollection(cs, tabName(tab));
+    if (existing) await reconcileCollection(existing, []);
     return true;
   }
   const c = await getOrCreateCollection(tabName(tab));
   if (!c) return false;
   const appStore = getAppStore();
   if (!appStore) return false;
-  await clearCollection(c);
   const overviews: AppStoreOverview[] = [];
   for (const a of matches) {
     try {
@@ -322,17 +348,39 @@ async function syncTab(
       /* skip */
     }
   }
-  if (overviews.length > 0) {
-    c.AsDragDropCollection().AddApps(overviews);
-    await c.Save();
-  }
+  await reconcileCollection(c, overviews);
   return true;
 }
 
+// Syncs run one at a time. Several triggers can land together (the cache
+// reload after a sync, the regroup reload after it, an install burst), and
+// two overlapping passes could both miss an existing collection and each
+// create one, leaving two with the same name.
+let syncChain: Promise<void> = Promise.resolve();
+
 /** Sync every `[Unifideck]` collection to current tab filters. */
-export async function syncUnifideckCollections(): Promise<void> {
+export function syncUnifideckCollections(): Promise<void> {
+  const run = syncChain.then(runCollectionSync, runCollectionSync);
+  syncChain = run.catch(() => {});
+  return run;
+}
+
+async function runCollectionSync(): Promise<void> {
   if (!isCollectionsEnabled()) return;
   if (!isCollectionsAvailable()) return;
+  // The tab filters identify Unifideck games through the game cache, and
+  // the compat tab also reads the facet + ProtonDB caches. Each loads on its
+  // own RPC. A sync before they land emptied every store collection (and,
+  // before the never-delete rule in `syncTab`, deleted them), and dropped a
+  // third of "Great on Deck" until the next pass. Steam's collection store is
+  // often ready first: on a fresh boot the very first poll in
+  // `waitForCollections` succeeds, before any of these RPCs has answered.
+  // Both loaders return at once when already loaded.
+  await Promise.all([
+    whenUnifideckCacheLoaded(),
+    loadFacets(),
+    loadCompatCacheFromBackend(),
+  ]);
   // Collection names are device-specific ("Great on Deck" vs "Great on
   // Machine") AND account-global + cloud-synced. This runs at plugin
   // init, before the device-type RPC has answered, so without this
@@ -489,8 +537,9 @@ async function waitForCollections(timeoutMs = 30_000): Promise<boolean> {
 /**
  * Collection manager. Collections are opt-in ({@link isCollectionsEnabled}):
  *
- * - ON  → subscribe to `unifideck-sync-completed` and rebuild the
- *   `[Unifideck]` collections after every library sync (original behavior).
+ * - ON  → rebuild the `[Unifideck]` collections whenever the game cache
+ *   reloads (`UNIFIDECK_CACHE_UPDATED_EVENT`, i.e. after every library sync)
+ *   and on install/uninstall.
  * - OFF → delete any leftover `[Unifideck]` collections exactly once (see
  *   {@link isCleaned}) and otherwise stay out of the way.
  *
@@ -537,9 +586,12 @@ export function startCollectionManager(): CollectionManagerHandle {
   };
   let unsubInstallEvents: Array<() => void> = [];
 
+  // Rebuild on the cache reload, not on `unifideck-sync-completed`: that
+  // event is what STARTS the reload, so a rebuild on it read the pre-sync
+  // cache and newly synced games missed the collections until next time.
   const attachSync = () => {
     if (syncAttached) return;
-    window.addEventListener("unifideck-sync-completed", onSync);
+    window.addEventListener(UNIFIDECK_CACHE_UPDATED_EVENT, onSync);
     unsubInstallEvents = [
       EventBusClient.subscribe(
         Events.SHORTCUT_INSTALL_STATE_CHANGED,
@@ -551,7 +603,7 @@ export function startCollectionManager(): CollectionManagerHandle {
   };
   const detachSync = () => {
     if (!syncAttached) return;
-    window.removeEventListener("unifideck-sync-completed", onSync);
+    window.removeEventListener(UNIFIDECK_CACHE_UPDATED_EVENT, onSync);
     window.clearTimeout(installDebounce);
     for (const off of unsubInstallEvents) off();
     unsubInstallEvents = [];

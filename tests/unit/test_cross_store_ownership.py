@@ -176,3 +176,17 @@ def test_an_identical_owned_title_moves_a_wrong_mapping() -> None:
     assert [c.store for c in find_owned_copies(games, cache, 239160, owned_steam=owned)] == [
         "microsoft",
     ]
+
+
+def test_a_presumed_battlenet_row_is_not_ownership() -> None:
+    """Battle.net presumes a game account for every free-to-play program.
+
+    That earns a library tile, but the ribbon sits above the purchase
+    options: "Already owned on Battle.net" must not rest on a guess.
+    """
+    presumed = _game(SIGNED, "battlenet", metadata={"ownership": "presumed"})
+    granted = _game(UNSIGNED + 1, "battlenet", metadata={"ownership": "granted"})
+    cache = _Cache({str(SIGNED): BG2, str((UNSIGNED + 1) - 0x100000000): BG2})
+
+    assert find_owned_copies([presumed], cache, BG2) == []
+    assert [c.store for c in find_owned_copies([presumed, granted], cache, BG2)] == ["battlenet"]

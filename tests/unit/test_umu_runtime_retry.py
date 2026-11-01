@@ -9,7 +9,7 @@ misdiagnosis (127 = command-not-found, 2/74 = umu bootstrap failure —
 none are network errors) and the blanket cache nuke was wasteful.
 
 These tests pin the fixed semantics:
-  * the retry toast title is now ``toasts.launcher.launchRetry``, never
+  * the retry toast title is now ``toasts.header.gameSetup``, never
     ``networkError``;
   * the shared runtime cache is wiped ONLY for the corruption codes
     (2, 74), NOT for 127;
@@ -82,7 +82,7 @@ async def test_code_127_retries_without_cache_wipe(retry_harness):
     assert retry_harness.once_calls() == 2
     assert retry_harness.wipes() == 0
     assert len(retry_harness.toasts) == 1
-    assert retry_harness.toasts[0]["i18n_title_key"] == "toasts.launcher.launchRetry"
+    assert retry_harness.toasts[0]["i18n_title_key"] == "toasts.header.gameSetup"
     # Guard against the old misleading title regressing.
     assert retry_harness.toasts[0]["i18n_title_key"] != "toasts.launcher.networkError"
 

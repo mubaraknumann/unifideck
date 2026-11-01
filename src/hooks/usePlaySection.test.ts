@@ -1,30 +1,41 @@
 /**
- * The one `if` that keeps the cloud-only store out of the install path.
+ * The Play-section decision, through the hook and through the pure
+ * `resolvePlaySection` it delegates to.
  *
- * Audit §3.5 bullet 1. A Microsoft/xCloud title has nothing to install, and
- * the backend now refuses install / update / uninstall outright. But the
- * reason a user never sees an Install button for one is this hook: an
- * `xcloud`-tagged game resolves to its own play state *before* the
- * `not-installed` branch, so `NotInstalledButtons` — the only Install entry
- * point in the UI — never mounts.
+ * Audit §3.5 bullet 1. An xCloud-only title has nothing to install, and
+ * the reason a user never sees an Install button for one is the ordering
+ * here: an `xcloud`-tagged game resolves to its own play state *before* the
+ * `not-installed` branch, so `NotInstalledButtons` (the only Install entry
+ * point in the UI) never mounts.
  *
- * That guard had no test. `store_info.supports_install` does not provide one
- * either: it has no readers anywhere (register item 26), so it gates nothing.
- * The next Microsoft feature — PC Game Pass, i.e. titles that really do
- * install — is exactly a Microsoft game *without* the tag, so the branch that
- * must keep working is the ordering between these two.
+ * Xbox PC titles are the Microsoft games that really do install. They are
+ * keyed by the `xbox_pc` tag, never by store name, and get their own table
+ * (see `resolvePlaySection.ts`). The last suite walks every row of it,
+ * including the two states that must not show Install: a status still
+ * loading (skeleton) and a status that failed to load (never read as
+ * "turned off").
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 
-const gameInfo = vi.hoisted(() => ({ data: null as unknown }));
+const gameInfo = vi.hoisted(() => ({
+  data: null as unknown,
+  status: undefined as string | undefined,
+}));
 const downloads = vi.hoisted(() => ({ queue: null as unknown }));
+const xbox = vi.hoisted(() => ({
+  status: null as unknown,
+  loading: false,
+  error: null as string | null,
+}));
 
 vi.mock("./useGameInfo", () => ({ useGameInfo: () => gameInfo }));
 vi.mock("../contexts/DownloadContext", () => ({
   useDownloads: () => downloads,
 }));
+vi.mock("./useXboxPcStatus", () => ({ useXboxPcStatus: () => xbox }));
 
 import { usePlaySection } from "./usePlaySection";
+import { resolvePlaySection } from "./resolvePlaySection";
 
 const APP_ID = 3_012_345_678;
 
@@ -67,10 +78,9 @@ describe("usePlaySection — cloud titles never reach the install path", () => {
   });
 
   it("still offers install for a Microsoft game WITHOUT the tag", () => {
-    // Not a wish: this is what PC Game Pass support would look like, and
-    // it is why the backend refusal exists rather than relying on this
-    // hook. If this ever becomes reachable for real, the store must be
-    // the thing that says no.
+    // The hook keys on tags, never on the store name. An untagged row is
+    // a generic installable row, and the backend's `install_precondition`
+    // is the thing that says no for it.
     expect(useResolved(game({ store_tags: [] })).kind).toBe("not-installed");
     expect(useResolved(game({ store_tags: undefined })).kind).toBe("not-installed");
   });
@@ -197,5 +207,196 @@ describe("usePlaySection — a finished download is not an active one", () => {
       queued: [row({ status: "complete" })],
     });
     expect(state.kind).toBe("installed");
+  });
+});
+
+describe("usePlaySection — backend not answering", () => {
+  // `useResolved` leaves `status` alone, so reset it for the suites above.
+  afterEach(() => {
+    gameInfo.status = undefined;
+  });
+
+  it("hands the page back to Steam when get_game_info is unavailable", () => {
+    gameInfo.status = "unavailable";
+    const state = useResolved(null);
+    expect(state.kind).toBe("unavailable");
+    expect(state.shouldOverride).toBe(false);
+  });
+
+  it("keeps the loading state while the answer is still coming", () => {
+    gameInfo.status = "loading";
+    expect(useResolved(null).kind).toBe("steam-native");
+  });
+
+  it("uses data that arrived late even if the page was marked unavailable", () => {
+    gameInfo.status = "unavailable";
+    expect(useResolved(game()).kind).toBe("browser");
+  });
+});
+
+/**
+ * The Xbox PC table, through the pure resolver so each case states its own
+ * status rather than leaning on the hoisted mock.
+ */
+describe("resolvePlaySection — Xbox PC rows", () => {
+  const PID = "9PK087LNGJC5";
+
+  function status(over: Record<string, unknown> = {}) {
+    return {
+      available: true,
+      enabled: true,
+      notice_version: 1,
+      notice_ack_version: 1,
+      xcloud_signed_in: true,
+      runtime: { state: "installed", version: "0.1.0", source_dir: "/src", degraded: [] },
+      account: { state: "signed_in" },
+      library: {
+        installable: 1,
+        not_supported: 0,
+        choice: 0,
+        skipped: 0,
+        stale: false,
+        last_read: null,
+      },
+      ...over,
+    } as never;
+  }
+
+  const ready = { status: status(), loading: false, error: null };
+  const disabled = { status: status({ enabled: false }), loading: false, error: null };
+  const loading = { status: null, loading: true, error: null };
+  const failed = { status: null, loading: false, error: "status_unavailable" };
+
+  function pc(over: Record<string, unknown> = {}) {
+    return game({
+      id: PID,
+      store_game_id: PID,
+      store_tags: ["xbox_pc"],
+      xbox_pc: { state: "ready", reason: null, access: "gamepass" },
+      ...over,
+    });
+  }
+  const merged = (over: Record<string, unknown> = {}) =>
+    pc({ store_tags: ["xcloud", "browser", "xbox_pc"], ...over });
+
+  function resolve(g: Record<string, unknown>, x: unknown, queue: unknown = null) {
+    return resolvePlaySection(APP_ID, { data: g as never }, queue as never, x as never);
+  }
+
+  it("shows the skeleton while the status is still loading", () => {
+    expect(resolve(pc(), loading)).toEqual({ kind: "steam-native", shouldOverride: false });
+    expect(resolve(merged(), loading).kind).toBe("steam-native");
+  });
+
+  it("never shows Install when the status failed to load", () => {
+    expect(resolve(pc(), failed)).toMatchObject({
+      kind: "pc-unsupported",
+      reason: "status_unavailable",
+      installed: false,
+    });
+    expect(resolve(merged(), failed)).toMatchObject({ kind: "browser", variant: "stream" });
+  });
+
+  it("keeps Play on an installed row when the status failed to load", () => {
+    expect(resolve(pc({ is_installed: true }), failed).kind).toBe("installed");
+  });
+
+  it("offers Install on an enabled PC-only row", () => {
+    const state = resolve(pc(), ready);
+    expect(state).toMatchObject({ kind: "not-installed" });
+    expect("streamUrl" in state && state.streamUrl).toBeFalsy();
+  });
+
+  it("offers Install plus a secondary Stream on a merged row", () => {
+    expect(resolve(merged(), ready)).toMatchObject({
+      kind: "not-installed",
+      streamUrl: `https://www.xbox.com/play/launch/${PID}`,
+    });
+  });
+
+  it("shows Play, never Stream, on an installed merged row", () => {
+    expect(resolve(merged({ is_installed: true }), ready)).toEqual({
+      kind: "installed",
+      shouldOverride: true,
+      appId: APP_ID,
+    });
+  });
+
+  it("puts a live download ahead of the xcloud tag for an xbox_pc row", () => {
+    const queue = { current: { game_id: PID, store: "microsoft", status: "running" }, queued: [] };
+    expect(resolve(merged(), ready, queue).kind).toBe("downloading");
+    // Even with the feature off, Cancel must stay reachable.
+    expect(resolve(merged(), disabled, queue).kind).toBe("downloading");
+  });
+
+  it("offers Uninstall, not Play, on an installed row with the feature off", () => {
+    expect(resolve(merged({ is_installed: true }), disabled)).toMatchObject({
+      kind: "pc-unsupported",
+      reason: "disabled",
+      installed: true,
+    });
+  });
+
+  it("streams a not-installed merged row with the feature off", () => {
+    expect(resolve(merged(), disabled)).toMatchObject({ kind: "browser", variant: "stream" });
+    expect(resolve(merged(), disabled)).not.toHaveProperty("notice");
+  });
+
+  it("never offers Install on a PC-only row with the feature off", () => {
+    expect(resolve(pc(), disabled)).toMatchObject({
+      kind: "pc-unsupported",
+      reason: "disabled",
+      installed: false,
+    });
+  });
+
+  it.each([
+    ["ea_play", "ea_play"],
+    ["ubisoft_plus", "ubisoft_plus"],
+    ["unknown_plan", "unknown_plan"],
+    ["something_new", "unavailable"],
+  ])("blocks a not_supported %s row with its reason", (reason, expected) => {
+    const info = { state: "not_supported", reason, access: "none" };
+    expect(resolve(pc({ xbox_pc: info }), ready)).toMatchObject({
+      kind: "pc-unsupported",
+      reason: expected,
+    });
+    expect(resolve(merged({ xbox_pc: info }), ready)).toMatchObject({
+      kind: "browser",
+      notice: expected,
+    });
+  });
+
+  it("falls back to the access field when reason is empty", () => {
+    const info = { state: "not_supported", reason: null, access: "ea_play" };
+    expect(resolve(pc({ xbox_pc: info }), ready)).toMatchObject({ reason: "ea_play" });
+  });
+
+  it("blocks a row that needs a package choice", () => {
+    const info = { state: "choice", reason: null, access: "gamepass" };
+    expect(resolve(pc({ xbox_pc: info }), ready)).toMatchObject({
+      kind: "pc-unsupported",
+      reason: "needs_choice",
+    });
+  });
+
+  it("offers Install on a choice row whose one Game was picked", () => {
+    const info = {
+      state: "choice",
+      reason: null,
+      access: "gamepass",
+      content_id: "0b3c6a7e-1d2f-4e5a-9b8c-7d6e5f4a3b2c",
+    };
+    expect(resolve(pc({ xbox_pc: info }), ready).kind).toBe("not-installed");
+  });
+
+  it("keys on the tag, not the store", () => {
+    expect(resolve(pc({ store: "someday" }), disabled).kind).toBe("pc-unsupported");
+    expect(resolve(game({ store_tags: [] }), disabled).kind).toBe("not-installed");
+  });
+
+  it("leaves an xcloud row without the tag on today's behaviour", () => {
+    expect(resolve(game(), loading).kind).toBe("browser");
+    expect(resolve(game(), failed).kind).toBe("browser");
   });
 });

@@ -254,6 +254,7 @@ class _ReconcilePhasesMixin:
         ``shortcuts_dict``, ``registry``.
         """
         from .registry import register
+        from .user_title import get_registered_title
 
         key = f"{game.store}:{game.store_game_id}"
         app_id = game.app_id or generate_app_id(launcher, key)
@@ -269,6 +270,7 @@ class _ReconcilePhasesMixin:
             if force:
                 self._update_existing_shortcut(
                     shortcuts_dict[existing_key], game, app_id, launcher,
+                    last_written_title=get_registered_title(registry, key),
                 )
                 register(registry, key, app_id, game.title)
             return "kept"
@@ -281,8 +283,13 @@ class _ReconcilePhasesMixin:
             if force:
                 self._update_existing_shortcut(
                     shortcuts_dict[existing_key], game, app_id, launcher,
+                    last_written_title=get_registered_title(registry, key),
                 )
-            register(registry, key, app_id, game.title)
+            # No rewrite: record the AppName left in place (see user_title).
+            written = game.title if force else (
+                shortcuts_dict[existing_key].get("AppName") or game.title
+            )
+            register(registry, key, app_id, written)
             return "kept"
 
         # ── New shortcut
@@ -357,6 +364,7 @@ class _ReconcilePhasesMixin:
     ) -> bool:
         """Reclaim an orphaned shortcut via the registry; True if reclaimed."""
         from .registry import get_registered_appid, register
+        from .user_title import get_registered_title
         registered = get_registered_appid(registry, key)
         if registered is None:
             return False
@@ -366,7 +374,10 @@ class _ReconcilePhasesMixin:
         )
         if ord_key is None:
             return False
-        self._reclaim_orphan(shortcuts_dict[ord_key], game, registered)
+        self._reclaim_orphan(
+            shortcuts_dict[ord_key], game, registered,
+            last_written_title=get_registered_title(registry, key),
+        )
         register(registry, key, registered, game.title)
         return True
 
@@ -376,15 +387,17 @@ class _ReconcilePhasesMixin:
         game: Game,
         app_id: int,
         launcher: str,
+        *,
+        last_written_title: str | None = None,
     ) -> None:
         """Force-update an existing shortcut in-place — preserves ``appid``.
 
         Only called during force sync (``force=True``).
-        Updates ``AppName``, ``Exe``, ``tags``, and ``LaunchOptions``
-        while leaving ``appid`` unchanged so artwork files and Steam's
-        playtime tracking survive the rewrite. The ``icon`` field is
-        set from ``game.icon_url`` when available (the artwork phase
-        populates it from on-disk grid files).
+        Updates ``AppName`` (unless the user renamed it: ``user_title``),
+        ``Exe``, ``tags`` and ``LaunchOptions`` while leaving ``appid``
+        unchanged so artwork files and Steam's playtime tracking survive
+        the rewrite. The ``icon`` field is set from ``game.icon_url`` when
+        available (the artwork phase populates it from on-disk grid files).
 
         ``LaunchOptions`` keeps the user's own params. This used to be a
         plain overwrite to ``"<store>:<id>"``, which silently deleted
@@ -401,6 +414,7 @@ class _ReconcilePhasesMixin:
         """
         from .launch_options import get_full_id, rewrite_for_sync
         from .protected import is_protected
+        from .user_title import resolve_app_name
 
         current_options = entry.get("LaunchOptions", "")
 
@@ -421,7 +435,9 @@ class _ReconcilePhasesMixin:
             return
 
         exe_quoted = f'"{launcher}"' if launcher else '""'
-        entry["AppName"] = game.title
+        entry["AppName"] = resolve_app_name(
+            entry.get("AppName"), last_written_title, game.title,
+        )
         entry["Exe"] = exe_quoted
         entry["LaunchOptions"] = rewrite_for_sync(
             current_options, f"{game.store}:{game.store_game_id}",
@@ -436,6 +452,7 @@ class _ReconcilePhasesMixin:
 
     def _reclaim_orphan(
         self: Any, entry: dict[str, Any], game: Game, app_id: int,
+        *, last_written_title: str | None = None,
     ) -> None:
         """Rewrite ``entry`` in place — restores ownership while keeping AppID.
 
@@ -445,12 +462,15 @@ class _ReconcilePhasesMixin:
         carrying a stranded action flag, not less.
         """
         from .launch_options import rewrite_for_sync
+        from .user_title import resolve_app_name
 
         launcher = getattr(self, "_launcher_path", "") or ""
         target = f"{game.store}:{game.store_game_id}"
         preserved = rewrite_for_sync(entry.get("LaunchOptions", ""), target)
         entry["appid"] = app_id
-        entry["AppName"] = game.title
+        entry["AppName"] = resolve_app_name(
+            entry.get("AppName"), last_written_title, game.title,
+        )
         if launcher:
             entry["Exe"] = f'"{launcher}"'
         entry["LaunchOptions"] = preserved

@@ -39,3 +39,11 @@ def test_identity_caches_never_expire() -> None:
     # that cache's lifetime: expiring it alone would make every cached miss
     # look title-less, i.e. stale, and re-search the whole library.
     assert ttls["steam_appid_miss"] == 0
+
+
+def test_last_good_lists_never_expire() -> None:
+    # A positive TTL evicts on read, which would erase the last good list
+    # exactly when the source cannot be read.
+    ttls = _ttls()
+    assert ttls["microsoft_owned"] == 0
+    assert ttls["microsoft_xbox_pc"] == 0

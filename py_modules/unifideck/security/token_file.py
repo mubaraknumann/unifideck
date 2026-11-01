@@ -34,6 +34,7 @@ import asyncio
 import json
 import logging
 import os
+import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -176,17 +177,26 @@ class EncryptedTokenFile:
         raised ``EBADF`` over the real error whenever the *write* failed —
         so a disk-full token save was reported as "Bad file descriptor".
         """
+        tmp: str | None = None
         try:
             parent = Path(path).parent
             if str(parent):
                 parent.mkdir(parents=True, exist_ok=True)
-            tmp = path + ".tmp"
-            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, _TOKEN_MODE)
+            # A unique temp name per write. The fixed ``<path>.tmp`` let two
+            # concurrent saves truncate and interleave the same file: six
+            # parallel GOG refreshes left a torn blob that no longer
+            # decrypted, signing the user out. ``mkstemp`` creates it 0600.
+            fd, tmp = tempfile.mkstemp(
+                dir=str(parent) or ".", prefix=f".{Path(path).name}.", suffix=".tmp",
+            )
+            os.fchmod(fd, _TOKEN_MODE)
             with os.fdopen(fd, "wb") as f:
                 f.write(blob)
             Path(tmp).replace(path)
         except OSError as e:
             logger.warning("%s save failed: %s", self._prefix, e)
+            if tmp is not None:
+                Path(tmp).unlink(missing_ok=True)
             return False
         return True
 

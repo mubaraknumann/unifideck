@@ -1175,6 +1175,88 @@ build_local() {
     echo "========================================="
 }
 
+# ── Decky loader stop/start helpers ───────────────────────────
+# The Decky unit runs with KillMode=process, so `systemctl stop` kills only
+# the bootstrap process. A loader or plugin child that is wedged (Decky's
+# fork deadlock: the child inherits a logging lock another loader thread
+# held at fork time, and hangs in new_event_loop() before running any
+# plugin code) survives the stop and is still there after the next start.
+# These leftovers pile up across deploys, keep watching the plugins dir,
+# and leave a Unifideck process that will never answer an RPC, so the game
+# page sits on its loading skeleton.
+
+# Kill everything still in the unit's cgroup after a stop. Anything left
+# there by then is a leftover by definition: the unit is stopped.
+_reap_loader_leftovers() {
+    local cg procs pid
+    cg=$(systemctl show -p ControlGroup --value plugin_loader 2>/dev/null || true)
+    [ -n "$cg" ] || cg="/system.slice/plugin_loader.service"
+    procs="/sys/fs/cgroup${cg}/cgroup.procs"
+    [ -r "$procs" ] || return 0
+    for pid in $(cat "$procs"); do
+        log_warn "Killing leftover from an earlier plugin_loader run: $pid $(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | cut -c1-80)"
+        sudo kill -9 "$pid" 2>/dev/null || true
+    done
+}
+
+# Wait for this start's Unifideck backend to finish booting: a new log in
+# ~/homebrew/logs/Unifideck/ that says "plugin loaded". Decky writes that
+# log only once the child is past its fork, so no new log at all means the
+# child is wedged before our code ran.
+_backend_booted_since() {
+    local since="$1" timeout_s="${2:-45}" log_dir="$HOME/homebrew/logs/Unifideck" waited=0
+    while [ "$waited" -lt "$timeout_s" ]; do
+        # Log names contain spaces ("2026-10-15 02.02.54.log"): let find
+        # hand them to grep instead of word-splitting a list.
+        if [ -n "$(find "$log_dir" -maxdepth 1 -name '*.log' -newermt "@$since" \
+                -exec grep -l "plugin loaded" {} + 2>/dev/null)" ]; then
+            return 0
+        fi
+        sleep 1
+        waited=$((waited + 1))
+    done
+    return 1
+}
+
+# Unifideck children that never dropped root or started a thread: stuck in
+# Decky's fork, before our code. A booted backend runs as the deck user.
+_stuck_backend_pids() {
+    local pid
+    for pid in $(pgrep -f '^Unifideck \(' 2>/dev/null); do
+        if [ "$(awk '/^Uid:/{print $2}' "/proc/$pid/status" 2>/dev/null)" = "0" ] \
+            && [ "$(ls "/proc/$pid/task" 2>/dev/null | wc -l)" = "1" ]; then
+            echo "$pid"
+        fi
+    done
+}
+
+# Start Decky and confirm Unifideck's backend actually booted. The fork
+# deadlock is a race, so one clean restart usually clears it; if the second
+# start is stuck too, stop and say so instead of reporting success over a
+# backend that will never answer.
+_start_loader_and_verify() {
+    local attempt since stuck
+    for attempt in 1 2; do
+        since=$(date +%s)
+        sudo systemctl start plugin_loader
+        log_info "Waiting for the Unifideck backend to boot..."
+        if _backend_booted_since "$since" 45; then
+            log_success "Unifideck backend booted"
+            return 0
+        fi
+        stuck=$(_stuck_backend_pids | tr '\n' ' ')
+        log_warn "Unifideck backend did not boot within 45s (attempt $attempt).${stuck:+ Stuck before plugin code ran (uid 0, one thread): $stuck}"
+        if [ "$attempt" = 1 ]; then
+            log_info "Restarting Decky once to clear it..."
+            sudo systemctl stop plugin_loader 2>/dev/null || true
+            _reap_loader_leftovers
+        fi
+    done
+    log_error "Unifideck backend still not booted. Game pages will fall back to Steam's own Play button."
+    log_error "Recover with: sudo systemctl stop plugin_loader; sudo pkill -9 -f '^(Decky Loader|Unifideck \\()'; sudo systemctl start plugin_loader"
+    return 1
+}
+
 # ── Quick-install (dev sync) ──────────────────────────────────
 # Fast incremental sync of the working tree into an existing Decky
 # install - no zip, no unzip, no Docker. Use this for tight dev
@@ -1232,6 +1314,7 @@ quick_install() {
     echo "========================================="
     log_info "Stopping Decky plugin loader..."
     sudo systemctl stop plugin_loader 2>/dev/null || true
+    _reap_loader_leftovers
     sleep 1
 
     sudo mkdir -p "$install_dir"
@@ -1281,7 +1364,7 @@ quick_install() {
     sudo find "$install_dir/bin" -type f -exec chmod +x {} \; 2>/dev/null || true
 
     log_info "Starting Decky plugin loader..."
-    sudo systemctl start plugin_loader
+    _start_loader_and_verify
     log_success "Quick-install complete - tail logs at ~/homebrew/logs/Unifideck/"
     echo "========================================="
 }
@@ -1303,6 +1386,7 @@ install_plugin() {
     echo "========================================="
     log_info "Stopping Decky plugin loader..."
     sudo systemctl stop plugin_loader 2>/dev/null || true
+    _reap_loader_leftovers
     sleep 1
 
     # Extract to a staging dir FIRST, swap only once it succeeded. This used to
@@ -1336,8 +1420,8 @@ install_plugin() {
     log_success "Installed to $install_dir"
 
     log_info "Starting Decky plugin loader..."
-    sudo systemctl start plugin_loader
-    log_success "Decky restarted - plugin active shortly"
+    _start_loader_and_verify
+    log_success "Decky restarted - Unifideck backend is up"
     echo "========================================="
 }
 

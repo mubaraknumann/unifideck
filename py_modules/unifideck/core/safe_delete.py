@@ -143,6 +143,39 @@ def canonical_prefix(game_id: str) -> Path:
     ``prefixes/<game_id>`` dir — no store subdirectory). Keep in sync with
     ``launcher/proton/infrastructure/core.py``.
     """
-    return Path(
-        "~/.local/share/unifideck/prefixes",
-    ).expanduser() / game_id
+    return _prefixes_root() / game_id
+
+
+def _prefixes_root() -> Path:
+    """Where every :func:`canonical_prefix` lives (resolved at call time)."""
+    return Path("~/.local/share/unifideck/prefixes").expanduser()
+
+
+def delete_game_prefix(game_id: str) -> bool:
+    """Delete *game_id*'s :func:`canonical_prefix`; True when it is gone.
+
+    The one implementation of Uninstall's "also delete the Proton prefix"
+    option. ``DownloadRPCMixin.uninstall_game`` calls it after any store's
+    uninstall succeeds, so a store never has to remember to. Wrapper stores
+    (Ubisoft, Battle.net) are skipped by that caller: their game lives inside
+    the prefix and each deletes it through its own guard.
+
+    Refuses any id that does not name a direct child of the prefixes root.
+    ``pathlib`` collapses ``root / "."`` and ``root / ""`` into the root
+    itself, which is deep enough to pass :func:`safe_rmtree` and holds every
+    game's prefix, so the check compares against a root built separately.
+    """
+    root = _prefixes_root()
+    prefix = canonical_prefix(game_id)
+    try:
+        inside = prefix.name == game_id and prefix.resolve().parent == root.resolve()
+    except (OSError, RuntimeError):
+        inside = False
+    if not inside:
+        logger.error("[safe_delete] refusing to delete prefix for game id %r", game_id)
+        return False
+    existed = prefix.exists()
+    gone = safe_rmtree(prefix)
+    if existed and gone:
+        logger.info("[safe_delete] deleted prefix %s", prefix)
+    return gone

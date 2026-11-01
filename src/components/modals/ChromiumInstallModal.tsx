@@ -26,6 +26,7 @@ import { call } from "@decky/api";
 import { rpcRoutes } from "../../api/rpc-routes";
 import { unwrapRpcEnvelope } from "../../api/useRPC";
 import { useToast } from "../../hooks/useToast";
+import { toastText, headerText } from "../../services/toast-text";
 
 interface Props {
   /** Optional callback after a successful install — typically
@@ -63,7 +64,10 @@ export const ChromiumInstallModal: FC<Props> = ({
       });
       if (result?.installed) {
         setInstalled(true);
-        toast.success(t("microsoft.browserInstalled"));
+        toast.success(
+          headerText("toasts.header.edge"),
+          toastText("toasts.edgeInstalled"),
+        );
         setTimeout(() => {
           closeModal?.();
           onInstalled?.();
@@ -71,12 +75,18 @@ export const ChromiumInstallModal: FC<Props> = ({
       } else {
         const msg = result?.error ?? t("microsoft.chromiumInstallFailed");
         setError(msg);
-        toast.error(t("microsoft.chromiumInstallFailed"), msg);
+        toast.error(
+          headerText("toasts.header.edge"),
+          toastText("toasts.edgeInstallFailed"),
+        );
       }
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       setError(message);
-      toast.error(t("microsoft.chromiumInstallFailed"), message);
+      toast.error(
+        headerText("toasts.header.edge"),
+        toastText("toasts.edgeInstallFailed"),
+      );
     } finally {
       setInstalling(false);
     }

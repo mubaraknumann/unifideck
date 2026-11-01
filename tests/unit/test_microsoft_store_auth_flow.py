@@ -36,6 +36,9 @@ def _store(flow: str) -> tuple[MicrosoftStore, MagicMock]:
     store._auth = MagicMock()
     store._auth.start_auth = AsyncMock(return_value=AuthResult(success=True, store="microsoft"))
     store._tokens = MagicMock(client_mismatch=False)
+    store._xbox_pc = MagicMock(sign_in_running=False)
+    store._xbox_pc.enabled.return_value = False
+    store._bus = MagicMock()
     return store, edge
 
 
@@ -111,3 +114,36 @@ async def test_registry_cancel_reaches_the_store() -> None:
 
 async def test_registry_cancel_is_a_noop_for_other_stores() -> None:
     assert (await _registry(_RegStore(cancellable=False)).auth_action("microsoft", "cancel")).success
+
+
+async def test_the_token_poll_checks_the_sign_in_once_at_start(monkeypatch: pytest.MonkeyPatch) -> None:
+    """I-036: until a check, the cached answer read "signed out" after every restart."""
+    import asyncio
+
+    store, _ = _store(AUTH_FLOW_DEVICE_CODE)
+    calls: list[int] = []
+
+    async def available() -> bool:
+        calls.append(1)
+        return True
+
+    monkeypatch.setattr(store, "is_available", available)
+    monkeypatch.setattr(MicrosoftStore, "TOKEN_POLL_INTERVAL_SECONDS", 3600)
+    task = asyncio.ensure_future(store._token_poll_loop())
+    await asyncio.sleep(0.05)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert calls == [1]
+
+
+async def test_with_xbox_pc_on_connect_is_the_xbox_pc_sign_in(monkeypatch: pytest.MonkeyPatch) -> None:
+    """One sign-in: no OAuth flow runs when Xbox PC downloads are on."""
+    store, _ = _store(AUTH_FLOW_DEVICE_CODE)
+    store._xbox_pc.enabled.return_value = True
+    connect = AsyncMock(return_value=AuthResult(success=True, store="microsoft"))
+    monkeypatch.setattr(ms_module.single_signin, "start_connect", connect)
+    result = await store.start_auth()
+    assert result.success
+    connect.assert_awaited_once_with(store._xbox_pc, store._bus)
+    store._device_auth.start_auth.assert_not_called()

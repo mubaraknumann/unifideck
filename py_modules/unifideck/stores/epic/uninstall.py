@@ -140,16 +140,3 @@ async def delete_install_dir(install_path: str | None, game_id: str) -> bool:
     gone = not await asyncio.to_thread(p.exists)
     logger.info("[EpicUninstall] deleted %s (gone=%s)", p, gone)
     return gone
-
-async def delete_prefix(game_id: str) -> None:
-    """Remove the game's Proton prefix (``delete_prefix`` path)."""
-    prefix = Path.home() / ".local/share/unifideck/prefixes" / game_id
-    if not await asyncio.to_thread(prefix.exists):
-        return
-    if not _is_safe_to_delete(prefix):
-        logger.error(
-            "[EpicUninstall] refusing to delete unsafe prefix %s", prefix,
-        )
-        return
-    await asyncio.to_thread(shutil.rmtree, prefix, ignore_errors=True)
-    logger.info("[EpicUninstall] deleted prefix %s", prefix)

@@ -28,6 +28,11 @@ import { useEventBus } from "../../api/event-bus-client";
 import { consumeCloudOpPending } from "../../api/cloud-save-pending";
 import { Events } from "../../types/events";
 import { useToast } from "../../hooks/useToast";
+import {
+  toastText,
+  headerText,
+  type ToastKey,
+} from "../../services/toast-text";
 import { CloudSaveModal } from "../modals/CloudSaveModal";
 
 interface Props {
@@ -83,12 +88,17 @@ export const CloudSaveButton: FC<Props> = ({ store, gameId, gameTitle }) => {
   // automatic on-launch pull never spams a toast. (useCloudSaveStatus already
   // refetches the status on these same events.)
   const onSyncEvent =
-    (dir: "down" | "up", ok: boolean, okKey: string, failKey: string) =>
+    (dir: "down" | "up", ok: boolean, okKey: ToastKey, failKey: ToastKey) =>
     (p: Record<string, unknown>) => {
       if (p.store !== store || p.game_id !== gameId) return;
       if (!consumeCloudOpPending(store, gameId, dir)) return;
-      if (ok) toast.success(t(okKey));
-      else toast.error(t(failKey), String(p.error ?? ""));
+      if (ok) {
+        toast.success(headerText("toasts.header.cloudSaves"), toastText(okKey));
+        return;
+      }
+      // A toast has no room for the error; the console keeps it.
+      console.warn(`[CloudSaveButton] cloud ${dir} failed:`, p.error);
+      toast.error(headerText("toasts.header.cloudSaves"), toastText(failKey));
     };
   useEventBus(
     Events.CLOUD_SYNC_DOWN_COMPLETE,

@@ -179,7 +179,7 @@ class LocalVaultCatalog:
                 app_id=0,
                 store=STORE_NAME,
                 store_game_id=entry.game_id,
-                title=entry.parsed.title,
+                title=entry.parsed.display_title,
                 installed=False,
                 metadata={
                     "file_path": str(entry.path),
@@ -218,10 +218,10 @@ class LocalVaultCatalog:
             return None
         return AcquiredArchive(
             path=entry.path,
-            title=entry.parsed.title,
+            title=entry.parsed.display_title,
             # The title, not the filename: the extracted directory should read
             # "Stardew Valley", not "Stardew Valley (v1.6) (W_P) (2016)".
-            dir_name=safe_dir_name(entry.parsed.title),
+            dir_name=safe_dir_name(entry.parsed.display_title),
             prefer_native=entry.parsed.is_linux,
             is_installer=entry.parsed.is_installer,
         )

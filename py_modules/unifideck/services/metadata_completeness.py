@@ -37,9 +37,11 @@ def has_complete_metadata(cache: CacheManager, game: Game) -> bool:
     tier most visibly) stayed empty. See ``steam_appid_miss_stale``.
     """
     cache_key = f"{game.store}:{game.store_game_id}"
-    # 1. The merged metadata payload (a negative marker counts as an answer).
+    # 1. The merged metadata payload. A negative marker counts as an answer
+    #    only for the title it was recorded against.
     try:
-        if cache.get(CACHE_NAMESPACE, cache_key) is None:
+        cached = cache.get(CACHE_NAMESPACE, cache_key)
+        if cached is None or metadata_negative_stale(cached, game.title):
             return False
     except Exception:
         return False
@@ -62,3 +64,28 @@ def has_complete_metadata(cache: CacheManager, game: Game) -> bool:
         return False
 
     return True
+
+
+def negative_marker(title: str) -> dict[str, object]:
+    """The cache entry for "no source knew this game", for *title*."""
+    return {"_negative": True, "title": title}
+
+
+def metadata_negative_stale(cached: object, title: str) -> bool:
+    """Whether a cached "no metadata" verdict was about a different title.
+
+    The same trap as :func:`steam_appid_miss_stale`, one stage up. Both
+    sources search by title, so a miss is a statement about the title that
+    was searched. It was cached under the stable game id with no record of
+    that title, so a game whose title was later corrected stayed blank for
+    good: ``Alan Wake 2 AnkerGames`` matched nothing, and once the uploader
+    tag was stripped the clean ``Alan Wake 2`` (which unifiDB knows) was
+    never asked about.
+
+    A marker written before the title was recorded has none. Treat it as
+    stale: one retry per affected game, then it is recorded properly.
+    """
+    if not isinstance(cached, dict) or not cached.get("_negative"):
+        return False
+    return cached.get("title") != title
+

@@ -22,6 +22,7 @@ testable.
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import logging
 import time
@@ -69,6 +70,10 @@ class GOGTokenManager:
             save_callback=self.save,
         )
         self._gogdl = _GogdlCreds(config=config)
+        # One refresh at a time. The update scan checks games concurrently,
+        # and each check refreshed a stale token on its own: six parallel
+        # refreshes of one refresh token, six parallel saves of the file.
+        self._refresh_lock = asyncio.Lock()
 
     @property
     def access_token(self) -> str | None:
@@ -143,12 +148,17 @@ class GOGTokenManager:
         return await self._oauth.exchange_code(auth_code)
 
     async def refresh_if_stale(self) -> bool:
-        """Refresh if stale."""
-        return await self._oauth.refresh_if_stale(
-            access_token=self._access_token,
-            refresh_token=self._refresh_token,
-            age_seconds=self.get_token_age_seconds(),
-        )
+        """Refresh if stale, one caller at a time.
+
+        Waiters re-read the age after the lock: the first refresh saved the
+        file, so they see a fresh token and return without refreshing.
+        """
+        async with self._refresh_lock:
+            return await self._oauth.refresh_if_stale(
+                access_token=self._access_token,
+                refresh_token=self._refresh_token,
+                age_seconds=self.get_token_age_seconds(),
+            )
 
     @contextlib.asynccontextmanager
     async def gogdl_credentials(self) -> AsyncIterator[tuple[dict[str, str], str]]:
