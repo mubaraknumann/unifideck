@@ -103,6 +103,9 @@ export const rpcRoutes = {
   getLaunchFailures: "get_launch_failures",
   clearLaunchFailures: "clear_launch_failures",
   armCircuitBypass: "arm_circuit_bypass",
+  // Battle.net launch popup: installed versions of a tile.
+  getBattlenetLaunchChoices: "get_battlenet_launch_choices",
+  setBattlenetLaunchChoice: "set_battlenet_launch_choice",
   getPlaytime: "get_playtime",
   // Action dispatcher (ActionRPCMixin) — bidirectional bridge
   dispatchUnifideckAction: "dispatch_unifideck_action",

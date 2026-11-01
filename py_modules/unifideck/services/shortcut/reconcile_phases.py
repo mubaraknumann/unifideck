@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from .games_map import UNIFIDECK_TAG, GameMapEntry, generate_app_id
+from .launch_options import with_store_defaults
 from .reconcile_helpers import (
     build_launch_index,
     dedup_shortcuts,
@@ -513,7 +514,8 @@ class _ReconcilePhasesMixin:
         launcher = getattr(self, "_launcher_path", "") or ""
         exe_quoted = f'"{launcher}"' if launcher else '""'
         start_dir = f'"{game.install_path}"' if game.install_path else '""'
-        launch_options = f"{game.store}:{game.store_game_id}"
+        launch_options = with_store_defaults(
+            f"{game.store}:{game.store_game_id}", f"{game.store}:{game.store_game_id}")
         cover_icon = game.icon_url or ""
         return {
             "appid": app_id,

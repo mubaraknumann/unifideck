@@ -179,7 +179,7 @@ The `Plugin` class in `main.py` is composed from the RPC mixin classes enumerate
 | `SyncRPCMixin`             | `sync_libraries`, `force_sync_libraries`, `get_game_info`, `get_sync_progress`   |
 | `DownloadRPCMixin`         | `install_game`, `uninstall_game`, `update_game`, `cancel_download`, `get_download_queue`, `get_available_updates` |
 | `StorageRPCMixin`          | `get_storage_locations`, `get_browseable_devices`, `set_custom_install_path`    |
-| `LaunchRPCMixin`           | `notify_game_launched`, `notify_game_stopped`, `get_launch_failures`             |
+| `LaunchRPCMixin`           | `notify_game_launched`, `notify_game_stopped`, `get_launch_failures`, `get_battlenet_launch_choices`, `set_battlenet_launch_choice` |
 | `AuthShortcutsRPCMixin`    | `get_<store>_auth_shortcut_context`, `get_compat_tool_for_game`                  |
 | `EdgeRPCMixin`             | `install_edge`                                                                  |
 | `ExecutableRPCMixin`       | `list_game_executables`, `set_game_executable`, `reset_game_executable`          |

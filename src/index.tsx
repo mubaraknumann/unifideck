@@ -33,6 +33,7 @@ import { startCollectionManager } from "./lib/steam-bridge/collection-manager";
 import { startOverviewEnrichment } from "./lib/steam-bridge/overview-enrichment";
 import { startTileStoreBadgePatch } from "./lib/steam-bridge/tile-store-badge-patch";
 import { applyAppContextMenuPatch } from "./lib/steam-bridge/app-context-menu-patch";
+import { applyBattlenetLaunchPicker } from "./lib/steam-bridge/battlenet-launch-picker";
 import { startStoreOwnershipRibbon } from "./lib/steam-bridge/store-ownership-ribbon";
 import { applyAppStorePatch } from "./lib/steam-bridge/app-store-patcher";
 import { loadCompatCacheFromBackend } from "./lib/protondb-cache";
@@ -121,6 +122,13 @@ export default definePlugin(() => {
     handles.appContextMenuPatch = applyAppContextMenuPatch();
   } catch (e) {
     console.error("[Unifideck] app context-menu patch start failed:", e);
+  }
+  // Play on a Battle.net tile shows Steam's own launch-options popup:
+  // each installed version, plus the Battle.net client alone.
+  try {
+    handles.battlenetLaunchPicker = applyBattlenetLaunchPicker();
+  } catch (e) {
+    console.error("[Unifideck] Battle.net launch picker start failed:", e);
   }
   // Mark Steam Store pages of games already owned on another store.
   try {

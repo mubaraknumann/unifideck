@@ -34,6 +34,7 @@ export interface TeardownHandles {
   overviewEnrichment?: (() => void) | null;
   tileStoreBadgePatch?: (() => void) | null;
   appContextMenuPatch?: { unpatch: () => void } | null;
+  battlenetLaunchPicker?: { unpatch: () => void } | null;
   storeOwnershipRibbon?: (() => void) | null;
   lifetimeListener?: Unregisterable | null;
   launcherToastPoll?: (() => void) | null;
@@ -76,6 +77,8 @@ const DISPOSERS: Record<keyof TeardownHandles, (h: TeardownHandles) => void> = {
   storeOwnershipRibbon: (h) => h.storeOwnershipRibbon?.(),
   tileStoreBadgePatch: (h) => h.tileStoreBadgePatch?.(),
   appContextMenuPatch: (h) => h.appContextMenuPatch?.unpatch(),
+  // Restores Steam's own RunGame; a leak would keep wrapping it after unload.
+  battlenetLaunchPicker: (h) => h.battlenetLaunchPicker?.unpatch(),
   lifetimeListener: (h) => h.lifetimeListener?.unregister(),
   appStorePatch: (h) => h.appStorePatch?.remove(),
   // Releases two window listeners, two EventBusClient subscriptions, the

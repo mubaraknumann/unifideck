@@ -52,6 +52,7 @@ function buildHandles() {
       overviewEnrichment: fn("overviewEnrichment"),
       tileStoreBadgePatch: fn("tileStoreBadgePatch"),
       appContextMenuPatch: { unpatch: fn("appContextMenuPatch") },
+      battlenetLaunchPicker: { unpatch: fn("battlenetLaunchPicker") },
       storeOwnershipRibbon: fn("storeOwnershipRibbon"),
       lifetimeListener: { unregister: fn("lifetimeListener") },
       launcherToastPoll: fn("launcherToastPoll"),

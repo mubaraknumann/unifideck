@@ -21,7 +21,8 @@ import logging
 from collections.abc import Sequence
 from pathlib import Path
 
-from .ownership import InstalledGame, read_catalog, read_installed
+from .ownership import InstalledGame, MergedCatalog, read_catalog, read_installed
+from .ownership.pub_catalog import CatalogEntry
 from .product_db import read_product_db
 
 logger = logging.getLogger(__name__)
@@ -191,3 +192,21 @@ def install_state_by_uid(drive_c: Path, prefix: Path) -> dict[str, InstalledGame
 def read_install_state(drive_c: Path, prefix: Path) -> dict[str, InstalledGame]:
     """Installed state for one prefix, with host paths resolved."""
     return read_installed(drive_c, read_product_db(drive_c), prefix=prefix)
+
+
+def ready_versions(
+    drive_c: Path, prefix: Path, uid: str,
+) -> tuple[MergedCatalog, CatalogEntry | None, list[InstalledGame]]:
+    """Every *ready* installed version of the tile ``uid``, in catalog order.
+
+    The one join the launcher (which family to send) and the launch picker
+    (which versions to offer) both need. One tile is many versions: the
+    ``wow`` tile is Retail, Classic and Classic Era, and the client records
+    whichever the user installed.
+    """
+    catalog = read_catalog(drive_c)
+    entry = catalog.entry_for_uid(uid)
+    uids = entry.known_uids() if entry else (uid,)
+    state = install_state_by_uid(drive_c, prefix)
+    rows = [row for row in variant_install_rows(state, uids) if row.is_ready]
+    return catalog, entry, rows

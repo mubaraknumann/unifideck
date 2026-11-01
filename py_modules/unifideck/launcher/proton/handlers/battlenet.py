@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import functools
 import logging
 from collections.abc import AsyncGenerator
 from pathlib import Path
@@ -44,8 +45,10 @@ from unifideck.launcher.frontend_bridge import launcher_toast
 from unifideck.launcher.game_title import resolve_title
 from unifideck.launcher.proton.handlers import battlenet_auth_wsi as auth_wsi
 from unifideck.launcher.proton.handlers import battlenet_bootstrap as bootstrap
+from unifideck.launcher.proton.handlers import battlenet_cdp as cdp
 from unifideck.launcher.proton.handlers import battlenet_exec as bnet_exec
 from unifideck.launcher.proton.handlers import battlenet_login_state as login_state
+from unifideck.launcher.proton.handlers import battlenet_play as play
 from unifideck.launcher.proton.handlers import battlenet_session as session
 from unifideck.launcher.proton.handlers import battlenet_versions as versions
 from unifideck.launcher.proton.handlers import battlenet_watch as watch
@@ -128,8 +131,13 @@ async def _start_client_detached(
     # Escape Steam's pressure-vessel when Force-Compat wrapped us, or the
     # client nests a second container and never starts. No-op when
     # unwrapped. See infrastructure.container_escape.
+    # DevTools on loopback, so a non-retail version can be started by pressing
+    # the client's own Play (``battlenet_play``). The launcher forwards the
+    # switch to the client, measured; the port is recorded in the prefix.
+    port = cdp.assign_port(plan.prefix_path)
     argv = escape_argv(
-        [str(plan.python_bin), str(plan.umu_wrapper), str(launcher_exe)],
+        [str(plan.python_bin), str(plan.umu_wrapper), str(launcher_exe),
+         f"--remote-debugging-port={port}"],
         plan.env, None,
     )
     logger.info("[battlenet] phase A: starting client")
@@ -319,45 +327,60 @@ async def _require_signed_in(plan: ProtonLaunchPlan) -> None:
 
 
 async def battlenet_launch(plan: ProtonLaunchPlan) -> int:
-    """Launch an installed Battle.net game through the resident client."""
+    """Launch an installed Battle.net game through the resident client.
+
+    The launch popup's choice (``stores/battlenet/launch_choice``) decides
+    what Play means: the client alone, or one installed version.
+    """
     uid = plan.context.game_id
-    family, selects = await _launch_family(plan, uid)
+    choice = await asyncio.to_thread(versions.consume_choice, uid)
+    if choice == "client":
+        return await battlenet_client_launch(plan)
+    target = await asyncio.to_thread(functools.partial(
+        versions.launch_target, plan.prefix_path, uid, choice,
+        family_fallback=resolve_family, selects_fallback=client_selects_version,
+    ))
+    if target is None:
+        # Never fall back to "open the client bare". Battle.net's failure is
+        # silent, so the user would see the client open and nothing happen.
+        raise _fail(
+            plan, "battlenetFamilyMissing", f"No Battle.net family code known for {uid}",
+            uid=uid,
+        )
+    _announce(plan, target.family)
+    client_exe = await _bring_up_client(plan)
+    await _require_signed_in(plan)
+    pid, before = await _start_game(plan, client_exe, uid, target)
+    await _await_session_end(plan, pid, before)
+    plan.state.game_exit_code = 0
+    return 0
+
+
+def _announce(plan: ProtonLaunchPlan, family: str) -> None:
+    """Tell the user the game is starting; warn early about a known W3 trap."""
     launcher_toast(
         "toasts.launcher.startingBattlenetGame",
         i18n_title_key="toasts.header.battlenet",
         game_title=resolve_title(plan.context.game_key),
     )
     battlenet_wc3.apply_wc3_crypt32_fix(plan, family)
-    client_exe = await _bring_up_client(plan)
-    await _require_signed_in(plan)
-    pid, before = await bnet_exec.issue_and_confirm(
-        plan, client_exe, uid, family, fail=_fail, client_selects=selects,
-    )
-    await _await_session_end(plan, pid, before)
-    plan.state.game_exit_code = 0
-    return 0
 
 
-async def _launch_family(plan: ProtonLaunchPlan, uid: str) -> tuple[str, bool]:
-    """``(family, client_selects)`` for the version installed right now.
+async def _start_game(
+    plan: ProtonLaunchPlan, client_exe: Path, uid: str, target: versions.LaunchTarget,
+) -> tuple[str | None, set[str]]:
+    """Phases C + D: ``--exec`` for retail, else the client's Play (``battlenet_play``)."""
+    if target.uid and target.non_retail:
+        async def restart() -> None:
+            await _bring_up_client(plan)
+            await _require_signed_in(plan)
 
-    Read from the prefix at launch time, so a version installed since the
-    last library sync is launched as what it is (see ``battlenet_versions``).
-    The id map is the fallback when the prefix cannot answer.
-    """
-    found = await asyncio.to_thread(versions.resolve, plan.prefix_path, uid)
-    family = found.family or resolve_family(uid)
-    if not family:
-        # Never fall back to "open the client bare". Battle.net's failure is
-        # silent, so the user would see the client open and nothing happen.
-        raise _fail(
-            plan,
-            "battlenetFamilyMissing",
-            f"No Battle.net family code known for {uid}",
-            uid=uid,
+        return await play.press_play(
+            plan, client_exe, target.uid, fail=_fail, restart=restart,
         )
-    selects = found.selects if found.versions else client_selects_version(uid)
-    return family, selects
+    return await bnet_exec.issue_and_confirm(
+        plan, client_exe, uid, target.family, fail=_fail, client_selects=target.selects,
+    )
 
 
 async def _await_session_end(
@@ -500,6 +523,26 @@ async def battlenet_install_launch(plan: ProtonLaunchPlan) -> int:
     await bnet_exec.issue_exec(plan, client_exe, f"launch {family}")
     # Stay alive while the client is up so Steam keeps the shortcut running
     # and the install window is not torn down under the user.
+    async with _client_teardown(plan):
+        await watch.wait_while_client_running(plan.prefix_path)
+    plan.state.game_exit_code = 0
+    return 0
+
+
+async def battlenet_client_launch(plan: ProtonLaunchPlan) -> int:
+    """Open the client in a game's prefix and send it nothing.
+
+    For working inside the client on an installed title: adding another
+    version beside the one installed, repairing, changing its settings.
+    Neither Play nor the install action can do that. For a retail title
+    ``launch <family>`` *starts the game*, the session then follows the
+    game, and the client refuses to install a second version while one is
+    running. Closing the game tears the client down with it. Here the
+    session follows the client and ends when the user closes it. Reached
+    from the launch popup's "Battle.net" row (``battlenet_launch``).
+    """
+    await _bring_up_client(plan)
+    await _require_signed_in(plan)
     async with _client_teardown(plan):
         await watch.wait_while_client_running(plan.prefix_path)
     plan.state.game_exit_code = 0

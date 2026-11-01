@@ -46,10 +46,11 @@ from unifideck.stores.shared.wrapper_session_hooks import WrapperSessionHooks
 
 from . import config as store_config
 from . import install_state as install_state_mod
+from . import launch_choice, paths
 from . import library as library_mod
-from . import paths
 from .id_map import BattlenetIdMap
 from .install import BattlenetInstaller
+from .launch_choices import launch_choices
 from .prefix import BattlenetPrefixManager, inspect_prefix
 
 if TYPE_CHECKING:
@@ -122,6 +123,28 @@ class BattlenetStore(WrapperSessionHooks, StoreBase):
 
     def session_prefix_for(self, game_id: str) -> Path | None:
         return self.id_map.resolve_prefix(game_id)
+
+    async def launch_choices(self, game_id: str) -> list[dict[str, str]]:
+        """Installed versions of ``game_id`` for the launch popup."""
+        prefix = self.id_map.resolve_prefix(game_id)
+        return await asyncio.to_thread(launch_choices, prefix, game_id)
+
+    async def record_launch_choice(self, game_id: str, choice: str) -> bool:
+        """Remember the popup's pick for the next launch of ``game_id``.
+
+        Only ``client`` or a version installed in the game's prefix is
+        accepted, so the launcher never receives a uid it cannot start.
+        """
+        if choice != launch_choice.CLIENT:
+            offered = {c["uid"] for c in await self.launch_choices(game_id)}
+            if choice not in offered:
+                logger.warning(
+                    "[Battlenet] refusing launch choice %r for %s (installed: %s)",
+                    choice, game_id, sorted(offered),
+                )
+                return False
+        await asyncio.to_thread(launch_choice.record, game_id, choice)
+        return True
 
     # -- helpers -----------------------------------------------------------
 

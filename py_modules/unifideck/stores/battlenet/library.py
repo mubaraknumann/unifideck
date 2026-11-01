@@ -341,12 +341,15 @@ def build_library(
     by_uid = index_by_uid(installed)
     games = _granted_games(granted, catalog, by_uid, launcher_path, presumed=presumed)
     seen = {normalize_uid(g.store_game_id) for g in games}
-    # A tile that matched a variant has consumed that install; without this
-    # the orphan sweep re-adds Classic Era as a second World of Warcraft.
-    seen |= {
-        normalize_uid(str(g.metadata["installed_uid"]))
-        for g in games if g.metadata and g.metadata.get("installed_uid")
-    }
+    # Every version of a granted tile belongs to that tile, not only the one
+    # it reports as ``installed_uid`` (the most recently played). Claiming
+    # just that one re-added Classic Era as its own game whenever Retail was
+    # played last: titled ``wow_classic_era``, with a family that launches
+    # nothing.
+    for game in games:
+        entry = catalog.entry_for_uid(game.store_game_id)
+        if entry is not None:
+            seen |= {normalize_uid(uid) for uid in entry.known_uids()}
     games.extend(_orphan_installed(installed, catalog, seen, launcher_path))
     return games
 

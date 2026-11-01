@@ -79,6 +79,10 @@ class CatalogEntry:
     # than retail, because ``--exec=launch WoW`` resets the client to
     # ``WoW_retail`` whatever the user had selected.
     type_launch_families: dict[str, str] = field(default_factory=dict)
+    # product type -> the string key of that version's own name:
+    # {"wow_classic_era": "world_of_warcraft#WOW_CLASSIC_NAME"}. Retail
+    # usually has none and is called by the product's name.
+    type_name_keys: dict[str, str] = field(default_factory=dict)
     genre_key: str | None = None
     handheld_status: tuple[str, ...] = ()
     # Platforms the client will install this title on, e.g. ('win',). The
@@ -114,6 +118,16 @@ class CatalogEntry:
         for product_type, type_uid in self.type_uids.items():
             if type_uid.casefold() == target:
                 return self.type_launch_families.get(product_type)
+        return None
+
+    def name_key_for(self, uid: str | None) -> str | None:
+        """The string key naming the version installed as ``uid``, if any."""
+        if not uid:
+            return None
+        target = uid.casefold()
+        for product_type, type_uid in self.type_uids.items():
+            if type_uid.casefold() == target:
+                return self.type_name_keys.get(product_type)
         return None
 
     def known_uids(self) -> tuple[str, ...]:
@@ -198,6 +212,17 @@ class MergedCatalog:
                 return found
         return None
 
+    def version_name(self, uid: str, locale: str = DEFAULT_LOCALE) -> str | None:
+        """What the client calls the version installed as ``uid``.
+
+        Its own name where the catalog gives one ("World of Warcraft
+        Classic"), otherwise the product's ("World of Warcraft" for Retail).
+        """
+        entry = self.entry_for_uid(uid)
+        if entry is None:
+            return None
+        return self.text(entry.name_key_for(uid), locale) or self.text(entry.name_key, locale)
+
     def display_name(self, product_id: str, locale: str = DEFAULT_LOCALE) -> str | None:
         entry = self.entry_for(product_id)
         return self.text(entry.name_key, locale) if entry else None
@@ -254,6 +279,19 @@ def _type_launch_families(base: dict[str, object]) -> dict[str, str]:
     return out
 
 
+def _type_name_keys(base: dict[str, object]) -> dict[str, str]:
+    types = base.get("types")
+    if not isinstance(types, dict):
+        return {}
+    out: dict[str, str] = {}
+    for product_type, cfg in types.items():
+        if isinstance(product_type, str) and isinstance(cfg, dict):
+            key = cfg.get("name") or cfg.get("selector_display_name")
+            if isinstance(key, str) and key:
+                out[product_type] = key
+    return out
+
+
 def _install_uids(fragment: dict[str, object]) -> tuple[str, ...]:
     installs = fragment.get("installs")
     if not isinstance(installs, dict):
@@ -284,6 +322,7 @@ def _entry_from_product(product: object) -> CatalogEntry | None:
         default_product_type=str(base.get("default_product_type") or "retail"),
         type_uids=_type_uids(base),
         type_launch_families=_type_launch_families(base),
+        type_name_keys=_type_name_keys(base),
         genre_key=base.get("genre") if isinstance(base.get("genre"), str) else None,
         handheld_status=tuple(h for h in (handheld or []) if isinstance(h, str)),
         supported_platforms=tuple(p for p in (platforms or []) if isinstance(p, str)),
@@ -305,6 +344,7 @@ def _absorb_entry(catalog: MergedCatalog, entry: CatalogEntry) -> None:
         return
     merged_types = {**entry.type_uids, **existing.type_uids}
     merged_families = {**entry.type_launch_families, **existing.type_launch_families}
+    merged_names = {**entry.type_name_keys, **existing.type_name_keys}
     catalog.entries[entry.product_id] = CatalogEntry(
         product_id=existing.product_id,
         program_id=existing.program_id or entry.program_id,
@@ -313,6 +353,7 @@ def _absorb_entry(catalog: MergedCatalog, entry: CatalogEntry) -> None:
         default_product_type=existing.default_product_type or entry.default_product_type,
         type_uids=merged_types,
         type_launch_families=merged_families,
+        type_name_keys=merged_names,
         genre_key=existing.genre_key or entry.genre_key,
         handheld_status=existing.handheld_status or entry.handheld_status,
         supported_platforms=existing.supported_platforms or entry.supported_platforms,
