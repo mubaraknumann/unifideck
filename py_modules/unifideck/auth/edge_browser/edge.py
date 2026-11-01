@@ -334,9 +334,9 @@ class EdgeBrowser:
 
     # ── Launch / kill ────────────────────────────────────────────────
 
-    def launch_auth(self, auth_url: str) -> bool:
+    def launch_auth(self, auth_url: str, *, private: bool = False) -> bool:
         """Launch the auth browser for OAuth — delegate to launch module."""
-        return _launch.launch_auth(self, auth_url)
+        return _launch.launch_auth(self, auth_url, private=private)
 
     def launch_storefront(self, url: str) -> bool:
         """Launch a browsable store window — delegate to launch module."""

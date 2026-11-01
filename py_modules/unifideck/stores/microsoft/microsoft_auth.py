@@ -66,6 +66,9 @@ def _obtain_xbl_user_token(
     0.1.5+ (``xodus-xbox-jwe-ticket``) gives a JWE delegation ticket as
     ``t=<jwe>``, and a second prefix makes Xbox Live answer 401.
     """
+    # The Xodus service returns the ticket already prefixed (``t=<jwe>``).
+    if access_token[:2] in ("t=", "d="):
+        access_token = access_token[2:]
     live = [("2", f"t={access_token}"), ("1", f"d={access_token}"), ("1", f"t={access_token}")]
     aad = [("1", f"d={access_token}"), ("2", f"t={access_token}")]
     if access_token.startswith(("t=", "d=")):
