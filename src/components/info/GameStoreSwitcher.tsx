@@ -56,6 +56,9 @@ const HEADER_OFFSET_PX = 40;
  *  the overlay up with the rest of the page's content. */
 const OVERLAY_LEFT_PX = 24;
 
+/** Corner radius of Steam's dropdown button (measured live 2026-11-02). */
+const DROPDOWN_RADIUS_PX = 10;
+
 const t = (key: string): string => i18n.t(key);
 
 /** Store display name, reusing the exact `deckTabs.<store>` keys the
@@ -136,6 +139,9 @@ export const GameStoreSwitcher: FC<Props> = ({ appId, siblings }) => {
         zIndex: 5,
         width: "fit-content",
         background: "rgba(0, 0, 0, 0.6)",
+        // Round the backdrop like Steam's dropdown button on top of it
+        // (10px, measured live), or its square corners show around it.
+        borderRadius: DROPDOWN_RADIUS_PX,
       }}
     >
       <Dropdown
