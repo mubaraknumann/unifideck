@@ -12,8 +12,9 @@
  *     `overview-proxy.ts`). The host is a different element type, so the
  *     native class instance under it is always created after this patch.
  *
- *  2. Its inner class decorates `OnClick` with a bind getter that caches a
- *     bound copy on the instance at first access. `render` cannot be
+ *  2. Its inner class decorates `OnClick` (and `ShowStreamingMenu`, the
+ *     "Play from" arrow) with a bind getter that caches a bound copy on
+ *     the instance at first access. `render` cannot be
  *     patched (MobX freezes a per-instance render after the first paint),
  *     but the prototype getter can: ours installs a per-instance function
  *     that runs our handler when the overview is one of our proxies and
@@ -26,7 +27,7 @@
  */
 import { isValidElement, type ReactElement } from "react";
 import { isUnifideckAppId } from "./gate";
-import { actionSpecFor, isOverviewLive } from "./overview-proxy";
+import { actionSpecFor, isOverviewLive, streamMenuFor } from "./overview-proxy";
 import { patchGetter, patchSlot } from "./slot-patch";
 import {
   findExportInModule,
@@ -52,6 +53,8 @@ export function findActionButton(): ForwardRefObject | null {
 
 interface ButtonInstance {
   props?: { overview?: unknown };
+  /** Steam's play button element; Steam anchors its own menu to it. */
+  m_elActionButtonRef?: { current?: EventTarget | null };
 }
 
 type ClickFn = (...args: unknown[]) => unknown;
@@ -98,6 +101,54 @@ function patchClick(cls: unknown): () => void {
 }
 
 /**
+ * Patch `ShowStreamingMenu`, Steam's "Play from" arrow, the way `OnClick`
+ * is patched: for an overview with a bound menu (see `bindStreamMenu`) it
+ * opens ours, anchored where Steam anchors its own; otherwise Steam's
+ * device picker. Throws when it cannot.
+ */
+function patchStreamingMenu(cls: unknown): () => void {
+  if (!isClassComponent(cls)) throw new Error("button is not a class");
+  return patchGetter(
+    cls.prototype,
+    "ShowStreamingMenu",
+    (originalGet) =>
+      function getShowStreamingMenu(this: unknown) {
+        const self = this as ButtonInstance;
+        const native = originalGet.call(
+          Object.create(self as object),
+        ) as ClickFn;
+        const show: ClickFn = (...args) => {
+          const menu = streamMenuFor(self.props?.overview);
+          if (!menu) return native(...args);
+          const event = args[0] as
+            | {
+                currentTarget?: EventTarget | null;
+                stopPropagation?: () => void;
+                preventDefault?: () => void;
+              }
+            | undefined;
+          const anchor =
+            self.m_elActionButtonRef?.current ?? event?.currentTarget;
+          try {
+            if (anchor) menu(anchor);
+          } catch (e) {
+            console.error("[Unifideck NativeDetails] play-from menu:", e);
+          }
+          event?.stopPropagation?.();
+          event?.preventDefault?.();
+          return undefined;
+        };
+        Object.defineProperty(self, "ShowStreamingMenu", {
+          value: show,
+          configurable: true,
+          writable: true,
+        });
+        return show;
+      },
+  );
+}
+
+/**
  * Install the action-button patch. Returns its disposer, or `null` when
  * the button cannot be found (the caller then keeps the legacy UI).
  */
@@ -107,6 +158,7 @@ export function patchActionButton(
   const button = findActionButton();
   if (!button) return null;
   let unpatchClick: (() => void) | null = null;
+  let unpatchMenu: (() => void) | null = null;
   let clickBroken = false;
   const unpatchRender = patchSlot<ForwardRefObject["render"]>(
     button,
@@ -119,7 +171,10 @@ export function patchActionButton(
           const appId = (props?.overview as { appid?: unknown } | undefined)
             ?.appid;
           if (!isUnifideckAppId(appId)) return el;
-          if (!unpatchClick) unpatchClick = patchClick(el.type);
+          if (!unpatchClick) {
+            unpatchClick = patchClick(el.type);
+            unpatchMenu = patchStreamingMenu(el.type);
+          }
           return renderHost(el, appId);
         } catch (e) {
           clickBroken = true;
@@ -134,5 +189,6 @@ export function patchActionButton(
   return () => {
     unpatchRender();
     unpatchClick?.();
+    unpatchMenu?.();
   };
 }

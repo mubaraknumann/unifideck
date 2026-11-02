@@ -214,3 +214,84 @@ export function actionSpecFor(overview: unknown): ActionSpec | null {
   if (!overview || typeof overview !== "object") return null;
   return specs.get(overview)?.current ?? null;
 }
+
+// ── Play targets ("Play from" arrow) ──────────────────────
+
+/** The client id of our cloud target. Any id but "0" reads as a remote
+ *  client to Steam, which turns Play into "Stream from <name>". */
+export const CLOUD_CLIENT_ID = "unifideck-cloud";
+
+const byTargets = new WeakMap<object, Map<string, object>>();
+
+/**
+ * The same overview, offering a second place to play (`cloudName`), so
+ * Steam draws its own "Play from" arrow on the action button. With
+ * `cloudSelected` the selected client is that remote one: Steam's button
+ * reads "Stream / from <cloudName>" in green, as for a game streamed from
+ * another PC. Only the action button is given this overview.
+ *
+ * With `offerLocal` false the cloud is the only place to play (a game
+ * only xCloud carries): it is selected and no second client is added, so
+ * Steam shows its Stream button with no arrow.
+ *
+ * While Steam itself runs the game the overview is answered as-is, so
+ * Steam's own Resume and ✕ show and the arrow goes away.
+ */
+export function withPlayTargets<T extends object>(
+  overview: T,
+  cloudName: string,
+  cloudSelected: boolean,
+  offerLocal = true,
+): T {
+  let m = byTargets.get(overview);
+  if (!m) {
+    m = new Map();
+    byTargets.set(overview, m);
+  }
+  const selected = cloudSelected || !offerLocal;
+  const key = `${cloudName}|${selected}|${offerLocal}`;
+  const hit = m.get(key);
+  if (hit) return hit as T;
+  const cloud = {
+    clientid: CLOUD_CLIENT_ID,
+    client_name: cloudName,
+    display_status: DisplayStatus.Play,
+    status_percentage: undefined,
+    installed: false,
+    is_available_on_current_platform: true,
+  };
+  const proxy = new Proxy(overview, {
+    get(target, k, receiver) {
+      if (isOverviewLive(target)) return Reflect.get(target, k, receiver);
+      if (k === "per_client_data" && offerLocal) {
+        const list = Reflect.get(target, k, receiver);
+        return Array.isArray(list) ? [...list, cloud] : [cloud];
+      }
+      if (selected) {
+        if (k === "selected_per_client_data") return cloud;
+        if (k === "display_status") return DisplayStatus.Play;
+      }
+      return Reflect.get(target, k, receiver);
+    },
+  });
+  m.set(key, proxy);
+  return proxy;
+}
+
+/** What the "Play from" arrow opens, per proxied overview. `.current` is
+ *  updated on every render, as for {@link bindActionSpec}. */
+const menus = new WeakMap<object, { current: (anchor: EventTarget) => void }>();
+
+export function bindStreamMenu(
+  proxy: object,
+  ref: { current: (anchor: EventTarget) => void },
+): void {
+  menus.set(proxy, ref);
+}
+
+export function streamMenuFor(
+  overview: unknown,
+): ((anchor: EventTarget) => void) | null {
+  if (!overview || typeof overview !== "object") return null;
+  return menus.get(overview)?.current ?? null;
+}

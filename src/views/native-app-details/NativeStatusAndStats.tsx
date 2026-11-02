@@ -37,7 +37,6 @@ import {
   formatLastPlayedISO,
   formatPlaytime,
 } from "../../components/play/PlayMeta";
-import { StreamSecondaryButton } from "../../components/play/StreamSecondaryButton";
 import { pcUnsupportedButtonKey } from "../../components/play/PcUnsupportedButtons";
 import type { DownloadItem } from "../../types/downloads";
 
@@ -157,15 +156,12 @@ const StatusAndStats: FC<Props> = ({ appId, overview }) => {
   const lastPlayed =
     formatLastPlayedISO(stats.lastPlayedIso) ??
     (stats.steamLastPlayed ? formatLastPlayed(stats.steamLastPlayed) : null);
-  const streamUrl =
-    state.kind === "not-installed" ? state.streamUrl : undefined;
 
   return (
     <div className={c.StatusAndStats}>
       {statusFor(state, t)}
       <div className={c.StatusNameContainer}>
         <div className={c.GameStatsSection}>
-          {streamUrl && <StreamSecondaryButton appId={appId} url={streamUrl} />}
           {!isBrowser && (
             <Stat
               label={

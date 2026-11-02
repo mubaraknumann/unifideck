@@ -49,6 +49,9 @@ _ENTRY = SimpleNamespace(exe=f"/games/Xbox/{PID}/game/Balatro.exe",
 def _hermetic(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     for store in ("EPIC", "GOG", "AMAZON", "MICROSOFT", "UBISOFT", "BATTLENET", "ITCH"):
         monkeypatch.delenv(f"UNIFIDECK_{store}_ACTION", raising=False)
+    # The launcher promotes argv tokens into os.environ; recorded here so
+    # pytest puts the variable back the way it was after each test.
+    monkeypatch.delenv(routing.PLAY_TARGET_ENV, raising=False)
     monkeypatch.setattr(browser_games, "LIBRARY_CACHE", str(tmp_path / "library_cache.json"))
     monkeypatch.setattr(d, "_resolve_plugin_dir", lambda: tmp_path)
     monkeypatch.setattr(routing, "resolve_bypass_flag", lambda *a: False)
@@ -185,3 +188,34 @@ async def test_xbox_pc_auth_opens_the_microsoft_auth_window(
     ctx = await d._build_context(["launcher", "microsoft:ms-auth-temp-1"], _Shortcuts(None))
     result = await svc._handle_auth_path(ctx)
     assert result.success and opened == ["about:blank"]
+
+
+async def _route_with(entry: Any, enabled: Any, *options: str) -> Any:
+    return await d._build_context(
+        ["launcher", f"microsoft:{PID}", *options], _Shortcuts(entry), _Config(enabled),
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("enabled", [True, False])
+async def test_cloud_for_this_launch_streams_an_installed_game(tmp_path: Path, enabled: bool) -> None:
+    _cache(tmp_path, ["xcloud", "browser", "xbox_pc"])
+    ctx = await _route_with(_ENTRY, enabled, "UNIFIDECK_PLAY_TARGET=cloud")
+    assert ctx.is_browser_game and ctx.browser_kind == "stream"
+    assert ctx.browser_url == f"https://www.xbox.com/play/launch/{PID}"
+    assert not ctx.is_xbox_pc_game
+
+
+@pytest.mark.asyncio
+async def test_cloud_for_this_launch_is_ignored_for_a_pc_only_title(tmp_path: Path) -> None:
+    _cache(tmp_path, ["xbox_pc"])
+    ctx = await _route_with(_ENTRY, True, "UNIFIDECK_PLAY_TARGET=cloud")
+    assert ctx.is_xbox_pc_game and not ctx.is_browser_game
+
+
+@pytest.mark.asyncio
+async def test_any_other_play_target_keeps_the_table(tmp_path: Path) -> None:
+    _cache(tmp_path, ["xcloud", "browser", "xbox_pc"])
+    ctx = await _route_with(_ENTRY, True, "UNIFIDECK_PLAY_TARGET=local")
+    assert ctx.is_xbox_pc_game and not ctx.is_browser_game
+

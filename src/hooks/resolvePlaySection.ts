@@ -50,7 +50,14 @@ export type PlaySectionState =
       streamUrl?: string;
     }
   | { kind: "downloading"; shouldOverride: true; download: DownloadItem }
-  | { kind: "installed"; shouldOverride: true; appId: number }
+  | {
+      kind: "installed";
+      shouldOverride: true;
+      appId: number;
+      /** Set on an installed merged Xbox PC + xCloud row: "Play from"
+       *  offers streaming it instead of running the PC game. */
+      streamUrl?: string;
+    }
   | {
       kind: "browser";
       shouldOverride: true;
@@ -157,7 +164,14 @@ function resolveXboxPc(
       ? browserState(appId, game)
       : unsupported(appId, "disabled", false);
   }
-  if (installed) return { kind: "installed", shouldOverride: true, appId };
+  if (installed) {
+    return {
+      kind: "installed",
+      shouldOverride: true,
+      appId,
+      ...(stream ? { streamUrl: streamUrlOf(game) } : {}),
+    };
+  }
   const blocked = blockedReason(game.xbox_pc);
   if (blocked) {
     return stream

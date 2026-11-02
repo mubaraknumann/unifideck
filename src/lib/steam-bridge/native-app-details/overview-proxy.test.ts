@@ -2,9 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import {
   actionSpecFor,
   bindActionSpec,
+  bindStreamMenu,
+  CLOUD_CLIENT_ID,
   isOverviewLive,
+  streamMenuFor,
   withDisplayStatus,
   withOurFeatures,
+  withPlayTargets,
 } from "./overview-proxy";
 
 class FakeOverview {
@@ -115,5 +119,64 @@ describe("withOurFeatures", () => {
     expect(ov.BHasStoreCategory(28)).toBe(true);
     expect(ov.BHasStoreCategory(1)).toBe(false);
     expect(ov.appid).toBe(2908146534);
+  });
+});
+
+describe("withPlayTargets", () => {
+  it("offers a second, remote client so Steam draws its Play-from arrow", () => {
+    const real = new FakeOverview();
+    const p = withPlayTargets(withDisplayStatus(real, 9), "Xbox Cloud", false);
+    expect(p.per_client_data).toHaveLength(2);
+    expect(p.per_client_data[1]).toMatchObject({
+      clientid: CLOUD_CLIENT_ID,
+      client_name: "Xbox Cloud",
+    });
+    // Local stays selected: Steam keeps its Install.
+    expect(p.selected_per_client_data.clientid).toBe("0");
+    expect(p.selected_per_client_data.display_status).toBe(9);
+    expect(p.appid).toBe(real.appid);
+    expect(real.per_client_data).toHaveLength(1);
+  });
+
+  it("selects the cloud as a remote Play, which Steam shows as Stream", () => {
+    const p = withPlayTargets(withDisplayStatus(new FakeOverview(), 9), "Xbox Cloud", true);
+    expect(p.selected_per_client_data.clientid).toBe(CLOUD_CLIENT_ID);
+    expect(p.selected_per_client_data.display_status).toBe(11);
+    expect(p.display_status).toBe(11);
+  });
+
+  it("makes a cloud-only game a Stream with no arrow", () => {
+    const p = withPlayTargets(new FakeOverview(), "Xbox Cloud", true, false);
+    expect(p.per_client_data).toHaveLength(1);
+    expect(p.selected_per_client_data.clientid).toBe(CLOUD_CLIENT_ID);
+    expect(p.selected_per_client_data.display_status).toBe(11);
+  });
+
+  it("steps aside while Steam runs the game", () => {
+    const real = new FakeOverview();
+    real.selected_per_client_data.display_status = 4; // running
+    const p = withPlayTargets(real, "Xbox Cloud", true);
+    expect(p.per_client_data).toHaveLength(1);
+    expect(p.selected_per_client_data.clientid).toBe("0");
+  });
+
+  it("caches one proxy per overview and choice", () => {
+    const base = withDisplayStatus(new FakeOverview(), 9);
+    expect(withPlayTargets(base, "Xbox Cloud", true)).toBe(
+      withPlayTargets(base, "Xbox Cloud", true),
+    );
+    expect(withPlayTargets(base, "Xbox Cloud", false)).not.toBe(
+      withPlayTargets(base, "Xbox Cloud", true),
+    );
+  });
+
+  it("binds the arrow's menu to the proxy only", () => {
+    const p = withPlayTargets(new FakeOverview(), "Xbox Cloud", false);
+    const open = vi.fn();
+    bindStreamMenu(p, { current: open });
+    const anchor = {} as EventTarget;
+    streamMenuFor(p)?.(anchor);
+    expect(open).toHaveBeenCalledWith(anchor);
+    expect(streamMenuFor(new FakeOverview())).toBeNull();
   });
 });

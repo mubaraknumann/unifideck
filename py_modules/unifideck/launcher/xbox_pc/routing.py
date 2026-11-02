@@ -16,6 +16,11 @@ no                    any     no                                     notice ``no
 
 A notice launches nothing: the service shows why and returns a failure. A
 PC-only title must never open a stream for a game xCloud does not carry.
+
+One launch can ask for the stream instead (:data:`PLAY_TARGET_ENV` set to
+``cloud``, a one-run launch option set by the game page's "Play from"
+arrow). It wins over every row of the table whose title xCloud carries; for
+a PC-only title it is ignored and the table applies.
 The toggle is read from the user's config (``launcher_service._config``),
 never from a cold-start helper.
 
@@ -24,6 +29,7 @@ Stdlib only, Python 3.10 safe.
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -38,6 +44,10 @@ logger = logging.getLogger(__name__)
 
 STORE = "microsoft"
 XCLOUD_TAG = "xcloud"
+#: One-run launch option: ``UNIFIDECK_PLAY_TARGET=cloud`` streams this
+#: launch even when the game is installed. Promoted into the environment by
+#: the dispatcher like every ``UNIFIDECK_*`` token.
+PLAY_TARGET_ENV = "UNIFIDECK_PLAY_TARGET"
 
 
 class ShortcutLookup(Protocol):
@@ -131,6 +141,9 @@ async def microsoft_context(
     plugin_dir: Path,
 ) -> LaunchContext:
     """The launch context of one Microsoft title, by the table above."""
+    if os.environ.get(PLAY_TARGET_ENV) == "cloud" and streams(game_id):
+        logger.info("[xbox_pc.routing] %s: cloud asked for this launch", game_id)
+        return _stream_or_notice(game_id, raw_options, "not_installed", plugin_dir)
     entry = await shortcut_svc.get_entry_for_game_key(STORE, game_id)
     if entry is not None:
         if xbox_pc_enabled(config):

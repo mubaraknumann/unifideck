@@ -307,6 +307,12 @@ describe("resolvePlaySection — Xbox PC rows", () => {
     expect("streamUrl" in state && state.streamUrl).toBeFalsy();
   });
 
+  it("offers no stream on an installed PC-only row", () => {
+    const pcOnly = resolve(pc({ is_installed: true }), ready);
+    expect(pcOnly).toMatchObject({ kind: "installed" });
+    expect("streamUrl" in pcOnly && pcOnly.streamUrl).toBeFalsy();
+  });
+
   it("offers Install plus a secondary Stream on a merged row", () => {
     expect(resolve(merged(), ready)).toMatchObject({
       kind: "not-installed",
@@ -314,11 +320,12 @@ describe("resolvePlaySection — Xbox PC rows", () => {
     });
   });
 
-  it("shows Play, never Stream, on an installed merged row", () => {
+  it("shows Play on an installed merged row, with the stream behind the arrow", () => {
     expect(resolve(merged({ is_installed: true }), ready)).toEqual({
       kind: "installed",
       shouldOverride: true,
       appId: APP_ID,
+      streamUrl: `https://www.xbox.com/play/launch/${PID}`,
     });
   });
 

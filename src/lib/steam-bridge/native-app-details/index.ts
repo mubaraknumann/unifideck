@@ -28,6 +28,10 @@ export {
 } from "./tabs-patch";
 export {
   withDisplayStatus,
+  withPlayTargets,
+  bindStreamMenu,
+  streamMenuFor,
+  CLOUD_CLIENT_ID,
   withOurFeatures,
   StoreCategory,
   type OurFeatureFacts,
