@@ -17,11 +17,20 @@ out in parallel via ``asyncio.gather`` (faster), so the counters
 move in lockstep — but they're exposed independently so the
 frontend can render one row per source. UnifiDB / Metacritic
 rows were missing in for-pr-0.7; this restores them.
+
+Per-store rows: ``stores`` maps each store a run covers to its own
+``{state, phase, done, total, error}`` entry, so the Quick Access store
+list can show one status line per store instead of one bar for the
+whole run. States are ``queued`` (waiting for its fetch turn),
+``active`` (its library fetch or a post-sync phase is working on its
+games), ``waiting`` (its part of the current step is done, the rest of
+the run is not), ``done``, ``error`` and ``cancelled``.
 """
 
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Iterable
 from typing import Any
 
 # Percentage allocation per phase. The progress bar always moves
@@ -74,6 +83,9 @@ class SyncProgress:
         # :class:`CompatibilityService`.
         self.compat_total: int = 0
         self.compat_synced: int = 0
+        # Per-store rows for the stores this run covers; see the module
+        # docstring for the states. Replaced wholesale by ``begin_stores``.
+        self.stores: dict[str, dict[str, Any]] = {}
         self._lock: asyncio.Lock = asyncio.Lock()
 
     # ── Phase-entry helpers ────────────────────────────────────
@@ -86,7 +98,75 @@ class SyncProgress:
             "values": {"count": store_count},
         }
 
+    def begin_stores(
+        self, store_names: Iterable[str], *, fetching: bool = True,
+    ) -> None:
+        """Reset the per-store rows for a new run.
+
+        Args:
+            store_names: every store the run covers.
+            fetching: ``True`` when the run fetches libraries, so each
+                store queues for its turn; ``False`` for an artwork-only
+                run, where every store goes straight to ``waiting``.
+        """
+        state = "queued" if fetching else "waiting"
+        self.stores = {
+            name: _store_row(state, "games" if fetching else "")
+            for name in store_names
+        }
+
+    def finish_store_fetch(
+        self, store_name: str, count: int, error: str | None,
+    ) -> None:
+        """Record one store's fetch result: ``waiting`` or ``error``."""
+        row = self.stores.get(store_name)
+        if row is None:
+            return
+        row.update(
+            state="error" if error else "waiting",
+            done=count, total=count, error=error,
+        )
+
+    def begin_store_phase(self, phase: str, games: Iterable[Any]) -> None:
+        """Point every non-failed store row at ``phase``.
+
+        ``games`` is the list the phase is about to walk; each store's
+        ``total`` is its share of it. A store with no games in the list
+        sits the phase out as ``waiting``.
+        """
+        counts: dict[str, int] = {}
+        for game in games:
+            store = getattr(game, "store", None)
+            if isinstance(store, str):
+                counts[store] = counts.get(store, 0) + 1
+        for name, row in self.stores.items():
+            if row["state"] in ("error", "cancelled"):
+                continue
+            total = counts.get(name, 0)
+            row.update(
+                state="active" if total else "waiting",
+                phase=phase, done=0, total=total,
+            )
+
+    def _tick_store(self, store: str | None) -> None:
+        """Advance one store's row by one game in its current phase."""
+        row = self.stores.get(store) if store else None
+        if row is None or row["state"] != "active":
+            return
+        row["done"] = min(row["done"] + 1, row["total"])
+        if row["done"] >= row["total"]:
+            row["state"] = "waiting"
+
+    def _finish_stores(self, state: str) -> None:
+        """Move every row that has not failed to a terminal ``state``."""
+        for row in self.stores.values():
+            if row["state"] != "error":
+                row["state"] = state
+
     def start_store_sync(self, store_name: str, idx: int, total: int) -> None:
+        row = self.stores.get(store_name)
+        if row is not None:
+            row.update(state="active", phase="games")
         self.status = "syncing"
         self.current_game = {
             "label": "sync.fetchingStore",
@@ -147,6 +227,7 @@ class SyncProgress:
         self.status = "complete"
         self.current_game = {"label": "sync.completed", "values": {}}
         self.progress_percent = 100
+        self._finish_stores("done")
 
     def mark_error(self, error: str) -> None:
         self.status = "error"
@@ -156,12 +237,16 @@ class SyncProgress:
     def mark_cancelled(self) -> None:
         self.status = "cancelled"
         self.progress_percent = 100
+        self._finish_stores("cancelled")
 
     # ── Per-game increment helpers (thread-safe) ──────────────
 
-    async def increment_artwork(self, title: str) -> int:
+    async def increment_artwork(
+        self, title: str, store: str | None = None,
+    ) -> int:
         async with self._lock:
             self.artwork_synced += 1
+            self._tick_store(store)
             self.current_game = {
                 "label": "sync.downloadingArtwork",
                 "values": {
@@ -173,9 +258,12 @@ class SyncProgress:
             self._recalc()
             return self.artwork_synced
 
-    async def increment_steam(self, title: str) -> int:
+    async def increment_steam(
+        self, title: str, store: str | None = None,
+    ) -> int:
         async with self._lock:
             self.steam_synced += 1
+            self._tick_store(store)
             self.current_game = {
                 "label": "sync.extractingSteamMetadata",
                 "values": {
@@ -215,9 +303,12 @@ class SyncProgress:
             self._recalc()
             return self.metacritic_synced
 
-    async def increment_compat(self, title: str) -> int:
+    async def increment_compat(
+        self, title: str, store: str | None = None,
+    ) -> int:
         async with self._lock:
             self.compat_synced += 1
+            self._tick_store(store)
             self.current_game = {
                 "label": "sync.fetchingCompatData",
                 "values": {
@@ -293,4 +384,10 @@ class SyncProgress:
             "metacritic_synced": self.metacritic_synced,
             "compat_total": self.compat_total,
             "compat_synced": self.compat_synced,
+            "stores": {name: dict(row) for name, row in self.stores.items()},
         }
+
+
+def _store_row(state: str, phase: str) -> dict[str, Any]:
+    """A fresh per-store progress row."""
+    return {"state": state, "phase": phase, "done": 0, "total": 0, "error": None}

@@ -79,7 +79,6 @@
     "validationErrors.notAbsolute": "Путь должен быть абсолютным",
     "validationErrors.systemDir": "Нельзя использовать системную папку",
     "validationErrors.notWritable": "В эту папку нет прав на запись",
-    "validationErrors.notFound": "Папка не существует",
     "validationErrors.homeRoot": "Нельзя использовать корневую домашнюю папку",
     "freeSpaceLabel": "{{label}} ({{freeSpace}} ГБ свободно)"
   },
@@ -149,7 +148,7 @@
     "uploadBlockedEmpty": "Загрузка в облако для {{game}} пропущена. Локальные сохранения не найдены"
   },
   "storeConnections": {
-    "title": "ПОДКЛЮЧЕНИЕ МАГАЗИНОВ",
+    "title": "МАГАЗИНЫ",
     "epicGames": "Epic Games",
     "gog": "GOG",
     "amazonGames": "Amazon Games",
@@ -160,25 +159,29 @@
     "authenticate": "Войти",
     "error": "Ошибка. Проверьте журналы",
     "storefrontOpening": "Открытие магазина {{store}}...",
-    "storefrontFailed": "Не удалось открыть магазин {{store}}"
-  },
-  "librarySync": {
-    "title": "СИНХРОНИЗАЦИЯ БИБЛИОТЕКИ",
-    "syncLibraries": "Синхронизировать библиотеки",
-    "forceSync": "Принудительная синхронизация",
-    "syncing": "Синхронизация...",
+    "storefrontFailed": "Не удалось открыть магазин {{store}}",
+    "allStores": "Все магазины",
+    "notSynced": "Ещё не синхронизировано",
+    "gameCount": "{{count}} игра",
+    "gameCount_other": "{{count}} игр",
+    "queued": "В очереди",
+    "waiting": "Ожидание…",
+    "done": "Готово",
+    "failed": "Ошибка синхронизации",
+    "cancelled": "Отменено",
+    "storesDone": "Готово {{done}} из {{total}}",
+    "syncGames": "Синхронизировать игры",
+    "syncImages": "Синхронизировать обложки",
+    "openStore": "Открыть магазин",
+    "signOut": "Выйти",
+    "syncAllGames": "Синхронизировать все игры",
+    "syncAllImages": "Синхронизировать все обложки",
     "cancelSync": "Отменить синхронизацию",
-    "retryStatusCheck": "Повторить проверку статуса",
-    "gamesSynced": "Синхронизировано игр: {{synced}} / {{total}}",
-    "artworkDownloaded": "Скачано обложек: {{synced}} / {{total}}",
-    "metadataExtracted": "Извлечено метаданных: {{synced}} / {{total}}",
-    "steamMetadataDownloaded": "Метаданные Steam: {{synced}} / {{total}}",
-    "unifidbMetadataDownloaded": "Метаданные unifiDB: {{synced}} / {{total}}",
-    "metacriticMetadataDownloaded": "Данные Metacritic: {{synced}} / {{total}}",
-    "rawgMetadataDownloaded": "Метаданные RAWG: {{synced}} / {{total}}",
-    "compatChecked": "Данные совместимости: {{synced}} / {{total}}",
     "cancelling": "Отмена…",
-    "error": "Ошибка"
+    "progressGames": "{{done}}/{{count}} игра",
+    "progressGames_other": "{{done}}/{{count}} игр",
+    "progressImages": "{{done}}/{{count}} обложка",
+    "progressImages_other": "{{done}}/{{count}} обложек"
   },
   "cleanup": {
     "title": "Очистка",
@@ -230,10 +233,6 @@
     "uninstallDescription": "Вы уверены, что хотите удалить {{title}}?",
     "cancelTitle": "Подтверждение отмены",
     "cancelDescription": "Вы уверены, что хотите отменить загрузку {{title}}?",
-    "forceSyncTitle": "Параметры принудительной синхронизации",
-    "forceSyncDescription": "Вы хотите заново синхронизировать все обложки? Это перезапишет любые ваши ручные изменения обложек. Выберите 'Сохранить обложки', чтобы скачать только недостающие.",
-    "resyncArtwork": "Перезаписать обложки",
-    "keepArtwork": "Сохранить обложки",
     "steamRestartTitle": "Синхронизация завершена!",
     "steamRestartDescription": "Пожалуйста, перезапустите Steam, чтобы новые игры и обложки появились в библиотеке",
     "steamRestartDescriptionStore": "Пожалуйста, перезапустите Steam, чтобы новые игры и обложки {{store}} появились в библиотеке",
@@ -739,7 +738,6 @@
       "status": "Статус:",
       "spaceRequired": "Требуется места",
       "lastPlayed": "Последний запуск",
-      "playTime": "Время в игре",
       "never": "Никогда"
     },
     "compatibility": {
@@ -1040,7 +1038,6 @@
     "title": "Синхронизация сохранений",
     "description": "Выберите поведение Unifideck при сбое загрузки или отправки облачных сохранений во время запуска игры.",
     "loadError": "Не удалось загрузить текущие настройки",
-    "saveError": "Не удалось сохранить изменения. Пожалуйста, попробуйте еще раз",
     "store_label": {
       "default": "По умолчанию (все магазины)",
       "epic": "Epic Games",
@@ -1070,7 +1067,6 @@
     "loading": "Загрузка логов…",
     "notAvailable": "Логи этого запуска больше не доступны (истек 7-дневный срок хранения).",
     "error": "Не удалось прочитать логи: {{error}}",
-    "fileInfo": "{{path}}. Показано {{shown}} из {{total}} строк",
     "filterLabel": "Показать",
     "filterInfo": "Инфо",
     "filterWarning": "Предупреждение",
@@ -1082,7 +1078,6 @@
   "settings": {
     "_comment": "Элементы управления UnifideckSettingsPanel, не вошедшие в другие компоненты (LanguageSelector, CloudSyncBehaviorPanel). refreshAll. Кнопка, запускающая sync_all() для всех настроенных магазинов; библиотека выводит прогресс синхронизации через подписку на события SYNC_PROGRESS.",
     "storeConnections": "Подключение магазинов",
-    "librarySync": "Синхр. библиотеки",
     "language": "Язык",
     "languageAuto": "Определять автоматически",
     "refreshAll": {

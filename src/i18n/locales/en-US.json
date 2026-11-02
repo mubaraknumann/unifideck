@@ -79,7 +79,6 @@
     "validationErrors.notAbsolute": "Path must be absolute",
     "validationErrors.systemDir": "Cannot use a system directory",
     "validationErrors.notWritable": "Location is not writable",
-    "validationErrors.notFound": "Directory does not exist",
     "validationErrors.homeRoot": "Cannot use home directory root",
     "freeSpaceLabel": "{{label}} ({{freeSpace}} GB free)"
   },
@@ -149,7 +148,7 @@
     "toastErrorBody": "Failed to resolve conflict"
   },
   "storeConnections": {
-    "title": "STORE CONNECTIONS",
+    "title": "STORES",
     "epicGames": "Epic Games",
     "gog": "GOG",
     "amazonGames": "Amazon Games",
@@ -160,25 +159,29 @@
     "authenticate": "Sign in",
     "error": "Error - Check logs",
     "storefrontOpening": "Opening the {{store}} store...",
-    "storefrontFailed": "Could not open the {{store}} store"
-  },
-  "librarySync": {
-    "title": "LIBRARY SYNC",
-    "syncLibraries": "Sync Libraries",
-    "forceSync": "Force Sync",
-    "syncing": "Syncing...",
-    "cancelSync": "Cancel Sync",
-    "retryStatusCheck": "Retry Status Check",
-    "gamesSynced": "{{synced}} / {{total}} games synced",
-    "artworkDownloaded": "{{synced}} / {{total}} artwork covers downloaded",
-    "metadataExtracted": "{{synced}} / {{total}} metadata records extracted",
-    "steamMetadataDownloaded": "Steam metadata: {{synced}} / {{total}}",
-    "unifidbMetadataDownloaded": "unifiDB metadata: {{synced}} / {{total}}",
-    "metacriticMetadataDownloaded": "Metacritic data: {{synced}} / {{total}}",
-    "rawgMetadataDownloaded": "RAWG metadata: {{synced}} / {{total}}",
-    "compatChecked": "Compatibility data: {{synced}} / {{total}}",
+    "storefrontFailed": "Could not open the {{store}} store",
+    "allStores": "All stores",
+    "notSynced": "Not synced yet",
+    "gameCount": "{{count}} game",
+    "gameCount_other": "{{count}} games",
+    "queued": "Queued",
+    "waiting": "Waiting…",
+    "done": "Done",
+    "failed": "Sync failed",
+    "cancelled": "Cancelled",
+    "storesDone": "{{done}} of {{total}} done",
+    "syncGames": "Sync games",
+    "syncImages": "Sync images",
+    "openStore": "Open store",
+    "signOut": "Sign out",
+    "syncAllGames": "Sync all games",
+    "syncAllImages": "Sync all images",
+    "cancelSync": "Cancel sync",
     "cancelling": "Cancelling…",
-    "error": "Error"
+    "progressGames": "{{done}}/{{count}} game",
+    "progressGames_other": "{{done}}/{{count}} games",
+    "progressImages": "{{done}}/{{count}} image",
+    "progressImages_other": "{{done}}/{{count}} images"
   },
   "cleanup": {
     "title": "Cleanup",
@@ -230,10 +233,6 @@
     "uninstallDescription": "Are you sure you want to uninstall {{title}}?",
     "cancelTitle": "Confirm Cancellation",
     "cancelDescription": "Are you sure you want to cancel the download for {{title}}?",
-    "forceSyncTitle": "Force Sync Settings",
-    "forceSyncDescription": "Would you like to resync all artwork? This will overwrite any manual artwork changes. Select 'Keep Artwork' to only download missing artwork.",
-    "resyncArtwork": "Resync Artwork",
-    "keepArtwork": "Keep Artwork",
     "steamRestartTitle": "Sync Complete!",
     "steamRestartDescription": "Please Restart Steam to apply your new games and artwork",
     "steamRestartDescriptionStore": "Please Restart Steam to apply your new {{store}} games and artwork",
@@ -739,7 +738,6 @@
       "status": "Status:",
       "spaceRequired": "Space Required",
       "lastPlayed": "Last Played",
-      "playTime": "Play Time",
       "never": "Never"
     },
     "compatibility": {
@@ -1078,7 +1076,6 @@
     "title": "Cloud save sync behavior",
     "description": "Choose how Unifideck should react when a cloud save download or upload fails at game launch.",
     "loadError": "Could not load current settings",
-    "saveError": "Could not save your change. Please retry",
     "store_label": {
       "default": "Default (all stores)",
       "epic": "Epic Games",
@@ -1108,7 +1105,6 @@
     "loading": "Loading logs…",
     "notAvailable": "Logs for this launch are no longer available (past the 7-day retention window).",
     "error": "Couldn't read the logs: {{error}}",
-    "fileInfo": "{{path}}. Showing {{shown}} of {{total}} lines",
     "filterLabel": "Show",
     "filterInfo": "Info",
     "filterWarning": "Warning",
@@ -1120,7 +1116,6 @@
   "settings": {
     "_comment": "UnifideckSettingsPanel action-type controls that aren't covered by more specific components (LanguageSelector, CloudSyncBehaviorPanel). refreshAll is a fire-and-forget button that triggers sync_all() across every registered store; the Library view shows the sync progress via its own subscription to SYNC_PROGRESS events.",
     "storeConnections": "Store Connections",
-    "librarySync": "Library Sync",
     "language": "Language",
     "languageAuto": "Auto-detect",
     "refreshAll": {

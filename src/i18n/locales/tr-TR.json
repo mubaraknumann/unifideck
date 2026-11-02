@@ -79,7 +79,6 @@
     "validationErrors.notAbsolute": "Yol mutlak olmalıdır",
     "validationErrors.systemDir": "Sistem dizini kullanılamaz",
     "validationErrors.notWritable": "Konum yazılabilir değil",
-    "validationErrors.notFound": "Dizin mevcut değil",
     "validationErrors.homeRoot": "Ana dizin kökü kullanılamaz",
     "freeSpaceLabel": "{{label}} ({{freeSpace}} GB boş)"
   },
@@ -149,7 +148,7 @@
     "uploadBlockedEmpty": "{{game}} için buluta yükleme atlandı. Yerel kayıt bulunamadı"
   },
   "storeConnections": {
-    "title": "MAĞAZA BAĞLANTILARI",
+    "title": "MAĞAZALAR",
     "epicGames": "Epic Games",
     "gog": "GOG",
     "amazonGames": "Amazon Games",
@@ -160,25 +159,29 @@
     "authenticate": "Giriş Yap",
     "error": "Hata. Günlükleri kontrol edin",
     "storefrontOpening": "{{store}} mağazası açılıyor...",
-    "storefrontFailed": "{{store}} mağazası açılamadı"
-  },
-  "librarySync": {
-    "title": "KÜTÜPHANE SENK.",
-    "syncLibraries": "Kütüphaneleri Senkronize Et",
-    "forceSync": "Zorla Senkronize Et",
-    "syncing": "Senkronize ediliyor...",
-    "cancelSync": "Senkronizasyonu İptal Et",
-    "retryStatusCheck": "Durum Kontrolünü Yeniden Dene",
-    "gamesSynced": "{{synced}} / {{total}} oyun senkronize edildi",
-    "artworkDownloaded": "{{synced}} / {{total}} kapak görseli indirildi",
-    "metadataExtracted": "{{synced}} / {{total}} meta veri kaydı ayıklandı",
-    "steamMetadataDownloaded": "Steam Meta Verisi: {{synced}} / {{total}}",
-    "unifidbMetadataDownloaded": "unifiDB Meta Verisi: {{synced}} / {{total}}",
-    "metacriticMetadataDownloaded": "Metacritic Verisi: {{synced}} / {{total}}",
-    "rawgMetadataDownloaded": "RAWG Meta Verisi: {{synced}} / {{total}}",
-    "compatChecked": "Uyumluluk Verisi: {{synced}} / {{total}}",
+    "storefrontFailed": "{{store}} mağazası açılamadı",
+    "allStores": "Tüm mağazalar",
+    "notSynced": "Henüz senkronize edilmedi",
+    "gameCount": "{{count}} oyun",
+    "gameCount_other": "{{count}} oyun",
+    "queued": "Sırada",
+    "waiting": "Bekleniyor…",
+    "done": "Tamamlandı",
+    "failed": "Senkronizasyon başarısız",
+    "cancelled": "İptal edildi",
+    "storesDone": "{{total}} mağazadan {{done}} tamamlandı",
+    "syncGames": "Oyunları senkronize et",
+    "syncImages": "Görselleri senkronize et",
+    "openStore": "Mağazayı aç",
+    "signOut": "Çıkış yap",
+    "syncAllGames": "Tüm oyunları senkronize et",
+    "syncAllImages": "Tüm görselleri senkronize et",
+    "cancelSync": "Senkronizasyonu iptal et",
     "cancelling": "İptal ediliyor…",
-    "error": "Hata"
+    "progressGames": "{{done}}/{{count}} oyun",
+    "progressGames_other": "{{done}}/{{count}} oyun",
+    "progressImages": "{{done}}/{{count}} görsel",
+    "progressImages_other": "{{done}}/{{count}} görsel"
   },
   "cleanup": {
     "title": "Temizlik",
@@ -230,10 +233,6 @@
     "uninstallDescription": "{{title}} oyununu kaldırmak istediğinizden emin misiniz?",
     "cancelTitle": "İptali Onayla",
     "cancelDescription": "{{title}} indirmesini iptal etmek istediğinizden emin misiniz?",
-    "forceSyncTitle": "Zorla Senkronizasyon Ayarları",
-    "forceSyncDescription": "Tüm kapak görsellerini yeniden senkronize etmek istiyor musunuz? Bu işlem, görsellerde yaptığınız tüm manuel değişikliklerin üzerine yazacaktır. Sadece eksik görselleri indirmek için 'Görselleri Koru' seçeneğini seçin.",
-    "resyncArtwork": "Görselleri Yeniden Senkronize Et",
-    "keepArtwork": "Görselleri Koru",
     "steamRestartTitle": "Senkronizasyon Tamamlandı!",
     "steamRestartDescription": "Yeni oyunlarınızı ve kapak görsellerinizi uygulamak için lütfen Steam'i yeniden başlatın",
     "steamRestartDescriptionStore": "Yeni {{store}} oyunlarınızı ve kapak görsellerinizi uygulamak için lütfen Steam'i yeniden başlatın",
@@ -739,7 +738,6 @@
       "status": "Durum:",
       "spaceRequired": "Gerekli Alan",
       "lastPlayed": "Son Oynama",
-      "playTime": "Oynama Süresi",
       "never": "Hiçbir Zaman"
     },
     "compatibility": {
@@ -1040,7 +1038,6 @@
     "title": "Bulut Senkronizasyon Davranışı",
     "description": "Oyun başlatılırken bir bulut kayıt indirmesi veya yüklemesi başarısız olduğunda Unifideck'in nasıl tepki vereceğini seçin.",
     "loadError": "Mevcut ayarlar yüklenemedi",
-    "saveError": "Değişiklik kaydedilemedi. Lütfen tekrar deneyin",
     "store_label": {
       "default": "Varsayılan (Tüm Mağazalar)",
       "epic": "Epic Games",
@@ -1070,7 +1067,6 @@
     "loading": "Günlükler yükleniyor…",
     "notAvailable": "Bu başlatmanın günlükleri artık mevcut değil (7 günlük saklama süresinin dışında).",
     "error": "Günlükler okunamadı: {{error}}",
-    "fileInfo": "{{path}}. {{total}} satırdan {{shown}} satır gösteriliyor",
     "filterLabel": "Göster",
     "filterInfo": "Bilgi",
     "filterWarning": "Uyarı",
@@ -1082,7 +1078,6 @@
   "settings": {
     "_comment": "Daha özel bileşenler (LanguageSelector, CloudSyncBehaviorPanel) tarafından işlenmeyen UnifideckSettingsPanel eylem kontrolleri. refreshAll, kayıtlı tüm mağazalarda sync_all() işlevini tetikleyen bir düğmedir; kütüphane görünümü, kendi SYNC_PROGRESS olay aboneliği aracılığıyla senkronizasyon ilerlemesini görüntüler.",
     "storeConnections": "Mağaza Bağlantıları",
-    "librarySync": "Kütüphane Senk.",
     "language": "Dil",
     "languageAuto": "Otomatik Algıla",
     "refreshAll": {

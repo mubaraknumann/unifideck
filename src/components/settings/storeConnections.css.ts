@@ -1,60 +1,118 @@
 /**
  * Scoped CSS for the STORE CONNECTIONS rows.
  *
- * Rendered ONCE by `StoreConnections`, not per row. The red sign-out
- * rules used to live in an inline `<style>` inside `StoreAuthButton`,
- * which meant the browser parsed the same block six times — once per
- * store. Same reason `play.css.ts` exists: the QAM is its own CEF
- * document, so the styles have to travel with the component, but they
- * only need to arrive once.
+ * Rendered ONCE by `StoreConnections`, not per row: the QAM is its own
+ * CEF document, so the styles have to travel with the component, but
+ * they only need to arrive once (same reason `play.css.ts` exists).
  *
- * Each row now holds two adjacent buttons (cart, then sign-out), and
- * that is what makes the focus ring load-bearing rather than
- * decoration: with two targets side by side the user has to be able to
- * tell, at arm's length on a handheld, which one the D-pad is on. The
- * ring treatment is lifted from `play.css.ts` — solid white inner ring,
- * dark outer ring so it has contrast against any background, plus a
- * small scale-up that reads in peripheral vision.
+ * Each store is one row — icon, name, one line of status, chevron — that
+ * expands to full-width action buttons. The status and chevron columns
+ * are fixed-width so every row lines up, and long status text is cut off
+ * with an ellipsis before it can push the chevron.
+ *
+ * The header's focus treatment is load-bearing: the whole row is one
+ * gamepad target, and the user has to see at arm's length which row the
+ * D-pad is on.
  */
 
 export const STORE_ROW_CSS = `
-/* ── Sign out / Sign in ──────────────────────────────────────────── */
-/* Red only in the connected (sign-out) state; the disconnected state
-   keeps Steam's neutral button, because it reads "Sign in". */
+.unifideck-store-row-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* Compact, but still a comfortable touch target. */
+  min-height: 34px;
+  padding-block: 2px;
+  padding-inline: 6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.unifideck-store-row-header:hover,
+.unifideck-store-row-header:focus,
+.unifideck-store-row-header.gpfocus {
+  background: rgba(255, 255, 255, 0.12);
+}
+.unifideck-store-row-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.unifideck-store-row-status {
+  flex: 0 0 118px;
+  font-size: 12px;
+  text-align: end;
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.unifideck-store-row-status.error {
+  color: #ff6b6b;
+  opacity: 1;
+}
+
+/* One down-pointing icon, rotated to point at the row's end while
+   collapsed. It never moves, only turns. The rotation flips under RTL so
+   the collapsed chevron always points away from the text. */
+.unifideck-store-row-chevron {
+  flex: 0 0 16px;
+  display: inline-flex;
+  justify-content: center;
+  transform: rotate(-90deg);
+  transition: transform 0.15s ease;
+}
+[dir="rtl"] .unifideck-store-row-chevron,
+.unifideck-store-row-chevron:dir(rtl) {
+  transform: rotate(90deg);
+}
+.unifideck-store-row.expanded .unifideck-store-row-chevron {
+  transform: rotate(0deg);
+}
+
+/* Actions sit under the row with the same side margins as the row itself,
+   and a little room above the first button. */
+.unifideck-store-row-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-block: 10px;
+  padding-inline: 6px;
+}
+.unifideck-store-row-actions .unifideck-store-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+.unifideck-store-row-detail {
+  font-size: 12px;
+  opacity: 0.7;
+  overflow-wrap: anywhere;
+}
+.unifideck-store-row-detail.error {
+  color: #ff6b6b;
+  opacity: 1;
+}
+
+/* Sign out is the one destructive action: red, inverting on focus. */
 .unifideck-store-auth-button.connected {
   background-color: #ef4444 !important;
   color: #fff;
 }
 .unifideck-store-auth-button.connected:focus,
-.unifideck-store-auth-button.connected:hover {
+.unifideck-store-auth-button.connected:hover,
+.unifideck-store-auth-button.connected.gpfocus {
   color: #ef4444 !important;
   background-color: #fff !important;
 }
 
-/* ── Shop (cart) ─────────────────────────────────────────────────── */
-/* Neutral fill: the shop is not a destructive action and must not
-   compete with the red button beside it for attention. */
-.unifideck-store-shop-button {
-  transition: background 0.15s ease, box-shadow 0.15s ease !important;
-}
-.unifideck-store-shop-button:hover,
-.unifideck-store-shop-button:focus,
-.unifideck-store-shop-button:focus-within,
-.unifideck-store-shop-button.gpfocus {
-  background: #ffffff !important;
-  color: #23262e !important;
-  box-shadow:
-    0 0 0 3px #ffffff,
-    0 0 0 6px rgba(0, 0, 0, 0.7) !important;
-  transform: scale(1.05);
-  /* position is required for z-index to apply, so the ring paints over
-     the neighbouring button instead of being clipped by it. */
-  position: relative;
-  z-index: 1;
-}
-
-/* A press stays disabled for a few seconds while Steam brings the
-   window up. Dim it so the row doesn't look broken in the meantime. */
+/* The storefront stays disabled for a few seconds while Steam brings the
+   window up. Dim it so the button doesn't look broken in the meantime. */
 .unifideck-store-shop-button:disabled {
   opacity: 0.5;
 }

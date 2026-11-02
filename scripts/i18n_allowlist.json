@@ -139,9 +139,10 @@
     "locales": ["es-ES"],
     "reason": "'Error' is the Spanish word."
   },
-  "librarySync.error": {
-    "locales": ["es-ES"],
-    "reason": "'Error' is the Spanish word."
+
+  "storeConnections.title": {
+    "locales": ["de-DE"],
+    "reason": "'Stores' is the loanword the German strings already use ('Alle Stores', 'Store öffnen')."
   },
   "downloads.title": {
     "locales": ["de-DE", "nl-NL", "pt-BR"],
@@ -218,6 +219,10 @@
   "toasts.header.edge": {
     "locales": "*",
     "reason": "Product name (Microsoft Edge), used as the toast header for its install. Not translated in any language."
+  },
+  "xboxPc.section.backendVersion": {
+    "locales": ["de-DE", "es-ES", "fr-FR", "it-IT", "nl-NL", "pl-PL", "pt-BR"],
+    "reason": "'Backend' is the loanword these languages use for the plugin's server side in technical UI; ru-RU, ja-JP, ko-KR, zh-* and the rest are translated."
   },
   "toasts.header.xboxPc": {
     "locales": "*",

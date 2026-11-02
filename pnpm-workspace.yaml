@@ -1,0 +1,11 @@
+# Read by pnpm 11+, which no longer honours the "pnpm" field in package.json
+# (the Decky builder image ships the latest pnpm). `packages` keeps pnpm 9,
+# used by the frontend CI job, from rejecting a workspace file without it.
+packages:
+  - "."
+
+# esbuild's postinstall only optimises its launcher; the platform binary
+# arrives as an optional dependency, so the script is not needed. Listing it
+# explicitly is what stops ERR_PNPM_IGNORED_BUILDS.
+allowBuilds:
+  esbuild: false
