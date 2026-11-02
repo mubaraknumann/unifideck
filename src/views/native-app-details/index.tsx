@@ -25,6 +25,7 @@ import {
 import {
   getNativeClasses,
   patchActionButton,
+  patchArtwork,
   patchTabbedPage,
   setActionRowDecorator,
   setPlaySectionDecorator,
@@ -204,6 +205,14 @@ export function startNativeAppDetails(): (() => void) | null {
     unpatchButton?.();
     return null;
   }
+  // Optional: our art laid out as Steam lays out a Steam game's (hero
+  // height, logo position). A miss only costs that.
+  let unpatchArtwork: (() => void) | null = null;
+  try {
+    unpatchArtwork = patchArtwork();
+  } catch (e) {
+    console.warn(`${LOG} artwork layout left stock:`, e);
+  }
   setActionRowDecorator(decorateRow);
   setPlaySectionDecorator(decoratePlaySection);
   setNativeAppDetailsActive(true);
@@ -212,6 +221,7 @@ export function startNativeAppDetails(): (() => void) | null {
   const tabs = unpatchTabs;
   return () => {
     setNativeAppDetailsActive(false);
+    unpatchArtwork?.();
     setActionRowDecorator(null);
     setPlaySectionDecorator(null);
     unpatchActionRow();

@@ -46,6 +46,7 @@ export {
 export { getNativeClasses, cx, type NativeClasses } from "./classes";
 export { getAppImage, AppAssetType, type AppImageProps } from "./app-image";
 export { isUnifideckAppId } from "./gate";
+export { patchArtwork } from "./artwork-patch";
 export {
   getAppDetailsSection,
   getAchievementIcon,
