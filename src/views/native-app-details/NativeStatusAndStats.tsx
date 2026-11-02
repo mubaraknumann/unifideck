@@ -12,7 +12,7 @@
  * cannot install. Every number comes from `usePlayStats`, the same hook
  * the legacy row uses.
  */
-import { FC, ReactNode, useEffect } from "react";
+import { FC, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { DownloadProvider } from "../../contexts/DownloadContext";
 import { useGameInfo } from "../../hooks/useGameInfo";
@@ -37,7 +37,6 @@ import {
   formatLastPlayedISO,
   formatPlaytime,
 } from "../../components/play/PlayMeta";
-import { injectPlayFocusStyles } from "../../components/play/play.css";
 import { StreamSecondaryButton } from "../../components/play/StreamSecondaryButton";
 import { pcUnsupportedButtonKey } from "../../components/play/PcUnsupportedButtons";
 import type { DownloadItem } from "../../types/downloads";
@@ -81,36 +80,15 @@ const StatusLine: FC<{
   );
 };
 
+/** A download's words. Its bar is drawn under the action button, where
+ *  Steam draws its own (`NativeDownloadBar`). */
 const DownloadStatus: FC<{ download: DownloadItem }> = ({ download }) => {
   const { t } = useTranslation();
-  const c = getNativeClasses().playBar;
-  // The indeterminate slide animation lives in play.css.ts.
-  useEffect(() => {
-    injectPlayFocusStyles();
-  }, []);
   const d = describeDownload(download, t);
   const detail = d.indeterminate
     ? d.detail
     : [d.bytes, d.rate].filter(Boolean).join(" · ");
-  const paused = download.status !== "running";
-  const bar = (
-    <div
-      role="progressbar"
-      aria-valuenow={d.pct}
-      className={cx(
-        c.DetailsProgressContainer,
-        c.DownloadProgressBar,
-        paused && c.DownloadPaused,
-      )}
-    >
-      {d.indeterminate ? (
-        <div className="unifideck-progress-indeterminate" />
-      ) : (
-        <div className={c.DetailsProgressBar} style={{ width: `${d.pct}%` }} />
-      )}
-    </div>
-  );
-  return <StatusLine label={d.label} detail={detail} downloading bar={bar} />;
+  return <StatusLine label={d.label} detail={detail} downloading />;
 };
 
 /** The status line for this state, or null. */

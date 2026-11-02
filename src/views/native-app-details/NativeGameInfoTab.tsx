@@ -3,16 +3,13 @@
  *
  * Steam's `GameInfoContainer` with the about block, the GOG achievement
  * summary, the quick links (Store Page, Community Hub, …, Support) in
- * Steam's own link markup, and Steam's own "Found in these collections". The links are the same list the legacy panel
- * shows (`gameLinks`).
+ * Steam's own link markup, and Steam's own "Found in these collections".
+ * The links are the same list the legacy panel shows (`gameLinks`).
  *
- * On mount it also nudges the page's scroll container once. Steam decides
- * whether its tab header is "under the page header" from one measurement,
- * re-checked only on scroll; measured before the hero art lays out, the
- * header latched over the play bar (seen live 2026-11-02, fixed by one
- * scroll event).
+ * `HeaderLatchNudge` keeps Steam's tab header from latching over the play
+ * bar when this tab is the one the page opens on.
  */
-import { FC, useEffect, useRef } from "react";
+import { FC } from "react";
 import { Focusable } from "@decky/ui";
 import { useTranslation } from "react-i18next";
 import { useGameInfo } from "../../hooks/useGameInfo";
@@ -24,6 +21,7 @@ import {
 import { GameAchievementsSummary } from "../../components/info/GameAchievementsSummary";
 import { gameLinks, openUrl } from "../../components/info/GameInfoNavButtons";
 import { NativeGameInfoAbout } from "./NativeGameInfoAbout";
+import { HeaderLatchNudge } from "./HeaderLatchNudge";
 import { NativeCollections } from "./NativeCollections";
 import type { GameMetadata } from "../../types/api";
 
@@ -59,37 +57,15 @@ const QuickLinks: FC<{ meta: GameMetadata }> = ({ meta }) => {
   );
 };
 
-/** Dispatch one scroll event on the nearest scrolling ancestor. */
-function nudgeScrollContainer(from: HTMLElement): void {
-  const view = from.ownerDocument.defaultView;
-  for (let el = from.parentElement; el; el = el.parentElement) {
-    const overflow = view?.getComputedStyle(el).overflowY;
-    if (
-      (overflow === "auto" || overflow === "scroll") &&
-      el.scrollHeight > el.clientHeight
-    ) {
-      el.dispatchEvent(new Event("scroll"));
-      return;
-    }
-  }
-}
-
 export const NativeGameInfoTab: FC<Props> = ({ appId, overview }) => {
   const { data: game } = useGameInfo(appId);
   const { data: meta } = useGameMetadata(appId);
-  const ref = useRef<HTMLDivElement>(null);
   const ready = !!game && !!meta;
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const timer = window.setTimeout(() => nudgeScrollContainer(el), 250);
-    return () => window.clearTimeout(timer);
-  }, [ready]);
 
   const { details } = getNativeClasses();
   return (
-    <div ref={ref}>
+    <div>
+      {ready && <HeaderLatchNudge />}
       {ready && (
         <Focusable
           className={cx(details.GameInfoContainer)}

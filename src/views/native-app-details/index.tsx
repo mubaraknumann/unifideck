@@ -8,7 +8,7 @@
  *  - Play bar row: Steam's, with our stats and status line in its middle
  *    our Uninstall button beside Steam's controller and gear buttons, and
  *    our cloud-save status line under it (as Steam's Steam Cloud line).
- *  - Tabs: our Game info tab (first, the default) and Steam's Your stuff.
+ *  - Tabs: Steam's Your stuff (the default), then our Game info tab.
  *    Activity and Community are dropped: Steam has nothing for a shortcut.
  *  - Uninstall: in Steam's gear menu (app-context-menu-patch.ts).
  *
@@ -40,6 +40,7 @@ import { NativeAppButtons } from "./NativeAppButtons";
 import { NativeCloudStatusRow } from "./NativeCloudStatusRow";
 import { NativeGameInfoTab } from "./NativeGameInfoTab";
 import { NativeAchievements } from "./NativeAchievements";
+import { HeaderLatchNudge } from "./HeaderLatchNudge";
 import { GameInfoTabAddon } from "./GameInfoTabAddon";
 import { NativeStatusAndStats } from "./NativeStatusAndStats";
 
@@ -119,7 +120,8 @@ function decoratePlaySection(
 
 const tabsCache = new WeakMap<NativeTab[], NativeTab[]>();
 
-/** Our Game info tab first (the default), then Steam's Your stuff. */
+/** Steam's Your stuff (with our achievements on top), the tab the page
+ *  opens on, then our Game info. */
 function decorateTabs(
   props: TabbedPageProps,
   overview: { appid: number },
@@ -150,17 +152,21 @@ function decorateTabs(
             content: cloneElement(
               yourStuff.content,
               undefined,
+              <HeaderLatchNudge key="unifideck-header-nudge" />,
               <NativeAchievements key="unifideck-achievements" appId={appId} />,
               (yourStuff.content.props as { children?: ReactNode }).children,
             ),
           }
         : yourStuff;
-    tabs = stuff ? [ours, stuff] : [ours];
+    // Your stuff first, then Game info (user's order). Your stuff is also
+    // the tab the page opens on (see activeTab below).
+    tabs = stuff ? [stuff, ours] : [ours];
     tabsCache.set(original, tabs);
   }
+  // Open on the first tab (Your stuff), unless the route names one of ours.
   const activeTab = tabs.some((t) => t.id === props.activeTab)
     ? props.activeTab
-    : "GameInfo";
+    : tabs[0].id;
   return { ...props, tabs, activeTab };
 }
 

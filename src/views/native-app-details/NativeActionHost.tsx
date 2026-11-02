@@ -25,8 +25,10 @@ import { DownloadProvider } from "../../contexts/DownloadContext";
 import { useGameInfo } from "../../hooks/useGameInfo";
 import { usePlayActions, type PlayActions } from "../../hooks/usePlayActions";
 import { usePlaySection } from "../../hooks/usePlaySection";
+import { NativeDownloadBar } from "./NativeDownloadBar";
 import {
   bindActionSpec,
+  getNativeClasses,
   patchActionRowFrom,
   resolveNativeAction,
   withDisplayStatus,
@@ -103,11 +105,20 @@ const NativeActionBinding: FC<Props> = ({ element, appId }) => {
     [overview, action.status],
   );
   if (proxied) bindActionSpec(proxied, spec);
+  // The download bar belongs under the game page's button only; the same
+  // button also renders on library surfaces, which have no room for it.
+  const buttonClass = (element.props as { className?: unknown }).className;
+  const pageClass = getNativeClasses().details.AppActionButton;
+  const onGamePage =
+    !!pageClass &&
+    typeof buttonClass === "string" &&
+    buttonClass.includes(pageClass);
 
   return (
     <>
       <ProbeForRow />
       {proxied ? cloneElement(element, { overview: proxied }) : element}
+      {onGamePage && <NativeDownloadBar appId={appId} />}
     </>
   );
 };
