@@ -1,8 +1,8 @@
 /**
- * GameAchievementsModal — GOG achievements list + unlock status.
+ * GameAchievementsModal — a game's achievements list + unlock status.
  *
- * Opened by the "Achievements" button in {@link GameInfoCompatRow} for GOG
- * games. Shows a progress header (unlocked / total + bar) and a scrollable
+ * Opened from the game page for every store with achievements (GOG, Epic,
+ * Xbox). Shows a progress header (unlocked / total + bar) and a scrollable
  * grid of achievement tiles — unlocked ones in colour with their unlock date,
  * locked ones dimmed (hidden-locked ones masked). Data comes from
  * {@link useAchievements} (the `get_game_achievements` RPC); a manual Refresh
@@ -14,6 +14,8 @@ import { ConfirmModal, DialogButton, Focusable } from "@decky/ui";
 import { useTranslation } from "react-i18next";
 import { FaLock, FaSyncAlt, FaTrophy } from "react-icons/fa";
 import { useAchievements } from "../../hooks/useAchievements";
+import { isRareAchievement, rarityPercent } from "../../lib/achievement-rarity";
+import { steamText } from "../../lib/steam-bridge/native-app-details";
 import type { Achievement } from "../../types/api";
 
 interface Props {
@@ -48,11 +50,16 @@ const TILE_BASE: React.CSSProperties = {
   alignItems: "center",
 };
 
+/** Steam's IconGlow shadow, measured from its stylesheet (2026-11-02). */
+const RARE_GLOW =
+  "rgba(255, 184, 78, 0.6) 0 0 2px 1px, rgba(255, 184, 78, 0.4) 0 0 16px 1px";
+
 const AchievementTile: FC<{ ach: Achievement }> = ({ ach }) => {
   const { t } = useTranslation();
   const maskedHidden = ach.hidden && !ach.unlocked;
   const name = maskedHidden ? t("achievementsModal.hidden") : ach.name;
   const img = ach.unlocked ? ach.image_unlocked : ach.image_locked;
+  const pct = rarityPercent(ach);
   return (
     <Focusable
       // A Focusable leaf (onActivate makes it a real focus target, not a
@@ -74,6 +81,8 @@ const AchievementTile: FC<{ ach: Achievement }> = ({ ach }) => {
               height: 48,
               borderRadius: 4,
               filter: ach.unlocked ? "none" : "grayscale(1)",
+              // Steam's rare-achievement glow (its IconGlow shadow).
+              ...(isRareAchievement(ach) ? { boxShadow: RARE_GLOW } : {}),
             }}
           />
         ) : (
@@ -135,7 +144,23 @@ const AchievementTile: FC<{ ach: Achievement }> = ({ ach }) => {
             })}
           </div>
         )}
+        {pct != null && (
+          <div
+            style={{
+              fontSize: 11,
+              color: isRareAchievement(ach) ? "#ffb84e" : "#8f98a0",
+            }}
+          >
+            {steamText("#AppDetails_PctUnlocked", `${pct}%`, pct)}
+          </div>
+        )}
       </div>
+      {ach.gamerscore != null && (
+        // Xbox's unit, written as Xbox writes it in every language.
+        <div style={{ fontSize: 11, color: "#acb2b8", flexShrink: 0 }}>
+          {ach.gamerscore} G
+        </div>
+      )}
     </Focusable>
   );
 };

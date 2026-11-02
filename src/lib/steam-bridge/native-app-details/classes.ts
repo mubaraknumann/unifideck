@@ -75,6 +75,8 @@ export function getNativeClasses(): NativeClasses {
     achievementIcon: findClassMap([
       "AchievementIconWrapper",
       "RareAchievementNoAnimation",
+      "RareAchievementIconGlow",
+      "IconGlow",
     ]),
     detailsButton: findClassMap([
       "AppDetailsButton",

@@ -27,7 +27,6 @@ import logging
 import os
 import shutil
 import subprocess
-import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -37,6 +36,7 @@ from unifideck.core.net import ssl_ctx_permissive
 from unifideck.stores.shared.achievements_error import (
     StoreAchievementsError,
 )
+from unifideck.stores.shared.achievements_payload import TtlCache, build_payload
 from unifideck.stores.shared.timestamps import parse_timestamp
 
 from .launcher_auth import LegendaryLauncherAuth
@@ -46,7 +46,6 @@ logger = logging.getLogger(__name__)
 _GRAPHQL_URL = "https://store.epicgames.com/graphql"
 # A launcher UA — the storefront GraphQL is the launcher's own backend.
 _UA = "EpicGamesLauncher/15.17.1-35104619+++Portal+Release-Live"
-_CACHE_TTL_SECONDS = 60.0
 
 # Achievement DEFINITIONS for a sandbox (display names, descriptions, icons).
 _DEFS_QUERY = """query Achievement($sandboxId: String!, $locale: String!) {
@@ -104,7 +103,7 @@ class EpicAchievements(LegendaryLauncherAuth):
         self._cli_path = cli_path
         self._user_file = Path(user_file).expanduser()
         self._info_timeout = info_timeout
-        self._cache: dict[str, tuple[float, dict[str, Any]]] = {}
+        self._cache = TtlCache()
 
     async def get_game_achievements(
         self, game_id: str, force: bool = False,
@@ -112,9 +111,9 @@ class EpicAchievements(LegendaryLauncherAuth):
         """Return the normalized achievements payload (same shape as GOG)."""
         key = str(game_id)
         if not force:
-            entry = self._cache.get(key)
-            if entry and (time.monotonic() - entry[0]) < _CACHE_TTL_SECONDS:
-                return entry[1]
+            cached = self._cache.get(key)
+            if cached is not None:
+                return cached
 
         token, account_id = await self._resolve_auth()
         if not token or not account_id:
@@ -140,12 +139,12 @@ class EpicAchievements(LegendaryLauncherAuth):
             payload = await asyncio.to_thread(
                 self._fetch_blocking, key, account_id, sandbox, token,
             )
-        self._cache[key] = (time.monotonic(), payload)
+        self._cache.put(key, payload)
         return payload
 
     def invalidate(self, game_id: str) -> None:
         """Drop a game's cached achievements."""
-        self._cache.pop(str(game_id), None)
+        self._cache.invalidate(game_id)
 
 
     def _resolve_sandbox(self, game_id: str) -> str | None:
@@ -295,25 +294,11 @@ class EpicAchievements(LegendaryLauncherAuth):
         unlocked_state: dict[str, dict[str, Any]],
     ) -> dict[str, Any]:
         """Merge defs + state into the normalized achievements payload."""
-        normalized = [
+        return build_payload("epic", game_id, [
             EpicAchievements._normalize(d["achievement"], unlocked_state)
             for d in definitions
             if isinstance(d, dict) and isinstance(d.get("achievement"), dict)
-        ]
-        unlocked = [a for a in normalized if a["unlocked"]]
-        locked = [a for a in normalized if not a["unlocked"]]
-        unlocked.sort(key=lambda a: a["unlocked_at"] or 0.0, reverse=True)
-        ordered = unlocked + locked
-        total = len(ordered)
-        n_unlocked = len(unlocked)
-        return {
-            "store": "epic",
-            "game_id": str(game_id),
-            "total": total,
-            "unlocked": n_unlocked,
-            "percent": round(n_unlocked / total * 100, 1) if total else 0.0,
-            "achievements": ordered,
-        }
+        ])
 
     @staticmethod
     def _normalize(

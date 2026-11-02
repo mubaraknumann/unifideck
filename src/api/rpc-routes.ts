@@ -118,7 +118,7 @@ export const rpcRoutes = {
   listGameExecutables: "list_game_executables",
   setGameExecutable: "set_game_executable",
   resetGameExecutable: "reset_game_executable",
-  // Achievements (AchievementsRPCMixin) — GOG display + last-session summary
+  // Achievements (AchievementsRPCMixin) — GOG/Epic/Xbox display + last-session summary
   getGameAchievements: "get_game_achievements",
   getLastSessionAchievements: "get_last_session_achievements",
   // Observability (ObservabilityRPCMixin) — event bridge + support bundle

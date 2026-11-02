@@ -1,8 +1,8 @@
 /**
  * NativeGameInfoTab: the content of our Game info tab.
  *
- * Steam's `GameInfoContainer` with the about block, the GOG achievement
- * summary, the quick links (Store Page, Community Hub, …, Support) in
+ * Steam's `GameInfoContainer` with the about block, the last-session
+ * achievement summary, the quick links (Store Page, Community Hub, …, Support) in
  * Steam's own link markup, and Steam's own "Found in these collections".
  * The links are the same list the legacy panel shows (`gameLinks`).
  *
@@ -77,13 +77,11 @@ export const NativeGameInfoTab: FC<Props> = ({ appId, overview }) => {
             game={game}
             meta={meta}
           />
-          {game.store === "gog" && (
-            <GameAchievementsSummary
-              store={game.store}
-              gameId={game.id}
-              title={game.title}
-            />
-          )}
+          <GameAchievementsSummary
+            store={game.store}
+            gameId={game.id}
+            title={game.title}
+          />
           <QuickLinks meta={meta} />
           <NativeCollections appId={appId} />
         </Focusable>

@@ -102,6 +102,7 @@ def launcher_toast(
     game_title: str = "",
     duration_ms: int | None = None,
     action: dict[str, Any] | None = None,
+    achievement: dict[str, Any] | None = None,
 ) -> None:
     """Emit a LAUNCHER_STAGE toast from launcher code that has no bus.
 
@@ -115,6 +116,9 @@ def launcher_toast(
     stay in step: a field one produces and the other doesn't is a
     payload that renders differently depending on which process emitted
     it.
+
+    ``achievement`` (``{name, icon, store, rarity?}``) renders a Steam-style
+    achievement card instead of the text toast; see ``emit_stage``.
 
     No-op inside a ``suppress_launcher_toasts`` scope (e.g. the install-time
     prefix warmup reusing these launch helpers).
@@ -136,6 +140,8 @@ def launcher_toast(
         payload["duration_ms"] = duration_ms
     if action is not None:
         payload["action"] = action
+    if achievement is not None:
+        payload["achievement"] = achievement
     record_event(_LAUNCHER_STAGE, payload)
 
 

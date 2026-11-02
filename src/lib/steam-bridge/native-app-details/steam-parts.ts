@@ -96,6 +96,30 @@ export const getAppDetailsSection = once<AnyComponent>(
     ) as unknown as AnyComponent | null,
 );
 
+// ── Achievement icon ──────────────────────────────────────
+
+/**
+ * Steam's own achievement icon, the one its App-Details carousel draws:
+ * props `{achievement: {name, hidden, icon_achieved, icon_unachieved},
+ * globalUnlockPercentage, unlocked, pauseAnimation, className, size}`.
+ * It sizes the icon square, draws hidden ones as Steam's "?" box, and adds
+ * the animated rare glow by Steam's own rule (unlocked, under 10%).
+ *
+ * Found by its module: the one setting `--icon-size` next to the glow
+ * classes. Of its exports, the wrapper that reads `icon_achieved` and not
+ * `internal_key` (that one fetches Steam's own percentages by app id).
+ */
+export const getAchievementIcon = once<AnyComponent>(
+  () =>
+    findExportInModule(
+      ["RareAchievementIconGlowContainerRoot", "--icon-size"],
+      (v): v is AnyComponent =>
+        isFn(v) &&
+        src(v).includes("icon_achieved") &&
+        !src(v).includes("internal_key"),
+    ) as AnyComponent | null,
+);
+
 // ── Features ──────────────────────────────────────────────
 
 export const getFeatureRow = once<AnyComponent>(

@@ -158,7 +158,7 @@ Infrastructure services that subscribe to the EventBus and own cross-cutting con
 | `services/microsoft_subscription/` | Game Pass entitlement probing                 |
 | `services/microsoft_ownership/`    | Xbox purchase index for the Steam Store ownership ribbon (never library rows) |
 | `services/launch_history/`         | Per-game launch timestamps                    |
-| `services/achievements/`           | Achievement fetch + last-session summary      |
+| `services/achievements/`           | Unlock toasts during play + last-session summary (GOG, Epic, Xbox) |
 | `services/compatibility/`          | ProtonDB + Valve per-device ratings (Deck / Machine / SteamOS) |
 | `services/playtime_sync/`          | Pushes playtime back to GOG/Epic              |
 | `services/support_bundle/`         | Capture Logs: collects the diagnostic zip     |
@@ -189,7 +189,7 @@ The `Plugin` class in `main.py` is composed from the RPC mixin classes enumerate
 | `ObservabilityRPCMixin`    | `subscribe_replay`, `get_launcher_toasts`, `capture_logs`                        |
 | `ActionRPCMixin`           | `dispatch_unifideck_action` (URI dispatch)                                      |
 | `AccountRPCMixin`          | `check_account_switch`, `migrate_account_data`                                  |
-| `AchievementsRPCMixin`     | `get_game_achievements`, `get_last_session_achievements`                         |
+| `AchievementsRPCMixin`     | `get_game_achievements`, `get_last_session_achievements` (stores in `ACHIEVEMENT_STORES`: gog, epic, microsoft) |
 | `CloudSaveRPCMixin`        | `get_cloud_save_status`, `cloud_save_pull`, `cloud_save_push`, `set_game_save_path` |
 | `UIRPCMixin`               | `get_game_metadata_display`, `get_language_preference`, `set_language_preference`, `get_device_type` |
 | `UpdaterRPCMixin`          | `check_plugin_update`, `get_available_versions`, `log_update_event`              |

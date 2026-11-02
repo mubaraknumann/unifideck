@@ -117,4 +117,16 @@ export interface ToastActionPayload {
    * have read `undefined` here (audit register item 4b).
    */
   action?: { verb: string; args: string[]; i18n_label_key?: string };
+  /**
+   * An unlocked achievement (from the achievement watcher). Rendered as a
+   * Steam-style achievement popup instead of the text toast; `i18n_key`
+   * stays the plain-text fallback.
+   */
+  achievement?: {
+    name: string;
+    icon?: string;
+    store: string;
+    /** Share of players with it: under 10% draws Steam's rare glow. */
+    rarity?: number | null;
+  };
 }

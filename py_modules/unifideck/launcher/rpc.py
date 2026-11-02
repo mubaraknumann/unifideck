@@ -26,6 +26,7 @@ async def emit_stage(
  severity: str | None = None,
  duration_ms: int | None = None,
  action: dict[str, Any] | None = None,
+ achievement: dict[str, Any] | None = None,
 ) -> None:
     """Emit a LAUNCHER_STAGE toast event.
 
@@ -44,6 +45,11 @@ async def emit_stage(
 
     ``action`` makes the toast tappable: ``{verb, args, i18n_label_key}``,
     the one shape the frontend's ``resolveToastAction`` reads.
+
+    ``achievement`` (``{name, icon, store, rarity?}``) turns the toast into a
+    Steam-style achievement card: the achievement's image, its name, the
+    game and the store with the store's logo. ``i18n_key`` stays the
+    plain-text fallback.
     """
     logger.debug(
     "[launcher.rpc] stage: key=%s title=%s game=%s prio=%s",
@@ -68,4 +74,6 @@ async def emit_stage(
         payload["duration_ms"] = duration_ms
     if action is not None:
         payload["action"] = action
+    if achievement is not None:
+        payload["achievement"] = achievement
     await bus.emit(Events.LAUNCHER_STAGE, **payload)

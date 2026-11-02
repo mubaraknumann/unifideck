@@ -730,6 +730,24 @@ pin.
 **Still not covered end to end:** DV-PX16 (three `plugin_loader` restarts; no
 passwordless sudo) and DV-PX12/DV-PX17.
 
+## DV-AX: Xbox achievements, and toasts for every achievement store
+
+Needs a Microsoft account with achievements in at least one Xbox PC game and
+one xCloud game, a GOG game and an Epic game with achievements. Run against
+the **built** plugin (`./build-plugin.sh dev install`), never the checkout
+(CLAUDE.md rule 7).
+
+| ID | Step | Expected | Status | Evidence |
+|---|---|---|---|---|
+| DV-AX1 | Open an Xbox game page that is **not** installed (xCloud or Xbox PC), e.g. Gears of War: E-Day | Your stuff shows "You've unlocked x/y" and both carousels; locked icons are grey; the Game info feature row lists Achievements. "View my achievements" opens the list with a Gamerscore on each row | ( ) | 2026-11-02 sample, before the code existed: `9N4PT8HGCDHQ` → `XboxTitleId 1810111157`; Xbox Live returned 54 rows (18 unlocked) |
+| DV-AX2 | Same for an **installed** Xbox PC game | Same as AX1; no displaycatalog request for it (the title id comes from the install record) | ( ) | |
+| DV-AX3 | Focus a locked tile | The footer shows "x% of players have this achievement" if Xbox Live sends rarity; if it does not, no footer and no error | ( ) | Rarity was not visible in the Nexus command's output, so this is unconfirmed |
+| DV-AX4 | An Xbox game with no achievements | No Achievements section and no feature row; the log has no error | ( ) | |
+| DV-AX5 | Sign out of Microsoft, open an Xbox game page; sign in again | Signed out: no section. After sign-in it returns, with no rows from a previous account | ( ) | |
+| DV-AX6 | Play an Xbox PC game and unlock one achievement; quit | A toast within about 90 s; after quitting the Game info tab shows "Last session: unlocked …". xbox.com shows the unlock. If xbox.com does not, the runtime is not unlocking (separate issue; record it in the Xodus ISSUES.md) | ( ) | |
+| DV-AX7 | Unlock one achievement in a GOG game and one in an Epic game | One toast each; on Epic, note whether the EOS overlay also notifies (a double notification means Epic should leave the toast set) | ( ) | |
+| DV-AX8 | Keep an Xbox game running for 10 minutes | The backend log shows no repeated achievements errors and at most one XSTS mint per 30 minutes | ( ) | |
+
 ## DV-X: register 70, the itch.io store
 
 Needs an itch.io account that owns or has claimed at least one free

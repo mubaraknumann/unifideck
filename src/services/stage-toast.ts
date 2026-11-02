@@ -19,9 +19,20 @@ import {
   backendHeaderText,
   type ToastString,
 } from "./toast-text";
-import { showToast } from "./show-toast";
+import { showAchievementToast, showToast } from "./show-toast";
 
 export function showStageToast(payload: ToastActionPayload): void {
+  if (payload.achievement?.name) {
+    showAchievementToast({
+      name: payload.achievement.name,
+      icon: payload.achievement.icon,
+      store: payload.achievement.store,
+      rarity: payload.achievement.rarity,
+      gameTitle: payload.game_title,
+      duration: resolveToastDuration(payload.duration_ms, payload.severity),
+    });
+    return;
+  }
   const params = buildToastParams(payload);
   const body = payload.i18n_key
     ? backendToastText(payload.i18n_key, params)

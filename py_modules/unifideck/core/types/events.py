@@ -229,7 +229,8 @@ class Events(StrEnum):
     # ("info"|"warning"|"error"), i18n_params (dict),
     # duration_ms? (int — overrides the frontend's per-severity
     # default), action? ({i18n_label_key, target_url,
-    # fallback_url?}), store?, game_id?, phase?.
+    # fallback_url?}), achievement? ({name, icon, store, rarity?} — renders a
+    # Steam-style achievement card), store?, game_id?, phase?.
     LAUNCHER_STAGE = "launcher_stage"
 
     # Per-game circuit breaker state transitions. Emitted by

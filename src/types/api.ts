@@ -243,6 +243,8 @@ export interface Achievement {
   /** Epoch seconds the achievement was unlocked, or null if still locked. */
   unlocked_at: number | null;
   rarity?: number | null;
+  /** Xbox only: the achievement's Gamerscore. */
+  gamerscore?: number | null;
 }
 
 /** A game's achievements + summary (from `get_game_achievements`). */

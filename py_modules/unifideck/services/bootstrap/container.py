@@ -73,9 +73,10 @@ class ServiceContainer:
     support_bundle: SupportBundleService | None = None
     microsoft_subscription: MicrosoftSubscriptionService | None = None
     microsoft_ownership: MicrosoftOwnershipService | None = None
-    # AchievementWatcher — GOG live unlock toasts + end-of-session summary.
-    # Reads achievements back from GOG (Comet does the in-game unlocking);
-    # plugin-only (the launcher subset never requests it).
+    # AchievementWatcher — live unlock toasts + end-of-session summary for
+    # every achievement store (GOG, Epic, Xbox). Reads unlocks back from the
+    # store; games do the unlocking. Plugin-only (the launcher subset never
+    # requests it).
     achievements: AchievementWatcher | None = None
     # OAuth browser monitor — shared CDP-based redirect watcher
     # consumed by every store's `AuthOrchestrator`. Injected into

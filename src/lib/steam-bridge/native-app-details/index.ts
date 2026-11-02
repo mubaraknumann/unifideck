@@ -48,6 +48,7 @@ export { getAppImage, AppAssetType, type AppImageProps } from "./app-image";
 export { isUnifideckAppId } from "./gate";
 export {
   getAppDetailsSection,
+  getAchievementIcon,
   getFeatureRow,
   getFeatureIds,
   getCompatParts,

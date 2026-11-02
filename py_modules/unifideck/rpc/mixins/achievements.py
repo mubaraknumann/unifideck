@@ -3,16 +3,17 @@
 Two RPCs powering the App-Details achievements UI:
 
 * ``get_game_achievements`` — the full list + this user's unlock status, read
-  live from the store backend (GOG's ``gameplay.gog.com``). May hit the network
+  live from the store backend (GOG's ``gameplay.gog.com``, Epic's storefront
+  GraphQL, Xbox Live's Achievements V2). May hit the network
   / refresh tokens, so it's called on demand (modal open / manual refresh), not
   on the render hot path. A game with no achievements is a normal empty payload.
 * ``get_last_session_achievements`` — a fast, network-free read of the
   achievement watcher's persisted ``last_session`` summary, for the game-info
   panel's "last session" row (keeps ``get_game_info`` non-blocking).
 
-Store-generic on purpose (the ``store`` arg + the ``achievements_unsupported``
-branch) so Epic — which unlocks/notifies via its own EOS overlay today — can be
-added later with no frontend or RPC-name change. GOG is the only impl for now.
+Store-generic: the ``store`` arg picks the backend, and a store outside
+``ACHIEVEMENT_STORES`` gets ``achievements_unsupported``. Adding a store needs
+no frontend or RPC-name change.
 """
 from __future__ import annotations
 
@@ -31,7 +32,7 @@ _ACHIEVEMENT_STORES = tuple(sorted(ACHIEVEMENT_STORES))
 
 
 class AchievementsRPCMixin:
-    """Achievements RPC surface (GOG today; store-generic for later)."""
+    """Achievements RPC surface (every store in ``ACHIEVEMENT_STORES``)."""
 
     registry: Any
     services: Any

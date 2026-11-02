@@ -24,6 +24,7 @@ from unifideck.stores.shared.browser_auth_rebuild import (
 from unifideck.stores.shared.store_base import StoreBase
 from unifideck.utils.locale import get_unifideck_locale
 
+from .achievements_mixin import MicrosoftAchievementsMixin
 from .library_gate import GateVerdict, check_subscription_gate
 from .microsoft_browser_auth import MicrosoftBrowserAuth
 from .microsoft_catalog import MicrosoftCatalogReader
@@ -62,7 +63,7 @@ def _cancel(task: asyncio.Task[Any] | None) -> None:
         task.cancel()
 
 
-class MicrosoftStore(BrowserAuthRebuildMixin, StoreBase):
+class MicrosoftStore(MicrosoftAchievementsMixin, BrowserAuthRebuildMixin, StoreBase):
     """Microsoft store."""
     store_info = StoreInfo(
         name="microsoft",

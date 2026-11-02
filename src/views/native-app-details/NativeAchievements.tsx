@@ -20,11 +20,13 @@ import { useGameInfo } from "../../hooks/useGameInfo";
 import { useStoreCapability } from "../../hooks/useStoreCapability";
 import {
   cx,
+  getAchievementIcon,
   getAppDetailsSection,
   getNativeClasses,
   steamText,
 } from "../../lib/steam-bridge/native-app-details";
 import { GameAchievementsModal } from "../../components/info/GameAchievementsModal";
+import { isRareAchievement, rarityPercent } from "../../lib/achievement-rarity";
 import type { Achievement, Game } from "../../types/api";
 
 /** Measured on Steam's own bar (2026-11-02): these two colours come from
@@ -45,6 +47,89 @@ function openAll(game: Game): void {
   );
 }
 
+/** Xbox sends one icon for both states; Steam's locked icons are grey. */
+function greyedStyle(ach: Achievement): React.CSSProperties | undefined {
+  return !ach.unlocked && ach.image_locked === ach.image_unlocked
+    ? { filter: "grayscale(1)", opacity: 0.6 }
+    : undefined;
+}
+
+/**
+ * The tile's icon. Steam's own icon component when the bundle has it, so
+ * the size, the "?" of a hidden achievement and the rare glow are Steam's
+ * exactly. `animate` spins the glow, which Steam does on the focused tile.
+ */
+const TileIcon: FC<{ ach: Achievement; animate: boolean }> = ({
+  ach,
+  animate,
+}) => {
+  const SteamIcon = getAchievementIcon();
+  const { achievements: a } = getNativeClasses();
+  if (SteamIcon) {
+    return (
+      <SteamIcon
+        achievement={{
+          name: ach.name,
+          hidden: ach.hidden,
+          icon_achieved: ach.image_unlocked,
+          icon_unachieved: ach.image_locked,
+        }}
+        globalUnlockPercentage={ach.rarity ?? undefined}
+        unlocked={ach.unlocked}
+        pauseAnimation={!animate}
+        className={cx(a.CarouselIcon, a.Prioritized)}
+        // Our details can run longer than Steam's (date and share of
+        // players); the icon must keep its square size rather than shrink.
+        style={{ flexShrink: 0, ...greyedStyle(ach) }}
+      />
+    );
+  }
+  return <FallbackIcon ach={ach} animate={animate} />;
+};
+
+/** Our copy of Steam's icon markup, for a bundle without the component. */
+const FallbackIcon: FC<{ ach: Achievement; animate: boolean }> = ({
+  ach,
+  animate,
+}) => {
+  const { achievements: a, achievementIcon: i } = getNativeClasses();
+  const img = ach.unlocked ? ach.image_unlocked : ach.image_locked;
+  // Steam draws the glow only once the image has loaded.
+  const [loaded, setLoaded] = useState(false);
+  const glow = loaded && isRareAchievement(ach);
+  return (
+    <div
+      className={cx(
+        i.AchievementIconWrapper,
+        a.CarouselIcon,
+        a.Prioritized,
+        !animate && i.RareAchievementNoAnimation,
+      )}
+    >
+      {glow && (
+        <div className={i.RareAchievementIconGlowContainerRoot}>
+          <div className={i.RareAchievementIconGlowContainer}>
+            <div className={i.RareAchievementIconGlow} />
+          </div>
+        </div>
+      )}
+      {img && (
+        <img
+          className={cx(i.Icon, glow && i.IconGlow)}
+          src={img}
+          alt=""
+          // A cached image may be complete before onLoad is attached.
+          ref={(el) => {
+            if (el?.complete) setLoaded(true);
+          }}
+          onLoad={() => setLoaded(true)}
+          style={greyedStyle(ach)}
+        />
+      )}
+    </div>
+  );
+};
+
 const Tile: FC<{
   ach: Achievement;
   detailed: boolean;
@@ -52,22 +137,28 @@ const Tile: FC<{
   onActivate: () => void;
 }> = ({ ach, detailed, onFocus, onActivate }) => {
   const { t } = useTranslation();
-  const { achievements: a, achievementIcon: i } = getNativeClasses();
+  const { achievements: a } = getNativeClasses();
   const masked = ach.hidden && !ach.unlocked;
-  const name = masked ? t("achievementsModal.hidden") : ach.name;
+  const name = masked
+    ? steamText("#AchievementSpoilerName", t("achievementsModal.hidden"))
+    : ach.name;
   const description = masked ? "" : ach.description;
-  const img = ach.unlocked ? ach.image_unlocked : ach.image_locked;
-  let footer: string | null = null;
+  // Steam's tile footer is the share of players, unlocked or not. We add
+  // the unlock date above it for unlocked ones.
+  const footer: string[] = [];
   if (ach.unlocked && ach.unlocked_at) {
     const date = new Date(ach.unlocked_at * 1000).toLocaleDateString();
-    footer = steamText(
-      "#AppDetails_Achievements_Unlocked",
-      t("achievementsModal.unlockedOn", { date }),
-      date,
+    footer.push(
+      steamText(
+        "#AppDetails_Achievements_Unlocked",
+        t("achievementsModal.unlockedOn", { date }),
+        date,
+      ),
     );
-  } else if (ach.rarity != null) {
-    const pct = Math.round(ach.rarity * 10) / 10;
-    footer = steamText("#AppDetails_PctUnlocked", `${pct}%`, pct);
+  }
+  const pct = rarityPercent(ach);
+  if (pct != null) {
+    footer.push(steamText("#AppDetails_PctUnlocked", `${pct}%`, pct));
   }
   return (
     <Focusable
@@ -80,21 +171,16 @@ const Tile: FC<{
       onClick={onActivate}
       aria-label={detailed ? undefined : name}
     >
-      <div
-        className={cx(
-          i.AchievementIconWrapper,
-          a.CarouselIcon,
-          a.Prioritized,
-          i.RareAchievementNoAnimation,
-        )}
-      >
-        {img && <img className={i.Icon} src={img} alt="" />}
-      </div>
+      <TileIcon ach={ach} animate={detailed} />
       {detailed && (
         <div className={a.AchivementCarouselItemDetails}>
           <div className={a.Name}>{name}</div>
           <div className={a.Description}>{description}</div>
-          {footer && <div className={a.Achieved}>{footer}</div>}
+          {footer.map((line) => (
+            <div key={line} className={a.Achieved}>
+              {line}
+            </div>
+          ))}
         </div>
       )}
     </Focusable>

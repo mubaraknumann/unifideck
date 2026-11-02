@@ -105,7 +105,7 @@ CANONICAL_SCHEMA: dict[str, set[str]] = {
     # ``game_ids`` is the store's COMPLETE current set of updatable games,
     # not a delta — a game that drops out of it has had its update applied.
     "GAME_UPDATE_AVAILABLE":        {"game_ids", "store"},
-    "LAUNCHER_STAGE":               {"action", "duration_ms", "game_id", "game_title", "i18n_key", "i18n_params", "i18n_title_key", "local_snapshot", "priority", "remote_snapshot", "severity", "store"},
+    "LAUNCHER_STAGE":               {"achievement", "action", "duration_ms", "game_id", "game_title", "i18n_key", "i18n_params", "i18n_title_key", "local_snapshot", "priority", "remote_snapshot", "severity", "store"},
     "LIBRARY_SYNC_CANCELLED":       {"cancelled_at_store", "store_count"},
     "LIBRARY_SYNC_COMPLETED":       {"duration_ms", "errors", "game_count", "store_count"},
     "LIBRARY_SYNC_STARTED":         {"started_at_ms", "stores"},
