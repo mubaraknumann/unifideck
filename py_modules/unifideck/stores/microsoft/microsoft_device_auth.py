@@ -289,7 +289,7 @@ class MicrosoftDeviceAuth:
 
     async def _finish(self, body: dict[str, Any]) -> None:
         await self._tokens.accept_token_body(body)
-        problem = await self._account_problem()
+        problem = await self.account_problem()
         if problem is not None:
             await self._tokens.clear()
             await self._fail(problem)
@@ -300,8 +300,11 @@ class MicrosoftDeviceAuth:
         logger.info("[MicrosoftDeviceAuth] signed in")
         await self._emit(Events.STORE_AUTH_COMPLETE)
 
-    async def _account_problem(self) -> str | None:
+    async def account_problem(self) -> str | None:
         """Why this account cannot use Xbox, if Xbox said so.
+
+        Public because the chained sign-in (``xodus/signin_chain``) stores
+        tokens outside this flow and must judge the account the same way.
 
         A network failure here is not a problem with the account: the
         tokens are good and the next sync will mint the chain.

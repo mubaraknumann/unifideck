@@ -43,3 +43,7 @@ src/i18n/locales.generated.ts
 # Captured CLI stdout. The parser reads one JSON line, so the fixture must
 # stay on a single line exactly as the CLI prints it.
 tests/fixtures/microsoft/xbox_pc_library_IN.json
+
+# xCloud player: vendored MIT library (Greenlight) and its built bundle.
+xcloud-player/
+py_modules/unifideck/launcher/xcloud_player/web/

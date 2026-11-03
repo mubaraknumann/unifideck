@@ -33,7 +33,7 @@ import asyncio
 import contextlib
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
 from unifideck.auth.edge_browser.cdp_session import CLOSED_EVENT, CdpError, CdpPageSession
@@ -46,6 +46,7 @@ from .auth_page import CxhPageBridge
 from .cli import XodusCli, XodusCliError
 from .cli_models import redact
 from .errors import REFUSED_HTTP
+from .signin_chain import report_chain_outcome
 
 if TYPE_CHECKING:
     from unifideck.auth.edge_browser import EdgeBrowser
@@ -273,12 +274,16 @@ class XboxPcSignIn:
         on_change: Callable[[], None],
         *,
         page_factory: Callable[[], CdpPageSession] = CdpPageSession,
+        chain: Callable[[int], Awaitable[str]] | None = None,
     ) -> None:
         """``edge`` is a getter: the Edge service is injected after construction.
 
         ``ms_auth_busy`` reports whether the xCloud sign-in is running.
         ``on_change`` is called whenever ``running`` or ``last_error`` changes.
+        ``chain`` runs the xCloud sign-in in the same window once this one has
+        succeeded, before the window closes (``signin_chain``).
         """
+        self._chain = chain
         self._cli = cli
         self._edge = edge
         self._tokens = tokens
@@ -404,10 +409,17 @@ class XboxPcSignIn:
 
     async def _session(self, proc: asyncio.subprocess.Process, port: int) -> None:
         try:
+            outcome: str | None = "signin_failed"
             try:
                 outcome = await asyncio.wait_for(self._drive(proc, port), SIGNIN_TIMEOUT_S)
             except TimeoutError:
                 outcome = "signin_timeout"
+            else:
+                if outcome is None:
+                    # The window must stay open for this: Xbox PC and xCloud
+                    # need two Microsoft sign-ins, so Connect does both at once
+                    # instead of ambushing the user at the first stream.
+                    await self._chain_xcloud(port)
             finally:
                 await self._cleanup(proc)
             if outcome is None:
@@ -420,6 +432,11 @@ class XboxPcSignIn:
             outcome = "signin_failed"
         self.last_error = None if outcome in (None, "unverified") else outcome
         logger.info("%s finished: %s", _LOG, outcome or "signed in")
+
+    async def _chain_xcloud(self, port: int) -> None:
+        """Run the xCloud sign-in in the same window. Never fails the Xbox PC one."""
+        if self._chain is not None:
+            await report_chain_outcome(self._chain, port)
 
     async def _drive(self, proc: asyncio.subprocess.Process, port: int) -> str | None:
         run = _Run(proc, self._page_factory(), self._on_session_open)

@@ -140,6 +140,7 @@ class MicrosoftStore(MicrosoftAchievementsMixin, BrowserAuthRebuildMixin, StoreB
             xcloud_signed_in=lambda: self._cached_available,
             refresh_signed_in=self.is_available,
             market_hint=lambda: self._last_market,
+            signin_chain=self._chain_xcloud_signin,
         )
         # The one sign-in: with Xbox PC on, the Microsoft ticket comes from
         # the Xodus credential. Its sign-out drops the cached ticket.
@@ -357,6 +358,13 @@ class MicrosoftStore(MicrosoftAchievementsMixin, BrowserAuthRebuildMixin, StoreB
             error="not_authenticated",
             store="microsoft",
         )
+    async def _chain_xcloud_signin(self, port: int) -> str:
+        """The xCloud sign-in, run in the Xbox PC window before it closes."""
+        from .xodus.signin_chain import run_chained_signin
+        return await run_chained_signin(
+            port, self._ms_config, self._tokens, self._device_auth.account_problem,
+        )
+
     async def logout(self) -> Result:
         """Logout. Stops an Xbox PC sign-in first: it uses the Edge we kill."""
         await self._xbox_pc.on_microsoft_logout()

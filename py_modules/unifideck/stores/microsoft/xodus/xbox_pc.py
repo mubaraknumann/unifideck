@@ -147,6 +147,7 @@ class XboxPc:
         refresh_signed_in: Callable[[], Awaitable[bool]] | None = None,
         market_hint: Callable[[], str | None] = lambda: None,
         cli: XodusCli | None = None,
+        signin_chain: Callable[[int], Awaitable[str]] | None = None,
     ) -> None:
         """Getters, not values: Edge and the xCloud session come later."""
         self._config = config
@@ -157,7 +158,8 @@ class XboxPc:
         #: The one ``XodusCli``. The PC library and the installer use it too.
         self.cli = cli or XodusCli()
         self._installer = ComponentInstaller(self._source)
-        self._signin = XboxPcSignIn(self.cli, edge, tokens, ms_auth_busy, self._on_sign_in_change)
+        self._signin = XboxPcSignIn(
+            self.cli, edge, tokens, ms_auth_busy, self._on_sign_in_change, chain=signin_chain)
         self._background: set[asyncio.Task[None]] = set()
         #: A sign-in just ended and the account is being re-read. The view
         #: stays ``signing_in`` until then, so nobody sees the old account.

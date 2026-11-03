@@ -14,6 +14,7 @@ to the foreground in Gaming Mode (``docs/gaming-mode-foreground.md``).
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from typing import TYPE_CHECKING
 
@@ -55,6 +56,61 @@ async def _edge_missing(svc: LauncherService, ctx: LaunchContext) -> Result | No
     return Result(success=False, error="edge_not_installed", store=ctx.store)
 
 
+def _start_stream_signin(svc: LauncherService, url: str) -> asyncio.Task[str]:
+    """Sign xbox.com in and press its start button, in the background."""
+    from unifideck.launcher.flows.xcloud_stream import prepare_stream
+
+    from .xcloud_player_game import token_file
+    return asyncio.create_task(
+        prepare_stream(svc._edge_browser.browser_game_cdp_port(), url, token_file(svc)),
+        name="xcloud_stream",
+    )
+
+
+async def _hold_window(svc: LauncherService, kind: str, url: str) -> None:
+    """Block until the window closes. A stream also gets the xbox.com sign-in,
+    which is cancelled if the window closes first."""
+    signin = _start_stream_signin(svc, url) if kind == "stream" else None
+    try:
+        await wait_for_browser_exit(
+            svc._edge_browser,
+            _read_config_int("launcher.browser_game_max_seconds", _MAX_SESSION_SECONDS),
+            log_tag="launcher.browser_game",
+        )
+    finally:
+        if signin is not None and not signin.done():
+            signin.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await signin
+
+
+async def _try_own_player(svc: LauncherService, ctx: LaunchContext, url: str) -> Result | None:
+    """A stream plays in Unifideck's own player when it can (``xcloud_player_game``)."""
+    if ctx.browser_kind != "stream":
+        return None
+    from .xcloud_player_game import try_own_player
+    return await try_own_player(svc, ctx, url)
+
+
+async def _run_in_edge(svc: LauncherService, ctx: LaunchContext, url: str) -> Result:
+    """Open ``url`` in the Edge kiosk and block until it closes."""
+    # ``launch_browser_game`` is synchronous: ``Popen`` blocks for about
+    # half a second while Edge initialises.
+    launched = await asyncio.to_thread(
+        svc._edge_browser.launch_browser_game, url, kind=ctx.browser_kind,
+    )
+    if not launched:
+        return Result(success=False, error="edge_launch_failed", store=ctx.store)
+    # Block like the native and Windows paths ``await proc.wait()``.
+    # Returning at once made GAME_STOPPED fire immediately: no playtime,
+    # a stale running indicator, and Stop did nothing. Registering Edge
+    # as the active subprocess is what lets Stop's SIGTERM reach it.
+    svc._active_subprocess = svc._edge_browser.process
+    await _hold_window(svc, ctx.browser_kind, url)
+    logger.info("[LauncherService] browser game %s ended (window closed)", ctx.game_key)
+    return Result(success=True, store=ctx.store)
+
+
 async def run_browser_game(svc: LauncherService, ctx: LaunchContext) -> Result:
     """Open ``ctx.browser_url`` in an Edge kiosk and block until it closes."""
     from unifideck.core.types.events import Events
@@ -78,25 +134,10 @@ async def run_browser_game(svc: LauncherService, ctx: LaunchContext) -> Result:
                          i18n_key="toasts.launcher.signingIn",
                          game_title=ctx.game_key)
     try:
-        # ``launch_browser_game`` is synchronous: ``Popen`` blocks for about
-        # half a second while Edge initialises.
-        launched = await asyncio.to_thread(
-            svc._edge_browser.launch_browser_game, url, kind=ctx.browser_kind,
-        )
-        if not launched:
-            return Result(success=False, error="edge_launch_failed", store=ctx.store)
-        # Block like the native and Windows paths ``await proc.wait()``.
-        # Returning at once made GAME_STOPPED fire immediately: no playtime,
-        # a stale running indicator, and Stop did nothing. Registering Edge
-        # as the active subprocess is what lets Stop's SIGTERM reach it.
-        svc._active_subprocess = svc._edge_browser.process
-        await wait_for_browser_exit(
-            svc._edge_browser,
-            _read_config_int("launcher.browser_game_max_seconds", _MAX_SESSION_SECONDS),
-            log_tag="launcher.browser_game",
-        )
-        logger.info("[LauncherService] browser game %s ended (window closed)", ctx.game_key)
-        return Result(success=True, store=ctx.store)
+        own = await _try_own_player(svc, ctx, url)
+        if own is not None:
+            return own
+        return await _run_in_edge(svc, ctx, url)
     except Exception as e:
         logger.exception("[LauncherService] browser game launch failed")
         return Result(success=False, error=str(e))
