@@ -269,12 +269,14 @@ def test_map_to_game_malformed_item_returns_none_not_raises():
 
 
 # ── get_library() install-state overlay ───────────────────────────────
-async def test_get_library_marks_installed_games():
+async def test_get_library_marks_installed_games(tmp_path):
+    install_dir = tmp_path / "mygame"
+    install_dir.mkdir()
     installer = MagicMock()
-    installer.get_install_info.return_value = {
-        "install_path": "/games/mygame",
-        "exe_path": "/games/mygame/Game.exe",
-    }
+    installer.get_installed.return_value = {"1": {
+        "install_path": str(install_dir),
+        "exe_path": str(install_dir / "Game.exe"),
+    }}
     reader = GameVaultLibraryReader(
         installer=installer, catalog=_FakeCatalog([_game()]),
     )
@@ -283,7 +285,7 @@ async def test_get_library_marks_installed_games():
 
     assert len(games) == 1
     assert games[0].installed is True
-    assert games[0].install_path == "/games/mygame"
+    assert games[0].install_path == str(install_dir)
     # The exe is deliberately NOT carried, even though the marker has one.
     # Reconcile only rewrites a games.map row when the synced game brings an
     # exe, so carrying it would revert the user's Change Executable choice on
@@ -296,7 +298,7 @@ async def test_get_library_marks_installed_games():
 
 async def test_get_library_uninstalled_games_stay_uninstalled():
     installer = MagicMock()
-    installer.get_install_info.return_value = None
+    installer.get_installed.return_value = {}
     reader = GameVaultLibraryReader(
         installer=installer, catalog=_FakeCatalog([_game("2", "Not Installed")]),
     )
@@ -304,6 +306,25 @@ async def test_get_library_uninstalled_games_stay_uninstalled():
     games = await reader.get_library()
 
     assert games[0].installed is False
+
+
+async def test_get_library_marker_with_missing_dir_is_not_installed(tmp_path):
+    # A marker outlives its folder after a manual delete or a wiped SD card.
+    # Reading it as installed put a PLAY button on a game with no files and
+    # an Installed-list row with no size, because there was nothing to size.
+    installer = MagicMock()
+    installer.get_installed.return_value = {"3": {
+        "install_path": str(tmp_path / "gone"),
+        "exe_path": str(tmp_path / "gone" / "Game.exe"),
+    }}
+    reader = GameVaultLibraryReader(
+        installer=installer, catalog=_FakeCatalog([_game("3", "Deleted")]),
+    )
+
+    games = await reader.get_library()
+
+    assert games[0].installed is False
+    assert not games[0].install_path
 
 
 # ── A failed fetch must not read as an empty library ──────────────────

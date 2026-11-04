@@ -12,10 +12,12 @@ is :class:`~.local_catalog.LocalVaultCatalog`.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
 from unifideck.core.types import Game
+from unifideck.stores.shared.install_status import merge_install_status
 
 from .filename import leaf_name, parse_archive_name, strip_source_tags
 
@@ -67,23 +69,45 @@ class GameVaultLibraryReader:
         """
         del force  # neither catalog caches; accepted for interface parity
         games = await self._catalog.fetch()
-        for game in games:
-            install_info = self._installer.get_install_info(game.store_game_id)
-            if install_info:
-                game.installed = True
-                game.install_path = install_info.get("install_path")
-                # ``exe_path`` is deliberately NOT carried. The launch target
-                # is written once, at install time, and after that it belongs
-                # to the user: a GameVault archive is whatever its owner
-                # uploaded, so the auto-detected executable is a guess more
-                # often than for any other store, and Change Executable is
-                # the fix. Reconcile only overwrites a games.map row when the
-                # synced game carries an exe — so by carrying none, a sync can
-                # never revert that choice. (Epic and Amazon behave the same
-                # way; GOG carries one because it must discover installs it
-                # did not perform.)
+        # Off the event loop: the marker read and the per-install ``is_dir``
+        # can both land on a sleeping SD card.
+        installed = await asyncio.to_thread(self._installer.get_installed)
+        # A marker can outlive its directory (a manual ``rm``, a wiped SD
+        # card), so the shared overlay re-checks every path against disk.
+        # Without that a game with no files reads as installed: Steam shows
+        # PLAY and the QAM Installed list shows a row with no size.
+        #
+        # ``exe_key`` is deliberately left unset, so no exe is carried. The
+        # launch target is written once, at install time, and after that it
+        # belongs to the user: a GameVault archive is whatever its owner
+        # uploaded, so the auto-detected executable is a guess more often
+        # than for any other store, and Change Executable is the fix.
+        # Reconcile only overwrites a games.map row when the synced game
+        # carries an exe, so by carrying none a sync can never revert that
+        # choice. (Epic and Amazon behave the same way; GOG carries one
+        # because it must discover installs it did not perform.)
+        games = await asyncio.to_thread(merge_install_status, games, installed)
+        _log_missing_installs(games, installed)
         logger.info("[GameVaultLibrary] %d game(s) resolved", len(games))
         return games
+
+
+def _log_missing_installs(
+    games: list[Game], installed: dict[str, dict[str, Any]],
+) -> None:
+    """Say which install markers were ignored because their folder is gone.
+
+    The marker is kept, never deleted: if the folder comes back (the SD
+    card is re-inserted), the next sync reads the game as installed again.
+    """
+    for game in games:
+        marker = installed.get(game.store_game_id)
+        if marker and marker.get("install_path") and not game.installed:
+            logger.info(
+                "[GameVaultLibrary] %s (%s) has an install marker but its "
+                "folder %s is missing; showing it as not installed",
+                game.title, game.store_game_id, marker.get("install_path"),
+            )
 
 
 class RemoteCatalog:
