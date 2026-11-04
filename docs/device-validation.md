@@ -833,3 +833,21 @@ code paths, so run all three.
 | DV-PR5 | Sync, and during the metadata phase toggle "Group duplicates" twice. Then start "Delete all Unifideck data" while a sync runs | Grouping ends consistent (no game both hidden and shown as a sibling); after the delete and a Steam restart, no library comes back from `library_cache.json` | ( ) | **DESTRUCTIVE**: the delete wipes the library, ask first |
 | DV-PR6 | Open the page of a game owned on two stores, install the other copy from another page, return | The store switcher on the open page shows the new install state without leaving the page | ( ) | |
 | DV-PR7 | Reload the plugin five times (Decky reload), then in the SharedJSContext console (`steam-debug`, command-line API on) run `getEventListeners(window)["unifideck:group-duplicates-change"].length` | `1`, not `6` | ( ) | |
+
+## DV-CM: comet v0.4.1 and instant GOG achievement toasts
+
+Needs a GOG account with a Windows GOG game that has achievements and at
+least one you have not unlocked. Run against the **built** plugin
+(`./build-plugin.sh dev install`), never the checkout (CLAUDE.md rule 7).
+Comet's own log needs `COMET_LOG=info` and its stderr captured, because the
+launcher discards it by default.
+
+| ID | Step | Expected | Status | Evidence |
+|---|---|---|---|---|
+| DV-CM1 | After the install, run `~/homebrew/plugins/Unifideck/bin/comet --version` and `sha256sum` on it | `comet 0.4.1`; the file is executable; sha256 `868dd0b5…04d3a5a` | ( ) | |
+| DV-CM2 | Restart `plugin_loader`, then read the backend log and `~/.local/share/unifideck/comet-config/comet/config.toml` | Log: `[achievements.comet] push receiver on 127.0.0.1:<port>`; the config holds one `[[custom_event]]` with that port and a `token=` | ( ) | |
+| DV-CM3 | In **Gaming Mode**, launch the GOG game | The launcher log shows `Comet started (pid=…)` and no `Comet exited at start` warning | ( ) | |
+| DV-CM4 | Unlock one achievement | The achievement toast appears within about a second (not after the 60 s poll), and only once, including after the game is closed | ( ) | |
+| DV-CM5 | Quit the game | The launcher log shows `Comet flushed unlocks and exited`; the Game info tab shows "Last session: unlocked …" with the achievement | ( ) | |
+| DV-CM6 | Turn Wi-Fi off, launch the game, unlock another achievement, quit; turn Wi-Fi on and launch it again | The toast still appears while offline; after the online launch the unlock shows on gog.com | ( ) | |
+| DV-CM7 | Check comet's log from DV-CM4 for TLS or certificate errors (0.4.1 uses the system's trusted certificates instead of its own bundle) | No certificate errors; achievement sync succeeds | ( ) | |

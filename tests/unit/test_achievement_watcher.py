@@ -129,3 +129,76 @@ def test_toast_carries_the_achievement_card(monkeypatch) -> None:
         "rarity": 4.2,
     }
     assert sent[0]["i18n_params"] == {"name": "Like a Boss"}  # text fallback kept
+
+
+# -- comet push (GOG) ------------------------------------------------------
+
+def _comet_item(key: str) -> dict[str, Any]:
+    """A raw GOG achievement item, as comet posts it in ``data``."""
+    return {
+        "achievement_id": "1", "achievement_key": key, "name": key.upper(),
+        "description": "", "image_url_locked": "", "image_url_unlocked": "u.png",
+        "visible": True, "date_unlocked": "2026-11-04T10:00:00+00:00", "rarity": 5.0,
+    }
+
+
+async def test_comet_push_toasts_once_and_poll_does_not_repeat(make) -> None:
+    before = _payload("gog", ["a"], ["b"])
+    inst = _Store("gog", [before])
+    watcher, toasts = make({"gog": inst})
+    await watcher._on_game_launched(store="gog", game_id="g1")
+
+    await watcher._on_comet_unlock("cid", _comet_item("b"))
+    assert toasts == ["gog:b"]
+
+    # The poll / reconcile later sees the same unlock: no second toast.
+    watcher._emit_new_unlocks("gog", "g1", _payload("gog", ["a", "b"], []))
+    await watcher._on_comet_unlock("cid", _comet_item("b"))
+    assert toasts == ["gog:b"]
+
+
+async def test_comet_push_without_running_gog_game_is_dropped(make) -> None:
+    watcher, toasts = make({})
+    await watcher._on_comet_unlock("cid", _comet_item("b"))
+    assert toasts == []
+
+
+async def test_comet_push_routes_by_client_id_with_two_gog_games(make, monkeypatch) -> None:
+    inst = _Store("gog", [_payload("gog", [], ["b"])])
+    watcher, toasts = make({"gog": inst})
+    await watcher._on_game_launched(store="gog", game_id="g1")
+    await watcher._on_game_launched(store="gog", game_id="g2")
+    monkeypatch.setattr(w, "fetch_gog_client_creds", lambda gid: ({"g1": "c1", "g2": "c2"}[gid], "s"))
+
+    toasted: list[str] = []
+    monkeypatch.setattr(watcher, "_toast", lambda store, gid, ach: toasted.append(f"{gid}:{ach['key']}"))
+    await watcher._on_comet_unlock("c2", _comet_item("b"))
+    await watcher._on_comet_unlock("c9", _comet_item("b"))
+    assert toasted == ["g2:b"]
+    assert toasts == []
+
+
+async def test_comet_receiver_start_failure_keeps_watcher_alive(make, monkeypatch, caplog) -> None:
+    class _Broken:
+        def __init__(self, *_a: Any, **_k: Any) -> None: ...
+        async def start(self) -> None:
+            raise OSError("no socket")
+
+    monkeypatch.setattr(w, "CometEventReceiver", _Broken)
+    watcher, _ = make({})
+    await watcher.start()
+    assert watcher._comet is None
+    assert "fall back" in caplog.text
+
+
+async def test_comet_receiver_started_and_stopped_with_watcher(make, tmp_path) -> None:
+    watcher, _ = make({})
+    await watcher.start()
+    try:
+        assert watcher._comet is not None
+        config = watcher._comet._config_file
+        assert config.is_file()
+    finally:
+        await watcher.stop()
+    assert watcher._comet is None
+    assert not config.exists()

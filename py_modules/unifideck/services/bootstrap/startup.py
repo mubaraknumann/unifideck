@@ -32,6 +32,9 @@ _ASYNC_START_SERVICES: tuple[str, ...] = (
     "account",
     "playtime",
     "playtime_sync",
+    # Opens comet's localhost push receiver for instant GOG achievement
+    # toasts (the poll is the fallback if it can't).
+    "achievements",
     "security",
     "launch_history",
     "proton",

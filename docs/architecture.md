@@ -256,7 +256,7 @@ Contains **only** compiled binaries and shell wrappers. All old `bin/*.py` helpe
 | `legendary`                     | ~4.5 MB | Epic Games Store CLI (upstream) — Python zipapp                                          |
 | `gogdl`                         | ~1.5 MB | GOG download manager (upstream, Heroic) — Python zipapp                                  |
 | `nile`                          | ~10 MB  | Amazon Games CLI (upstream, imLinguin)                                                   |
-| `comet`                         | —       | GOG online services / Galaxy stub (upstream, imLinguin)                                  |
+| `comet`                         | —       | GOG online services / Galaxy stub (upstream, imLinguin); pushes achievement unlocks to the watcher |
 | `winetricks`                    | ~820 KB | Wine component installer (shell script)                                                  |
 | `unifideck-launcher`            | shell   | Entry-point wrapper — bootstraps `py_modules/` path and calls `launcher.dispatcher.main` |
 | `unifideck-launcher.py`         | Python  | Python source for the launcher (companion to the shell wrapper)                          |
@@ -427,7 +427,7 @@ All remote binaries are declared in `package.json` under `"remote_binary"`. The 
 | `legendary`  | 0.20.43  | `github.com/Heroic-Games-Launcher/legendary`    |
 | `gogdl`      | v1.3.0   | `github.com/Heroic-Games-Launcher/heroic-gogdl` |
 | `nile`       | v1.1.2   | `github.com/imLinguin/nile`                     |
-| `comet`      | v0.3.2   | `github.com/imLinguin/comet`                    |
+| `comet`      | v0.4.1   | `github.com/imLinguin/comet`                    |
 | `winetricks` | 20260125 | `github.com/Winetricks/winetricks`              |
 | `butler`     | 15.31.0  | `broth.itch.zone/butler/linux-amd64` (archive; see below) |
 

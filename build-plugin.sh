@@ -243,7 +243,7 @@ echo ""
 LEGENDARY_URL="https://github.com/Heroic-Games-Launcher/legendary/releases/download/0.20.43/legendary_linux_x86_64"
 GOGDL_URL="https://github.com/Heroic-Games-Launcher/heroic-gogdl/releases/download/v1.3.0/gogdl_linux_x86_64"
 NILE_URL="https://github.com/imLinguin/nile/releases/download/v1.1.2/nile_linux_x86_64"
-COMET_URL="https://github.com/imLinguin/comet/releases/download/v0.3.2/comet-x86_64-unknown-linux-gnu"
+COMET_URL="https://github.com/imLinguin/comet/releases/download/v0.4.1/comet-x86_64-unknown-linux-gnu"
 WINETRICKS_URL="https://raw.githubusercontent.com/Winetricks/winetricks/20260125/src/winetricks"
 
 # butler (itch.io) is the one bundled binary that ships as an ARCHIVE: the

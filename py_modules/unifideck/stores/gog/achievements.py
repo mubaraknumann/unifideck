@@ -141,6 +141,15 @@ class GOGAchievements:
         }
 
 
+def normalize_gog_achievement(item: dict[str, Any]) -> dict[str, Any]:
+    """One raw GOG achievement item → the frontend-facing shape.
+
+    Public for comet's ``achievement_unlocked`` push event, whose ``data`` is
+    the same GOG API item (``achievement_key``, ``image_url_unlocked``, ...).
+    """
+    return GOGAchievements._normalize(item)
+
+
 def _raise_gog_http(e: HTTPError) -> NoReturn:
     """Translate a GOG HTTP error: 401/403 → auth_expired, else offline."""
     if e.code in (401, 403):

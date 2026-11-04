@@ -11,6 +11,9 @@ overlay is disabled on Linux; Xbox games have no overlay under Wine):
   the panel-independent toast path).
 * **At game-stop** — a final reconcile and a per-game ``last_session``
   summary the game-info panel shows.
+* **GOG push** — comet POSTs each unlock the moment it happens (online or
+  offline) to :class:`CometEventReceiver`; it toasts at once through the
+  same ``_seen`` dedup, so the poll never repeats it.
 
 Covers every store in ``ACHIEVEMENT_STORES``. Driven by the plugin-bus
 ``GAME_LAUNCHED`` / ``GAME_STOPPED`` events.
@@ -25,9 +28,12 @@ from typing import TYPE_CHECKING, Any
 from unifideck.core.store_capabilities import ACHIEVEMENT_STORES
 from unifideck.core.types import Events
 from unifideck.event_bus.event_bus_devex import auto_wire, subscribe
+from unifideck.stores.gog.achievements import normalize_gog_achievement
+from unifideck.stores.gog.galaxy_api import fetch_gog_client_creds
 from unifideck.stores.shared.achievements_error import StoreAchievementsError
 from unifideck.stores.shared.achievements_payload import unlocked_keys
 
+from .comet_events import CometEventReceiver
 from .state import AchievementStateStore
 
 if TYPE_CHECKING:
@@ -72,7 +78,25 @@ class AchievementWatcher:
         self._poll_tasks: dict[str, asyncio.Task[Any]] = {}
         self._baseline: dict[str, set[str]] = {}
         self._seen: dict[str, set[str]] = {}
+        # GOG Galaxy client id per running GOG session, resolved on demand
+        # to route a comet push when several GOG games run at once.
+        self._client_ids: dict[str, str | None] = {}
+        self._comet: CometEventReceiver | None = None
         auto_wire(self, bus)
+
+    async def start(self) -> None:
+        """Start comet's push receiver; the poll covers GOG if it can't."""
+        receiver = CometEventReceiver(self._on_comet_unlock)
+        try:
+            await receiver.start()
+        except Exception as e:
+            logger.warning(
+                "[achievements.watcher] comet push receiver failed to start "
+                "(%s): GOG achievement toasts fall back to the %ss poll",
+                e, _POLL_INTERVAL_SECONDS,
+            )
+            return
+        self._comet = receiver
 
     @subscribe(Events.GAME_LAUNCHED)
     async def _on_game_launched(self, **kwargs: Any) -> None:
@@ -103,6 +127,7 @@ class AchievementWatcher:
         if store not in ACHIEVEMENT_STORES or not game_id:
             return
         self._cancel(f"{store}:{game_id}")
+        self._client_ids.pop(f"{store}:{game_id}", None)
         inst = self._store(store)
         if inst is not None:
             # Drop the cache so the reconcile pull is fresh.
@@ -123,6 +148,43 @@ class AchievementWatcher:
         self._bus.unsubscribe_all(self)
         for key in list(self._poll_tasks):
             self._cancel(key)
+        if self._comet is not None:
+            comet, self._comet = self._comet, None
+            await comet.stop()
+
+    async def _on_comet_unlock(self, client_id: str, data: dict[str, Any]) -> None:
+        """Toast a comet-pushed GOG unlock for the running game it belongs to."""
+        game_id = await self._gog_session_for(client_id)
+        if game_id is None:
+            logger.debug(
+                "[achievements.watcher] comet unlock for client %s matched no "
+                "running GOG game; the poll will catch it", client_id,
+            )
+            return
+        self._emit_new_unlocks(
+            "gog", game_id, {"achievements": [normalize_gog_achievement(data)]},
+        )
+
+    async def _gog_session_for(self, client_id: str) -> str | None:
+        """The running GOG game id a comet ``client_id`` belongs to, or None.
+
+        One running GOG game (the normal case) is the answer outright; with
+        several, each one's Galaxy client id is looked up once and matched.
+        """
+        game_ids = [k[len("gog:"):] for k in self._poll_tasks if k.startswith("gog:")]
+        if len(game_ids) <= 1:
+            return game_ids[0] if game_ids else None
+        for game_id in game_ids:
+            key = f"gog:{game_id}"
+            if key not in self._client_ids:
+                try:
+                    cid, _ = await asyncio.to_thread(fetch_gog_client_creds, game_id)
+                except Exception:
+                    cid = None
+                self._client_ids[key] = cid
+            if client_id and self._client_ids[key] == client_id:
+                return game_id
+        return None
 
     # -- internals ---------------------------------------------------------
 
