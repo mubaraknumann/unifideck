@@ -303,7 +303,11 @@ def test_closing_the_window_reaches_the_sandboxed_browser() -> None:
     assert proc.stderr is not None
     child = int(proc.stderr.readline())
     time.sleep(0.2)
+    started = time.monotonic()
     xcloud_player_game._end(proc)  # type: ignore[arg-type]
+    # Inside the first 5 s window: the exited leader is reaped, not counted
+    # alive as a zombie until the SIGKILL round runs out too.
+    assert time.monotonic() - started < 4
     with pytest.raises(ProcessLookupError):
         import os
         os.kill(child, 0)

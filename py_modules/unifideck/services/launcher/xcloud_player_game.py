@@ -87,6 +87,11 @@ def _end(proc: subprocess.Popen[bytes] | None) -> None:
         with contextlib.suppress(ProcessLookupError, PermissionError):
             os.killpg(proc.pid, sig)
         for _ in range(50):
+            # Reap the leader first. It is our child, so once it exits it
+            # stays a zombie in the group until waited on, and the group
+            # probe counts a zombie as alive: every close waited out both
+            # 5 s windows and sent SIGKILL to a window that had already shut.
+            proc.poll()
             if not _group_alive(proc.pid):
                 with contextlib.suppress(subprocess.TimeoutExpired):
                     proc.wait(timeout=1)

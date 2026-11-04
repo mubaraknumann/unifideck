@@ -67,7 +67,15 @@ def _config() -> Any:
 
 @pytest.fixture()
 def posts(monkeypatch: pytest.MonkeyPatch) -> Any:
-    """Script the HTTP answers; record the requests."""
+    """Script the HTTP answers; record the requests.
+
+    ``GRANT``'s ``interval: 0`` means "poll at once", but the parser treats a
+    non-positive interval as absent and waits the 5 s default before the first
+    poll. Zeroing the default makes the scripted interval the one used.
+    """
+    from unifideck.stores.microsoft import microsoft_device_auth
+
+    monkeypatch.setattr(microsoft_device_auth, "_DEFAULT_INTERVAL", 0)
     sent: list[dict[str, str]] = []
 
     def install(*replies: HttpReply) -> list[dict[str, str]]:

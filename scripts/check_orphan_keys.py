@@ -99,7 +99,7 @@ def find_unreferenced_keys(source_keys: set[str]) -> list[str]:
     segment appears in the haystack, so runtime-composed keys such as
     ``t(`errors.download.${code}`)`` are not reported.
     """
-    haystack = _reference_haystack()
+    haystack = _condense(_reference_haystack(), source_keys)
     unreferenced = []
     for key in sorted(source_keys):
         leaf = key.rsplit(".", 1)[-1]
@@ -107,6 +107,23 @@ def find_unreferenced_keys(source_keys: set[str]) -> list[str]:
             continue
         unreferenced.append(key)
     return unreferenced
+
+
+def _condense(haystack: str, source_keys: set[str]) -> str:
+    """*haystack* cut down to its distinct runs of key characters.
+
+    Gives the same answer as the full haystack for every key and leaf. A
+    needle made only of characters from a set can only occur inside a
+    maximal run of characters from that set, so keeping each distinct run
+    once loses no match. The haystack is mostly the bundled store CLIs under
+    ``bin/``, whose runs repeat heavily, so this cuts it about tenfold.
+    Searching the full one once per key was nearly all of this script's time.
+    """
+    chars = set("".join(source_keys))
+    if not chars:
+        return haystack
+    run = "[" + "".join(re.escape(c) for c in sorted(chars)) + "]+"
+    return "\n".join(set(re.findall(run, haystack)))
 
 
 #: Keyword arguments whose literal value is an i18n key the frontend renders.
@@ -144,7 +161,12 @@ def find_backend_keys_without_a_string(declared: set[str]) -> list[tuple[str, st
         if "__pycache__" in path.parts:
             continue
         try:
-            tree = ast.parse(path.read_text(encoding="utf-8", errors="ignore"))
+            text = path.read_text(encoding="utf-8", errors="ignore")
+            # A keyword argument cannot be passed without its name in the
+            # source, so most files need no parse at all.
+            if not any(kwarg in text for kwarg in BACKEND_I18N_KWARGS):
+                continue
+            tree = ast.parse(text)
         except (OSError, SyntaxError):
             continue
         for node in ast.walk(tree):
