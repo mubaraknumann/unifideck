@@ -884,7 +884,7 @@
     "loggedOut": "Microsoft Store 已登出",
     "xcloudNotInstalled": "xCloud 遊戲將不會在本機下載",
     "chromiumRequired": "需要瀏覽器",
-    "chromiumRequiredMessage": "登入需要 Unifideck 的瀏覽器。要現在下載嗎？（約 200 MB，只需一次。）",
+    "chromiumRequiredMessage": "登入需要 Unifideck 的瀏覽器。要現在下載嗎？",
     "chromiumInstallButton": "下載瀏覽器",
     "chromiumInstalling": "正在下載瀏覽器...",
     "chromiumInstalled": "瀏覽器已就緒！",

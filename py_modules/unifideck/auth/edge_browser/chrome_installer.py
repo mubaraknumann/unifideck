@@ -1,18 +1,23 @@
 """auth.edge_browser.chrome_installer — the plugin's own browser (no flatpak).
 
 Every browser window the plugin opens (store sign-ins, storefronts, itch.io
-web games, xCloud) runs in Google's standalone "Chrome for Testing" build,
-downloaded once into ``~/.local/share/unifideck/browser/`` like GE-Proton.
-It replaced the Microsoft Edge flatpak in 0.7.7.
+web games, xCloud) runs in ungoogled-chromium, the open-source Chromium with
+Google's services removed, downloaded once into
+``~/.local/share/unifideck/browser/`` like GE-Proton. It replaced the
+Microsoft Edge flatpak in 0.7.7.
 
-Why this build: xCloud streams H.264, which open-source Chromium builds do not
-decode, and the sign-in flows need a browser the plugin can drive over CDP.
-Measured on a Steam Deck 2026-11-04: it runs with SteamOS's own libraries (no
-missing ``ldd`` entries), and streams 1080p60 with audio and controller input.
+Why this build (measured on a Steam Deck 2026-11-04 against Google's "Chrome
+for Testing", which shipped first): the same Chromium version, the same
+codecs (H.264 for xCloud), the same profile and cookies, no missing ``ldd``
+entries on SteamOS. It makes no outside connections while idle, where Chrome
+for Testing contacted ``accounts.google.com``, ``update.googleapis.com`` and
+others even with ``--disable-background-networking``. It has no "only for
+automated testing" ribbon. Its WebRTC is stricter by default; the xCloud
+player passes ``--webrtc-ip-handling-policy=default`` (``xcloud_player.browser``).
 
 The download is pinned: ``CHROME_VERSION`` + ``CHROME_SHA256``. Bumping it is a
 release step (``unifideck-release`` skill). A file is trusted only once it is
-the pinned zip, unpacked, executable and answering ``--version``.
+the pinned archive, unpacked, executable and answering ``--version``.
 """
 from __future__ import annotations
 
@@ -24,8 +29,8 @@ import os
 import shutil
 import stat
 import subprocess
+import tarfile
 import urllib.request
-import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -33,14 +38,18 @@ from unifideck.core.net import ssl_ctx_strict
 
 logger = logging.getLogger(__name__)
 
-CHROME_VERSION = "156.0.8078.80"
+CHROME_VERSION = "156.0.8078.79"
+#: The ungoogled-chromium release, which adds a packaging suffix to the version.
+_RELEASE = f"{CHROME_VERSION}-1"
+#: The folder the archive unpacks to, which holds the ``chrome`` binary.
+_ARCHIVE_DIR = f"ungoogled-chromium-{_RELEASE}-x86_64_linux"
 CHROME_URL = (
-    "https://storage.googleapis.com/chrome-for-testing-public/"
-    f"{CHROME_VERSION}/linux64/chrome-linux64.zip"
+    "https://github.com/ungoogled-software/ungoogled-chromium-portablelinux/"
+    f"releases/download/{_RELEASE}/{_ARCHIVE_DIR}.tar.xz"
 )
-CHROME_SHA256 = "b711c720f774be355197f32edf37e0651418ba036d92446ee2da19ac017540a7"
+CHROME_SHA256 = "d35a9064068274af1a2efa8bcb9b42306e590f9b5c929789f2e0e51a35880499"
 #: Shown to the user before the download (MB).
-CHROME_DOWNLOAD_MB = 200
+CHROME_DOWNLOAD_MB = 160
 #: ``install_blocking``'s error when the download itself failed (no network).
 NETWORK_FAILURE = "microsoft.chromiumInstallTimeout"
 _MARKER = ".verified"
@@ -54,12 +63,12 @@ def browser_root() -> Path:
 
 def install_dir(version: str = CHROME_VERSION) -> Path:
     """The unpacked build for ``version``."""
-    return browser_root() / f"chrome-{version}"
+    return browser_root() / f"chromium-{version}"
 
 
 def chrome_binary(version: str = CHROME_VERSION) -> Path:
     """The ``chrome`` executable inside the unpacked build."""
-    return install_dir(version) / "chrome-linux64" / "chrome"
+    return install_dir(version) / _ARCHIVE_DIR / "chrome"
 
 
 def is_ready(version: str = CHROME_VERSION) -> bool:
@@ -81,20 +90,31 @@ def _download(dest: Path) -> str:
 
 
 def _unpack(archive: Path, dest: Path) -> None:
-    """Extract ``archive`` into ``dest``, keeping the stored Unix permissions.
+    """Extract ``archive`` into ``dest``, keeping each file's executable bit.
 
-    ``zipfile`` drops them, and a ``chrome`` without its executable bit is
-    exactly the "present but broken" state CLAUDE.md rule 7 warns about.
+    Files are copied out one by one rather than with ``tarfile.extract``, whose
+    safety filters differ between the plugin's Python 3.11 and newer ones.
+    Only plain files and folders inside ``dest`` are accepted: the archive has
+    nothing else, so anything else is refused.
     """
-    with zipfile.ZipFile(archive) as z:
-        for info in z.infolist():
-            target = dest / info.filename
-            if not target.resolve().is_relative_to(dest.resolve()):
-                raise OSError(f"unsafe path in browser archive: {info.filename}")
-            z.extract(info, dest)
-            mode = (info.external_attr >> 16) & 0o777
-            if mode and not info.is_dir():
-                target.chmod(mode | stat.S_IRUSR)
+    root = dest.resolve()
+    with tarfile.open(archive, "r:xz") as tar:
+        for member in tar:
+            target = dest / member.name
+            if not target.resolve().is_relative_to(root):
+                raise OSError(f"unsafe path in browser archive: {member.name}")
+            if member.isdir():
+                target.mkdir(parents=True, exist_ok=True)
+                continue
+            if not member.isfile():
+                raise OSError(f"unexpected entry in browser archive: {member.name}")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            source = tar.extractfile(member)
+            if source is None:
+                raise OSError(f"unreadable entry in browser archive: {member.name}")
+            with source, target.open("wb") as out:
+                shutil.copyfileobj(source, out, _CHUNK)
+            target.chmod((member.mode & 0o755) | stat.S_IRUSR)
 
 
 def _answers_version(binary: Path) -> bool:
@@ -107,7 +127,8 @@ def _answers_version(binary: Path) -> bool:
 
 
 def _remove_other_versions() -> None:
-    for old in browser_root().glob("chrome-*"):
+    # ``chrome-*`` is the Chrome for Testing build 0.7.7 shipped first.
+    for old in [*browser_root().glob("chromium-*"), *browser_root().glob("chrome-*")]:
         if old.is_dir() and old != install_dir():
             shutil.rmtree(old, ignore_errors=True)
 
@@ -117,7 +138,7 @@ def _fetch_and_verify(archive: Path, staging: Path) -> str:
 
     Raises ``OSError`` when the download itself fails.
     """
-    logger.info("[Browser] downloading Chrome %s (~%d MB)", CHROME_VERSION, CHROME_DOWNLOAD_MB)
+    logger.info("[Browser] downloading Chromium %s (~%d MB)", CHROME_VERSION, CHROME_DOWNLOAD_MB)
     digest = _download(archive)
     if digest != CHROME_SHA256:
         logger.warning("[Browser] downloaded browser has the wrong checksum (%s); "
@@ -125,7 +146,7 @@ def _fetch_and_verify(archive: Path, staging: Path) -> str:
         return "microsoft.browserInstallFailed"
     shutil.rmtree(staging, ignore_errors=True)
     _unpack(archive, staging)
-    if not _answers_version(staging / "chrome-linux64" / "chrome"):
+    if not _answers_version(staging / _ARCHIVE_DIR / "chrome"):
         logger.warning("[Browser] the downloaded browser does not run on this system")
         return "microsoft.browserInstallFailed"
     return ""
@@ -137,7 +158,7 @@ def _activate(staging: Path) -> None:
     staging.rename(install_dir())
     (install_dir() / _MARKER).write_text(CHROME_VERSION)
     _remove_other_versions()
-    logger.info("[Browser] Chrome %s installed at %s", CHROME_VERSION, install_dir())
+    logger.info("[Browser] Chromium %s installed at %s", CHROME_VERSION, install_dir())
 
 
 def install_blocking() -> dict[str, Any]:
@@ -149,8 +170,8 @@ def install_blocking() -> dict[str, Any]:
     if is_ready():
         return {"success": True, "message": "microsoft.browserAlreadyInstalled"}
     root = browser_root()
-    archive = root / f".chrome-{CHROME_VERSION}.zip.part"
-    staging = root / f".chrome-{CHROME_VERSION}.unpacking"
+    archive = root / f".chromium-{CHROME_VERSION}.tar.xz.part"
+    staging = root / f".chromium-{CHROME_VERSION}.unpacking"
     try:
         root.mkdir(parents=True, exist_ok=True)
         error = _fetch_and_verify(archive, staging)

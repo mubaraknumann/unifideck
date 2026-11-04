@@ -14,7 +14,7 @@ This probe records the *shape* of that state and never its contents:
    with "Stay signed in" leaves persistent ``live.com`` cookies; answering
    "No" leaves session cookies that Edge drops on exit;
 2. **the cookie database itself**: present, size, last written;
-3. **the plugin's browser**: which Chrome builds are downloaded, which one was
+3. **the plugin's browser**: which Chromium builds are downloaded, which one was
    verified, and whether its ``chrome`` is executable. It replaced the Edge
    flatpak in 0.7.7 (``auth/edge_browser/chrome_installer.py``);
 4. **browser aborts**: ``FATAL`` lines in ``edge-auth.log``. An abort skips
@@ -136,11 +136,17 @@ def _cookie_rows(db: Path) -> list[dict[str, Any]]:
 def browser_block(data_dir: Path) -> dict[str, Any]:
     """The plugin's browser: verified version and whether it can run."""
     root = data_dir / _BROWSER_DIR
-    builds = sorted(p.name for p in root.glob("chrome-*") if p.is_dir()) if root.is_dir() else []
+    # ``chromium-*`` (ungoogled-chromium) and the ``chrome-*`` build 0.7.7
+    # shipped first. The binary is found, not assumed: each build nests it in
+    # its own archive folder.
+    builds = sorted(p.name for p in root.iterdir()
+                    if p.is_dir() and p.name.startswith(("chromium-", "chrome-"))) \
+        if root.is_dir() else []
     for name in reversed(builds):
         marker = root / name / _MARKER
         if marker.is_file():
-            binary = root / name / "chrome-linux64" / "chrome"
+            binary = next((p for p in (root / name).glob("*/chrome") if p.is_file()),
+                          root / name / "chrome")
             return {"kind": "bundled", "version": marker.read_text().strip(),
                     "path": str(binary), "executable": os.access(binary, os.X_OK),
                     "builds": builds}

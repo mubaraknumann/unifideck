@@ -28,7 +28,7 @@ def check_edge_session(view: View) -> CheckResult:
     if browser.get("kind") == "absent":
         return warn(_NAME, (
             "the plugin's browser is not downloaded yet - the first sign-in, store "
-            "window or stream offers to download it (about 200 MB)"
+            "window or stream offers to download it (about 160 MB)"
         ))
     if browser.get("executable") is False:
         return fail(_NAME, (

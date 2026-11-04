@@ -846,7 +846,7 @@
     "loggedOut": "Déconnecté du Microsoft Store",
     "xcloudNotInstalled": "Les jeux xCloud ne sont pas installés localement",
     "chromiumRequired": "Navigateur requis",
-    "chromiumRequiredMessage": "La connexion nécessite le navigateur d'Unifideck. Le télécharger maintenant ? (Environ 200 Mo, une seule fois.)",
+    "chromiumRequiredMessage": "La connexion nécessite le navigateur d'Unifideck. Le télécharger maintenant ?",
     "chromiumInstallButton": "Télécharger le navigateur",
     "chromiumInstalling": "Téléchargement du navigateur...",
     "chromiumInstalled": "Navigateur prêt !",

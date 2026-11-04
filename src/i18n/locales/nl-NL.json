@@ -846,7 +846,7 @@
     "loggedOut": "Afgemeld bij Microsoft Store",
     "xcloudNotInstalled": "xCloud-games zijn não lokaal geïnstalleerd",
     "chromiumRequired": "Browser vereist",
-    "chromiumRequiredMessage": "Inloggen vereist de browser van Unifideck. Nu downloaden? (Ongeveer 200 MB, maar één keer nodig.)",
+    "chromiumRequiredMessage": "Inloggen vereist de browser van Unifideck. Nu downloaden?",
     "chromiumInstallButton": "Browser downloaden",
     "chromiumInstalling": "Browser wordt gedownload...",
     "chromiumInstalled": "Browser klaar!",

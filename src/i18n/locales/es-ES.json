@@ -846,7 +846,7 @@
     "loggedOut": "Sesión cerrada en Microsoft Store",
     "xcloudNotInstalled": "Los juegos de xCloud no están instalados localmente",
     "chromiumRequired": "Se necesita el navegador",
-    "chromiumRequiredMessage": "Para iniciar sesión se necesita el navegador de Unifideck. ¿Descargarlo ahora? (Unos 200 MB, solo una vez.)",
+    "chromiumRequiredMessage": "Para iniciar sesión se necesita el navegador de Unifideck. ¿Descargarlo ahora?",
     "chromiumInstallButton": "Descargar navegador",
     "chromiumInstalling": "Descargando el navegador...",
     "chromiumInstalled": "¡Navegador listo!",

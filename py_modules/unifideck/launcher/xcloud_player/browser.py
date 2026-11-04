@@ -1,6 +1,6 @@
 """The kiosk window the player page runs in: the plugin's own browser.
 
-The browser is the pinned Chrome build ``auth/edge_browser/chrome_installer``
+The browser is the pinned Chromium build ``auth/edge_browser/chrome_installer``
 downloads, the same one every other plugin window uses. It is not sandboxed by
 flatpak, so its Gamepad API reads ``/run/udev`` and identifies controllers
 directly (the Chromium flatpak could not, which is why controllers only ever
@@ -22,18 +22,20 @@ def profile_dir() -> Path:
     return Path("~/.local/share/unifideck/xcloud-player").expanduser()
 
 
-# --disable-infobars hides the "Chrome for Testing is only for automated
-# testing" ribbon the build shows above every page. --ozone-platform=x11: see
-# ``edge._BASE_FLAGS`` (a native Wayland window stays hidden in Gaming Mode).
+# --ozone-platform=x11: see ``edge._BASE_FLAGS`` (a native Wayland window
+# stays hidden in Gaming Mode). --webrtc-ip-handling-policy=default: the
+# browser is ungoogled-chromium, whose stricter WebRTC default kept the stream
+# from ever connecting (no video frame, measured 2026-11-04); this window is
+# the only one that uses WebRTC, so only it gets Chromium's normal policy back.
 _FLAGS = ["--ozone-platform=x11", "--kiosk", "--class=unifideck-browser-game", "--no-first-run",
-          "--no-default-browser-check", "--password-store=basic", "--disable-infobars",
+          "--no-default-browser-check", "--password-store=basic", "--webrtc-ip-handling-policy=default",
           "--autoplay-policy=no-user-gesture-required", "--disable-translate",
           "--disable-features=TranslateUI", "--disable-session-crashed-bubble"]
 
 
 def browser_cmd(cmd: list[str] | None) -> tuple[list[str], str] | None:
     """``(command, name)`` for the plugin's browser, or None if not installed."""
-    return (cmd, "chrome") if cmd else None
+    return (cmd, "chromium") if cmd else None
 
 
 def launch(cmd: list[str], url: str) -> subprocess.Popen[bytes]:

@@ -82,7 +82,7 @@ class ServiceContainer:
     # consumed by every store's `AuthOrchestrator`. Injected into
     # stores via `store_injector._STORE_INJECTIONS`.
     browser_monitor: OAuthBrowserMonitor | None = None
-    # The plugin's browser (bundled Chrome, ``chrome_installer``) + CDP
+    # The plugin's browser (bundled ungoogled-chromium, ``chrome_installer``) + CDP
     # launcher, used by the browser sign-ins, store windows and streams.
     # Constructed once per plugin and shared via the injector.
     edge_browser: EdgeBrowser | None = None

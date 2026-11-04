@@ -175,7 +175,7 @@ async def test_tokens_never_reach_the_page() -> None:
 # ── browser ──────────────────────────────────────────────────────────
 
 def test_the_plugins_browser_is_used() -> None:
-    assert browser.browser_cmd(["/b/chrome"]) == (["/b/chrome"], "chrome")
+    assert browser.browser_cmd(["/b/chrome"]) == (["/b/chrome"], "chromium")
 
 
 def test_no_browser_means_no_own_player() -> None:

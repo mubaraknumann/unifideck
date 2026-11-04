@@ -846,7 +846,7 @@
     "loggedOut": "Wylogowano ze sklepu Microsoft Store",
     "xcloudNotInstalled": "Gry xCloud nie są instalowane lokalnie",
     "chromiumRequired": "Wymagana przeglądarka",
-    "chromiumRequiredMessage": "Logowanie wymaga przeglądarki Unifideck. Pobrać ją teraz? (Około 200 MB, tylko raz.)",
+    "chromiumRequiredMessage": "Logowanie wymaga przeglądarki Unifideck. Pobrać ją teraz?",
     "chromiumInstallButton": "Pobierz przeglądarkę",
     "chromiumInstalling": "Pobieranie przeglądarki...",
     "chromiumInstalled": "Przeglądarka gotowa!",

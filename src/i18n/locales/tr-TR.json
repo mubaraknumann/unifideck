@@ -846,7 +846,7 @@
     "loggedOut": "Microsoft Store oturumu kapatıldı",
     "xcloudNotInstalled": "xCloud oyunları yerel olarak yüklenmez",
     "chromiumRequired": "Tarayıcı gerekli",
-    "chromiumRequiredMessage": "Oturum açmak için Unifideck'in tarayıcısı gerekiyor. Şimdi indirilsin mi? (Yaklaşık 200 MB, yalnızca bir kez.)",
+    "chromiumRequiredMessage": "Oturum açmak için Unifideck'in tarayıcısı gerekiyor. Şimdi indirilsin mi?",
     "chromiumInstallButton": "Tarayıcıyı indir",
     "chromiumInstalling": "Tarayıcı indiriliyor...",
     "chromiumInstalled": "Tarayıcı hazır!",

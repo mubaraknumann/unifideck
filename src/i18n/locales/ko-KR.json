@@ -846,7 +846,7 @@
     "loggedOut": "Microsoft Store 로그아웃됨",
     "xcloudNotInstalled": "xCloud 게임은 기기에 로컬로 설치되지 않습니다",
     "chromiumRequired": "브라우저 필요",
-    "chromiumRequiredMessage": "로그인하려면 Unifideck 브라우저가 필요합니다. 지금 다운로드할까요? (약 200MB, 한 번만 필요)",
+    "chromiumRequiredMessage": "로그인하려면 Unifideck 브라우저가 필요합니다. 지금 다운로드할까요?",
     "chromiumInstallButton": "브라우저 다운로드",
     "chromiumInstalling": "브라우저 다운로드 중...",
     "chromiumInstalled": "브라우저 준비 완료!",

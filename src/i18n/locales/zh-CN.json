@@ -846,7 +846,7 @@
     "loggedOut": "Microsoft Store 已退出登录",
     "xcloudNotInstalled": "xCloud 游戏无需在本地安装",
     "chromiumRequired": "需要浏览器",
-    "chromiumRequiredMessage": "登录需要 Unifideck 的浏览器。现在下载吗？（约 200 MB，仅需一次。）",
+    "chromiumRequiredMessage": "登录需要 Unifideck 的浏览器。现在下载吗？",
     "chromiumInstallButton": "下载浏览器",
     "chromiumInstalling": "正在下载浏览器...",
     "chromiumInstalled": "浏览器已就绪！",

@@ -160,7 +160,7 @@ class EdgeBrowser:
 
     One instance per plugin — the store coordinator (any of the four
     OAuth stores) injects a shared reference. The browser is the
-    plugin's own Chrome build (``chrome_installer``); the class kept its
+    plugin's own Chromium build (``chrome_installer``); the class kept its
     name from the Edge flatpak it replaced.
 
     Attributes:
@@ -184,7 +184,7 @@ class EdgeBrowser:
         #: CDP port of ``process`` (set at spawn), for a clean ``kill``.
         self.process_cdp_port: int | None = None
         self._install_task: asyncio.Task[None] | None = None
-        # Composed installer — the plugin's own Chrome build
+        # Composed installer — the plugin's own Chromium build
         # (``chrome_installer``), which replaced the Edge flatpak.
         self._installer = ChromeInstaller()
         # Composed CDP client — owns /json/version, /json/list,

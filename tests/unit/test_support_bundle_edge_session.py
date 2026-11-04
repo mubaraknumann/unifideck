@@ -100,9 +100,15 @@ def test_log_counts_fatal_aborts(tmp_path: Path) -> None:
     assert "D-Bus connection was disconnected" in result["last_fatal"]
 
 
-def _build(root: Path, version: str, *, executable: bool, verified: bool = True) -> Path:
-    build = root / "browser" / f"chrome-{version}"
-    binary = build / "chrome-linux64" / "chrome"
+def _build(root: Path, version: str, *, executable: bool, verified: bool = True,
+           old_layout: bool = True) -> Path:
+    """A downloaded build: ungoogled-chromium, or the Chrome for Testing layout."""
+    if old_layout:
+        build = root / "browser" / f"chrome-{version}"
+        binary = build / "chrome-linux64" / "chrome"
+    else:
+        build = root / "browser" / f"chromium-{version}"
+        binary = build / f"ungoogled-chromium-{version}-1-x86_64_linux" / "chrome"
     binary.parent.mkdir(parents=True)
     binary.write_text("#!/bin/sh\n")
     binary.chmod(0o755 if executable else 0o644)
@@ -117,6 +123,15 @@ def test_the_verified_browser_is_reported(tmp_path: Path) -> None:
     block = probe.browser_block(tmp_path)
     assert block == {"kind": "bundled", "version": "156.0.1", "path": str(binary),
                      "executable": True, "builds": ["chrome-155.0.1", "chrome-156.0.1"]}
+
+
+def test_the_ungoogled_chromium_build_is_found_over_an_older_one(tmp_path: Path) -> None:
+    _build(tmp_path, "156.0.8078.80", executable=True)
+    binary = _build(tmp_path, "156.0.8078.79", executable=True, old_layout=False)
+    block = probe.browser_block(tmp_path)
+    assert block["path"] == str(binary)
+    assert block["version"] == "156.0.8078.79"
+    assert block["executable"] is True
 
 
 def test_a_browser_that_cannot_run_is_reported(tmp_path: Path) -> None:

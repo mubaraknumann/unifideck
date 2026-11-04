@@ -1,7 +1,7 @@
 """EdgeRPCMixin — install the plugin's browser.
 
 Browser sign-ins (Epic / GOG / Amazon / Microsoft / Ubisoft / itch.io), store
-windows and streams open in the plugin's own Chrome build
+windows and streams open in the plugin's own Chromium build
 (``auth/edge_browser/chrome_installer``), which replaced the Microsoft Edge
 flatpak in 0.7.7. It is downloaded in the background at startup; this RPC is
 the on-demand path when it is still missing.
@@ -36,7 +36,7 @@ class EdgeRPCMixin:
         """Download the plugin's browser via the Microsoft store's helper.
 
         Wraps ``MicrosoftStore.install_edge``. The download is about
-        200 MB, so it can take a few minutes; the frontend modal shows a
+        160 MB, so it can take a few minutes; the frontend modal shows a
         spinner during the call.
 
         Returns:

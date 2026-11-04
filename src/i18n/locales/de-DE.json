@@ -846,7 +846,7 @@
     "loggedOut": "Abgemeldet vom Microsoft Store",
     "xcloudNotInstalled": "xCloud-Spiele sind lokal nicht installiert",
     "chromiumRequired": "Browser erforderlich",
-    "chromiumRequiredMessage": "Für die Anmeldung wird der Browser von Unifideck benötigt. Jetzt herunterladen? (Etwa 200 MB, nur einmal nötig.)",
+    "chromiumRequiredMessage": "Für die Anmeldung wird der Browser von Unifideck benötigt. Jetzt herunterladen?",
     "chromiumInstallButton": "Browser herunterladen",
     "chromiumInstalling": "Browser wird heruntergeladen...",
     "chromiumInstalled": "Browser bereit!",

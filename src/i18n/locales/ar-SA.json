@@ -846,7 +846,7 @@
     "loggedOut": "تم تسجيل الخروج من Microsoft Store",
     "xcloudNotInstalled": "لا تتطلب ألعاب xCloud التثبيت محلياً",
     "chromiumRequired": "المتصفح مطلوب",
-    "chromiumRequiredMessage": "يتطلب تسجيل الدخول متصفح Unifideck. هل تريد تنزيله الآن؟ (حوالي 200 ميغابايت، مرة واحدة فقط.)",
+    "chromiumRequiredMessage": "يتطلب تسجيل الدخول متصفح Unifideck. هل تريد تنزيله الآن؟",
     "chromiumInstallButton": "تنزيل المتصفح",
     "chromiumInstalling": "جارٍ تنزيل المتصفح...",
     "chromiumInstalled": "المتصفح جاهز!",

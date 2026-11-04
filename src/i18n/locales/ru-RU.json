@@ -846,7 +846,7 @@
     "loggedOut": "Выход из Microsoft Store выполнен",
     "xcloudNotInstalled": "Игры xCloud не устанавливаются локально",
     "chromiumRequired": "Требуется браузер",
-    "chromiumRequiredMessage": "Для входа нужен браузер Unifideck. Скачать его сейчас? (Около 200 МБ, только один раз.)",
+    "chromiumRequiredMessage": "Для входа нужен браузер Unifideck. Скачать его сейчас?",
     "chromiumInstallButton": "Скачать браузер",
     "chromiumInstalling": "Загрузка браузера...",
     "chromiumInstalled": "Браузер готов!",

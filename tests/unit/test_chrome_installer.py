@@ -12,7 +12,7 @@ import asyncio
 import hashlib
 import io
 import stat
-import zipfile
+import tarfile
 from pathlib import Path
 from typing import Any
 
@@ -20,17 +20,29 @@ import pytest
 
 from unifideck.auth.edge_browser import chrome_installer as ci
 
-FAKE_CHROME = "#!/bin/sh\necho 'Google Chrome for Testing {version} '\n"
+FAKE_CHROME = "#!/bin/sh\necho 'Chromium {version} '\n"
 
 
-def _archive(version: str, *, mode: int = 0o755, extra: str | None = None) -> bytes:
+def _archive(version: str, *, mode: int = 0o755, extra: str | None = None,
+             link: str | None = None) -> bytes:
+    """A ``.tar.xz`` laid out like the real release: ``<archive dir>/chrome``."""
     buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as z:
-        info = zipfile.ZipInfo("chrome-linux64/chrome")
-        info.external_attr = (stat.S_IFREG | mode) << 16
-        z.writestr(info, FAKE_CHROME.format(version=version))
+    with tarfile.open(fileobj=buf, mode="w:xz") as tar:
+        folder = tarfile.TarInfo(ci._ARCHIVE_DIR)
+        folder.type, folder.mode = tarfile.DIRTYPE, 0o755
+        tar.addfile(folder)
+        body = FAKE_CHROME.format(version=version).encode()
+        info = tarfile.TarInfo(f"{ci._ARCHIVE_DIR}/chrome")
+        info.size, info.mode = len(body), mode
+        tar.addfile(info, io.BytesIO(body))
         if extra:
-            z.writestr(extra, "x")
+            other = tarfile.TarInfo(extra)
+            other.size = 1
+            tar.addfile(other, io.BytesIO(b"x"))
+        if link:
+            sym = tarfile.TarInfo(f"{ci._ARCHIVE_DIR}/{link}")
+            sym.type, sym.linkname = tarfile.SYMTYPE, "/etc/passwd"
+            tar.addfile(sym)
     return buf.getvalue()
 
 
@@ -63,7 +75,7 @@ def test_a_good_download_is_installed_and_runnable(offline: Any) -> None:
 
 
 def test_the_executable_bit_survives_unpacking(offline: Any) -> None:
-    """``zipfile`` drops it; a chrome without it is "present but broken"."""
+    """A chrome without it is "present but broken" (CLAUDE.md rule 7)."""
     offline(_archive(ci.CHROME_VERSION))
     ci.install_blocking()
     assert ci.chrome_binary().stat().st_mode & stat.S_IXUSR
@@ -95,11 +107,19 @@ def test_a_ready_browser_is_not_downloaded_again(offline: Any) -> None:
 
 
 def test_older_builds_are_removed_after_an_upgrade(offline: Any) -> None:
-    old = ci.browser_root() / "chrome-1.0.0"
-    old.mkdir(parents=True)
+    # ``chrome-*`` is the Chrome for Testing build 0.7.7 shipped first.
+    older = [ci.browser_root() / "chromium-1.0.0", ci.browser_root() / "chrome-156.0.8078.80"]
+    for folder in older:
+        folder.mkdir(parents=True)
     offline(_archive(ci.CHROME_VERSION))
     ci.install_blocking()
-    assert not old.exists()
+    assert not any(folder.exists() for folder in older)
+
+
+def test_a_link_in_the_archive_is_refused(offline: Any) -> None:
+    offline(_archive(ci.CHROME_VERSION, link="passwd"))
+    assert ci.install_blocking()["success"] is False
+    assert not ci.is_ready()
 
 
 def test_no_download_leaves_no_browser(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
