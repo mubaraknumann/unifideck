@@ -222,14 +222,14 @@ It never goes through umu, GE or the Proton selection chain.
 
 ## Launching an xCloud game
 
-### Unifideck's own player (default since 0.7.7)
+### Unifideck's own player (default since 0.8.0)
 
 A stream no longer opens xbox.com. `services/launcher/xcloud_player_game.py` plays it in Unifideck's own player:
 
 1. **Sign-in.** `launcher/xcloud_player/credentials.py` refreshes the saved OAuth sign-in (xbox.com's client, `microsoft_tokens.json`, read-only) and runs Xbox Live (`d=` ticket), the `gssv` XSTS and the xgpuweb login, which gives the streaming token and region. The same refresh token mints the console-transfer ticket that `/connect` needs. The Xbox PC credential cannot mint that ticket, which is why Connect also runs the OAuth sign-in (`xodus/signin_chain.py`).
 2. **Title.** `api.py` maps the Store product id to xCloud's title id through `/v2/titles` and caches it in `~/.local/share/unifideck/xcloud_title_ids.json`.
 3. **Page.** `server.py` serves `web/index.html` and `web/bundle.js` on `127.0.0.1` and makes every xCloud call (start, state, connect, SDP, ICE, keepalive). The page only does WebRTC, video, audio and input. Tokens never reach it.
-4. **Window.** `browser.py` opens the page full screen in the plugin's own browser: the pinned ungoogled-chromium build `auth/edge_browser/chrome_installer.py` downloads (about 160 MB, in the background at startup). It replaced the Microsoft Edge flatpak in 0.7.7. Being a plain process, not a flatpak, its Gamepad API reads `/run/udev` directly. A flatpak browser could not, which is why controllers only ever worked in the Edge flatpak, to which the plugin had granted that access. The window inherits Steam's game identity through `clean_env`.
+4. **Window.** `browser.py` opens the page full screen in the plugin's own browser: the pinned ungoogled-chromium build `auth/edge_browser/chrome_installer.py` downloads (about 160 MB, in the background at startup). It replaced the Microsoft Edge flatpak in 0.8.0. Being a plain process, not a flatpak, its Gamepad API reads `/run/udev` directly. A flatpak browser could not, which is why controllers only ever worked in the Edge flatpak, to which the plugin had granted that access. The window inherits Steam's game identity through `clean_env`.
 5. **End.** When the window closes, or the launch is stopped, the window's whole process group is signalled (a browser is a tree of processes, and a launcher in front of it does not forward a signal) and the cloud session is deleted.
 
 The page is built from `xcloud-player/` with `xcloud-player/build.sh`. Its player library is Greenlight's `@greenlight/player` (MIT, `xcloud-player/LICENSE-greenlight-player`); the built bundle is committed because the plugin build does not run node.
@@ -260,7 +260,7 @@ flags that matter here:
 
 The stream window uses `~/.local/share/unifideck/edge-auth/` (migrated from `chromium-auth/`), the same profile as the sign-in windows.
 
-A stream does not run on Unifideck's Microsoft tokens. It runs on xbox.com's own sign-in, which xbox.com keeps in this profile's localStorage. Signing in from the QAM does not create that sign-in: the Xbox PC sign-in leaves only session cookies, which are gone when its window closes. Before 0.7.7 a user who had signed in from the QAM was therefore asked to sign in again by the stream.
+A stream does not run on Unifideck's Microsoft tokens. It runs on xbox.com's own sign-in, which xbox.com keeps in this profile's localStorage. Signing in from the QAM does not create that sign-in: the Xbox PC sign-in leaves only session cookies, which are gone when its window closes. Before 0.8.0 a user who had signed in from the QAM was therefore asked to sign in again by the stream.
 
 ### Handing the sign-in to xbox.com
 

@@ -2,7 +2,7 @@
 
 Manages the browser process used for store sign-ins (Epic, GOG, Amazon,
 Microsoft, Ubisoft, itch.io), storefront windows and browser games. Since
-0.7.7 that browser is the plugin's own Chromium build (ungoogled-chromium), downloaded by
+0.8.0 that browser is the plugin's own Chromium build (ungoogled-chromium), downloaded by
 ``chrome_installer``; before that it was the Microsoft Edge flatpak, which is
 where the package and class names come from.
 

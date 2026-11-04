@@ -16,11 +16,11 @@ This probe records the *shape* of that state and never its contents:
 2. **the cookie database itself**: present, size, last written;
 3. **the plugin's browser**: which Chromium builds are downloaded, which one was
    verified, and whether its ``chrome`` is executable. It replaced the Edge
-   flatpak in 0.7.7 (``auth/edge_browser/chrome_installer.py``);
+   flatpak in 0.8.0 (``auth/edge_browser/chrome_installer.py``);
 4. **browser aborts**: ``FATAL`` lines in ``edge-auth.log``. An abort skips
    the shutdown that writes recent cookies to disk.
 
-Since 0.7.7 a stream plays in Unifideck's own player, which does not use these
+Since 0.8.0 a stream plays in Unifideck's own player, which does not use these
 cookies; they matter only when a stream falls back to xbox.com.
 
 Everything is best-effort and read-only. The database is read from a copy so
@@ -136,7 +136,7 @@ def _cookie_rows(db: Path) -> list[dict[str, Any]]:
 def browser_block(data_dir: Path) -> dict[str, Any]:
     """The plugin's browser: verified version and whether it can run."""
     root = data_dir / _BROWSER_DIR
-    # ``chromium-*`` (ungoogled-chromium) and the ``chrome-*`` build 0.7.7
+    # ``chromium-*`` (ungoogled-chromium) and the ``chrome-*`` build that 0.7.7 dev builds
     # shipped first. The binary is found, not assumed: each build nests it in
     # its own archive folder.
     builds = sorted(p.name for p in root.iterdir()

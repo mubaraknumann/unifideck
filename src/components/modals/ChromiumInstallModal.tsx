@@ -3,7 +3,7 @@
  *
  * Browser sign-ins, store windows and streams run in the plugin's
  * own Chromium build (`auth/edge_browser/chrome_installer.py`), which
- * replaced the Microsoft Edge flatpak in 0.7.7. It downloads in the
+ * replaced the Microsoft Edge flatpak in 0.8.0. It downloads in the
  * background at startup; when `store_auth` still returns
  * ``error: "edge_not_installed"`` the frontend spawns this modal so
  * the user can fetch it with one click.

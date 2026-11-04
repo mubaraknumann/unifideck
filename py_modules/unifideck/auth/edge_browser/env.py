@@ -256,7 +256,7 @@ def _detect_session_env(uid: int, home: str) -> dict[str, str]:
 
 
 #: Gaming Mode exports ``GTK_IM_MODULE=Steam``. The browser is a host process
-#: (not a flatpak since 0.7.7), so GTK loads Steam's ``im-steam.so`` and every
+#: (not a flatpak since 0.8.0), so GTK loads Steam's ``im-steam.so`` and every
 #: on-screen keyboard key arrives twice: once as the key event, once committed
 #: by the input method (reported on device 2026-11-04). The Edge flatpak never
 #: had that module and typed once; without these variables the browser does

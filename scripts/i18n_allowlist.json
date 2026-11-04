@@ -242,5 +242,13 @@
   "toasts.auth.clientRejected": {
     "locales": ["nl-NL"],
     "reason": "'Update Unifideck' is idiomatic Dutch: 'updaten' is the usual verb and the imperative reads the same as English."
+  },
+  "xboxPc.section.backendVersion": {
+    "locales": ["de-DE", "es-ES", "fr-FR", "it-IT", "nl-NL", "pl-PL", "pt-BR"],
+    "reason": "'Backend' is the standard technical loanword in these languages; the other locales that have a native word use it."
+  },
+  "gameInfoPanel.labels.genres": {
+    "locales": ["de-DE", "nl-NL"],
+    "reason": "'Genres' is the correct German and Dutch word, spelled the same as English."
   }
 }

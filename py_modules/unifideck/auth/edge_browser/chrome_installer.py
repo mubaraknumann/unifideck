@@ -4,7 +4,7 @@ Every browser window the plugin opens (store sign-ins, storefronts, itch.io
 web games, xCloud) runs in ungoogled-chromium, the open-source Chromium with
 Google's services removed, downloaded once into
 ``~/.local/share/unifideck/browser/`` like GE-Proton. It replaced the
-Microsoft Edge flatpak in 0.7.7.
+Microsoft Edge flatpak in 0.8.0.
 
 Why this build (measured on a Steam Deck 2026-11-04 against Google's "Chrome
 for Testing", which shipped first): the same Chromium version, the same
@@ -127,7 +127,7 @@ def _answers_version(binary: Path) -> bool:
 
 
 def _remove_other_versions() -> None:
-    # ``chrome-*`` is the Chrome for Testing build 0.7.7 shipped first.
+    # ``chrome-*`` is the Chrome for Testing build that 0.7.7 dev builds shipped first.
     for old in [*browser_root().glob("chromium-*"), *browser_root().glob("chrome-*")]:
         if old.is_dir() and old != install_dir():
             shutil.rmtree(old, ignore_errors=True)

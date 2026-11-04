@@ -19,6 +19,7 @@ tmp
 out
 dist
 .venv
+.venv.*
 venv
 
 # Vendored Python deps live under py_modules/* (gitignored); only our own

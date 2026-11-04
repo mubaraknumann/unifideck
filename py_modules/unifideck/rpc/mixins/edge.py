@@ -3,7 +3,7 @@
 Browser sign-ins (Epic / GOG / Amazon / Microsoft / Ubisoft / itch.io), store
 windows and streams open in the plugin's own Chromium build
 (``auth/edge_browser/chrome_installer``), which replaced the Microsoft Edge
-flatpak in 0.7.7. It is downloaded in the background at startup; this RPC is
+flatpak in 0.8.0. It is downloaded in the background at startup; this RPC is
 the on-demand path when it is still missing.
 
 Sign-ins detect it **reactively**: the browser stores return a structured

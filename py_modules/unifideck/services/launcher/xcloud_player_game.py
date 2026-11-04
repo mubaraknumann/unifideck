@@ -76,7 +76,7 @@ def _end(proc: subprocess.Popen[bytes] | None) -> None:
     """Close the window: signal its whole process group, then wait.
 
     Not ``proc.terminate()``: a browser is a tree of processes, and a launcher
-    in front of it (``flatpak run`` before 0.7.7) does not forward a signal, so
+    in front of it (``flatpak run`` before 0.8.0) does not forward a signal, so
     the browser kept running (measured). The window was started with
     ``start_new_session``, so its group id is the pid we hold, and signalling the
     group reaches every process even after the first one has exited.

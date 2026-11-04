@@ -807,7 +807,7 @@ code paths, so run all three.
 | ID | Step | Expected | Status | Evidence |
 |---|---|---|---|---|
 | DV-GL1 | Install a GOG game as its **Linux** build, then run Check for Updates | `.unifideck-id` holds `linux_installer_version`; the log shows `[GOGUpdatesChecker] <id> (Linux build): installed=X, remote=X, update=False`; no update is offered | ( ) | |
-| DV-GL2 | Take a Linux install made **before** 0.7.7 (no `linux_installer_version` in its marker) and check for updates | Either `update=False` (its `gameinfo` line 2 matches) or no answer (`update=None`); never an offered update. No Windows `.exe` files appear in the folder | ( ) | |
+| DV-GL2 | Take a Linux install made **before** 0.8.0 (no `linux_installer_version` in its marker) and check for updates | Either `update=False` (its `gameinfo` line 2 matches) or no answer (`update=None`); never an offered update. No Windows `.exe` files appear in the folder | ( ) | |
 | DV-GL3 | Install a Linux build in a non-English language that GOG offers as a separate Linux installer | The recorded version is the one for that language's installer, not the English one | ( ) | |
 | DV-GS1 | Linux-native GOG game with no supported mapping: open the cloud-save window | The log shows `[GOGSync] <id>: no Linux mapping for <template>`; the button shows the unifiDB path if the game has one, otherwise "Save location not found". Nothing is uploaded | ( ) | |
 | DV-GS2 | **Unity** Linux build with cloud saves on GOG: launch it (auto-pull), play and save, quit, Upload | Log: `Native save dir for <id> from GOG metadata: ~/.config/unity3d/<Company>/<Product>`; after the upload, GOG Galaxy on Windows (or a second device) sees the save | ( ) | |

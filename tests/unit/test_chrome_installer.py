@@ -107,7 +107,7 @@ def test_a_ready_browser_is_not_downloaded_again(offline: Any) -> None:
 
 
 def test_older_builds_are_removed_after_an_upgrade(offline: Any) -> None:
-    # ``chrome-*`` is the Chrome for Testing build 0.7.7 shipped first.
+    # ``chrome-*`` is the Chrome for Testing build that 0.7.7 dev builds shipped first.
     older = [ci.browser_root() / "chromium-1.0.0", ci.browser_root() / "chrome-156.0.8078.80"]
     for folder in older:
         folder.mkdir(parents=True)

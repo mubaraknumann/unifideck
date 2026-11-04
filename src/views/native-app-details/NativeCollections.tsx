@@ -54,8 +54,8 @@ const Collections: FC<{ appId: number; parts: CollectionsParts }> = ({
         {...parts.tileGrid}
         scaleGridItems={1}
         renderOutsideRows={2}
-        paddingLeft={0}
-        paddingRight={0}
+        paddingLeft={0} // rtl-ignore: Steam Grid prop names, both sides 0
+        paddingRight={0} // rtl-ignore: Steam Grid prop names, both sides 0
         gridClassName={c.Grid}
         scrollElement={scroll.Element}
         childElements={tiles}

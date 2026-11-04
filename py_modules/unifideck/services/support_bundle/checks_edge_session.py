@@ -7,7 +7,7 @@ because that module is near its size cap.
 The order is the order the failure happens in: without a working browser no
 sign-in window, store window or stream opens at all, so that is reported
 before the Microsoft cookies. Those matter only when a stream falls back to
-xbox.com: since 0.7.7 streams play in Unifideck's own player.
+xbox.com: since 0.8.0 streams play in Unifideck's own player.
 """
 from __future__ import annotations
 

@@ -116,7 +116,7 @@ export function showAchievementToast(options: AchievementToastOptions): void {
       title: header,
       body: bounded(options.name),
       logo: achievementLogo(options),
-      icon: createElement(StoreIcon, { store, size: 16, color: "#fff" }),
+      icon: createElement(StoreIcon, { store, size: 16, color: "#fff" }), // i18n-ignore: an icon colour, not text
       duration: options.duration,
     });
   } catch {
