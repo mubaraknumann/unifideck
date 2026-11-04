@@ -27,7 +27,21 @@ vi.mock("@decky/api", () => ({
 vi.mock("i18next", () => ({
   default: { t: (k: string) => k },
 }));
-// Unclamped, so the assertions read whole keys.
+// The translate helpers echo the mock's text, unbudgeted, so the
+// assertions read whole keys.
+vi.mock("../services/toast-text", async (importOriginal) => {
+  const real = await importOriginal<typeof import("../services/toast-text")>();
+  const echo = (key: string) => key;
+  return {
+    ...real,
+    toastText: echo,
+    wholeToastText: echo,
+    headerText: echo,
+    backendToastText: echo,
+    backendHeaderText: echo,
+  };
+});
+// Records the toast instead of showing it.
 vi.mock("../services/show-toast", () => ({
   showToast: (options: unknown) => api.toast(options),
 }));

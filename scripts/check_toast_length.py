@@ -12,8 +12,9 @@ field (title, body and action label are counted separately):
   else 0.6. A CJK glyph is about twice as wide as a Latin one, so the
   budget is a width, not a count.
 
-The frontend applies the same model at render time (``clampToastField`` in
-``src/services/toast-text.ts``); the two must stay in step.
+The frontend applies the same model when it translates a toast string
+(``src/services/toast-text.ts``), counting only our own wording: an
+interpolated value is never cut. The two must stay in step.
 
 What is checked
 ---------------
@@ -23,7 +24,7 @@ What is checked
   language) is counted at its declared maximum width (``BOUNDED``);
 * at most one unbounded placeholder (a game title, a store name), and only as
   the last thing in the string, after at most ``budget - RESERVE`` of text.
-  The renderer cuts the line at the budget, so the start of the name stays
+  If the toast template's ellipsis cuts a long name, its start stays
   visible;
 * no raw-text placeholder (``RAW``). An error string or a path does not fit
   a toast; it becomes a short reason key, and the detail goes to the log.
@@ -86,8 +87,8 @@ BOUNDED = {
 }
 #: Placeholders that carry raw text. Never in a toast.
 RAW = frozenset({"error", "error_code", "code", "path", "reason", "log"})
-#: Toast bodies shown whole, not cut to the budget (``showToast``'s
-#: ``fullBody``): sign-in instructions the user must read in full. The toast
+#: Toast bodies shown whole, not cut to the budget (``wholeToastText``):
+#: sign-in instructions the user must read in full. The toast
 #: template's own one-line ellipsis still applies to them.
 FULL_BODY_KEYS = frozenset({"toasts.auth.hintMicrosoft"})
 

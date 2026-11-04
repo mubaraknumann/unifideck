@@ -1,24 +1,21 @@
 /**
  * show-toast — the one path every toast takes to the screen.
  *
- * Every field is clamped to the toast budget (`toast-text.ts`). ESLint bans
- * `toaster.toast` anywhere but here.
+ * Fields arrive already held to the toast budget by the translate helpers
+ * (`toast-text.ts`), which never cut an interpolated value; they are shown
+ * as given. ESLint bans `toaster.toast` anywhere but here.
  *
- * The one exception is the achievement card (`showAchievementToast`): every
- * field on it is a name the store sent (achievement, game, store), not text
- * we translate, so it is left to the toast template's own one-line ellipsis,
- * the way Steam's achievement popup cuts a long name.
+ * The achievement card (`showAchievementToast`) carries only names the
+ * store sent (achievement, game, store), not text we translate; they are
+ * left to the toast template's own one-line ellipsis, the way Steam's
+ * achievement popup cuts a long name.
  */
 import { toaster } from "@decky/api";
 import { createElement, type ReactNode } from "react";
 import { getAchievementIcon } from "../lib/steam-bridge/native-app-details";
 import { StoreIcon } from "../components/shared/StoreIcon";
 import { STORE_VISUALS, type StoreId } from "../types/store";
-import {
-  clampToastField,
-  type ToastString,
-  type ToastHeader,
-} from "./toast-text";
+import { type ToastString, type ToastHeader } from "./toast-text";
 
 export interface ToastOptions {
   title: ToastHeader;
@@ -27,18 +24,13 @@ export interface ToastOptions {
   subtext?: ToastString;
   duration: number;
   onClick?: () => void;
-  /** Leave the body to the toast template's own one-line ellipsis instead
-   *  of the budget. Only for an instruction that must be read whole; its
-   *  key is listed in `FULL_BODY_KEYS` in `scripts/check_toast_length.py`. */
-  fullBody?: boolean;
 }
 
-/** Show a toast, every field clamped to the toast budget. */
+/** Show a toast, its fields as the translate helpers made them. */
 export function showToast(options: ToastOptions): void {
-  const title = clampToastField(options.title);
-  const rawBody = options.body ?? "";
-  const body = options.fullBody ? rawBody : rawBody && clampToastField(rawBody);
-  const subtext = options.subtext ? clampToastField(options.subtext) : "";
+  const title: string = options.title;
+  const body: string = options.body ?? "";
+  const subtext: string = options.subtext ?? "";
   try {
     toaster.toast({
       title,

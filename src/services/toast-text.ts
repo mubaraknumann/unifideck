@@ -4,19 +4,17 @@
  * A Decky toast shows its title and body on one line each, cut with an
  * ellipsis at 276px. Toast strings are held to a budget well inside that:
  * 16 characters per field, or for Chinese, Japanese and Korean 22 width
- * units (a CJK character is one unit, anything else 0.6). The budget is
- * enforced on the translations by `scripts/check_toast_length.py`, which
- * implements the same width model, and enforced here on the rendered text,
- * because interpolated values (a game title) are only known at runtime.
- *
- * Placeholders sit at the end of a toast string, so clamping cuts the
- * game title rather than the words around it.
+ * units (a CJK character is one unit, anything else 0.6). The budget holds
+ * our own wording only: a value put into the string (a version, a game
+ * title, a store name) is never cut, and only the template's ellipsis can
+ * shorten it. The budget is enforced on the translations by
+ * `scripts/check_toast_length.py`, which implements the same width model,
+ * and again here when the string is translated, as a runtime safety net.
  *
  * A toast's title is a header (`headerText`): the feature's name, shared by
  * every toast about it. Its body (`toastText`) says what happened.
  *
- * Every toast must go through `showToast` (`show-toast.ts`), which clamps
- * it; ESLint bans `toaster.toast` anywhere else. This module stays free of
+ * Every toast must go through `showToast` (`show-toast.ts`); ESLint bans `toaster.toast` anywhere else. This module stays free of
  * `@decky/api`, so pure helpers can use it under test.
  */
 import i18n from "i18next";
@@ -75,13 +73,23 @@ function unitsOf(grapheme: string, wide: boolean): number {
   return WIDE_CHAR.test(grapheme) ? 1 : NARROW_UNIT;
 }
 
-/** Cut `text` to the field budget of `locale`, ending in an ellipsis. */
+function widthOf(text: string, wide: boolean): number {
+  let used = 0;
+  for (const part of graphemes(text)) used += unitsOf(part, wide);
+  return used;
+}
+
+/**
+ * Cut `text` to the field budget of `locale`, ending in an ellipsis.
+ * `extra` widens the budget, so interpolated values are not counted.
+ */
 export function clampToastField(
   text: string,
   locale: string = i18n.language,
+  extra = 0,
 ): string {
   const wide = isWideLocale(locale);
-  const budget = wide ? TOAST_FIELD_UNITS : TOAST_FIELD_CHARS;
+  const budget = (wide ? TOAST_FIELD_UNITS : TOAST_FIELD_CHARS) + extra;
   const parts = graphemes(text);
   let used = 0;
   for (const part of parts) used += unitsOf(part, wide);
@@ -99,12 +107,41 @@ export function clampToastField(
   return kept.trimEnd() + ELLIPSIS;
 }
 
+/**
+ * Translate `key` and hold its own wording to the budget. The string is
+ * rendered a second time with every param empty; the width difference is
+ * the interpolated values, which the budget does not count.
+ */
+function budgeted(
+  key: string,
+  params?: Record<string, string | number>,
+): string {
+  const text = String(i18n.t(key, params));
+  if (!params) return clampToastField(text);
+  const empty = Object.fromEntries(
+    Object.keys(params).map((name) => [name, ""]),
+  );
+  const fixed = String(i18n.t(key, empty));
+  const wide = isWideLocale(i18n.language);
+  const extra = Math.max(0, widthOf(text, wide) - widthOf(fixed, wide));
+  return clampToastField(text, i18n.language, extra);
+}
+
 /** Translate a toast key. */
 export function toastText(
   key: ToastKey,
   params?: Record<string, string | number>,
 ): ToastString {
-  return String(i18n.t(key, params)) as ToastString;
+  return budgeted(key, params) as ToastString;
+}
+
+/**
+ * Translate a toast key exempt from the budget: a sign-in instruction the
+ * user must read whole. Its key is listed in `FULL_BODY_KEYS` in
+ * `scripts/check_toast_length.py`.
+ */
+export function wholeToastText(key: ToastKey): ToastString {
+  return String(i18n.t(key)) as ToastString;
 }
 
 /** Translate a header key. */
@@ -112,7 +149,7 @@ export function headerText(
   key: HeaderKey,
   params?: Record<string, string | number>,
 ): ToastHeader {
-  return String(i18n.t(key, params)) as ToastHeader;
+  return budgeted(key, params) as ToastHeader;
 }
 
 /** A header key the backend sent; one outside `toasts.header.*` is logged. */
@@ -123,7 +160,7 @@ export function backendHeaderText(
   if (!key.startsWith("toasts.header.")) {
     console.error(`[Toast] backend sent a non-header title: ${key}`);
   }
-  return String(i18n.t(key, params)) as ToastHeader;
+  return budgeted(key, params) as ToastHeader;
 }
 
 /**
@@ -137,5 +174,5 @@ export function backendToastText(
   if (!key.startsWith("toasts.")) {
     console.error(`[Toast] backend sent a non-toast key: ${key}`);
   }
-  return String(i18n.t(key, params)) as ToastString;
+  return budgeted(key, params) as ToastString;
 }

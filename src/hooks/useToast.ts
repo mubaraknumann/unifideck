@@ -4,7 +4,7 @@
  * Three semantics-bearing methods (`info`, `success`, `error`) and a base
  * `show` for full control. The title is a `ToastHeader` (`headerText`), the
  * feature's shared name; the body a `ToastString` (`toastText`), what
- * happened. `showToast` clamps both to the toast budget.
+ * happened. Both are held to the toast budget when translated.
  */
 import { useCallback } from "react";
 import { DEFAULT_DURATION, ERROR_DURATION } from "../services/toast-duration";
@@ -15,8 +15,6 @@ interface ToastOptions {
   duration?: number;
   body?: ToastString;
   onClick?: () => void;
-  /** See `showToast`'s `fullBody`. */
-  fullBody?: boolean;
 }
 
 /**
@@ -49,7 +47,6 @@ export function useToast(): UseToastResult {
         body: body ?? options.body,
         duration: options.duration ?? DEFAULT_DURATION,
         ...(options.onClick ? { onClick: options.onClick } : {}),
-        ...(options.fullBody ? { fullBody: true } : {}),
       });
     },
     [],

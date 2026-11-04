@@ -13,6 +13,7 @@ import {
   isIndeterminate,
   statusLabelKey,
 } from "../../lib/download-phase";
+import { steadyEta } from "../../lib/eta-smoother";
 import { formatBytes } from "../play/PlayMeta";
 
 export interface DownloadProgressText {
@@ -24,7 +25,8 @@ export interface DownloadProgressText {
   detail: string;
   /** "404 MB / 564 MB", or "76.0%" when the total is unknown. */
   bytes: string;
-  /** "19.6 MB/s · ETA 00:08" while running, else null. */
+  /** "19.6 MB/s · ETA 00:08" while running, else null. The ETA is
+   *  smoothed and held between refreshes (`lib/eta-smoother`). */
   rate: string | null;
   /** 0-100. */
   pct: number;
@@ -78,7 +80,7 @@ export function describeDownload(
       ? `${t("downloadsTab.speedMbps", {
           speed: download.speed_mbps.toFixed(1),
         })} · ${t("downloadsTab.etaLabel", {
-          eta: formatEta(download.eta_seconds),
+          eta: formatEta(steadyEta(download)),
         })}`
       : null;
   return {
