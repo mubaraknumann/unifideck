@@ -23,6 +23,15 @@ from unifideck.launcher.browser_games import BROWSER_URL_KEY, XCLOUD_PLAY_URL
 
 logger = logging.getLogger(__name__)
 
+#: ``Game.metadata`` key on an xCloud row: epoch seconds of the
+#: ``/v2/titles`` read that last said the title is entitled. A failed read
+#: keeps the old rows (and this old time), so the Steam Store ribbon can
+#: tell a current "streamable" from one left over from an older sync.
+XCLOUD_CHECKED_AT_KEY = "xcloud_checked_at"
+#: ``Game.metadata`` key on an xCloud row: False when the title is
+#: time-capped and no play time is left this period. Absent = no cap seen.
+XCLOUD_PLAYABLE_KEY = "xcloud_playable"
+
 # Batch size for displaycatalog.mp.microsoft.com GET. 50 productIds
 # per query stays well under the 4096-char URL limit.
 _TITLE_BATCH_SIZE = 50
@@ -124,19 +133,23 @@ class MicrosoftCatalogReader:
         logger.info(
             "[MicrosoftCatalog] total fetch_games: %.1fs", time.time() - t0,
         )
-        return self._build_xcloud_games(entitled, title_map, game_pass)
+        return self._build_xcloud_games(entitled, title_map, game_pass, checked_at=t0)
 
     @staticmethod
     def _build_xcloud_games(
         entitled: list[dict[str, Any]], title_map: dict[str, Any],
         game_pass: dict[str, bool] | None = None,
+        *,
+        checked_at: float | None = None,
     ) -> list[Game]:
         """Build xCloud ``Game`` records from entitled titles + names.
 
         *game_pass* (UPPER-case product id → in the catalog) is recorded as
         ``metadata[GAME_PASS_KEY]``; ``None`` leaves the key out, which reads
-        as "unknown", never as "not in Game Pass".
+        as "unknown", never as "not in Game Pass". *checked_at* (default:
+        now) is when ``/v2/titles`` answered (:data:`XCLOUD_CHECKED_AT_KEY`).
         """
+        checked = time.time() if checked_at is None else checked_at
         games: list[Game] = []
         for t in entitled:
             pid = (t.get("details") or {}).get("productId") or ""
@@ -145,6 +158,9 @@ class MicrosoftCatalogReader:
             metadata: dict[str, Any] = {BROWSER_URL_KEY: XCLOUD_PLAY_URL.format(game_id=pid)}
             if game_pass is not None:
                 metadata[GAME_PASS_KEY] = game_pass.get(pid.upper(), False)
+            metadata[XCLOUD_CHECKED_AT_KEY] = checked
+            if _time_cap_spent(t):
+                metadata[XCLOUD_PLAYABLE_KEY] = False
             games.append(Game(
                 app_id=0,
                 store="microsoft",
@@ -260,6 +276,19 @@ def _account_has_subscription(entitled: list[dict[str, Any]]) -> bool | None:
     if not plans or not all(isinstance(p, list) for p in plans):
         return None
     return any(plans)
+
+
+def _time_cap_spent(title: dict[str, Any]) -> bool:
+    """True when the row is time-capped and has no play time left.
+
+    ``remainingGameplayTimeInSeconds`` appears only on time-capped rows;
+    xbox.com treats a title as playable when it is absent or above zero.
+    """
+    for source in (title.get("details"), title):
+        value = source.get("remainingGameplayTimeInSeconds") if isinstance(source, dict) else None
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return value <= 0
+    return False
 
 
 def _unique_product_ids(entitled: list[dict[str, Any]]) -> list[str]:

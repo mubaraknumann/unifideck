@@ -28,13 +28,16 @@ from typing import TYPE_CHECKING, Any
 from unifideck.core.types import Events
 from unifideck.event_bus.event_bus_devex import auto_wire, subscribe
 
+from .access import xbox_access
 from .index import clear_index, load_index, merge, save_index, to_view
 from .steam_resolve import resolve_pending, seed_from_library
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from unifideck.config import ConfigManager
     from unifideck.core.cache_manager import CacheManager
-    from unifideck.core.cross_store_ownership import PurchaseIndex
+    from unifideck.core.cross_store_ownership import PurchaseIndex, RowAccess
     from unifideck.core.types.domain import Game
     from unifideck.event_bus.event_bus import EventBus
     from unifideck.stores.microsoft.ownership import OwnedFetch
@@ -73,6 +76,14 @@ class MicrosoftOwnershipService:
     def purchase_indexes(self) -> dict[str, PurchaseIndex]:
         """The indexes for ``find_owned_copies``; ``{}`` before the first read."""
         return {"microsoft": self._view} if self._view is not None else {}
+
+    def row_access(self, games: Iterable[Game]) -> dict[str, dict[str, RowAccess]]:
+        """Verified access of every Microsoft row, for ``find_owned_copies``.
+
+        No network: entitlement end dates and xCloud evidence age are read
+        from the rows.
+        """
+        return {"microsoft": xbox_access(games, time.time())}
 
     def nudge(self) -> None:
         """Refresh in the background if the list is stale. Never raises."""

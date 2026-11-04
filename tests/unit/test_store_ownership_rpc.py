@@ -19,9 +19,11 @@ BG2 = 257350
 STRINGS = {
     "tag_owned": "Owned",
     "tag_cloud": "Cloud",
+    "tag_installable": "Installable",
     "message_owned": "You already own this game on:",
     "message_cloud": "Xbox Game Pass",
     "message_xcloud": "Xbox Cloud Gaming",
+    "message_pc_pass": "Xbox Game Pass (PC)",
     "installed": "Installed",
     "via": "via Unifideck",
     "dir": "ltr",
@@ -152,6 +154,13 @@ class _Ownership:
     def nudge(self) -> None:
         self.nudges += 1
 
+    def row_access(self, games: Any) -> Any:
+        if self.broken:
+            raise RuntimeError("access unavailable")
+        return {"microsoft": self.access}
+
+    access: dict[str, Any] = {}
+
 
 class _Services:
     def __init__(self, ownership: Any) -> None:
@@ -179,3 +188,29 @@ def test_a_broken_ownership_service_falls_back_to_today() -> None:
 
 def test_no_services_container_is_fine() -> None:
     assert _plugin([], {})._owned_copies(814380) == []
+
+
+# ── verified Xbox access ─────────────────────────────────────────────
+def _xbox_row() -> Game:
+    return Game(app_id=-5, store="microsoft", store_game_id="9COD", title="Call of Duty",
+                tags=["xbox_pc", "xcloud"])
+
+
+def test_verified_access_reaches_the_join() -> None:
+    from unifideck.core.cross_store_ownership import RowAccess
+
+    plugin = _plugin([_xbox_row()], {"-5": 2000950})
+    ownership = _Ownership()
+    ownership.access = {"9COD": RowAccess(pass_pc=True)}
+    plugin.services = _Services(ownership)
+    [copy] = plugin._owned_copies(2000950)
+    assert copy.installable and copy.store == "microsoft"
+
+
+@pytest.mark.parametrize("services", [None, "broken"])
+def test_unverifiable_xbox_rows_claim_nothing_but_other_stores_do(services: Any) -> None:
+    gog = Game(app_id=-6, store="gog", store_game_id="1", title="Call of Duty")
+    plugin = _plugin([_xbox_row(), gog], {"-5": 2000950, "-6": 2000950})
+    if services == "broken":
+        plugin.services = _Services(_Ownership(broken=True))
+    assert [c.store for c in plugin._owned_copies(2000950)] == ["gog"]
