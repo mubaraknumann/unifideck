@@ -144,8 +144,16 @@ def auth_window_flags(env: Mapping[str, str] | None = None) -> list[str]:
     logger.info(
         "[Edge] auth window %dx%d @ scale=%.2f", width, height, scale,
     )
+    # ``--window-size`` is in scaled units, so the screen size is divided by
+    # the scale. Gamescope has no window manager to honour
+    # ``--start-maximized``, so this size and position are what the store
+    # window gets in Gaming Mode. The screen size passed straight through
+    # gave a 1600x1000 window at (12,12) on a 1280x800 screen (measured in
+    # nested gamescope 2026-11-04). One unit over the exact quotient: Chrome
+    # rounds down and would leave a one-pixel gap.
     return [
-        f"--window-size={width},{height}",
+        f"--window-size={int(width / scale) + 1},{int(height / scale) + 1}",
+        "--window-position=0,0",
         f"--force-device-scale-factor={scale}",
         f"--device-scale-factor={scale}",
     ]

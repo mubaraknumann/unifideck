@@ -168,7 +168,7 @@ async def handle_store_storefront(
     url = take_storefront_target(store) or _resolve_storefront_url(store)
     if not edge_browser.is_installed:
         raise DependencyMissingError(
-            "Microsoft Edge flatpak required for the store browser",
+            "the plugin's browser is not downloaded yet (needed for the store window)",
             context={"store": store or ""},
         )
     busy = _busy_flavour(edge_browser)

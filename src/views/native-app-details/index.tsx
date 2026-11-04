@@ -24,6 +24,7 @@ import {
 } from "react";
 import {
   getNativeClasses,
+  heroTopCss,
   patchActionButton,
   patchArtwork,
   patchTabbedPage,
@@ -93,14 +94,16 @@ function decorateRow(
     },
   );
   const decorated = cloneElement(row, undefined, ...kids);
+  // This row exists only on our game pages, so the hero rule rides on it.
+  const heroCss = heroTopCss();
   // The cloud-save line belongs after the whole PlaySection, where Steam
   // puts its own "STEAM CLOUD" line (decoratePlaySection). Only when that
   // patch is not live does it go here, under the row.
-  if (isPlaySectionPatched()) return decorated;
   return (
     <>
+      {heroCss && <style key="unifideck-hero-top">{heroCss}</style>}
       {decorated}
-      <NativeCloudStatusRow appId={appId} />
+      {!isPlaySectionPatched() && <NativeCloudStatusRow appId={appId} />}
     </>
   );
 }

@@ -20,9 +20,10 @@ import { call } from "@decky/api";
 import { showModal } from "@decky/ui";
 import i18n from "i18next";
 import { rpcRoutes } from "../../api/rpc-routes";
+import { ChromiumInstallModal } from "../../components/modals/ChromiumInstallModal";
 import { ClaimRequiredModal } from "../../components/modals/ClaimRequiredModal";
 import { watchAppStopped } from "../../lib/steam-bridge/shortcut-types";
-import { openStorefrontWindow } from "./StorefrontLauncher";
+import { BROWSER_MISSING, openStorefrontWindow } from "./StorefrontLauncher";
 import type { Game, Result, StoreId } from "../../types/api";
 
 interface BeginClaimResponse {
@@ -99,6 +100,10 @@ export async function claimBeforeInstall(game: Game): Promise<Result | null> {
   // sat open for a while.
   await begin(store, id).catch(() => null);
   const launched = await openStorefrontWindow(store);
+  if (launched.error === BROWSER_MISSING) {
+    showModal(<ChromiumInstallModal closeModal={() => {}} />);
+    return null;
+  }
   if (!launched.success || !launched.app_id) {
     return failed("claimModal.openFailed");
   }

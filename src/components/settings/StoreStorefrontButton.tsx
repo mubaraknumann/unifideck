@@ -16,9 +16,13 @@
  * in `storeConnections.css.ts`, rendered once by the parent.
  */
 import { FC, useCallback, useState } from "react";
-import { DialogButton } from "@decky/ui";
+import { DialogButton, showModal } from "@decky/ui";
 import { FiShoppingCart } from "react-icons/fi";
-import { openStorefront } from "../../services/store/StorefrontLauncher";
+import { ChromiumInstallModal } from "../modals/ChromiumInstallModal";
+import {
+  BROWSER_MISSING,
+  openStorefront,
+} from "../../services/store/StorefrontLauncher";
 import { useToast } from "../../hooks/useToast";
 import { toastText, headerText } from "../../services/toast-text";
 import { STORE_VISUALS } from "../../types/store";
@@ -63,6 +67,16 @@ export const StoreStorefrontButton: FC<Props> = ({
     let error: unknown = null;
     try {
       const result = await openStorefront(store);
+      if (result.error === BROWSER_MISSING) {
+        // Same prompt a browser sign-in gives; the shop opens once it's in.
+        showModal(
+          <ChromiumInstallModal
+            onInstalled={() => void open()}
+            closeModal={() => {}}
+          />,
+        );
+        return;
+      }
       if (!result.success) error = result.error;
     } catch (e) {
       error = e;

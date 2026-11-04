@@ -51,10 +51,17 @@ def own_player_enabled(svc: LauncherService) -> bool:
 
 
 async def _wait(proc: subprocess.Popen[bytes]) -> None:
+    from unifideck.launcher.flows.browser_window import tag_browser_window
     from unifideck.utils.config_helpers import read_config_int_cold_start
     limit = read_config_int_cold_start("launcher.browser_game_max_seconds", _MAX_SESSION_SECONDS)
-    with contextlib.suppress(TimeoutError):
-        await asyncio.wait_for(asyncio.get_running_loop().run_in_executor(None, proc.wait), limit)
+    tagger = tag_browser_window(getattr(proc, "args", None), log_tag="xcloud_player")
+    try:
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(asyncio.get_running_loop().run_in_executor(None, proc.wait),
+                                   limit)
+    finally:
+        if tagger is not None:
+            tagger.set()
 
 
 def _group_alive(pgid: int) -> bool:
@@ -68,10 +75,11 @@ def _group_alive(pgid: int) -> bool:
 def _end(proc: subprocess.Popen[bytes] | None) -> None:
     """Close the window: signal its whole process group, then wait.
 
-    Not ``proc.terminate()``: that only reaches ``flatpak run``, which does not
-    forward a signal into its sandbox, so the browser kept running (measured).
-    The window was started with ``start_new_session``, so its group id is the
-    pid we hold, and that still reaches the browser after ``flatpak run`` exits.
+    Not ``proc.terminate()``: a browser is a tree of processes, and a launcher
+    in front of it (``flatpak run`` before 0.7.7) does not forward a signal, so
+    the browser kept running (measured). The window was started with
+    ``start_new_session``, so its group id is the pid we hold, and signalling the
+    group reaches every process even after the first one has exited.
     """
     if proc is None:
         return
@@ -104,7 +112,7 @@ async def _prepare(svc: LauncherService, url: str) -> tuple[Any, ...] | None:
         return None
     picked = await asyncio.to_thread(browser.browser_cmd, svc._edge_browser.find_cmd())
     if picked is None:
-        logger.warning("%s not used: neither Chromium nor Edge is installed", _LOG)
+        logger.warning("%s not used: the plugin's browser is not installed yet", _LOG)
         return None
     return login, api, title_id, picked
 

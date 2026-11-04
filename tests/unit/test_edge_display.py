@@ -122,6 +122,9 @@ def test_from_drm_internal_when_no_external(tmp_path, monkeypatch):
 def test_auth_window_flags(monkeypatch):
     monkeypatch.setattr(d, "detect_screen_size", lambda env=None: (1920, 1080))
     flags = d.auth_window_flags({})
-    assert "--window-size=1920,1080" in flags
+    # Scaled units: 1920/1.88 and 1080/1.88, one over, so the window covers
+    # the screen where gamescope has no window manager to maximise it.
+    assert "--window-size=1022,575" in flags
+    assert "--window-position=0,0" in flags
     assert "--force-device-scale-factor=1.88" in flags
     assert "--device-scale-factor=1.88" in flags

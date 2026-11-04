@@ -1,18 +1,17 @@
-"""auth.edge_browser — Microsoft Edge lifecycle subpackage.
+"""auth.edge_browser — the plugin's browser lifecycle subpackage.
 
-Manages the Microsoft Edge browser process used for OAuth auth
-flows (Epic, GOG, Amazon, Microsoft) and xCloud game streaming.
-Previously a flat 753 LOC module ``auth/edge_browser.py`` plus
-3 extracted helper modules (``edge_cdp_client``, ``edge_installer``,
-``edge_profile``); reorganised on 2026-04-18 into this subpackage:
+Manages the browser process used for store sign-ins (Epic, GOG, Amazon,
+Microsoft, Ubisoft, itch.io), storefront windows and browser games. Since
+0.7.7 that browser is the plugin's own Chrome build, downloaded by
+``chrome_installer``; before that it was the Microsoft Edge flatpak, which is
+where the package and class names come from.
 
-  - ``edge``       : EdgeBrowser façade class
-  - ``env``        : session env detection pipeline
-  - ``launch``     : launch_auth / launch_browser_game helpers
-  - ``cdp_client`` : CDP traffic (HTTP + WebSocket)
-  - ``installer``  : flatpak install + udev override
-  - ``detection``  : install detection helpers (pure functions)
-  - ``profile``    : profile dir + cookie management
+  - ``edge``             : EdgeBrowser façade class
+  - ``chrome_installer`` : download + verify the pinned Chrome build
+  - ``env``              : session env detection pipeline
+  - ``launch``           : launch_auth / launch_browser_game helpers
+  - ``cdp_client``       : CDP traffic (HTTP + WebSocket)
+  - ``profile``          : profile dir + cookie management
 
 Public API preserved via re-export: callers continue to use
 ``from unifideck.auth.edge_browser import EdgeBrowser``.

@@ -1,20 +1,19 @@
 /**
- * ChromiumInstallModal — Microsoft Edge prereq installer.
+ * ChromiumInstallModal — downloads the plugin's browser.
  *
- * Browser-based OAuth (Epic / GOG / Amazon / Microsoft) needs
- * the ``com.microsoft.Edge`` flatpak installed before the
- * launcher can open the auth URL. When `store_auth` returns
- * ``error: "edge_not_installed"`` the frontend spawns this
- * modal so the user can install Edge with a single click
- * instead of dropping into a terminal.
+ * Browser sign-ins, store windows and streams run in the plugin's
+ * own Chrome build (`auth/edge_browser/chrome_installer.py`), which
+ * replaced the Microsoft Edge flatpak in 0.7.7. It downloads in the
+ * background at startup; when `store_auth` still returns
+ * ``error: "edge_not_installed"`` the frontend spawns this modal so
+ * the user can fetch it with one click.
  *
- * The "Install" button calls the `install_edge` RPC
- * (proxied by `EdgeRPCMixin` to `MicrosoftStore.install_edge`,
- * which delegates to `EdgeInstaller`). The flatpak install
- * takes 30–90 s on a fresh prefix — the spinner stays up the
- * whole time. On success, the modal closes and invokes
- * `onInstalled()` so the caller can retry the original auth
- * flow automatically.
+ * The "Download" button calls the `install_edge` RPC (the name is
+ * kept from the Edge era), proxied by `EdgeRPCMixin` to
+ * `MicrosoftStore.install_edge`. The download is about 200 MB, so it
+ * can take a few minutes — the spinner stays up the whole time. On
+ * success, the modal closes and invokes `onInstalled()` so the
+ * caller can retry the original auth flow automatically.
  *
  * Restored from the staging branch (`src893/staging`) where it
  * lived before the F1-F8 refactor erroneously dropped it.

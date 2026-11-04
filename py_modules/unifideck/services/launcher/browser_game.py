@@ -47,7 +47,7 @@ async def _edge_missing(svc: LauncherService, ctx: LaunchContext) -> Result | No
     """
     if svc._edge_browser.is_installed:
         return None
-    logger.warning("[LauncherService] browser game aborted: Edge not installed")
+    logger.warning("[LauncherService] browser game aborted: the plugin's browser is not downloaded yet (it downloads in the background at startup)")
     await emit_stage(
         svc._bus, i18n_title_key="toasts.header.gameLaunch",
         i18n_key="toasts.launcher.browserRequired",

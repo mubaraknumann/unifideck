@@ -31,11 +31,8 @@ _SESSION_ENV_KEYS = (
     "GAMESCOPE_WAYLAND_DISPLAY",
     "DBUS_SESSION_BUS_ADDRESS",
     "DESKTOP_SESSION",
-    "GTK_IM_MODULE",
-    "QT_IM_MODULE",
     "XAUTHORITY",
     "XDG_RUNTIME_DIR",
-    "XMODIFIERS",
     "XDG_SESSION_TYPE",
     "XDG_CURRENT_DESKTOP",
 )
@@ -215,12 +212,6 @@ def _fallback_wayland_from_gamescope(result: dict[str, str]) -> None:
         result["WAYLAND_DISPLAY"] = result["GAMESCOPE_WAYLAND_DISPLAY"]
 
 
-def _fallback_xmodifiers(result: dict[str, str]) -> None:
-    """Mirror Steam IM module into XMODIFIERS so IBus/fcitx pick it up."""
-    if result.get("GTK_IM_MODULE") == "Steam" and not result.get("XMODIFIERS"):
-        result["XMODIFIERS"] = "@im=Steam"
-
-
 def _apply_fallbacks(
     uid: int, home: str, runtime_dir: str, result: dict[str, str],
 ) -> None:
@@ -241,7 +232,6 @@ def _apply_fallbacks(
     _fallback_dbus(result, runtime_dir)
     _fallback_xauthority(result, home, runtime_dir)
     _fallback_wayland_from_gamescope(result)
-    _fallback_xmodifiers(result)
 
 
 def _detect_session_env(uid: int, home: str) -> dict[str, str]:
@@ -265,13 +255,23 @@ def _detect_session_env(uid: int, home: str) -> dict[str, str]:
     return result
 
 
+#: Gaming Mode exports ``GTK_IM_MODULE=Steam``. The browser is a host process
+#: (not a flatpak since 0.7.7), so GTK loads Steam's ``im-steam.so`` and every
+#: on-screen keyboard key arrives twice: once as the key event, once committed
+#: by the input method (reported on device 2026-11-04). The Edge flatpak never
+#: had that module and typed once; without these variables the browser does
+#: the same. ``XMODIFIERS`` goes too, or Chrome finds the same method over XIM.
+_INPUT_METHOD_KEYS = ("GTK_IM_MODULE", "QT_IM_MODULE", "XMODIFIERS")
+
+
 def clean_env() -> dict[str, Any]:
-    """Return a clean environment for launching the auth browser/flatpak.
+    """Return a clean environment for launching the plugin's browser.
 
     - Strips ``LD_LIBRARY_PATH`` / ``LD_PRELOAD``.
     - Detects the real Steam/gamescope session env when Decky lacks it.
     - Seeds Steam window env defaults so gaming mode can surface the window.
     - Clears ``GTK_MODULES`` to suppress canberra-gtk-module warnings.
+    - Drops the input-method variables (see ``_INPUT_METHOD_KEYS``).
     """
     home = str(Path.home())
     uid = Path(home).stat().st_uid
@@ -285,4 +285,6 @@ def clean_env() -> dict[str, Any]:
     env.setdefault("STEAM_COMPAT_APP_ID", "0")
     env.setdefault("SteamAppId", "0")
     env["GTK_MODULES"] = ""
+    for key in _INPUT_METHOD_KEYS:
+        env.pop(key, None)
     return env

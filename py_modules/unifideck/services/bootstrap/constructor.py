@@ -154,7 +154,7 @@ def _wire_edge_browser(
     config: ConfigManager,
     cdp_port: int,
 ) -> None:
-    """Build the shared EdgeBrowser instance (flatpak install + CDP launcher).
+    """Build the shared EdgeBrowser instance (the plugin's browser + CDP launcher).
 
     The PDF spec lists it under ``auth/edge_browser/`` but never
     wires it into a service ; we instantiate it here so the

@@ -153,17 +153,43 @@ class EdgeCDPClient:
 
     # ── Close all targets ────────────────────────────────────────────
 
-    async def close_all_targets(self, *, log_prefix: str) -> bool:
-        """Close all live targets exposed on this browser's CDP port.
+    async def close_browser(self) -> bool:
+        """Shut the browser on this port down cleanly (``Browser.close``).
 
-        Uses the DevTools HTTP ``/json/close`` endpoint (rather
-        than per-target WebSocket Page.close) because we want to
-        slam the door even if a target's WebSocket is stuck.
-        After successful closures we briefly poll for the browser
-        WebSocket URL to drop, which is the cheapest "browser is
-        gone" signal Chromium gives us. Returns True if at least
-        one target was closed.
+        The only exit that writes all of its cookies (measured 2026-11-04
+        with a sign-in's cookies set seconds before the close): ``Browser.close``
+        kept 9 of 9, closing the last tab 6, SIGTERM to the group 0. A sign-in
+        window closed any other way within ~30 s of signing in loses the
+        website session, so a store window opens signed out. Returns True once
+        the browser has gone.
         """
+        ws_url = await asyncio.to_thread(self.get_browser_ws_url)
+        if not ws_url:
+            return False
+        try:
+            import aiohttp
+            async with aiohttp.ClientSession() as http, http.ws_connect(ws_url) as ws:
+                await ws.send_json({"id": 1, "method": "Browser.close"})
+                with contextlib.suppress(Exception):
+                    await asyncio.wait_for(ws.receive(), 3)
+        except Exception as exc:
+            logger.debug("[Edge] Browser.close on port %d failed: %s", self.cdp_port, exc)
+            return False
+        await self._await_browser_ws_gone()
+        return not await asyncio.to_thread(self.get_browser_ws_url)
+
+    async def close_all_targets(self, *, log_prefix: str) -> bool:
+        """Close the browser on this port, cleanly when it can.
+
+        ``Browser.close`` first (it writes the cookies; see
+        ``close_browser``). Only if that fails, every target through the
+        DevTools HTTP ``/json/close`` endpoint, which slams the door even if
+        a target's WebSocket is stuck. Returns True if the browser closed or
+        at least one target was closed.
+        """
+        if await self.close_browser():
+            logger.info("[Edge] Closed the %s browser cleanly (Browser.close)", log_prefix)
+            return True
         targets = self.list_targets()
         if not targets:
             return False
@@ -295,3 +321,25 @@ async def _await_navigation_result(
         )
         return True
     return False
+
+
+def close_browser_blocking(cdp_port: int, timeout_s: float = 15.0) -> bool:
+    """``EdgeCDPClient.close_browser`` for synchronous callers.
+
+    Runs on its own thread and event loop, so it is safe even when the caller
+    is itself on a running loop (``EdgeBrowser.kill`` is called from both).
+    """
+    import threading
+
+    done: list[bool] = []
+
+    def worker() -> None:
+        try:
+            done.append(asyncio.run(EdgeCDPClient(cdp_port).close_browser()))
+        except Exception as exc:
+            logger.debug("[Edge] clean close on port %d failed: %s", cdp_port, exc)
+
+    thread = threading.Thread(target=worker, name="browser-close", daemon=True)
+    thread.start()
+    thread.join(timeout_s)
+    return bool(done and done[0])

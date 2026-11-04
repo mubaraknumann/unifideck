@@ -311,7 +311,6 @@ class MicrosoftStore(MicrosoftAchievementsMixin, BrowserAuthRebuildMixin, StoreB
                 url=None,
                 metadata={"needs_2fa": False},
             )
-        EdgeBrowser.ensure_controller_permissions()
         if self._xbox_pc.enabled():
             # One sign-in: with Xbox PC on, connecting Microsoft is the Xbox
             # PC sign-in, and xCloud runs on its ticket (``xodus/ticket.py``).

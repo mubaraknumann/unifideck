@@ -35,6 +35,9 @@ _ASYNC_START_SERVICES: tuple[str, ...] = (
     "security",
     "launch_history",
     "proton",
+    # Background-downloads the plugin's browser when it is missing
+    # (non-blocking, like ``proton``'s GE-Proton fetch).
+    "edge_browser",
 )
 
 

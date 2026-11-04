@@ -14,10 +14,14 @@ This probe records the *shape* of that state and never its contents:
    with "Stay signed in" leaves persistent ``live.com`` cookies; answering
    "No" leaves session cookies that Edge drops on exit;
 2. **the cookie database itself**: present, size, last written;
-3. **whether Edge can write the profile**: a Flatpak Edge without ``home``
-   (or ``host``) access cannot save anything there;
-4. **Edge aborts**: ``FATAL`` lines in ``edge-auth.log``. An abort skips the
-   shutdown that writes recent cookies to disk.
+3. **the plugin's browser**: which Chrome builds are downloaded, which one was
+   verified, and whether its ``chrome`` is executable. It replaced the Edge
+   flatpak in 0.7.7 (``auth/edge_browser/chrome_installer.py``);
+4. **browser aborts**: ``FATAL`` lines in ``edge-auth.log``. An abort skips
+   the shutdown that writes recent cookies to disk.
+
+Since 0.7.7 a stream plays in Unifideck's own player, which does not use these
+cookies; they matter only when a stream falls back to xbox.com.
 
 Everything is best-effort and read-only. The database is read from a copy so
 a running Edge never sees a lock.
@@ -27,21 +31,19 @@ from __future__ import annotations
 import contextlib
 import datetime as dt
 import logging
-import pwd
+import os
 import shutil
 import sqlite3
 import tempfile
 from pathlib import Path
 from typing import Any
 
-from unifideck.utils.mounts import run_demoted
-
 logger = logging.getLogger(__name__)
 
-#: Same ids as ``auth/edge_browser/detection.py``. Not imported: that module
-#: is the browser's, and a probe must not pull the auth layer into the bundle.
-_FLATPAK_APP = "com.microsoft.Edge"
-_NATIVE_BINS = ("microsoft-edge", "microsoft-edge-stable")
+#: Same layout as ``auth/edge_browser/chrome_installer.py``. Not imported: a
+#: probe must not pull the auth layer into the bundle.
+_BROWSER_DIR = "browser"
+_MARKER = ".verified"
 
 #: The domains Microsoft's consumer sign-in and xbox.com set cookies on.
 _MS_HOST_PATTERNS = ("%xbox.com%", "%live.com%", "%microsoft.com%", "%microsoftonline.com%")
@@ -59,7 +61,6 @@ SIGN_IN_COOKIES = frozenset({"MSPAuth", "WLSSC", "__Host-MSAAUTHP", "ESTSAUTHPER
 _MAX_COOKIES = 60
 _LOG_TAIL_BYTES = 256 * 1024
 _MAX_LINE_CHARS = 300
-_FLATPAK_TIMEOUT = 15.0
 
 #: Chromium stores times as microseconds since 1601-01-01 UTC.
 _CHROME_EPOCH = dt.datetime(1601, 1, 1, tzinfo=dt.UTC)
@@ -77,7 +78,7 @@ def edge_session_block(data_dir: str | None) -> dict[str, Any]:
         "cookies_db": _file_facts(profile / "Default" / "Cookies"),
         "microsoft_session": session_state(cookies),
         "cookies": cookies[:_MAX_COOKIES],
-        "browser": _browser_block(Path(data_dir), profile),
+        "browser": browser_block(Path(data_dir)),
         "log": _log_block(Path(data_dir) / "edge-auth.log"),
     }
 
@@ -132,87 +133,18 @@ def _cookie_rows(db: Path) -> list[dict[str, Any]]:
     ]
 
 
-def _run(owner: Path, argv: list[str]) -> tuple[int | None, str]:
-    """``(returncode, stdout)`` run as ``owner``'s uid; ``None`` if it failed.
-
-    The backend may run as root, and a root ``flatpak --user`` query reads
-    root's installs, not the desktop user's.
-    """
-    try:
-        st = owner.stat()
-    except OSError:
-        return None, ""
-    proc = run_demoted(argv, st.st_uid, st.st_gid, timeout=_FLATPAK_TIMEOUT)
-    if proc is None:
-        return None, ""
-    return proc.returncode, proc.stdout or ""
-
-
-def _flatpak_scope(owner: Path) -> str:
-    """``user``, ``system`` or "" for the Edge Flatpak."""
-    if not shutil.which("flatpak"):
-        return ""
-    for scope in ("user", "system"):
-        rc, _ = _run(owner, ["flatpak", "info", f"--{scope}", "--show-ref", _FLATPAK_APP])
-        if rc == 0:
-            return scope
-    return ""
-
-
-def _filesystems(permissions: str) -> list[str]:
-    """The ``filesystems=`` entries of ``flatpak info --show-permissions``."""
-    for line in permissions.splitlines():
-        if line.startswith("filesystems="):
-            return [entry for entry in line.split("=", 1)[1].split(";") if entry]
-    return []
-
-
-def _owner_home(owner: Path) -> str:
-    """The home directory of ``owner``'s uid, not the backend's (maybe root)."""
-    try:
-        return pwd.getpwuid(owner.stat().st_uid).pw_dir
-    except (OSError, KeyError):
-        return str(Path.home())
-
-
-def _expand(path: str, home: str) -> str:
-    """Resolve a Flatpak ``~`` or ``xdg-data`` entry against ``home``."""
-    if path.startswith("~"):
-        return home + path[1:]
-    if path == "xdg-data" or path.startswith("xdg-data/"):
-        return f"{home}/.local/share" + path[len("xdg-data"):]
-    return path
-
-
-def profile_writable(filesystems: list[str], profile: Path, home: str) -> bool:
-    """True when a Flatpak granted ``filesystems`` can write ``profile``."""
-    target = str(profile) + "/"
-    for entry in filesystems:
-        path, _, mode = entry.partition(":")
-        if path.startswith("!") or mode == "ro":
-            continue
-        if path in ("home", "host"):
-            return True
-        grant = _expand(path, home).rstrip("/") + "/"
-        if grant.startswith("/") and target.startswith(grant):
-            return True
-    return False
-
-
-def _browser_block(owner: Path, profile: Path) -> dict[str, Any]:
-    """Which Edge is installed, and whether it can save to the profile."""
-    scope = _flatpak_scope(owner)
-    if scope:
-        _, perms = _run(owner, ["flatpak", "info", f"--{scope}", "--show-permissions", _FLATPAK_APP])
-        fs = _filesystems(perms)
-        return {
-            "kind": "flatpak", "scope": scope, "filesystems": fs,
-            "profile_writable": profile_writable(fs, profile, _owner_home(owner)),
-        }
-    native = next((found for name in _NATIVE_BINS if (found := shutil.which(name))), None)
-    if native:
-        return {"kind": "native", "path": native, "profile_writable": None}
-    return {"kind": "absent"}
+def browser_block(data_dir: Path) -> dict[str, Any]:
+    """The plugin's browser: verified version and whether it can run."""
+    root = data_dir / _BROWSER_DIR
+    builds = sorted(p.name for p in root.glob("chrome-*") if p.is_dir()) if root.is_dir() else []
+    for name in reversed(builds):
+        marker = root / name / _MARKER
+        if marker.is_file():
+            binary = root / name / "chrome-linux64" / "chrome"
+            return {"kind": "bundled", "version": marker.read_text().strip(),
+                    "path": str(binary), "executable": os.access(binary, os.X_OK),
+                    "builds": builds}
+    return {"kind": "absent", "builds": builds}
 
 
 def _log_block(log: Path) -> dict[str, Any]:

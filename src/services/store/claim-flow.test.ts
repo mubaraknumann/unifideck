@@ -6,7 +6,10 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@decky/api", () => ({ call: vi.fn() }));
 vi.mock("@decky/ui", () => ({ showModal: vi.fn(), ConfirmModal: () => null }));
-vi.mock("./StorefrontLauncher", () => ({ openStorefrontWindow: vi.fn() }));
+vi.mock("./StorefrontLauncher", () => ({
+  BROWSER_MISSING: "edge_not_installed",
+  openStorefrontWindow: vi.fn(),
+}));
 
 import { isClaimRequiredError, needsClaim } from "./claim-flow";
 

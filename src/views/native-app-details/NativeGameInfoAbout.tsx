@@ -89,14 +89,14 @@ const SteamFeatureRows: FC<{ overview: object; facts: OurFeatureFacts }> = ({
   );
 };
 
-/** Steam tags added to our genres, at most. */
-const STEAM_TAGS_SHOWN = 3;
+/** Entries in the Genres line, ours and Steam's together, at most. */
+const GENRES_SHOWN = 5;
 
 /**
- * Our genres, then up to {@link STEAM_TAGS_SHOWN} of the Steam store's own
- * top tags for the matched Steam app (most-voted first, in the user's
- * Steam language) that we do not already list. Our genres show at once;
- * Steam's tags join when its store answers.
+ * Our genres, then the Steam store's own top tags for the matched Steam
+ * app (most-voted first, in the user's Steam language) that we do not
+ * already list, up to {@link GENRES_SHOWN} in all. Our genres show at
+ * once; Steam's tags join when its store answers.
  */
 function useGenres(meta: GameMetadata): string[] {
   const [steamTags, setSteamTags] = useState<string[]>([]);
@@ -104,8 +104,7 @@ function useGenres(meta: GameMetadata): string[] {
   useEffect(() => {
     if (steamAppId <= 0) return;
     let cancelled = false;
-    // Fetch a few extra: some may duplicate our own genres.
-    void fetchSteamTopTags(steamAppId, STEAM_TAGS_SHOWN * 2).then((tags) => {
+    void fetchSteamTopTags(steamAppId).then((tags) => {
       if (!cancelled) setSteamTags(tags);
     });
     return () => {
@@ -114,10 +113,8 @@ function useGenres(meta: GameMetadata): string[] {
   }, [steamAppId]);
   return useMemo(() => {
     const seen = new Set(meta.genres.map((g) => g.toLowerCase()));
-    const extra = steamTags
-      .filter((tag) => !seen.has(tag.toLowerCase()))
-      .slice(0, STEAM_TAGS_SHOWN);
-    return [...meta.genres, ...extra];
+    const extra = steamTags.filter((tag) => !seen.has(tag.toLowerCase()));
+    return [...meta.genres, ...extra].slice(0, GENRES_SHOWN);
   }, [meta.genres, steamTags]);
 }
 

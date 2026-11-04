@@ -26,7 +26,26 @@ import { getMatchedSteamAppId } from "../app-store-patcher";
 import { isUnifideckAppId } from "./gate";
 import { capLogoPosition, type LogoPosition } from "./logo-cap";
 import { patchSlot } from "./slot-patch";
-import { findExportInModule } from "./webpack";
+import { findClassMap, findExportInModule } from "./webpack";
+
+let heroCss: string | null = null;
+
+/**
+ * CSS that pins the header's hero art to its top edge. Steam crops the art
+ * to the header around its centre. That suits Steam's own wide heroes, but
+ * ours are often 16:9 key art, and a centre crop cuts off its top (the
+ * subject's head). Mounted only on our game pages. Empty when Steam's
+ * header classes are not found.
+ */
+export function heroTopCss(): string {
+  if (heroCss != null) return heroCss;
+  const c = findClassMap(["TopCapsule", "ImgSrc", "ImgContainer"]);
+  heroCss =
+    c.TopCapsule && c.ImgSrc
+      ? `.${c.TopCapsule} .${c.ImgSrc}{object-position:center top}`
+      : "";
+  return heroCss;
+}
 
 interface HeroImages {
   rgHeroImages: string[];

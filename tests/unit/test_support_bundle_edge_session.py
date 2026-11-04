@@ -45,9 +45,8 @@ def _write_cookies(data_dir: Path, rows: list[tuple[str, str, int]]) -> None:
 
 
 @pytest.fixture
-def no_browser(monkeypatch: pytest.MonkeyPatch) -> None:
-    """No Flatpak and no native Edge: keeps the probe off the real system."""
-    monkeypatch.setattr(probe.shutil, "which", lambda _name: None)
+def no_browser() -> None:
+    """The probe reads only ``<data>/browser``, which ``tmp_path`` leaves empty."""
 
 
 @pytest.mark.usefixtures("no_browser")
@@ -81,7 +80,7 @@ def test_missing_profile(tmp_path: Path) -> None:
     block = probe.edge_session_block(str(tmp_path))
     assert block["profile_exists"] is False
     assert block["cookies_db"] == {"exists": False}
-    assert block["browser"] == {"kind": "absent"}
+    assert block["browser"] == {"kind": "absent", "builds": []}
     assert block["log"] == {"exists": False}
 
 
@@ -101,28 +100,33 @@ def test_log_counts_fatal_aborts(tmp_path: Path) -> None:
     assert "D-Bus connection was disconnected" in result["last_fatal"]
 
 
-@pytest.mark.parametrize(
-    ("filesystems", "writable"),
-    [
-        (["home"], True),
-        (["host"], True),
-        (["home:ro"], False),
-        (["!home", "xdg-download"], False),
-        (["xdg-download", "/run/udev:ro"], False),
-        (["~/.local/share/unifideck"], True),
-        (["xdg-data/unifideck/edge-auth:create"], True),
-        (["~/.local/share/unifideck-other"], False),
-        (["/home/deck/.local/share/unifideck/edge-auth/Default:ro"], False),
-    ],
-)
-def test_profile_writable(filesystems: list[str], writable: bool) -> None:
-    profile = Path("/home/deck/.local/share/unifideck/edge-auth")
-    assert probe.profile_writable(filesystems, profile, "/home/deck") is writable
+def _build(root: Path, version: str, *, executable: bool, verified: bool = True) -> Path:
+    build = root / "browser" / f"chrome-{version}"
+    binary = build / "chrome-linux64" / "chrome"
+    binary.parent.mkdir(parents=True)
+    binary.write_text("#!/bin/sh\n")
+    binary.chmod(0o755 if executable else 0o644)
+    if verified:
+        (build / ".verified").write_text(version)
+    return binary
 
 
-def test_filesystems_parses_show_permissions() -> None:
-    perms = "[Context]\nshared=network;ipc;\nfilesystems=home;/run/udev:ro;\n"
-    assert probe._filesystems(perms) == ["home", "/run/udev:ro"]
+def test_the_verified_browser_is_reported(tmp_path: Path) -> None:
+    binary = _build(tmp_path, "156.0.1", executable=True)
+    _build(tmp_path, "155.0.1", executable=True, verified=False)
+    block = probe.browser_block(tmp_path)
+    assert block == {"kind": "bundled", "version": "156.0.1", "path": str(binary),
+                     "executable": True, "builds": ["chrome-155.0.1", "chrome-156.0.1"]}
+
+
+def test_a_browser_that_cannot_run_is_reported(tmp_path: Path) -> None:
+    _build(tmp_path, "156.0.1", executable=False)
+    assert probe.browser_block(tmp_path)["executable"] is False
+
+
+def test_an_unverified_download_is_not_a_browser(tmp_path: Path) -> None:
+    _build(tmp_path, "156.0.1", executable=True, verified=False)
+    assert probe.browser_block(tmp_path)["kind"] == "absent"
 
 
 class _View:
@@ -136,24 +140,31 @@ class _View:
 
 
 def _verdict(**block: Any) -> tuple[str, str]:
-    base: dict[str, Any] = {"profile_exists": True, "profile_dir": "/p", "cookies": []}
+    base: dict[str, Any] = {"profile_exists": True, "profile_dir": "/p", "cookies": [],
+                            "browser": {"kind": "bundled", "executable": True}}
     result = check_edge_session(_View({**base, **block}))  # type: ignore[arg-type]
     return result.status, result.detail
 
 
-def test_check_unwritable_profile_fails() -> None:
+def test_check_browser_that_cannot_run_fails() -> None:
     status, detail = _verdict(
-        browser={"kind": "flatpak", "scope": "system", "profile_writable": False},
+        browser={"kind": "bundled", "executable": False, "path": "/b/chrome"},
         microsoft_session="persistent",
     )
     assert status == "fail"
-    assert "no write access" in detail
+    assert "cannot run" in detail and "/b/chrome" in detail
+
+
+def test_check_missing_browser_warns_before_cookies() -> None:
+    status, detail = _verdict(browser={"kind": "absent", "builds": []}, microsoft_session="persistent")
+    assert status == "warn"
+    assert "not downloaded" in detail
 
 
 def test_check_session_only_warns_and_names_aborts() -> None:
     status, detail = _verdict(microsoft_session="session_only", log={"fatal_count": 2})
     assert status == "warn"
-    assert "every launch" in detail
+    assert "falls back to xbox.com" in detail
     assert "aborted 2 time(s)" in detail
 
 

@@ -36,6 +36,7 @@ import {
   type ShortcutLaunchResult,
   getShortcutRunGameId,
   isShortcutAppRunning,
+  specifyNamedCompatTool,
 } from "./shortcut-types";
 import {
   createTemporaryShortcut,
@@ -288,7 +289,7 @@ function scheduleLaunchStateRestore(
       return;
     }
     try {
-      steamApps.SpecifyCompatTool?.(appId, targetTool);
+      specifyNamedCompatTool(appId, targetTool);
       steamApps.SetShortcutLaunchOptions?.(appId, originalLaunchOptions);
     } catch (error) {
       console.error(`${logTag} Restore failed for appId=${appId}:`, error);
@@ -327,7 +328,7 @@ async function launchViaTemporaryShortcut(
   }
   const alreadyRunning = isShortcutAppRunning(tempAppId);
   try {
-    steamApps.SpecifyCompatTool?.(tempAppId, ctx.tool_name ?? "");
+    specifyNamedCompatTool(tempAppId, ctx.tool_name);
     steamApps.SetShortcutLaunchOptions?.(tempAppId, launchOptions);
     steamApps.RunGame(getShortcutRunGameId(tempAppId), "", -1, 100);
     scheduleTemporaryShortcutCleanup(tempAppId, config.logTag);
@@ -403,7 +404,7 @@ export async function launchWrapperViaShortcut(
 
   const alreadyRunning = isShortcutAppRunning(appId);
   try {
-    steamApps.SpecifyCompatTool?.(appId, ctx.tool_name ?? "");
+    specifyNamedCompatTool(appId, ctx.tool_name);
     steamApps.SetShortcutLaunchOptions(appId, tempOptions);
     await waitForLaunchOptions(appId, tempOptions, config.logTag);
     steamApps.RunGame(getShortcutRunGameId(appId), "", -1, 100);

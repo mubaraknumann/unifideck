@@ -102,7 +102,9 @@ def _import_xlib() -> tuple[Any, Any] | None:
                 sys.path.remove(zip_str)
 
 
-def _tag_windows(appid: int, stop_event: threading.Event) -> None:
+def _tag_windows(
+    appid: int, stop_event: threading.Event, wm_class: str | None = None,
+) -> None:
     imported = _import_xlib()
     if imported is None:
         return
@@ -121,7 +123,7 @@ def _tag_windows(appid: int, stop_event: threading.Event) -> None:
     d.flush()
 
     atom_steam_game = d.intern_atom("STEAM_GAME", only_if_exists=False)
-    wm_class_str = f"steam_app_{appid}"
+    wm_class_str = wm_class or f"steam_app_{appid}"
     tagged: set[int] = set()
     logger.info(
         "[gamescope_tagger] watching %s for WM_CLASS=%s", _DISPLAY, wm_class_str,
@@ -190,12 +192,16 @@ def _try_tag(
     logger.info("[gamescope_tagger] STEAM_GAME=%d set on wid=0x%x", appid, wid)
 
 
-def start_window_tagger(appid: int) -> threading.Event:
-    """Start a daemon thread that tags game windows on :0 with STEAM_GAME=appid."""
+def start_window_tagger(appid: int, wm_class: str | None = None) -> threading.Event:
+    """Start a daemon thread that tags windows on :0 with STEAM_GAME=appid.
+
+    Game windows are matched by ``WM_CLASS=steam_app_<appid>``; pass
+    ``wm_class`` to match another window, such as the plugin's browser.
+    """
     stop = threading.Event()
     t = threading.Thread(
         target=_tag_windows,
-        args=(appid, stop),
+        args=(appid, stop, wm_class),
         daemon=True,
         name=f"gamescope-tagger-{appid}",
     )

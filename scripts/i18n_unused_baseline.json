@@ -110,7 +110,6 @@
     "librarySync.retryStatusCheck",
     "microsoft.accountConnected",
     "microsoft.chromiumAlreadyInstalled",
-    "microsoft.chromiumInstallTimeout",
     "microsoft.loggedOut",
     "microsoft.notCompatible",
     "microsoft.signInMessage",

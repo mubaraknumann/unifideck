@@ -264,7 +264,8 @@ export async function launchAuthViaShortcut(
   }
   const alreadyRunning = isShortcutAppRunning(tempAppId);
   try {
-    steamApps.SpecifyCompatTool?.(tempAppId, "");
+    // No SpecifyCompatTool here: the fresh shortcut has no tool, and an
+    // empty name now means "the global default" (specifyNamedCompatTool).
     // Best-effort: give the window a keyboard/mouse layout so the store
     // page is navigable — a sign-in form or a shop, both need it. Fully
     // guarded, never blocks the launch (see applyWebBrowserLayout).

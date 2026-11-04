@@ -15,6 +15,8 @@ interface ToastOptions {
   duration?: number;
   body?: ToastString;
   onClick?: () => void;
+  /** See `showToast`'s `fullBody`. */
+  fullBody?: boolean;
 }
 
 /**
@@ -47,6 +49,7 @@ export function useToast(): UseToastResult {
         body: body ?? options.body,
         duration: options.duration ?? DEFAULT_DURATION,
         ...(options.onClick ? { onClick: options.onClick } : {}),
+        ...(options.fullBody ? { fullBody: true } : {}),
       });
     },
     [],

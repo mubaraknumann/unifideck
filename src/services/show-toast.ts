@@ -27,12 +27,17 @@ export interface ToastOptions {
   subtext?: ToastString;
   duration: number;
   onClick?: () => void;
+  /** Leave the body to the toast template's own one-line ellipsis instead
+   *  of the budget. Only for an instruction that must be read whole; its
+   *  key is listed in `FULL_BODY_KEYS` in `scripts/check_toast_length.py`. */
+  fullBody?: boolean;
 }
 
 /** Show a toast, every field clamped to the toast budget. */
 export function showToast(options: ToastOptions): void {
   const title = clampToastField(options.title);
-  const body = options.body ? clampToastField(options.body) : "";
+  const rawBody = options.body ?? "";
+  const body = options.fullBody ? rawBody : rawBody && clampToastField(rawBody);
   const subtext = options.subtext ? clampToastField(options.subtext) : "";
   try {
     toaster.toast({

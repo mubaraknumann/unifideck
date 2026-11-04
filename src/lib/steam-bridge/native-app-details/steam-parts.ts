@@ -350,32 +350,15 @@ export const getStoreItemCache = once<StoreItemCache>(() => {
     : null;
 });
 
-/** Steam tags that name a way to play or a feature, not a genre: the
- *  features list already shows these (ids read live 2026-11-02). */
-const NON_GENRE_TAGS: ReadonlySet<number> = new Set([
-  4182, // Singleplayer
-  3859, // Multiplayer
-  1685, // Co-op
-  3841, // Local Co-Op
-  3843, // Online Co-Op
-  4508, // Co-op Campaign
-  7368, // Local Multiplayer
-  1775, // PvP
-  3878, // Competitive
-  10816, // Split Screen
-  7481, // Controller
-  1756, // Great Soundtrack
-]);
+/** Tags asked of Steam's store; the caller dedupes and caps. */
+const STEAM_TAGS_REQUESTED = 20;
 
 /**
  * The Steam store's own top tags for `steamAppId`, most-voted first, named
- * in the user's Steam language. Player-mode and feature tags are skipped.
- * Empty when Steam's cache or tag names are unavailable.
+ * in the user's Steam language. Empty when Steam's cache or tag names are
+ * unavailable.
  */
-export async function fetchSteamTopTags(
-  steamAppId: number,
-  count: number,
-): Promise<string[]> {
+export async function fetchSteamTopTags(steamAppId: number): Promise<string[]> {
   const cache = getStoreItemCache();
   const store = (
     window as unknown as {
@@ -387,14 +370,14 @@ export async function fetchSteamTopTags(
   if (!cache || !store?.GetLocalizationForStoreTag || steamAppId <= 0)
     return [];
   try {
-    await cache.QueueAppRequest(steamAppId, { include_tag_count: 20 });
+    await cache.QueueAppRequest(steamAppId, {
+      include_tag_count: STEAM_TAGS_REQUESTED,
+    });
     const ids = cache.GetApp(steamAppId)?.GetTagIDs?.() ?? [];
     const names: string[] = [];
     for (const id of ids) {
-      if (NON_GENRE_TAGS.has(id)) continue;
       const name = store.GetLocalizationForStoreTag(id);
       if (name) names.push(name);
-      if (names.length >= count) break;
     }
     return names;
   } catch (e) {

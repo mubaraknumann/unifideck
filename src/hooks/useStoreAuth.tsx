@@ -170,9 +170,11 @@ export function useStoreAuth(store: StoreId): UseStoreAuthResult {
     setBusy(true);
     try {
       const hintKey = SIGN_IN_HINT_KEYS[store];
-      toast.info(
+      // A hint is an instruction, so it is shown whole (`fullBody`).
+      toast.show(
         headerText("toasts.header.store", { storeName }),
         hintKey ? toastText(hintKey) : toastText("toasts.auth.signingIn"),
+        hintKey ? { fullBody: true } : {},
       );
       const result = await AuthDispatcher.start(store);
       // Browser-based OAuth needs Microsoft Edge. When the

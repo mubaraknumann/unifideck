@@ -24,6 +24,7 @@ export const rpcRoutes = {
   prepareStoreWebSession: "prepare_store_web_session",
   // Edge prereq (EdgeRPCMixin)
   installEdge: "install_edge",
+  browserInstalled: "browser_installed",
   // Xbox PC titles through our own Xodus build (XboxPcRPCMixin). Every
   // status route answers with the `XboxPcStatus` snapshot.
   getXboxPcStatus: "get_xbox_pc_status",

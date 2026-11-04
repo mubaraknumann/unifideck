@@ -82,8 +82,8 @@ class ServiceContainer:
     # consumed by every store's `AuthOrchestrator`. Injected into
     # stores via `store_injector._STORE_INJECTIONS`.
     browser_monitor: OAuthBrowserMonitor | None = None
-    # Edge browser — flatpak installer + CDP launcher used by
-    # the four OAuth stores (Epic / GOG / Amazon / Microsoft).
+    # The plugin's browser (bundled Chrome, ``chrome_installer``) + CDP
+    # launcher, used by the browser sign-ins, store windows and streams.
     # Constructed once per plugin and shared via the injector.
     edge_browser: EdgeBrowser | None = None
     # Re-binds per-user paths (shortcuts.vdf / grid / localconfig) onto the

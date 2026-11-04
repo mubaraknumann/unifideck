@@ -42,11 +42,6 @@ def _store(flow: str) -> tuple[MicrosoftStore, MagicMock]:
     return store, edge
 
 
-@pytest.fixture(autouse=True)
-def _no_controller_permissions(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(ms_module.EdgeBrowser, "ensure_controller_permissions", staticmethod(lambda: True))
-
-
 async def test_device_code_keeps_the_cookies() -> None:
     store, edge = _store(AUTH_FLOW_DEVICE_CODE)
     await store.start_auth()

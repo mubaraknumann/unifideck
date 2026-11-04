@@ -181,7 +181,7 @@ The `Plugin` class in `main.py` is composed from the RPC mixin classes enumerate
 | `StorageRPCMixin`          | `get_storage_locations`, `get_browseable_devices`, `set_custom_install_path`    |
 | `LaunchRPCMixin`           | `notify_game_launched`, `notify_game_stopped`, `get_launch_failures`, `get_battlenet_launch_choices`, `set_battlenet_launch_choice` |
 | `AuthShortcutsRPCMixin`    | `get_<store>_auth_shortcut_context`, `get_compat_tool_for_game`                  |
-| `EdgeRPCMixin`             | `install_edge`                                                                  |
+| `EdgeRPCMixin`             | `install_edge`, `browser_installed`                                             |
 | `ExecutableRPCMixin`       | `list_game_executables`, `set_game_executable`, `reset_game_executable`          |
 | `LibraryFacetsRPCMixin`    | `get_overview_enrichment`                                                       |
 | `StoreOwnershipRPCMixin`   | `show_store_ownership` (draws the "already owned" ribbon on a Steam Store page; CDP only when owned) |

@@ -4,7 +4,7 @@ Deduplicates the ``launch_auth`` / ``launch_browser_game`` flows.
 Both methods share ~35 LOC of identical logic:
 
   - Kill lingering instance, cleanup profile singleton state
-  - Find the Edge command (flatpak or native)
+  - Find the browser command (the plugin's bundled Chrome)
   - mkdir profile dir
   - Build args with shared base flags
   - Open stderr log file (best-effort)
@@ -56,6 +56,15 @@ def _prepare_for_launch(browser: EdgeBrowser) -> list[str] | None:
     from .edge import PROFILE_DIR
     Path(PROFILE_DIR).mkdir(parents=True, exist_ok=True)
     return cmd
+
+
+def _cdp_port_of(args: list[str]) -> int | None:
+    """The port a window answers CDP on, so ``EdgeBrowser.kill`` closes that
+    browser cleanly and never another flavour's window."""
+    return next(
+        (int(a.split("=", 1)[1]) for a in args if a.startswith("--remote-debugging-port=")),
+        None,
+    )
 
 
 def _spawn_edge_process(
@@ -110,6 +119,7 @@ def _spawn_edge_process(
         # Proceed with DEVNULL if we can't open it.
         logger.debug("[Edge] stderr log open failed: %s", e)
     try:
+        browser.process_cdp_port = _cdp_port_of(args)
         browser.process = subprocess.Popen[bytes](
             args,
             stdout=subprocess.DEVNULL,

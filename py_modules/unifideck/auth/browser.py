@@ -468,7 +468,15 @@ class OAuthBrowserMonitor:
         return False
 
     async def _close_edge_target(self, target_id: str) -> None:
-        """Close a single target on the Edge CDP endpoint."""
+        """Close the sign-in browser cleanly, else just its tab.
+
+        A sign-in window holds one tab, and ``Browser.close`` is the only exit
+        that writes the cookies the sign-in just set (closing the tab kept 6 of
+        9, measured 2026-11-04), so the store window opens signed in.
+        """
+        from unifideck.auth.edge_browser.cdp_client import EdgeCDPClient
+        if await EdgeCDPClient(self._edge_cdp_port).close_browser():
+            return
         import aiohttp
         async with aiohttp.ClientSession() as session:
             url = (

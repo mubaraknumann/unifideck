@@ -3,7 +3,7 @@
 They pin what the 2026-11-03 POC measured and what a user depends on: a stream
 that cannot use the own player falls back to xbox.com instead of failing, the
 cloud session is always ended, tokens stay out of the page, failures reach the
-page as words, and Chromium gets controller access before it opens.
+page as words, and the window runs in the plugin's own browser.
 """
 from __future__ import annotations
 
@@ -174,18 +174,12 @@ async def test_tokens_never_reach_the_page() -> None:
 
 # ── browser ──────────────────────────────────────────────────────────
 
-def test_chromium_is_preferred_and_gets_controller_access(monkeypatch: pytest.MonkeyPatch) -> None:
-    granted: list[bool] = []
-    monkeypatch.setattr(browser, "_flatpak_installed", lambda app: app == browser.CHROMIUM_APP)
-    monkeypatch.setattr(browser, "ensure_udev_access", lambda: granted.append(True))
-    assert browser.browser_cmd(["edge"]) == (["flatpak", "run", browser.CHROMIUM_APP], "chromium")
-    assert granted == [True]
+def test_the_plugins_browser_is_used() -> None:
+    assert browser.browser_cmd(["/b/chrome"]) == (["/b/chrome"], "chrome")
 
 
-@pytest.mark.parametrize(("edge", "expected"), [(["edge"], (["edge"], "edge")), (None, None)])
-def test_edge_is_the_fallback(monkeypatch: pytest.MonkeyPatch, edge: Any, expected: Any) -> None:
-    monkeypatch.setattr(browser, "_flatpak_installed", lambda _app: False)
-    assert browser.browser_cmd(edge) == expected
+def test_no_browser_means_no_own_player() -> None:
+    assert browser.browser_cmd(None) is None
 
 
 # ── orchestration ────────────────────────────────────────────────────
@@ -216,7 +210,7 @@ async def test_a_stream_plays_and_always_ends_its_session(monkeypatch: pytest.Mo
     monkeypatch.setattr(credentials, "stream_login", lambda _f: credentials.StreamLogin(
         gs_token="gs", base_uri="https://b", refresh_token="rt"))
     monkeypatch.setattr(XcloudApi, "title_id", lambda _self, pid: "DEATHLOOP")
-    monkeypatch.setattr(browser, "browser_cmd", lambda _edge: (["chromium"], "chromium"))
+    monkeypatch.setattr(browser, "browser_cmd", lambda _edge: (["chrome"], "chrome"))
 
     class Proc:
         def wait(self, timeout: float | None = None) -> int:
@@ -243,7 +237,7 @@ async def test_a_cancelled_stream_still_ends_its_session(monkeypatch: pytest.Mon
     monkeypatch.setattr(credentials, "stream_login", lambda _f: credentials.StreamLogin(
         gs_token="gs", base_uri="https://b", refresh_token="rt"))
     monkeypatch.setattr(XcloudApi, "title_id", lambda _self, pid: "DEATHLOOP")
-    monkeypatch.setattr(browser, "browser_cmd", lambda _edge: (["chromium"], "chromium"))
+    monkeypatch.setattr(browser, "browser_cmd", lambda _edge: (["chrome"], "chrome"))
     monkeypatch.setattr(browser, "launch", lambda _cmd, _url: SimpleNamespace(
         poll=lambda: 0, wait=lambda timeout=None: 0))
 

@@ -86,6 +86,10 @@ BOUNDED = {
 }
 #: Placeholders that carry raw text. Never in a toast.
 RAW = frozenset({"error", "error_code", "code", "path", "reason", "log"})
+#: Toast bodies shown whole, not cut to the budget (``showToast``'s
+#: ``fullBody``): sign-in instructions the user must read in full. The toast
+#: template's own one-line ellipsis still applies to them.
+FULL_BODY_KEYS = frozenset({"toasts.auth.hintMicrosoft"})
 
 PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*(?:,[^}]*)?\}\}")
 KEY_FIELDS = frozenset({"i18n_key", "i18n_title_key", "i18n_label_key"})
@@ -189,6 +193,8 @@ def check_locales(locales: dict[str, dict[str, str]]) -> list[Finding]:
     for locale, strings in locales.items():
         for key, value in strings.items():
             if not key.startswith(NAMESPACE) or key.endswith("_comment"):
+                continue
+            if key in FULL_BODY_KEYS:
                 continue
             for message in check_value(key, value, locale):
                 findings.append(Finding(f"{locale} {key}", f"{message}: {value!r}"))
