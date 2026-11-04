@@ -159,7 +159,7 @@ export function getShortcutRunGameId(appId: number): string {
  *  in-memory app store. Status values are Steam-internal
  *  (no public enum) — observed values include
  *  1 = launching, 4 = running. */
-function getShortcutDisplayStatus(appId: number): number | undefined {
+export function getShortcutDisplayStatus(appId: number): number | undefined {
   const entry = getAppStoreEntry(appId);
   if (!entry) return undefined;
 

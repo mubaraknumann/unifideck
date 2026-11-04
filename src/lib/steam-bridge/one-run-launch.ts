@@ -5,20 +5,29 @@
  * launcher promotes `UNIFIDECK_*` tokens into its environment. A token
  * meant for a single launch (stream this installed game from the cloud)
  * is added to the options, the game is started once Steam reports the new
- * options, and the user's own options are put back once the game runs.
+ * options, and the user's own options are put back once Steam has created
+ * the game process ({@link restoreStep}).
  *
  * The same order as the wrapper-store launch (`wrapper-shortcut-launch`):
  * `SetShortcutLaunchOptions` applies asynchronously, so `RunGame` waits
  * for it ({@link waitForLaunchOptions}).
  */
-import { getShortcutRunGameId, isShortcutAppRunning } from "./shortcut-types";
+import {
+  getShortcutDisplayStatus,
+  getShortcutRunGameId,
+} from "./shortcut-types";
 import { waitForLaunchOptions } from "./wrapper-shortcut-launch";
 
 const LOG_TAG = "[OneRunLaunch]";
 const RESTORE_POLL_MS = 250;
-/** Put the options back by now even if Steam never reports the app running
- *  (a launch that failed at once), so the token cannot stick. */
-const RESTORE_TIMEOUT_MS = 15000;
+/** Put the options back by now even if Steam never reports the process,
+ *  so the token cannot stick. Long, because Steam's launch can wait on the
+ *  user (an interstitial, a controller-config prompt) before it reads the
+ *  launch options. */
+const RESTORE_TIMEOUT_MS = 60000;
+/** Steam display statuses (`EDisplayStatus`, read at runtime). */
+const STATUS_LAUNCHING = 1;
+const STATUS_RUNNING = 4;
 
 interface AppDetailsStoreShape {
   GetAppDetails?: (id: number) => { strLaunchOptions?: string } | undefined;
@@ -70,12 +79,41 @@ export async function launchOnceWithToken(
   return true;
 }
 
-/** Put the user's options back once Steam has started the app. */
+/**
+ * One poll of the restore: `"restore"` puts the user's options back,
+ * `"launching"` notes the launch has begun, `"wait"` polls again.
+ *
+ * Steam reads a shortcut's launch options only when it creates the
+ * process, at the end of its launch steps. It reports Launching (1) as
+ * soon as `RunGame` is called, well before that, so restoring on
+ * Launching drops the token before Steam ever reads it. Running (4) is set
+ * once the process exists, with its argv already built. A launch seen
+ * Launching that ends without Running (failed, or cancelled at a prompt)
+ * also restores.
+ */
+export function restoreStep(
+  status: number | undefined,
+  sawLaunching: boolean,
+  timedOut: boolean,
+): "restore" | "launching" | "wait" {
+  if (status === STATUS_RUNNING || timedOut) return "restore";
+  if (status === STATUS_LAUNCHING) return "launching";
+  return sawLaunching ? "restore" : "wait";
+}
+
+/** Put the user's options back once Steam has created the game process. */
 function restoreWhenRunning(appId: number, original: string): void {
   const startedAt = Date.now();
+  let sawLaunching = false;
   const tick = (): void => {
     const timedOut = Date.now() - startedAt >= RESTORE_TIMEOUT_MS;
-    if (!isShortcutAppRunning(appId) && !timedOut) {
+    const step = restoreStep(
+      getShortcutDisplayStatus(appId),
+      sawLaunching,
+      timedOut,
+    );
+    if (step !== "restore") {
+      sawLaunching ||= step === "launching";
       window.setTimeout(tick, RESTORE_POLL_MS);
       return;
     }
