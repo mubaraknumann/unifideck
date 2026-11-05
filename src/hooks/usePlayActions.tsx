@@ -13,7 +13,7 @@ import { useCallback, useMemo } from "react";
 import { ConfirmModal, showModal } from "@decky/ui";
 import i18n from "i18next";
 import { useGameInfo } from "./useGameInfo";
-import { useGameActions } from "./useGameActions";
+import { useGameActions, type UseGameActionsResult } from "./useGameActions";
 import { useGameUpdate } from "./useGameUpdate";
 import { useInstallFlow } from "./useInstallFlow";
 import { useToast } from "./useToast";
@@ -83,6 +83,52 @@ export function useUninstallConfirm(
   );
 }
 
+/**
+ * Cancel a download, asking first. Shared by the game page and the QAM, so a
+ * stray press on either cannot throw away a download.
+ *
+ * Takes the caller's `actions`, so its `isWorking` covers the cancel.
+ */
+export function useCancelDownload(
+  actions: Pick<UseGameActionsResult, "cancel">,
+): (download: DownloadItem, progress?: CancelProgress) => void {
+  const downloads = useDownloads();
+  const toast = useToast();
+  return useCallback(
+    (download: DownloadItem, progress?: CancelProgress) => {
+      const doCancel = async (): Promise<void> => {
+        progress?.onCancelling?.();
+        const result = await actions.cancel(download.id);
+        if (result?.success) return;
+        progress?.onFailed?.();
+        // A cancel fails mainly because this row outlived its operation;
+        // without a refetch nothing would ever replace it.
+        void downloads.refresh();
+        console.error("[usePlayActions] cancel failed:", result?.error);
+        toast.error(
+          headerText("toasts.header.download"),
+          toastText("toasts.cancelFailed"),
+        );
+      };
+      showModal(
+        <ConfirmModal
+          strTitle={i18n.t("play.cancelConfirmTitle")}
+          strDescription={i18n.t("play.cancelConfirmBody", {
+            title: download.game_title,
+          })}
+          strOKButtonText={i18n.t("play.cancelConfirmConfirm")}
+          strCancelButtonText={i18n.t("play.cancelConfirmCancel")}
+          bDestructiveWarning
+          onOK={() => {
+            void doCancel();
+          }}
+        />,
+      );
+    },
+    [actions, downloads, toast],
+  );
+}
+
 export function usePlayActions(
   appId: number,
   bridge: SteamBridge = defaultBridge,
@@ -90,7 +136,6 @@ export function usePlayActions(
   const { data: game } = useGameInfo(appId);
   const actions = useGameActions(bridge);
   const installFlow = useInstallFlow(bridge);
-  const downloads = useDownloads();
   const toast = useToast();
   const hasUpdate = useGameUpdate(game?.store, game?.id);
 
@@ -153,39 +198,7 @@ export function usePlayActions(
     }
   }, [game, installFlow, toast]);
 
-  const cancelDownload = useCallback(
-    (download: DownloadItem, progress?: CancelProgress) => {
-      const doCancel = async (): Promise<void> => {
-        progress?.onCancelling?.();
-        const result = await actions.cancel(download.id);
-        if (result?.success) return;
-        progress?.onFailed?.();
-        // A cancel fails mainly because this row outlived its operation;
-        // without a refetch nothing would ever replace it.
-        void downloads.refresh();
-        console.error("[usePlayActions] cancel failed:", result?.error);
-        toast.error(
-          headerText("toasts.header.download"),
-          toastText("toasts.cancelFailed"),
-        );
-      };
-      showModal(
-        <ConfirmModal
-          strTitle={i18n.t("play.cancelConfirmTitle")}
-          strDescription={i18n.t("play.cancelConfirmBody", {
-            title: download.game_title,
-          })}
-          strOKButtonText={i18n.t("play.cancelConfirmConfirm")}
-          strCancelButtonText={i18n.t("play.cancelConfirmCancel")}
-          bDestructiveWarning
-          onOK={() => {
-            void doCancel();
-          }}
-        />,
-      );
-    },
-    [actions, downloads, toast],
-  );
+  const cancelDownload = useCancelDownload(actions);
 
   const confirmUninstall = useUninstallConfirm(appId, bridge);
   const uninstall = useCallback(() => {

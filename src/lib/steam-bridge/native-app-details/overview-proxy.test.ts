@@ -70,6 +70,26 @@ describe("withDisplayStatus", () => {
     expect(isOverviewLive(p)).toBe(true);
   });
 
+  it("finds the real status when selected_per_client_data is a getter", () => {
+    // Steam's own shape: the getter runs with the proxy as `this`, so it
+    // reads our proxied per_client_data and returns an already-proxied row.
+    class GetterOverview {
+      selected_clientid = "0";
+      per_client_data = [{ clientid: "0", display_status: 9 }];
+      get selected_per_client_data() {
+        return this.per_client_data.find(
+          (pcd) => pcd.clientid === this.selected_clientid,
+        );
+      }
+    }
+    const real = new GetterOverview();
+    const p = withDisplayStatus(real, 1);
+    expect(p.selected_per_client_data?.display_status).toBe(1);
+    expect(isOverviewLive(p)).toBe(false);
+    real.per_client_data[0].display_status = 4;
+    expect(isOverviewLive(p)).toBe(true);
+  });
+
   it("returns the same proxy for the same overview and status", () => {
     const real = new FakeOverview();
     expect(withDisplayStatus(real, 9)).toBe(withDisplayStatus(real, 9));

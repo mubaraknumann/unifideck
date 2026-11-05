@@ -15,6 +15,7 @@ import { FC, useMemo } from "react";
 import { ButtonItem, DialogButton } from "@decky/ui";
 import { useTranslation } from "react-i18next";
 import { useGameActions } from "../../hooks/useGameActions";
+import { useCancelDownload } from "../../hooks/usePlayActions";
 import { SteamBridge } from "../../lib/steam-bridge";
 import {
   resolveAppIdFromStoreGame,
@@ -73,6 +74,7 @@ const bridge = new SteamBridge();
 export const DownloadItemRow: FC<Props> = ({ item, variant }) => {
   const { t } = useTranslation();
   const actions = useGameActions(bridge);
+  const cancelDownload = useCancelDownload(actions);
 
   // Launchable appId for a finished row — only when the download
   // completed AND the game still resolves to an installed shortcut.
@@ -174,7 +176,7 @@ export const DownloadItemRow: FC<Props> = ({ item, variant }) => {
           <ButtonItem
             layout="below"
             disabled={actions.isWorking}
-            onClick={() => void actions.cancel(item.id)}
+            onClick={() => cancelDownload(item)}
           >
             {t("downloads.cancel")}
           </ButtonItem>

@@ -56,14 +56,19 @@ function isLive(pcd: PerClientData): boolean {
 
 function withStatusPcd(pcd: unknown, status: number): unknown {
   if (!pcd || typeof pcd !== "object") return pcd;
-  let m = pcdByStatus.get(pcd);
+  // Steam's `selected_per_client_data` is a getter. It runs with the overview
+  // proxy as `this`, so it reads the proxied `per_client_data` and hands us a
+  // row that is already a proxy. Never wrap a proxy: the real row must stay
+  // one step away, or the real status cannot be read.
+  const real = realPcd.get(pcd) ?? (pcd as PerClientData);
+  let m = pcdByStatus.get(real);
   if (!m) {
     m = new Map();
-    pcdByStatus.set(pcd, m);
+    pcdByStatus.set(real, m);
   }
   let p = m.get(status);
   if (!p) {
-    p = new Proxy(pcd as PerClientData, {
+    p = new Proxy(real, {
       get(target, key, receiver) {
         if (key === "display_status") {
           return isLive(target) ? target.display_status : status;
@@ -74,7 +79,7 @@ function withStatusPcd(pcd: unknown, status: number): unknown {
         return Reflect.get(target, key, receiver);
       },
     });
-    realPcd.set(p, pcd as PerClientData);
+    realPcd.set(p, real);
     m.set(status, p);
   }
   return p;
