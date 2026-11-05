@@ -42,6 +42,8 @@ interface PerClientData {
 
 const byStatus = new WeakMap<object, Map<number, object>>();
 const pcdByStatus = new WeakMap<object, Map<number, object>>();
+/** Status proxy → the real per-client data behind it. */
+const realPcd = new WeakMap<object, PerClientData>();
 
 /** True while Steam itself is driving the app (launching, running,
  *  terminating). The real value is read through the observable, so a
@@ -72,16 +74,23 @@ function withStatusPcd(pcd: unknown, status: number): unknown {
         return Reflect.get(target, key, receiver);
       },
     });
+    realPcd.set(p, pcd as PerClientData);
     m.set(status, p);
   }
   return p;
 }
 
-/** Whether Steam is driving this overview right now (see {@link isLive}). */
+/**
+ * Whether Steam is driving this overview right now (see {@link isLive}).
+ *
+ * Reads the real status, not the proxy's answer: our Cancel is status 1, which
+ * is also one of Steam's live statuses. Read through the proxy, a download of
+ * ours looks like Steam launching the game, and the click goes to Steam.
+ */
 export function isOverviewLive(overview: unknown): boolean {
   const pcd = (overview as { selected_per_client_data?: PerClientData } | null)
     ?.selected_per_client_data;
-  return !!pcd && isLive(pcd);
+  return !!pcd && isLive(realPcd.get(pcd) ?? pcd);
 }
 
 /**

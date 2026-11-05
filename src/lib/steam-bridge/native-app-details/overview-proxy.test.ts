@@ -60,6 +60,16 @@ describe("withDisplayStatus", () => {
     expect(isOverviewLive(p)).toBe(false);
   });
 
+  it("does not read our own Cancel status as Steam being live", () => {
+    // Cancel is status 1, which is also one of Steam's live statuses.
+    const real = new FakeOverview();
+    const p = withDisplayStatus(real, 1);
+    expect(p.selected_per_client_data.display_status).toBe(1);
+    expect(isOverviewLive(p)).toBe(false);
+    real.selected_per_client_data.display_status = 4;
+    expect(isOverviewLive(p)).toBe(true);
+  });
+
   it("returns the same proxy for the same overview and status", () => {
     const real = new FakeOverview();
     expect(withDisplayStatus(real, 9)).toBe(withDisplayStatus(real, 9));
