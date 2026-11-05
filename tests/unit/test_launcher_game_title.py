@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from unifideck.launcher.game_title import resolve_title
+from unifideck.launcher.game_title import registered_title, resolve_title
 
 
 @pytest.fixture
@@ -48,6 +48,12 @@ def test_an_unknown_key_falls_back_to_the_key(registry: Path) -> None:
 @pytest.mark.parametrize("key", ["battlenet:untitled", "battlenet:blank"])
 def test_a_missing_or_empty_title_falls_back(registry: Path, key: str) -> None:
     assert resolve_title(key, registry_path=registry) == key
+
+
+def test_registered_title_is_empty_when_there_is_no_title(registry: Path) -> None:
+    assert registered_title("battlenet:D1", registry_path=registry) == "Diablo"
+    for key in ("battlenet:x", "battlenet:untitled", "battlenet:blank"):
+        assert registered_title(key, registry_path=registry) == ""
 
 
 def test_a_missing_registry_is_not_an_error(tmp_path: Path) -> None:

@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 from unifideck.core.types import Events, Result
 from unifideck.event_bus.event_bus import EventBus
 from unifideck.event_bus.event_bus_devex import auto_wire, subscribe
+from unifideck.launcher.game_title import registered_title
 
 from .epic_strategy import EpicCloudSaveStrategy
 from .gog_strategy import GOGCloudSaveStrategy
@@ -307,9 +308,6 @@ class CloudSaveService(_SyncMixin, _StatusMixin):
         """
         if not self._bus:
             return
-        game_title = ""
-        if self._config:
-            game_title = self._config.get(f"games.{game_id}.title") or ""
         await self._bus.emit(
             Events.LAUNCHER_STAGE,
             store=store,
@@ -319,7 +317,7 @@ class CloudSaveService(_SyncMixin, _StatusMixin):
             i18n_title_key="toasts.header.cloudSaves",
             i18n_key="toasts.cloudConflict",
             severity="warning",
-            game_title=game_title or game_id,
+            game_title=registered_title(f"{store}:{game_id}") or game_id,
             local_snapshot=conflict.local,
             remote_snapshot=self._cloud_snapshot(store, game_id),
             action={
@@ -362,25 +360,6 @@ class CloudSaveService(_SyncMixin, _StatusMixin):
         """
         from .safety import has_save_data
         return Path(local_dir).is_dir() and has_save_data(local_dir)
-
-    def _game_title(self, store: str, game_id: str) -> str:
-        """Human-readable title for toasts: config → metadata cache → id.
-
-        The raw store id (e.g. a GOG numeric id) is a poor thing to show a
-        user, so prefer a real title wherever one is cached.
-        """
-        if self._config:
-            title = self._config.get(f"games.{game_id}.title")
-            if title:
-                return str(title)
-        if self._cache is not None:
-            try:
-                meta = self._cache.get("metadata", f"{store}:{game_id}")
-            except Exception:
-                meta = None
-            if isinstance(meta, dict) and meta.get("title"):
-                return str(meta["title"])
-        return game_id
 
     async def _emit_save_error(
         self, store: str, game_id: str,

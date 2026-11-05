@@ -337,6 +337,30 @@ async def test_service_soft_conflict_opens_modal(
     assert "remote_snapshot" in evt.kwargs
 
 
+@pytest.mark.parametrize(
+    ("registry", "expected"),
+    [({"gog:g1": {"title": "Some Game"}}, "Some Game"), ({}, "g1")],
+)
+@pytest.mark.asyncio
+async def test_conflict_names_the_game_from_the_shortcut_registry(
+    tmp_path, monkeypatch, mock_event_bus, registry, expected,
+) -> None:
+    from unifideck.launcher import game_title
+
+    path = tmp_path / "shortcuts_registry.json"
+    path.write_text(json.dumps(registry), encoding="utf-8")
+    monkeypatch.setattr(game_title, "REGISTRY_PATH", path)
+    service = CloudSaveService(
+        bus=mock_event_bus, local_save_root=str(tmp_path / "saves"), cloud_root=None,
+    )
+    conflict = SaveConflictError(
+        "local_saves_regressed", {"file_count": 2, "timestamp": 1.0, "total_bytes": 99},
+        store="gog", game_id="g1", hard=False,
+    )
+    await service._emit_save_conflict("gog", "g1", conflict)
+    assert mock_event_bus.emit.await_args.kwargs["game_title"] == expected
+
+
 @pytest.mark.asyncio
 async def test_service_hard_block_emits_error_not_modal(
     tmp_path, mock_event_bus, mock_config,

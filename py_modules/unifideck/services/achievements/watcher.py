@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING, Any
 from unifideck.core.store_capabilities import ACHIEVEMENT_STORES
 from unifideck.core.types import Events
 from unifideck.event_bus.event_bus_devex import auto_wire, subscribe
-from unifideck.launcher.game_title import resolve_title
+from unifideck.launcher.game_title import registered_title
 from unifideck.stores.gog.achievements import normalize_gog_achievement
 from unifideck.stores.gog.galaxy_api import fetch_gog_client_creds
 from unifideck.stores.shared.achievements_error import StoreAchievementsError
@@ -59,13 +59,6 @@ def _track(task: asyncio.Task[Any]) -> None:
     """Track."""
     _BACKGROUND.add(task)
     task.add_done_callback(_BACKGROUND.discard)
-
-
-def _game_title(store: str, game_id: str) -> str:
-    """The game's shortcut title, or "" so the toast falls back to the store name."""
-    key = f"{store}:{game_id}"
-    title = resolve_title(key)
-    return "" if title == key else title
 
 
 class AchievementWatcher:
@@ -275,7 +268,8 @@ class AchievementWatcher:
                 "toasts.achievementName",
                 i18n_title_key="toasts.header.achievement",
                 i18n_params={"name": achievement.get("name") or ""},
-                game_title=_game_title(store, game_id),
+                # Empty when unregistered: the card then heads with the store.
+                game_title=registered_title(f"{store}:{game_id}"),
                 # The frontend draws this as Steam's achievement popup:
                 # image, name, then the game and the store with its logo.
                 achievement={
