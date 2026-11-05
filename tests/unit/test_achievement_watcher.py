@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -129,6 +130,29 @@ def test_toast_carries_the_achievement_card(monkeypatch) -> None:
         "rarity": 4.2,
     }
     assert sent[0]["i18n_params"] == {"name": "Like a Boss"}  # text fallback kept
+
+
+def _toasted_title(monkeypatch, tmp_path, registry: dict[str, Any]) -> str:
+    """The ``game_title`` a toast carries with *registry* as the shortcut registry."""
+    from unifideck.launcher import frontend_bridge, game_title
+
+    path = tmp_path / "shortcuts_registry.json"
+    path.write_text(json.dumps(registry), encoding="utf-8")
+    monkeypatch.setattr(game_title, "REGISTRY_PATH", path)
+    sent: list[dict[str, Any]] = []
+    monkeypatch.setattr(frontend_bridge, "launcher_toast", lambda key, **kw: sent.append(kw))
+    w.AchievementWatcher(MagicMock(), None)._toast("microsoft", "ABC123", {"key": "k", "name": "n"})
+    return str(sent[0]["game_title"])
+
+
+def test_toast_names_the_game_from_the_shortcut_registry(monkeypatch, tmp_path) -> None:
+    title = _toasted_title(monkeypatch, tmp_path, {"microsoft:ABC123": {"title": "Some Game"}})
+    assert title == "Some Game"
+
+
+def test_toast_never_shows_the_game_id(monkeypatch, tmp_path) -> None:
+    # Empty, so the frontend heads the card with the store name instead.
+    assert _toasted_title(monkeypatch, tmp_path, {}) == ""
 
 
 # -- comet push (GOG) ------------------------------------------------------

@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING, Any
 from unifideck.core.store_capabilities import ACHIEVEMENT_STORES
 from unifideck.core.types import Events
 from unifideck.event_bus.event_bus_devex import auto_wire, subscribe
+from unifideck.launcher.game_title import resolve_title
 from unifideck.stores.gog.achievements import normalize_gog_achievement
 from unifideck.stores.gog.galaxy_api import fetch_gog_client_creds
 from unifideck.stores.shared.achievements_error import StoreAchievementsError
@@ -37,7 +38,6 @@ from .comet_events import CometEventReceiver
 from .state import AchievementStateStore
 
 if TYPE_CHECKING:
-    from unifideck.config import ConfigManager
     from unifideck.event_bus.event_bus import EventBus
     from unifideck.stores import StoreRegistry
 
@@ -61,6 +61,13 @@ def _track(task: asyncio.Task[Any]) -> None:
     task.add_done_callback(_BACKGROUND.discard)
 
 
+def _game_title(store: str, game_id: str) -> str:
+    """The game's shortcut title, or "" so the toast falls back to the store name."""
+    key = f"{store}:{game_id}"
+    title = resolve_title(key)
+    return "" if title == key else title
+
+
 class AchievementWatcher:
     """Live unlock toasts + an end-of-session summary for every achievement store."""
 
@@ -68,12 +75,10 @@ class AchievementWatcher:
         self,
         bus: EventBus,
         registry: StoreRegistry | None,
-        config: ConfigManager | None = None,
     ) -> None:
         """Initialize the instance."""
         self._bus = bus
         self._registry = registry
-        self._config = config
         self._state = AchievementStateStore()
         self._poll_tasks: dict[str, asyncio.Task[Any]] = {}
         self._baseline: dict[str, set[str]] = {}
@@ -270,7 +275,7 @@ class AchievementWatcher:
                 "toasts.achievementName",
                 i18n_title_key="toasts.header.achievement",
                 i18n_params={"name": achievement.get("name") or ""},
-                game_title=self._game_title(store, game_id),
+                game_title=_game_title(store, game_id),
                 # The frontend draws this as Steam's achievement popup:
                 # image, name, then the game and the store with its logo.
                 achievement={
@@ -314,14 +319,6 @@ class AchievementWatcher:
             return self._registry.get_store(store)
         except Exception:
             return None
-
-    def _game_title(self, store: str, game_id: str) -> str:
-        """Game title."""
-        if self._config is not None:
-            title = self._config.get(f"games.{game_id}.title")
-            if title:
-                return str(title)
-        return str(game_id)
 
     def _cancel(self, key: str) -> None:
         """Cancel."""

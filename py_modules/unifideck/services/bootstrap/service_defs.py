@@ -259,7 +259,7 @@ _SERVICE_DEFS: tuple[tuple[Any, ...], ...] = (
         "achievements", "unifideck.services.achievements",
         "AchievementWatcher",
         lambda b, r, c, cfg, p, pl: (b, r),
-        lambda b, r, c, cfg, p, pl: {"config": cfg},
+        lambda b, r, c, cfg, p, pl: {},
     ),
     # PlaytimeSyncService — reports finalized local play sessions up to GOG/Epic
     # (Heroic #1240) and reconciles store totals for display. Needs the registry
