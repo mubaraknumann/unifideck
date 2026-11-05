@@ -17,6 +17,7 @@ Stdlib only, Python 3.10 safe.
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -99,6 +100,11 @@ def write_install_record(record: dict[str, Any]) -> Path:
     path = record_path(pid)
     write_private_json(path, record)
     return path
+
+
+def touch_install_record(pid: str) -> None:
+    """Record that ``pid``'s install was active just now (the file's mtime)."""
+    os.utime(record_path(pid))
 
 
 def remove_install_record(pid: str) -> None:

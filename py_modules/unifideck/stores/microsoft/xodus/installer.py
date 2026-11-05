@@ -23,7 +23,8 @@ An earlier record of the same game decides what an install means:
 The ownership marker is written before streaming starts. A cancel kills the
 download and keeps the ``partial`` record, the marker and the files, so the
 next install of the same game resumes and a destructive cleanup still finds
-the folder. A repair holds the game lock for the whole download, so it
+the folder. A partial left alone for 24 hours is discarded (``partial_sweep``).
+A repair holds the game lock for the whole download, so it
 never streams over a running game and the game cannot start mid-repair.
 """
 from __future__ import annotations
@@ -41,7 +42,11 @@ from unifideck.core.safe_delete import foreign_installs_under, safe_rmtree
 from unifideck.core.types import InstallResult
 from unifideck.launcher.xbox_pc.argv import validate_market
 from unifideck.launcher.xbox_pc.component_locks import game_lock
-from unifideck.launcher.xbox_pc.install_records import RECORD_SCHEMA, read_install_record
+from unifideck.launcher.xbox_pc.install_records import (
+    RECORD_SCHEMA,
+    read_install_record,
+    touch_install_record,
+)
 from unifideck.launcher.xbox_pc.layout import game_dir_for, install_root_for
 
 from . import install_steps as steps
@@ -264,12 +269,18 @@ class XboxPcInstaller:
     ) -> InstallResult:
         """Stream, verify, then commit. A repair holds the game lock throughout."""
         pid, game_dir = str(record["productId"]), game_dir_for(root)
-        with contextlib.ExitStack() as stack:
-            if _is_installed(record):
-                await _hold_game(stack, pid, game_dir)
-            outcome = await steps.stream_into(
-                self._cli, pid, game_dir, str(record["market"]),
-                str(record["contentId"]), progress_cb,
-            )
-            facts = await steps.verify(outcome, game_dir)
-            return await steps.commit(record, facts, root, stamp="installedAt")
+        try:
+            with contextlib.ExitStack() as stack:
+                if _is_installed(record):
+                    await _hold_game(stack, pid, game_dir)
+                outcome = await steps.stream_into(
+                    self._cli, pid, game_dir, str(record["market"]),
+                    str(record["contentId"]), progress_cb,
+                )
+                facts = await steps.verify(outcome, game_dir)
+                return await steps.commit(record, facts, root, stamp="installedAt")
+        finally:
+            # A partial's 24 hours count from when this run ended, not started.
+            # No await: this also runs while the task is being cancelled.
+            with contextlib.suppress(OSError):
+                touch_install_record(pid)

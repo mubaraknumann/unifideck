@@ -110,14 +110,31 @@ export function useCancelDownload(
           toastText("toasts.cancelFailed"),
         );
       };
+      // A queued game has not started, so it gets its own wording.
+      const queued = download.status === "queued";
+      const title = download.game_title;
       showModal(
         <ConfirmModal
-          strTitle={i18n.t("play.cancelConfirmTitle")}
-          strDescription={i18n.t("play.cancelConfirmBody", {
-            title: download.game_title,
-          })}
-          strOKButtonText={i18n.t("play.cancelConfirmConfirm")}
-          strCancelButtonText={i18n.t("play.cancelConfirmCancel")}
+          strTitle={
+            queued
+              ? i18n.t("play.removeConfirmTitle")
+              : i18n.t("play.cancelConfirmTitle")
+          }
+          strDescription={
+            queued
+              ? i18n.t("play.removeConfirmBody", { title })
+              : i18n.t("play.cancelConfirmBody", { title })
+          }
+          strOKButtonText={
+            queued
+              ? i18n.t("downloads.removeFromQueue")
+              : i18n.t("play.cancelConfirmConfirm")
+          }
+          strCancelButtonText={
+            queued
+              ? i18n.t("play.removeConfirmCancel")
+              : i18n.t("play.cancelConfirmCancel")
+          }
           bDestructiveWarning
           onOK={() => {
             void doCancel();

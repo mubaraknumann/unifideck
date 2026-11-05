@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import os
 from collections.abc import Iterator
 from pathlib import Path
 from types import SimpleNamespace
@@ -30,7 +31,11 @@ from _xbox_pc_fakes import (
 )
 
 from unifideck.launcher.xbox_pc import component_locks
-from unifideck.launcher.xbox_pc.install_records import read_install_record, write_install_record
+from unifideck.launcher.xbox_pc.install_records import (
+    read_install_record,
+    record_path,
+    write_install_record,
+)
 from unifideck.services.download.models import DownloadItem
 from unifideck.services.download.worker_helpers import prefix_warmup_supported
 from unifideck.stores.microsoft.xodus import install_steps
@@ -482,3 +487,18 @@ async def test_an_unexpected_os_error_is_coded_without_its_path(
     inst, _ = _installer(env)
     result = await inst.install(PID, str(env["base"]))
     assert result.error == "xodus_failed: PermissionError" and "/home" not in str(result.error)
+
+
+async def test_a_cancelled_run_restarts_the_partial_age(env: dict[str, Any]) -> None:
+    hang = FakeStdout([record_line(0, "metadata")], hang_at_end=True)
+    cli = FakeCli(env["tmp"], make_proc=lambda: FakeProc(hang),
+                  on_spawn=lambda d: d.mkdir(parents=True, exist_ok=True))
+    inst, _ = _installer(env, cli=cli)
+    task = asyncio.ensure_future(inst.install(PID, str(env["base"])))
+    await asyncio.sleep(0.1)
+    path = record_path(PID)
+    os.utime(path, (1.0, 1.0))
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert path.stat().st_mtime > 1.0

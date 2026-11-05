@@ -186,7 +186,7 @@ export const DownloadItemRow: FC<Props> = ({ item, variant }) => {
         <ButtonItem
           layout="below"
           disabled={actions.isWorking}
-          onClick={() => void actions.cancel(item.id)}
+          onClick={() => cancelDownload(item)}
         >
           {t("downloads.removeFromQueue")}
         </ButtonItem>
