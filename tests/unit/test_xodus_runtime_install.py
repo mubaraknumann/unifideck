@@ -21,6 +21,8 @@ from _xodus_backend_fakes import runtime_archive as _archive
 from unifideck.launcher.proton.infrastructure.file_lock import flock_path, try_exclusive
 from unifideck.launcher.xbox_pc import backend, layout
 from unifideck.launcher.xbox_pc.component_locks import runtime_lock_path
+from unifideck.stores.microsoft.xodus import backend_first, runtime_status
+from unifideck.stores.microsoft.xodus import cli as cli_module
 from unifideck.stores.microsoft.xodus import runtime as rt
 from unifideck.stores.microsoft.xodus.runtime_source import (
     LocalDirSource,
@@ -76,7 +78,7 @@ def test_success_layout_modes_and_marker(tmp_path: Path) -> None:
     assert layout.read_active() == active
     assert active.degraded == ()
     ordered = [s for i, s in enumerate(stages) if i == 0 or stages[i - 1] != s]
-    assert ordered == ["checking", "copying_backend", "verifying", "extracting", "finalizing"]
+    assert ordered == ["checking", "backend_ready", "copying_backend", "verifying", "extracting", "finalizing"]
     assert not list(root.glob(".staging-*"))
     assert not (active.backend_dir / "unifideck-xodus-backend-0.1.0-linux-x86_64-source.tar.xz").exists()
 
@@ -317,3 +319,71 @@ def test_the_unfiltered_fallback_keeps_links_inside_the_runtime(
 
     active = _install(make_source(tmp_path, archive=_archive("0.1.0", extra=inside)))
     assert (active.runtime_dir / "files/lib/alias.so").read_bytes() == b"x"
+
+
+# ── The backend ahead of the runtime ───────────────────────────────────
+
+def test_the_backend_is_usable_before_the_runtime_is(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The moment the sign-in may start: ``cli.backend`` answers, launches do not."""
+    seen: dict[str, Any] = {}
+
+    def progress(stage: str, _done: int, _total: int | None) -> None:
+        if stage == backend_first.READY_STAGE:
+            seen["active"] = layout.read_active()
+            seen["cli"] = cli_module._installed_backend()
+            seen["status"] = runtime_status.probe_runtime(str(out))
+
+    out = make_source(tmp_path)
+    active = _install(out, progress)
+    assert seen["active"] is None
+    assert seen["cli"][0] is not None and seen["cli"][1] is None
+    assert seen["status"]["state"] == "missing" and seen["status"]["backend_ready"] is True
+    assert seen["status"]["backend_version"] == active.backend_version
+    # The full install took over: no record, and one backend folder.
+    assert backend_first.read_record() is None
+    assert list(layout.backend_root().iterdir()) == [active.backend_dir]
+    assert runtime_status.probe_runtime(str(out))["backend_ready"] is True
+
+
+def test_a_failed_runtime_keeps_the_sign_in_possible(tmp_path: Path) -> None:
+    out = make_source(tmp_path)
+    archive = out / "runtime" / "unifideck-xodus-runtime-0.1.0-x86_64.tar.xz"
+    archive.write_bytes(archive.read_bytes() + b"x")
+    with pytest.raises(rt.ComponentInstallError):
+        _install(out)
+    assert layout.read_active() is None
+    paths, problem = cli_module._installed_backend()
+    assert paths is not None and problem is None
+
+
+def test_an_existing_install_does_not_refetch_the_backend(tmp_path: Path) -> None:
+    out = make_source(tmp_path)
+    _install(out)
+    stages: list[str] = []
+    backend_first.ensure_backend(
+        LocalDirSource(out), lambda s, *_: stages.append(s), threading.Event(), rt.stage_backend,
+    )
+    assert stages == []
+
+
+def test_a_tampered_record_is_not_trusted(tmp_path: Path) -> None:
+    out = make_source(tmp_path)
+    backend_first.ensure_backend(
+        LocalDirSource(out), lambda *_: None, threading.Event(), rt.stage_backend,
+    )
+    record = backend_first.read_record()
+    assert record is not None
+    (record.backend_dir / "xodus-cli").write_bytes(b"other")
+    backend._DIGEST_CACHE.clear()
+    assert cli_module._installed_backend() == (None, "backend_tampered")
+    assert runtime_status.probe_runtime(str(out))["backend_ready"] is False
+
+
+def test_a_record_cannot_point_outside_the_backend_folder(tmp_path: Path) -> None:
+    layout.ensure_private_dir(layout.data_root())
+    (layout.data_root() / backend_first.RECORD_NAME).write_text(
+        '{"version": "1", "dir": "../runtime", "manifest_sha256": "x"}',
+    )
+    assert backend_first.read_record() is None

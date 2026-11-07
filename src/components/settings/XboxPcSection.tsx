@@ -9,7 +9,8 @@
  * There is nothing else to set up by hand. Turning it on goes through the
  * unofficial notice once (`enableXboxPc`); after that, with Microsoft
  * connected in Store Connections, the components install and the Xbox PC
- * sign-in runs by themselves (`linkXboxPc`). Turning it off deletes nothing.
+ * sign-in window opens by itself, and again at boot or on a manual sync if it
+ * was not finished (`linkXboxPc`). Turning it off deletes nothing.
  * While it is on, small lines under the toggle show the runtime and backend
  * versions, or the download progress.
  */

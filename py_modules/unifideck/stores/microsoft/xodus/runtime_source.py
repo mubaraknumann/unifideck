@@ -176,6 +176,12 @@ class LocalDirSource:
         #: What the QAM names as the place it looked.
         self.where = str(root)
 
+    def describe_backend(self) -> BackendListing:
+        """Only the backend this source offers. A runtime may still be missing."""
+        if not self.root.is_dir():
+            raise SourceError(f"source_missing:{self.root}")
+        return _read_backend(self.root / "backend")
+
     def describe(self) -> SourceListing:
         """What this source offers, or raise ``SourceError``. Blocking."""
         if not self.root.is_dir():

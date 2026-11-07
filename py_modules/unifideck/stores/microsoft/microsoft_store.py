@@ -267,6 +267,8 @@ class MicrosoftStore(MicrosoftAchievementsMixin, MicrosoftSaveStatusMixin, Brows
             return self._set_available(False)
         loaded = await self._tokens.load()
         if not loaded:
+            if self._tokens.ticket_unavailable:  # TRANSIENT: keep the sign-in
+                return self._set_available(True)
             if self._tokens.client_mismatch:
                 await self._health.on_client_changed()
             return self._set_available(False)

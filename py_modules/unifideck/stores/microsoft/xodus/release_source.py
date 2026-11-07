@@ -50,6 +50,7 @@ from .runtime_source import (
     CHECKSUM_SUFFIX,
     RUNTIME_PREFIX,
     RUNTIME_SUFFIX,
+    BackendListing,
     LocalDirSource,
     SourceError,
     SourceListing,
@@ -238,6 +239,16 @@ class ReleaseSource:
             self._download(asset, target, meter, abort)
         _unpack_backend(tarball, out / "backend")
         return LocalDirSource(out).describe()
+
+    def fetch_backend(
+        self, offer: ReleaseOffer, progress: ProgressFn, abort: threading.Event,
+    ) -> BackendListing:
+        """Download and describe only the backend. :meth:`fetch` reuses the file."""
+        out = _prepare_folder(self.folder(offer))
+        tarball = out / offer.backend.name
+        self._download(offer.backend, tarball, _Meter(offer.total_bytes(), progress), abort)
+        _unpack_backend(tarball, out / "backend")
+        return LocalDirSource(out).describe_backend()
 
     def _download(self, asset: ReleaseAsset, target: Path, meter: _Meter, abort: threading.Event) -> None:
         if target.is_file() and target.stat().st_size == asset.size:

@@ -23,6 +23,7 @@ import os
 import stat
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
 
 from .layout import BACKEND_MANIFEST_NAME, CLI_NAME, SERVICE_NAME, ActiveComponents
 
@@ -122,7 +123,19 @@ def _file_problem(path: Path, expected: str, *, executable: bool) -> str | None:
     return None
 
 
-def check_backend(active: ActiveComponents) -> tuple[BackendPaths | None, str | None]:
+class BackendRef(Protocol):
+    """What identifies an installed backend: ``ActiveComponents``, or the
+    record of a backend installed ahead of its runtime."""
+
+    @property
+    def backend_version(self) -> str: ...
+    @property
+    def backend_dir(self) -> Path: ...
+    @property
+    def manifest_sha256(self) -> str: ...
+
+
+def check_backend(active: BackendRef) -> tuple[BackendPaths | None, str | None]:
     """``(paths, None)`` when the backend verifies, else ``(None, problem)``.
 
     ``problem`` is ``backend_missing`` (a file is gone) or

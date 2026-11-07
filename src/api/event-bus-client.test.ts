@@ -167,3 +167,22 @@ describe("EventBusClient poll-timer duplication", () => {
     expect(vi.getTimerCount()).toBe(1);
   });
 });
+
+describe("whenPrimed", () => {
+  it("waits for the first poll that completes, past a failed one", async () => {
+    const { EventBusClient } = await import("./event-bus-client");
+    mockCall.mockRejectedValueOnce(new Error("backend not up"));
+    mockCall.mockResolvedValue([]);
+    EventBusClient.subscribe("xbox_pc_state_changed", () => {});
+    let primed = false;
+    void EventBusClient.whenPrimed().then(() => {
+      primed = true;
+    });
+    await vi.advanceTimersByTimeAsync(POLL_SLOW_MS);
+    expect(primed).toBe(false);
+    await vi.advanceTimersByTimeAsync(POLL_SLOW_MS);
+    expect(primed).toBe(true);
+    // Later callers do not wait for another poll.
+    await EventBusClient.whenPrimed();
+  });
+});

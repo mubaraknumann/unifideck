@@ -68,6 +68,16 @@ class MicrosoftTokenManager(
         source = self.xodus_ticket
         return source is not None and source.active()
 
+    @property
+    def ticket_unavailable(self) -> bool:
+        """The Xodus credential applies, but the last ticket request failed.
+
+        The user is still signed in: the service could not answer now, usually
+        because the network is not up yet. The credential itself is only judged
+        by the Xodus sign-in.
+        """
+        return self._ticket_mode() and not self._using_ticket
+
     async def load(self) -> bool:
         """Load the sign-in: the Xodus ticket when it applies, else OAuth."""
         if self._ticket_mode():

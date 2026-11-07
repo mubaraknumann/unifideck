@@ -4,6 +4,7 @@ One install copies the backend binaries and unpacks the runtime archive
 (about 590 MB packed, 1.5 GB unpacked) from a ``runtime_source`` folder,
 or from a GitHub release downloaded into one first (``release_source``)::
 
+    a. the backend alone, so the sign-in need not wait (``backend_first``)
     0. a release: stop unless it is newer than the active components, then
        download it (resuming); the download is deleted once installed
     1. describe the source; stop if those exact components are active
@@ -65,8 +66,9 @@ from unifideck.launcher.xbox_pc.layout import (
 )
 from unifideck.services.download.validators import validate_path
 
+from . import backend_first
 from .release_source import ReleaseOffer, ReleaseSource
-from .runtime_source import LocalDirSource, SourceError, SourceListing
+from .runtime_source import BackendListing, LocalDirSource, SourceError, SourceListing
 
 logger = logging.getLogger(__name__)
 
@@ -154,14 +156,14 @@ def _sha512_with_progress(path: Path, total: int, progress: ProgressFn, abort: t
     return digest.hexdigest()
 
 
-def stage_backend(listing: SourceListing, dest: Path, abort: threading.Event) -> None:
+def stage_backend(backend: BackendListing, dest: Path, abort: threading.Event) -> None:
     """Copy the manifest's files into ``dest`` (a new folder), checked."""
     dest.mkdir(mode=0o755)
-    for name, expected in sorted(listing.backend.files.items()):
+    for name, expected in sorted(backend.files.items()):
         target = dest / name
-        _copy_checked(listing.backend.directory / name, target, expected, abort)
+        _copy_checked(backend.directory / name, target, expected, abort)
         target.chmod(0o755 if name in _EXECUTABLES else 0o644)
-    (dest / BACKEND_MANIFEST_NAME).write_bytes(listing.backend.manifest_bytes)
+    (dest / BACKEND_MANIFEST_NAME).write_bytes(backend.manifest_bytes)
     (dest / BACKEND_MANIFEST_NAME).chmod(0o644)
 
 
@@ -366,6 +368,7 @@ def promote(
         sweep_staging(keep=staging)
         active = _active_for(listing, _place(staging, listing), features, degraded)
         write_active(active)
+        backend_first.clear_record()
         removed = gc_unreferenced(active)
     if removed:
         logger.info("[XboxPcRuntime] removed old components: %s", ", ".join(removed))
@@ -408,7 +411,7 @@ def _stage(
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
     """Fill ``staging`` with a checked backend and runtime. No lock is held."""
     progress("copying_backend", 0, None)
-    stage_backend(listing, staging / "backend", abort)
+    stage_backend(listing.backend, staging / "backend", abort)
     progress("verifying", 0, listing.runtime.size)
     digest = _sha512_with_progress(listing.runtime.archive, listing.runtime.size, progress, abort)
     if digest != listing.runtime.sha512:
@@ -467,6 +470,10 @@ def install_sync(
 ) -> ActiveComponents:
     """The whole install, blocking. Raises ``ComponentInstallError``."""
     progress("checking", 0, None)
+    try:
+        backend_first.ensure_backend(source, progress, abort, stage_backend)
+    except SourceError as e:
+        raise ComponentInstallError(e.code) from None
     if isinstance(source, ReleaseSource):
         return _install_release(source, progress, abort)
     return _install_listing(_describe(source), progress, abort)

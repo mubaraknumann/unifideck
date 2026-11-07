@@ -2,7 +2,8 @@
  * Xbox PC sign-in: the Xodus credential behind the one Microsoft sign-in.
  *
  * The user never starts this by hand. `linkXboxPc` runs it when the
- * toggle is on and Microsoft is connected. It goes through our own
+ * toggle is on and Microsoft is connected, and offers it again at boot and on
+ * a manual sync while the account stays signed out. It goes through our own
  * `xodus-cli login`; the backend owns the protocol and drives the page over
  * Edge's debugging port (`stores/microsoft/xodus/auth.py`). The frontend:
  *

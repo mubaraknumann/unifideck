@@ -58,6 +58,7 @@ class _Service:
 
 class _Tokens:
     client_mismatch = False
+    ticket_unavailable = False
     mismatch_notified = False
     last_token_error = ""
 

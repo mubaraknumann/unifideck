@@ -7,6 +7,10 @@
  *      backend, no subprocess).
  *   2. Replaces the snapshot on every `xbox_pc_state_changed` event. The
  *      payload is the whole status, so there is nothing to merge.
+ *      The first event poll after a load skips this event (it may be from a
+ *      prior session), so the status is fetched again once that poll is done.
+ *      Otherwise a change between the first fetch and that poll is lost, which
+ *      right after a plugin install left "signed out" showing until a restart.
  *   3. Gives up waiting after {@link STATUS_TIMEOUT_MS} and reports
  *      `status_unavailable`. A backend failure must not read as "the
  *      feature is off" (rule 8), so `error` is kept apart from `enabled`.
@@ -131,6 +135,8 @@ class XboxPcStoreImpl {
   private _listeners = new Set<Listener>();
   private _unsubs: (() => void)[] = [];
   private _timer: ReturnType<typeof setTimeout> | null = null;
+  /** Bumped by start and stop, so a stale post-poll refetch does nothing. */
+  private _generation = 0;
 
   /** Start the store: initial fetch, the event, and the boot timeout. */
   start(): void {
@@ -147,10 +153,15 @@ class XboxPcStoreImpl {
       }),
     );
     void this._fetch(rpcRoutes.getXboxPcStatus);
+    const generation = ++this._generation;
+    void EventBusClient.whenPrimed().then(() => {
+      if (generation === this._generation) void this.refetch();
+    });
   }
 
   /** Stop the event subscription and the boot timer. */
   stop(): void {
+    this._generation += 1;
     for (const unsub of this._unsubs) unsub();
     this._unsubs = [];
     if (this._timer != null) clearTimeout(this._timer);

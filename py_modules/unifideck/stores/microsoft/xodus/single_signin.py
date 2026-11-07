@@ -8,8 +8,9 @@ Microsoft auth shortcut (the same Edge window the Xodus sign-in drives) and
 waits for ``STORE_AUTH_COMPLETE`` or ``STORE_AUTH_FAILED``, which this module
 emits when the Xodus sign-in ends.
 
-The components must be installed before the sign-in can run. Turning the
-toggle on installs them; a Connect that comes first waits for them.
+The sign-in needs the backend, which an install fetches ahead of the runtime
+(``backend_first``). Turning the toggle on installs both; a Connect that comes
+first waits for the backend only.
 """
 from __future__ import annotations
 
@@ -29,7 +30,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-#: How long a Connect waits for the components (copy and unpack, 1 to 2 minutes).
+#: How long a Connect waits for the backend (seconds, unless the network is slow).
 COMPONENTS_WAIT_S = 600.0
 _SIGNED_IN = frozenset({"signed_in", "unverified"})
 _USABLE = frozenset({"installed", "outdated"})
@@ -37,7 +38,7 @@ _tasks: set[asyncio.Task[Any]] = set()
 
 
 async def _components_ready(facade: XboxPc) -> str | None:
-    """Wait for usable components; None, or why they are not there."""
+    """Wait for a usable backend; None, or why it is not there."""
     status = await facade.refresh_components()
     if status["runtime"]["state"] not in _USABLE and status["runtime"]["state"] != "installing":
         started = await facade.install_components()
@@ -46,7 +47,7 @@ async def _components_ready(facade: XboxPc) -> str | None:
     deadline = time.monotonic() + COMPONENTS_WAIT_S
     while time.monotonic() < deadline:
         runtime = (await facade.status())["runtime"]
-        if runtime["state"] in _USABLE:
+        if runtime["state"] in _USABLE or runtime.get("backend_ready"):
             return None
         if runtime["state"] != "installing":
             return str(runtime.get("error") or "xbox_pc_runtime_missing")

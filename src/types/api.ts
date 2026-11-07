@@ -206,6 +206,9 @@ export interface XboxPcStatus {
     version: string | null;
     /** The installed backend (`xodus-cli`, `xodus-service`) version. */
     backend_version?: string | null;
+    /** The backend is usable, so the sign-in can run. It is installed ahead of
+     *  the runtime, so this is true while `state` is still `installing`. */
+    backend_ready?: boolean;
     /** Where the components are installed from (named in errors). */
     source_dir: string;
     progress?: XboxPcRuntimeProgress;

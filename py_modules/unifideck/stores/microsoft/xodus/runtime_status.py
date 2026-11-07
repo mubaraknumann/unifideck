@@ -18,6 +18,7 @@ from typing import Any
 from unifideck.launcher.xbox_pc.backend import check_backend
 from unifideck.launcher.xbox_pc.layout import read_active
 
+from .backend_first import read_record
 from .release_source import ReleaseSource
 from .runtime import needs_install, release_is_newer
 from .runtime_source import SourceError, source_from_config
@@ -27,6 +28,10 @@ def probe_runtime(source_value: Any, enabled: bool = True) -> dict[str, Any]:
     """The ``runtime`` row: state, version, where it looked, missing features."""
     view: dict[str, Any] = {"state": "missing", "version": None, "source_dir": "", "degraded": []}
     active = read_active()
+    only = read_record() if active is None else None
+    view["backend_ready"] = only is not None and check_backend(only)[1] is None
+    if only is not None and view["backend_ready"]:
+        view["backend_version"] = only.backend_version
     try:
         source = source_from_config(source_value)
         view["source_dir"] = source.where
@@ -49,4 +54,5 @@ def probe_runtime(source_value: Any, enabled: bool = True) -> dict[str, Any]:
     else:
         view["state"] = "outdated" if newer else "installed"
         view.pop("error", None)
+        view["backend_ready"] = True
     return view

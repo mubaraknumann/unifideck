@@ -163,9 +163,9 @@ export default definePlugin(() => {
   handles.groupDuplicatesRefresh = attachGroupDuplicatesRefresh();
   storeInfoStore.start();
   xboxPcStore.start();
-  // Toggle on and Microsoft connected: make sure the components are there.
-  // No sign-in at boot, so an Edge window never opens unasked.
-  void linkXboxPc({ signIn: false });
+  // Toggle on and Microsoft connected: make sure the components are there, and
+  // ask for the Xbox PC sign-in if it never finished.
+  void linkXboxPc({ auto: true });
   downloadStore.start();
   syncStore.start();
   // Boot-time event listener — handles STORE_ERROR, LAUNCHER_STAGE,

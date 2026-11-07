@@ -44,6 +44,7 @@ from unifideck.stores.shared.cli_install_helpers import (
     terminate_process_tree,
 )
 
+from .backend_first import read_record
 from .cli_models import (
     AccountStatus,
     ParseError,
@@ -157,10 +158,11 @@ def raise_for(out: _RunOutput) -> str:
 
 def _installed_backend() -> tuple[BackendPaths | None, str | None]:
     """The verified backend, or why there is none. Blocking (hashes)."""
-    active = read_active()
-    if active is None:
+    # No ``active.json`` yet: the backend may be installed ahead of the runtime.
+    current = read_active() or read_record()
+    if current is None:
         return None, "backend_missing"
-    return check_backend(active)
+    return check_backend(current)
 
 
 class XodusCli:

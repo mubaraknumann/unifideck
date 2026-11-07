@@ -12,6 +12,8 @@ through ``asyncio.to_thread``. Token values are never logged.
 """
 from __future__ import annotations
 
+import logging
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -36,6 +38,10 @@ LOGIN_URL = "https://xgpuweb.gssv-play-prod.xboxlive.com/v2/login/user"
 LIVE_TOKEN_URL = "https://login.live.com/oauth20_token.srf"  # noqa: S105 — an endpoint
 TRANSFER_SCOPE = "service::http://Passport.NET/purpose::PURPOSE_XBOX_CLOUD_CONSOLE_TRANSFER_TOKEN"
 _XBL_UA = "XboxReplay; XboxLiveAuth/3.0"
+#: Wait before asking for the token a second time.
+XSTS_RETRY_DELAY_S = 2.0
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -58,15 +64,27 @@ def _default_region(regions: list[dict[str, Any]]) -> str:
     return str(chosen.get("baseUri") or "")
 
 
+def _request_gssv_xsts(user_token: str) -> dict[str, Any] | None:
+    return request_xsts_token(xbl_token=user_token, xsts_rp="http://gssv.xboxlive.com/",
+                              locale="en-US", xsts_url=XSTS_URL, xbl_user_agent=_XBL_UA)
+
+
 def _gssv_xsts(access_token: str) -> tuple[str, str] | str:
     """``(user_hash, xsts)`` for xCloud, or why not."""
     user = _obtain_xbl_user_token(access_token, "en-US", XBL_URL, _XBL_UA, prefer_d=True)
     if not user or not user.get("Token"):
         return "Xbox Live refused the saved Microsoft sign-in"
-    xsts = request_xsts_token(xbl_token=user["Token"], xsts_rp="http://gssv.xboxlive.com/",
-                              locale="en-US", xsts_url=XSTS_URL, xbl_user_agent=_XBL_UA)
-    if not xsts or not xsts.get("Token"):
-        return f"Xbox Cloud Gaming refused this account (XErr {(xsts or {}).get('XErr')})"
+    xsts = _request_gssv_xsts(user["Token"])
+    if xsts is None:
+        logger.info("[xcloud_player] no xCloud token on the first try; asking once more")
+        time.sleep(XSTS_RETRY_DELAY_S)
+        xsts = _request_gssv_xsts(user["Token"])
+    if xsts is None:
+        # ``request_xsts_token`` has logged whether it was a network fault or an
+        # HTTP error. Only an answer that carries an XErr is a refusal.
+        return "Xbox Live gave no xCloud token (network or service error, see the line above)"
+    if not xsts.get("Token"):
+        return f"Xbox Cloud Gaming refused this account (XErr {xsts.get('XErr')})"
     return _extract_user_hash(user) or "", str(xsts["Token"])
 
 

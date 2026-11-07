@@ -150,6 +150,8 @@ class EventBusClientImpl {
    *  imperative events (see IMPERATIVE_EVENTS) to avoid re-firing stale
    *  side effects from a prior session. */
   private primed = false;
+  /** Waiting on {@link whenPrimed}. */
+  private primedWaiters: (() => void)[] = [];
   private timer: ReturnType<typeof setTimeout> | null = null;
   private currentInterval = POLL_SLOW_MS;
   /** Subscribe to a backend event by name. Returns the
@@ -167,6 +169,19 @@ class EventBusClientImpl {
       if (set?.size === 0) this.subscribers.delete(name);
       if (this.subscribers.size === 0) this.stopPolling();
     };
+  }
+  /**
+   * Resolves once the first poll after this load has completed.
+   *
+   * That poll primes past the {@link STALE_ON_RELOAD_EVENTS}, including ones
+   * emitted a moment earlier by the backend that just started. A store that
+   * fetched its state before the poll and relies on such an event must fetch
+   * again after this: anything older is then in the fetch, and anything newer
+   * arrives live. A failed poll keeps waiting, because it primed nothing.
+   */
+  whenPrimed(): Promise<void> {
+    if (this.primed) return Promise.resolve();
+    return new Promise((resolve) => this.primedWaiters.push(resolve));
   }
   /** Bump the polling cadence to fast — call when starting
    *  an operation that will emit events imminently (auth,
@@ -285,6 +300,7 @@ class EventBusClientImpl {
           ...records.map((r) => r.timestamp),
         );
       }
+      for (const resolve of this.primedWaiters.splice(0)) resolve();
       // Adaptive cadence : speed up when events arrive,
       // slow down when the backend is quiet.
       this.currentInterval = fresh.length > 0 ? POLL_FAST_MS : POLL_SLOW_MS;

@@ -18,6 +18,7 @@ const api = vi.hoisted(() => ({
 const bus = vi.hoisted(() => ({
   handlers: new Map<string, (p: Record<string, unknown>) => void>(),
   unsubscribed: 0,
+  primed: { promise: new Promise<void>(() => {}) },
 }));
 
 vi.mock("@decky/api", () => ({
@@ -54,6 +55,7 @@ vi.mock("../api/event-bus-client", () => ({
         bus.handlers.delete(name);
       };
     },
+    whenPrimed: () => bus.primed.promise,
   },
 }));
 
@@ -94,6 +96,25 @@ afterEach(() => {
 });
 
 describe("xbox-pc-store", () => {
+  it("fetches again after the first poll, which skips this event", async () => {
+    let prime = (): void => {};
+    bus.primed.promise = new Promise<void>((r) => {
+      prime = r;
+    });
+    api.call.mockResolvedValueOnce(envelope(status({ xcloud_signed_in: false })));
+    const store = _createXboxPcStore();
+    store.start();
+    await flush();
+    expect(store.getSnapshot().status?.xcloud_signed_in).toBe(false);
+    // The backend's check finished in the gap; its event was primed past.
+    api.call.mockResolvedValueOnce(envelope(status({ xcloud_signed_in: true })));
+    prime();
+    await flush();
+    expect(store.getSnapshot().status?.xcloud_signed_in).toBe(true);
+    store.stop();
+    bus.primed.promise = new Promise<void>(() => {});
+  });
+
   it("loads the status at start", async () => {
     api.call.mockResolvedValue(envelope(status({ enabled: true })));
     const store = _createXboxPcStore();

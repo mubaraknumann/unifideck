@@ -45,6 +45,7 @@ class _FakeTokens:
         self.client_mismatch = False
         self.mismatch_notified = False
         self.last_token_error = "invalid_grant"
+        self.ticket_unavailable = False
 
     async def load(self) -> bool:
         self.load_calls += 1
@@ -117,6 +118,15 @@ async def test_is_available_false_and_clears_when_refresh_fails():
 
     assert await store.is_available() is False
     assert tokens.cleared is True
+
+
+async def test_is_available_keeps_the_session_when_the_ticket_is_unavailable():
+    """A Deck that boots offline holds a good Xodus credential: still signed in."""
+    tokens = _FakeTokens(loaded=False)
+    tokens.ticket_unavailable = True
+    store = _store(tokens)
+    assert await store.is_available() is True
+    assert tokens.cleared is False
 
 
 async def test_is_available_keeps_the_session_when_offline():

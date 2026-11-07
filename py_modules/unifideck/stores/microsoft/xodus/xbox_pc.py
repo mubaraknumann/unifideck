@@ -24,7 +24,7 @@ import inspect
 import logging
 import platform
 import time
-from collections.abc import Awaitable, Callable, Coroutine
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
 from unifideck.core.types import Events
@@ -37,12 +37,14 @@ from unifideck.launcher.xbox_pc.layout import (
 
 from . import account_state, auto_components, repair
 from .auth import XboxPcSignIn
+from .backend_first import READY_STAGE
 from .cli import XodusCli, XodusCliError
 from .cli_models import AccountStatus
 from .release_source import ReleaseSource
 from .runtime import ComponentInstaller, ComponentInstallError
 from .runtime_source import LocalDirSource, source_from_config
 from .runtime_status import probe_runtime
+from .throttle import Throttle
 
 if TYPE_CHECKING:
     from unifideck.auth.edge_browser import EdgeBrowser
@@ -78,7 +80,7 @@ def unavailable_status() -> dict[str, Any]:
     return {
         "available": False, "enabled": False, "notice_version": NOTICE_VERSION,
         "notice_ack_version": 0, "xcloud_signed_in": False,
-        "runtime": {"state": "missing", "version": None, "source_dir": "", "degraded": []},
+        "runtime": {"state": "missing", "version": None, "source_dir": "", "degraded": [], "backend_ready": False},
         "account": {"state": "unknown"},
         "library": dict(_EMPTY_LIBRARY),
     }
@@ -97,39 +99,6 @@ def _drop_credentials() -> int:
                 entry.unlink()
                 removed += 1
     return removed
-
-
-class _Throttle:
-    """Runs ``emit`` at most once per interval, always with the latest state."""
-
-    def __init__(self, emit: Callable[[], Coroutine[Any, Any, None]], interval: float) -> None:
-        self._emit = emit
-        self._interval = interval
-        self._last = 0.0
-        self._timer: asyncio.TimerHandle | None = None
-        self._tasks: set[asyncio.Task[None]] = set()
-
-    def poke(self) -> None:
-        if self._timer is not None:
-            return
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            return
-        delay = max(0.0, self._last + self._interval - loop.time())
-        self._timer = loop.call_later(delay, self._fire)
-
-    def _fire(self) -> None:
-        self._timer = None
-        self._last = asyncio.get_running_loop().time()
-        task = asyncio.create_task(self._emit())
-        self._tasks.add(task)
-        task.add_done_callback(self._tasks.discard)
-
-    def close(self) -> None:
-        if self._timer is not None:
-            self._timer.cancel()
-            self._timer = None
 
 
 class XboxPc:
@@ -178,7 +147,7 @@ class XboxPc:
         self.sign_out_listeners: list[Callable[[], Awaitable[None] | None]] = []
         #: Told the account view once a sign-in has ended and been re-read.
         self.sign_in_listeners: list[Callable[[dict[str, Any]], None]] = []
-        self._throttle = _Throttle(self._emit_state, EMIT_INTERVAL_S)
+        self._throttle = Throttle(self._emit_state, EMIT_INTERVAL_S)
 
     # ── Config ──────────────────────────────────────────────────────
 
@@ -282,6 +251,10 @@ class XboxPc:
             return {"state": "unverified"}
         return {"state": "signed_in"}
 
+    def _backend_usable(self) -> bool:
+        """The sign-in and account checks only need the backend (``backend_first``)."""
+        return bool((self._runtime or {}).get("backend_ready"))
+
     def _snapshot(self) -> dict[str, Any]:
         return {
             "available": platform.machine() == "x86_64",
@@ -320,7 +293,9 @@ class XboxPc:
         return self._snapshot()
 
     async def refresh_status(self) -> dict[str, Any]:
-        """Probe the components and ask Xodus about the account again."""
+        """Probe the components, and ask again about both sign-ins."""
+        if self._refresh_signed_in is not None:
+            await self._refresh_signed_in()
         await self._probe()
         await self._refresh_account(force=True)
         if self._account is not None and self._account.stored and not self._signin.running:
@@ -335,7 +310,7 @@ class XboxPc:
         if not force and time.monotonic() - self._account_at < ACCOUNT_CACHE_S:
             return
         self._account_at = time.monotonic()
-        if not self._runtime_usable():
+        if not self._backend_usable():
             self._account, self._account_error = None, None
             return
         try:
@@ -426,8 +401,17 @@ class XboxPc:
             self.notify()
 
     def _on_progress(self, stage: str, done: int, total: int | None) -> None:
+        if stage == READY_STAGE:
+            # Mid-install: tell the frontend the sign-in can start now.
+            task = asyncio.get_running_loop().create_task(self._announce_backend())
+            self._background.add(task)
+            task.add_done_callback(self._background.discard)
+            return
         self._progress = {"stage": stage, "done_bytes": done, "total_bytes": total}
         self.notify()
+
+    async def _announce_backend(self) -> None:
+        await self.refresh_components()
 
     async def cancel_install(self) -> dict[str, Any]:
         """Stop a running component install. ``{cancelled}``."""

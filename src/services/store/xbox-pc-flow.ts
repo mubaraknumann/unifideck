@@ -12,7 +12,7 @@
 import { toastText } from "../toast-text";
 import { xboxPcStore } from "../../stores/xbox-pc-store";
 import { xboxPcToast } from "./xbox-pc-actions";
-import { linkXboxPc } from "./xbox-pc-link";
+import { linkXboxPc, waitForRuntime } from "./xbox-pc-link";
 
 export {
   isXboxPcRow,
@@ -22,10 +22,14 @@ export {
 
 /** Finish Xbox PC setup for an install. Resolves true when ready. */
 export async function runXboxPcSetup(): Promise<boolean> {
-  const status = xboxPcStore.getSnapshot().status;
-  if (status && !status.xcloud_signed_in) {
+  // Ask again before refusing: the snapshot may predate the sign-in check.
+  if (xboxPcStore.getSnapshot().status?.xcloud_signed_in === false) {
+    await xboxPcStore.refresh();
+  }
+  if (xboxPcStore.getSnapshot().status?.xcloud_signed_in === false) {
     xboxPcToast(toastText("toasts.xboxPcError.microsoftRequired"));
     return false;
   }
-  return linkXboxPc();
+  // The link can finish on the backend alone. An install needs the runtime too.
+  return (await linkXboxPc()) && waitForRuntime();
 }

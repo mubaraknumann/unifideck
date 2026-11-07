@@ -125,3 +125,51 @@ async def test_the_token_manager_uses_the_ticket_when_it_applies(tmp_path: Path)
     source.value, source.last_error = None, "service: OSError"
     assert await tokens.load() is False and tokens.last_token_error == "service: OSError"
     assert await tokens.refresh_if_stale() is TokenState.TRANSIENT, "a ticket hiccup never signs out"
+
+
+async def test_a_failed_ticket_is_reported_as_unavailable_not_signed_out(tmp_path: Path) -> None:
+    from unifideck.stores.microsoft.tokens.manager import MicrosoftTokenManager
+
+    tokens = MicrosoftTokenManager.__new__(MicrosoftTokenManager)
+    tokens._using_ticket = False
+    tokens._refresh_error = ""
+    tokens.xodus_ticket = _source()[0]
+    tokens.xodus_ticket.active = lambda: True  # type: ignore[method-assign]
+
+    async def no_ticket() -> None:
+        return None
+
+    tokens.xodus_ticket.get = no_ticket  # type: ignore[method-assign]
+    assert await tokens.load() is False
+    assert tokens.ticket_unavailable is True
+    tokens.xodus_ticket.active = lambda: False  # type: ignore[method-assign]
+    assert tokens.ticket_unavailable is False
+
+
+async def test_refresh_status_asks_about_the_microsoft_sign_in_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The cached flag can predate the startup check; a refresh must not return it."""
+    from unifideck.stores.microsoft.xodus.xbox_pc import XboxPc
+
+    calls: list[bool] = []
+    signed_in = {"now": False}
+
+    async def recheck() -> bool:
+        signed_in["now"] = True
+        calls.append(True)
+        return True
+
+    async def nothing(*_a: object, **_k: object) -> None:
+        return None
+
+    facade = XboxPc.__new__(XboxPc)
+    facade._refresh_signed_in = recheck
+    facade._xcloud_signed_in = lambda: signed_in["now"]
+    monkeypatch.setattr(facade, "_probe", nothing)
+    monkeypatch.setattr(facade, "_refresh_account", nothing)
+    monkeypatch.setattr(facade, "notify", lambda: None)
+    monkeypatch.setattr(facade, "_snapshot", lambda: {"xcloud_signed_in": facade._xcloud_signed_in()})
+    facade._account = None
+    assert (await facade.refresh_status())["xcloud_signed_in"] is True
+    assert calls == [True]

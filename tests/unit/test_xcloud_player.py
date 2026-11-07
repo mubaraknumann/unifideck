@@ -93,6 +93,36 @@ def test_a_refused_refresh_gives_a_reason(monkeypatch: pytest.MonkeyPatch) -> No
     assert not login.ok and "invalid_grant" in login.reason
 
 
+def _xsts_replies(
+    monkeypatch: pytest.MonkeyPatch, replies: list[dict[str, Any] | None],
+) -> list[dict[str, Any] | None]:
+    monkeypatch.setattr(credentials, "XSTS_RETRY_DELAY_S", 0.0)
+    monkeypatch.setattr(credentials, "_obtain_xbl_user_token", lambda *_a, **_k: {"Token": "U"})
+    monkeypatch.setattr(credentials, "request_xsts_token", lambda **_k: replies.pop(0))
+    return replies
+
+
+def test_a_lost_xsts_reply_is_asked_for_again(monkeypatch: pytest.MonkeyPatch) -> None:
+    left = _xsts_replies(monkeypatch, [None, {"Token": "X"}])
+    monkeypatch.setattr(credentials, "_extract_user_hash", lambda _u: "H")
+    assert credentials._gssv_xsts("a") == ("H", "X")
+    assert left == []
+
+
+def test_no_xsts_reply_is_not_called_a_refused_account(monkeypatch: pytest.MonkeyPatch) -> None:
+    left = _xsts_replies(monkeypatch, [None, None])
+    reason = credentials._gssv_xsts("a")
+    assert isinstance(reason, str) and "refused" not in reason and "network" in reason
+    assert left == []
+
+
+def test_a_real_xsts_refusal_is_not_retried(monkeypatch: pytest.MonkeyPatch) -> None:
+    left = _xsts_replies(monkeypatch, [{"XErr": 2148916233}, {"Token": "never"}])
+    reason = credentials._gssv_xsts("a")
+    assert isinstance(reason, str) and "refused" in reason and "2148916233" in reason
+    assert len(left) == 1
+
+
 def test_stream_login_never_shows_tokens() -> None:
     text = repr(credentials.StreamLogin(gs_token="GS", base_uri="https://b", refresh_token="RT"))
     assert "GS" not in text and "RT" not in text
