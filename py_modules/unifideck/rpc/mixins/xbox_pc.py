@@ -20,7 +20,9 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from unifideck.launcher.xbox_pc.layout import is_xodus_store
 from unifideck.rpc.errors import RpcError
+from unifideck.stores.microsoft.save_status_mixin import NOT_APPLICABLE
 from unifideck.stores.microsoft.xodus.xbox_pc import XboxPcError, unavailable_status
 
 logger = logging.getLogger(__name__)
@@ -30,6 +32,7 @@ class XboxPcRPCMixin:
     """Xbox PC toggle, components, sign-in and status."""
 
     registry: Any
+    sync_service: Any
     #: ``DownloadRPCMixin._queue_install``, on the same plugin.
     _queue_install: Any
 
@@ -105,3 +108,32 @@ class XboxPcRPCMixin:
             "microsoft", str(game_id), target["base_path"], target["title"],
         )
         return result
+
+    async def get_xbox_pc_save_status(self, game_id: str, force: bool = False) -> dict[str, Any]:
+        """Compare an installed game's saves with the cloud. Read-only.
+
+        ``{applicable, state, waiting, checked_at}``. ``applicable`` is False
+        for anything but an installed Xbox PC game, so a stream-only title
+        shows no line. The runtime does all syncing: nothing here pushes.
+        """
+        store = self.registry.get("microsoft")
+        if store is None:
+            return dict(NOT_APPLICABLE)
+        status: dict[str, Any] = await store.get_xbox_save_status(str(game_id), bool(force))
+        return status
+
+    async def get_uninstall_save_warning(self, app_id: int) -> dict[str, int]:
+        """``{unuploaded}``: saves that deleting this game's prefix would lose.
+
+        Reads local files only, so the uninstall dialog never waits on the
+        network. Every store but Xbox PC answers 0: their saves are not synced
+        by a runtime that keeps them in the prefix until its next launch.
+        """
+        info = self.sync_service.get_game_info(app_id) if self.sync_service else None
+        if not info or not is_xodus_store(info.get("store", "")):
+            return {"unuploaded": 0}
+        store = self.registry.get(info["store"])
+        if store is None:
+            return {"unuploaded": 0}
+        count: int = await store.count_unuploaded_saves(str(info.get("store_game_id", "")))
+        return {"unuploaded": count}

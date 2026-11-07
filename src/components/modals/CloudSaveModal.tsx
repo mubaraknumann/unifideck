@@ -374,6 +374,8 @@ export const CloudSaveModal: FC<Props> = ({
                 ? describeSnap(remote)
                 : status.cloud_supported === false
                 ? t("play.cloudSave.noCloudSupport")
+                : status.cloud_check_failed
+                ? t("play.cloudSave.checkConnection")
                 : t("play.cloudSave.noCloudData")}
             </span>
           </div>

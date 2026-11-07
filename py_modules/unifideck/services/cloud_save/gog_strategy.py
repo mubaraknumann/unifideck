@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import shutil
+import urllib.error
 from pathlib import Path
 from typing import Any
 
@@ -21,7 +22,7 @@ from unifideck.services.cloud_save.gog_cloud_api import (
 )
 from unifideck.services.cloud_save.gog_state_mixin import GOGStateMixin
 from unifideck.services.cloud_save.path_resolver import find_save_dir_by_title
-from unifideck.services.cloud_save.strategy_base import CloudSaveStrategy
+from unifideck.services.cloud_save.strategy_base import CloudSaveStrategy, CloudUnreachableError
 from unifideck.stores.gog.galaxy_api import (
     exchange_game_token,
     fetch_gog_client_creds,
@@ -371,6 +372,12 @@ class GOGCloudSaveStrategy(GOGStateMixin, CloudSaveStrategy):
             return summarize_cloud_objects(
                 objects, mtime_resolver=resolve_local_mtime,
             )
+        except urllib.error.HTTPError as e:
+            # GOG answered. A refusal says nothing about the connection.
+            logger.debug("[GOGSync] cloud-info refused for %s: HTTP %s", game_id, e.code)
+            return None
+        except (urllib.error.URLError, TimeoutError) as e:
+            raise CloudUnreachableError(str(e)) from e
         except Exception as e:
             logger.debug("[GOGSync] cloud-info query failed for %s: %s", game_id, e)
             return None

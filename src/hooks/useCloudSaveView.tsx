@@ -31,6 +31,8 @@ export type CloudSaveState =
   | "no-support"
   /** We could not find the save folder. */
   | "unresolved"
+  /** The store's cloud did not answer. */
+  | "check-connection"
   /** Local and cloud differ, or only one side exists. */
   | "out-of-sync"
   /** Local and cloud agree. */
@@ -133,6 +135,7 @@ export function useCloudSaveView(
   else if (syncing) state = "syncing";
   else if (noCloudSupport) state = "no-support";
   else if (unresolved) state = "unresolved";
+  else if (data.cloud_check_failed) state = "check-connection";
   else if (diverged || oneSided) state = "out-of-sync";
   else if (hasCloud && hasLocal) state = "in-sync";
   else state = "empty";

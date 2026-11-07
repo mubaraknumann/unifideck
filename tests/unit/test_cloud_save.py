@@ -2,6 +2,7 @@ import os
 import json
 import asyncio
 import pytest
+import urllib.error
 from unittest.mock import MagicMock, AsyncMock, patch
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from unifideck.services.cloud_save.path_resolver import WinePrefixResolver
 from unifideck.services.cloud_save.epic_strategy import EpicCloudSaveStrategy
 from unifideck.services.cloud_save.gog_strategy import GOGCloudSaveStrategy
 from unifideck.services.cloud_save.service import CloudSaveService
+from unifideck.services.cloud_save.strategy_base import CloudUnreachableError
 from unifideck.core.types import Result
 
 @pytest.fixture
@@ -1079,3 +1081,83 @@ def test_relocate_orphaned_saves_noop_for_non_numeric_dirs(tmp_path):
 
     assert not (save_dir / "savegame.dat").exists()
 
+
+# ── a store that does not answer is not an empty cloud ─────────────────────
+
+
+@pytest.mark.parametrize(
+    ("answer", "failed"),
+    [
+        (CloudUnreachableError("offline"), True),
+        (TimeoutError(), True),
+        (None, False),
+        ({"has_saves": False}, False),
+        ({"has_saves": True, "timestamp": 1.0}, False),
+    ],
+)
+@pytest.mark.asyncio
+async def test_cloud_check_failed_only_when_the_store_was_unreachable(
+    tmp_path, mock_event_bus, mock_config, answer, failed,
+):
+    svc = CloudSaveService(mock_event_bus, str(tmp_path), cloud_root=None, config=mock_config)
+    svc._strategies["gog"].get_local_save_dir = lambda gid: None
+    svc._strategies["gog"].get_cloud_save_info = AsyncMock(side_effect=[answer])
+    assert (await svc.get_cloud_status("gog", "g1"))["cloud_check_failed"] is failed
+
+
+@pytest.mark.parametrize(
+    ("error", "unreachable"),
+    [
+        (urllib.error.URLError("no route"), True),
+        (TimeoutError(), True),
+        (urllib.error.HTTPError("https://x", 403, "no", None, None), False),
+        (ValueError("bad json"), False),
+    ],
+)
+def test_gog_only_a_network_failure_is_unreachable(error, unreachable):
+    strategy = object.__new__(GOGCloudSaveStrategy)
+    strategy._cloud_listing_blocking = MagicMock(side_effect=error)
+    if unreachable:
+        with pytest.raises(CloudUnreachableError):
+            strategy._query_cloud_info_blocking("g")
+    else:
+        assert strategy._query_cloud_info_blocking("g") is None
+
+
+@pytest.mark.asyncio
+async def test_epic_failed_listing_is_not_an_empty_cloud(monkeypatch):
+    from unifideck.services.cloud_save import epic_strategy
+
+    class Proc:
+        returncode = 1
+
+        async def communicate(self):
+            return b"", b""
+
+    async def spawn(*_args, **_kwargs):
+        return Proc()
+
+    monkeypatch.setattr(epic_strategy.asyncio, "create_subprocess_exec", spawn)
+    strategy = object.__new__(epic_strategy.EpicCloudSaveStrategy)
+    strategy.legendary_bin = "legendary"
+    with pytest.raises(CloudUnreachableError):
+        await strategy._query_cloud_info("g")
+
+
+@pytest.mark.asyncio
+async def test_epic_no_saves_is_an_empty_cloud(monkeypatch):
+    from unifideck.services.cloud_save import epic_strategy
+
+    class Proc:
+        returncode = 0
+
+        async def communicate(self):
+            return b"Save games:\n", b""
+
+    async def spawn(*_args, **_kwargs):
+        return Proc()
+
+    monkeypatch.setattr(epic_strategy.asyncio, "create_subprocess_exec", spawn)
+    strategy = object.__new__(epic_strategy.EpicCloudSaveStrategy)
+    strategy.legendary_bin = "legendary"
+    assert await strategy._query_cloud_info("g") == {"has_saves": False, "timestamp": 0.0}

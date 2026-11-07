@@ -556,6 +556,7 @@
     "deleteProtonDescription": "Uyumluluk verilerini ve kullanıcı dosyalarını kaldırır",
     "warningTitle": "Uyarı:",
     "warningBody": "Bu işlem, Wine öneğinde bulunan kayıt verilerini kalıcı olarak silecektir. Yedeğiniz olduğundan emin olun.",
+    "unuploadedBody": "Yüklenmemiş kayıtlar: {{count}}. Kaybolacaklar. Önce yüklemek için oyunu bir kez başlatın.",
     "cancel": "İptal Et",
     "uninstall": "Kaldır"
   },
@@ -915,7 +916,10 @@
       "currentLocation": "Kayıt konumu",
       "changeLocation": "Konumu değiştir",
       "resetLocation": "Otomatiğe sıfırla",
-      "statusInSync": "Bulut kayıtları güncel"
+      "statusInSync": "Bulut kayıtları güncel",
+      "xboxWaitingUpload": "Yükleme bekliyor",
+      "xboxWaitingLaunch": "Başlatma bekleniyor",
+      "checkConnection": "Bağlantıyı kontrol edin"
     },
     "exe": {
       "browse": "Göz at…",

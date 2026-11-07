@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 from unifideck.launcher.proton.infrastructure.prefix_layout import resolve_drive_c
 from unifideck.services.cloud_save.path_resolver import find_save_dir_by_title
+from unifideck.services.cloud_save.strategy_base import CloudUnreachableError
 
 if TYPE_CHECKING:
     from unifideck.config import ConfigManager
@@ -155,6 +156,7 @@ class _StatusMixin:
             "has_local_saves": False,
             "local_snapshot": {},
             "has_cloud_saves": None,
+            "cloud_check_failed": False,
             "remote_snapshot": None,
             "last_sync_ts": 0.0,
             "browse_start": str(Path.home()),
@@ -234,7 +236,15 @@ class _StatusMixin:
         status, remote = await asyncio.to_thread(self._local_status, store, game_id)
         if not status["supported"]:
             return status
-        cloud_info = await self._real_cloud_info(store, game_id)
+        try:
+            cloud_info = await self._real_cloud_info(store, game_id)
+        except (CloudUnreachableError, TimeoutError) as e:
+            # Not "no saves": the UI says to check the connection instead of
+            # judging local saves against nothing. A store that answered with
+            # a refusal is not this, so a plain None stays what it was.
+            logger.info("[CloudSave] %s %s: cloud unreachable: %s", store, game_id, e)
+            status["cloud_check_failed"] = True
+            cloud_info = None
         self._merge_cloud_info(status, cloud_info, remote)
         return status
 
@@ -272,6 +282,8 @@ class _StatusMixin:
                 strat.get_cloud_save_info(game_id), timeout=20,
             )
             return info
+        except (CloudUnreachableError, TimeoutError):
+            raise
         except Exception:
             return None
 

@@ -556,6 +556,7 @@
     "deleteProtonDescription": "Rimuove i dati di compatibilità e i file utente",
     "warningTitle": "Attenzione:",
     "warningBody": "Questo eliminerà permanentemente i salvataggi archiviati nel prefisso Wine. Assicurati di aver fatto un backup.",
+    "unuploadedBody": "Salvataggi non caricati: {{count}}. Andranno persi. Avvia il gioco una volta per caricarli prima.",
     "cancel": "Annulla",
     "uninstall": "Disinstalla"
   },
@@ -915,7 +916,10 @@
       "currentLocation": "Cartella di salvataggio",
       "changeLocation": "Cambia cartella",
       "resetLocation": "Ripristina automatica",
-      "statusInSync": "Salvataggi cloud aggiornati"
+      "statusInSync": "Salvataggi cloud aggiornati",
+      "xboxWaitingUpload": "In attesa di caricamento",
+      "xboxWaitingLaunch": "In attesa dell'avvio",
+      "checkConnection": "Controlla la connessione"
     },
     "exe": {
       "browse": "Sfoglia…",

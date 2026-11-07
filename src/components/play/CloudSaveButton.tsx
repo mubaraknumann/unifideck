@@ -85,6 +85,9 @@ export const CloudSaveButton: FC<Props> = ({ store, gameId, gameTitle }) => {
       label = t("play.cloudSave.statusUnresolved");
       tintRing = "rgba(244, 180, 0, 0.55)";
       break;
+    case "check-connection":
+      label = t("play.cloudSave.checkConnection");
+      break;
     case "out-of-sync":
       icon = <FaCloudDownloadAlt />;
       label = view.cloudAvailable

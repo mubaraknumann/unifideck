@@ -556,6 +556,7 @@
     "deleteProtonDescription": "刪除相容性與使用者檔案",
     "warningTitle": "警告：",
     "warningBody": "這會永久刪除儲存在 Wine Prefix 中的存檔資料。請確認您已有備份。",
+    "unuploadedBody": "未上傳的存檔：{{count}}。它們將會遺失。請先啟動一次遊戲以上傳。",
     "cancel": "取消",
     "uninstall": "解除安裝"
   },
@@ -955,7 +956,10 @@
       "currentLocation": "存檔位置",
       "changeLocation": "變更位置",
       "resetLocation": "重設為自動",
-      "statusInSync": "雲端存檔已同步"
+      "statusInSync": "雲端存檔已同步",
+      "xboxWaitingUpload": "等待上傳",
+      "xboxWaitingLaunch": "等待啟動",
+      "checkConnection": "請檢查網路連線"
     },
     "exe": {
       "menuItem": "變更可執行檔…",

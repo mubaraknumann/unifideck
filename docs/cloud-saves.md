@@ -7,7 +7,9 @@ where a game's saves can't be found automatically.
 
 > **Which games?** Cloud saves apply to **GOG** and **Epic** games launched
 > through Unifideck. Steam games use Steam's own cloud (handled by Steam).
-> Amazon, Ubisoft, and xCloud titles are not covered by this feature.
+> Xbox PC games sync on their own, inside the game: see
+> [Xbox PC games](#xbox-pc-games). Amazon, Ubisoft, and xCloud streams are not
+> covered by this feature.
 
 ---
 
@@ -93,6 +95,9 @@ On a GOG/Epic game's page, a **cloud icon** sits in the button row next to
 | ☁️ amber ring    | **Save location not found** — sync may not work yet (see below) |
 | 🔄 spinning      | A sync is in progress                                           |
 | ☁️ dimmed        | This game has no cloud‑save support                             |
+
+If the store's cloud does not answer, the cloud‑save line and window say **Check
+Connection**. This covers GOG, Epic and Xbox PC.
 
 Selecting the icon opens the **Cloud saves** window, which shows:
 
@@ -188,6 +193,37 @@ error. (For example, many Epic titles have no cloud‑save support at all.)
 Fully supported. Game files can be installed anywhere; only the Proton prefix
 stays in Unifideck's data folder. Saves are resolved against your actual install
 location automatically.
+
+---
+
+## Xbox PC games
+
+Everything above is about GOG and Epic. Installed Xbox PC games work differently:
+the game's runtime syncs your saves itself, while the game runs. It downloads
+when the game starts and uploads as the game saves. These are the same cloud
+saves xCloud and other Xbox devices use, so you can continue on any of them.
+
+Unifideck never uploads or downloads these saves. It only compares this device
+with the cloud, so there are no Download or Upload buttons. Under the play bar,
+**Cloud saves** shows one of these:
+
+| Status | What it means |
+| ------ | ------------- |
+| Up to date | The cloud has exactly what this device has. Safe to continue elsewhere. |
+| Waiting to upload | A save on this device has not reached the cloud. Launch the game to upload it. |
+| Waiting for launch | Something changed, and the game settles it at its next launch. It also shows while the game runs. |
+| Check Connection | Unifideck could not compare with the cloud. Your saves are not affected. |
+
+The plugin log has the exact reason behind **Waiting for launch**.
+
+There is no line until the game has run once under your account, because the
+save folder is what tells Unifideck which cloud storage to look at.
+
+### Uninstalling
+
+An Xbox PC game keeps its saves in its Proton prefix. If you turn on **Also delete
+Proton files**, the dialog counts any save that has not reached the cloud, because
+deleting it would lose it for good. Launch the game once to upload it first.
 
 ---
 

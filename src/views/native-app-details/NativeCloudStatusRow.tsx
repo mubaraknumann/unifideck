@@ -6,10 +6,15 @@
  * markup and status words) for our store's cloud saves, from our status
  * (`useCloudSaveView`). It is focusable, and selecting it opens our
  * Download / Upload dialog. Hidden for a store or game without cloud saves.
+ *
+ * An installed Xbox PC game gets a plain line with no action
+ * (`useXboxSaveStatus`). Its runtime syncs inside the game, and Unifideck never
+ * pushes a save from outside it, so there is nothing to select.
  */
-import { FC, useEffect, useState } from "react";
+import { FC, ReactNode, useEffect, useState } from "react";
 import { Focusable } from "@decky/ui";
 import { useTranslation } from "react-i18next";
+import type { IconType } from "react-icons";
 import { FaCloud, FaSyncAlt } from "react-icons/fa";
 import { useGameInfo } from "../../hooks/useGameInfo";
 import {
@@ -21,6 +26,11 @@ import {
   getNativeClasses,
   steamText,
 } from "../../lib/steam-bridge/native-app-details";
+import {
+  usesXboxSaveLine,
+  useXboxSaveStatus,
+  xboxSaveLine,
+} from "../../hooks/useXboxSaveStatus";
 import type { Game } from "../../types/api";
 
 /** Steam's own status word for each of our states, and our fallback key. */
@@ -49,6 +59,8 @@ const STATUS: Record<
     "#AppDetails_CloudStatus_Synchronized",
     "play.cloudSave.statusInSync",
   ],
+  // Our own words: Steam has none for this.
+  "check-connection": ["", "play.cloudSave.checkConnection"],
 };
 
 /** First class of a CSS-module name, for a selector. */
@@ -92,6 +104,26 @@ function useRestingColours(
   }, [el, labelSel, iconSel]);
 }
 
+/** The icon and "CLOUD SAVES: <status>" text, in Steam's markup. */
+const CloudLineBody: FC<{
+  Icon: IconType;
+  spin: boolean;
+  label: string;
+  text: ReactNode;
+}> = ({ Icon, spin, label, text }) => {
+  const c = getNativeClasses().playBar;
+  return (
+    <>
+      <span className={c.CloudStatusIcon}>
+        <Icon className={cx(c.CloudIconSVG, spin && "unifideck-cloud-spin")} />
+      </span>
+      <span className={c.CloudStatusLabel}>
+        {label}: <span>{text}</span>
+      </span>
+    </>
+  );
+};
+
 const Row: FC<{ game: Game }> = ({ game }) => {
   const { t } = useTranslation();
   const view = useCloudSaveView(game.store, game.id, game.title);
@@ -126,23 +158,37 @@ const Row: FC<{ game: Game }> = ({ game }) => {
       noFocusRing={false}
     >
       <style>{pinned}</style>
-      <span className={c.CloudStatusIcon}>
-        <Icon
-          className={cx(
-            c.CloudIconSVG,
-            view.state === "syncing" && "unifideck-cloud-spin",
-          )}
-        />
-      </span>
-      <span className={c.CloudStatusLabel}>
-        {t("play.cloudSave.label")}:{" "}
-        <span>{steamText(token, t(fallbackKey))}</span>
-      </span>
+      <CloudLineBody
+        Icon={Icon}
+        spin={view.state === "syncing"}
+        label={t("play.cloudSave.label")}
+        text={token ? steamText(token, t(fallbackKey)) : t(fallbackKey)}
+      />
     </Focusable>
+  );
+};
+
+const XboxRow: FC<{ game: Game }> = ({ game }) => {
+  const { t } = useTranslation();
+  const status = useXboxSaveStatus(game.id);
+  const line = status?.applicable ? xboxSaveLine(status.state) : null;
+  if (!line) return null;
+  const c = getNativeClasses().playBar;
+  const text = line.token ? steamText(line.token, t(line.key)) : t(line.key);
+  return (
+    <div className={c.CloudStatusRow}>
+      <CloudLineBody
+        Icon={FaCloud}
+        spin={false}
+        label={t("play.cloudSave.label")}
+        text={text}
+      />
+    </div>
   );
 };
 
 export const NativeCloudStatusRow: FC<{ appId: number }> = ({ appId }) => {
   const { data: game } = useGameInfo(appId);
-  return game ? <Row game={game} /> : null;
+  if (!game) return null;
+  return usesXboxSaveLine(game) ? <XboxRow game={game} /> : <Row game={game} />;
 };

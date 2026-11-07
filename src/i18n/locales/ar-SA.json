@@ -556,6 +556,7 @@
     "deleteProtonDescription": "يزيل بيانات التوافق وملفات المستخدم الخاصة باللعبة",
     "warningTitle": "تحذير:",
     "warningBody": "سيؤدي هذا إلى حذف بيانات الحفظ المخزنة داخل بيئة تشغيل Wine نهائياً. تأكد من وجود نسخة احتياطية لديك.",
+    "unuploadedBody": "عمليات الحفظ غير المرفوعة: {{count}}. ستُفقد. شغّل اللعبة مرة واحدة لرفعها أولًا.",
     "cancel": "إلغاء",
     "uninstall": "إلغاء التثبيت"
   },
@@ -915,7 +916,10 @@
       "currentLocation": "موقع الحفظ",
       "changeLocation": "تغيير الموقع",
       "resetLocation": "إعادة التعيين إلى تلقائي",
-      "statusInSync": "الحفظ السحابي محدَّث"
+      "statusInSync": "الحفظ السحابي محدَّث",
+      "xboxWaitingUpload": "في انتظار الرفع",
+      "xboxWaitingLaunch": "في انتظار التشغيل",
+      "checkConnection": "تحقق من الاتصال"
     },
     "exe": {
       "browse": "تصفح…",

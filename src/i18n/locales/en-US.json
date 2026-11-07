@@ -556,6 +556,7 @@
     "deleteProtonDescription": "Removes Compatibility and User Files data",
     "warningTitle": "Warning:",
     "warningBody": "This will permanently delete save data stored in the Wine prefix. Make sure they are backed up.",
+    "unuploadedBody": "Saves not uploaded: {{count}}. They will be lost. Launch the game once to upload them first.",
     "cancel": "Cancel",
     "uninstall": "Uninstall"
   },
@@ -955,7 +956,10 @@
       "currentLocation": "Save location",
       "changeLocation": "Change location",
       "resetLocation": "Reset to automatic",
-      "statusInSync": "Cloud saves up to date"
+      "statusInSync": "Cloud saves up to date",
+      "xboxWaitingUpload": "Waiting to upload",
+      "xboxWaitingLaunch": "Waiting for launch",
+      "checkConnection": "Check Connection"
     },
     "exe": {
       "menuItem": "Change executable…",

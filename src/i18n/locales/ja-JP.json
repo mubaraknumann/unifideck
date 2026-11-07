@@ -556,6 +556,7 @@
     "deleteProtonDescription": "互換性データとユーザーファイルを削除します",
     "warningTitle": "警告:",
     "warningBody": "これにより、Wine プレフィックス内にあるセーブデータが永久に削除されます。バックアップがあることを確認してください。",
+    "unuploadedBody": "未アップロードのセーブ: {{count}}。失われます。先にゲームを一度起動してアップロードしてください。",
     "cancel": "キャンセル",
     "uninstall": "アンインストール"
   },
@@ -915,7 +916,10 @@
       "currentLocation": "セーブデータの場所",
       "changeLocation": "場所を変更",
       "resetLocation": "自動に戻す",
-      "statusInSync": "クラウドセーブは最新です"
+      "statusInSync": "クラウドセーブは最新です",
+      "xboxWaitingUpload": "アップロード待ち",
+      "xboxWaitingLaunch": "起動待ち",
+      "checkConnection": "接続を確認してください"
     },
     "exe": {
       "browse": "参照…",

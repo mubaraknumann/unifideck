@@ -556,6 +556,7 @@
     "deleteProtonDescription": "Entfernt Kompatibilitätsdaten und Benutzerdateien",
     "warningTitle": "Warnung:",
     "warningBody": "Dadurch werden alle im Wine-Präfix gespeicherten Spielstände dauerhaft gelöscht. Stelle sicher, dass sie gesichert sind.",
+    "unuploadedBody": "Nicht hochgeladene Spielstände: {{count}}. Sie gehen verloren. Starte das Spiel einmal, um sie vorher hochzuladen.",
     "cancel": "Abbrechen",
     "uninstall": "Deinstallieren"
   },
@@ -915,7 +916,10 @@
       "currentLocation": "Speicherort",
       "changeLocation": "Speicherort ändern",
       "resetLocation": "Auf automatisch zurücksetzen",
-      "statusInSync": "Cloud-Spielstände aktuell"
+      "statusInSync": "Cloud-Spielstände aktuell",
+      "xboxWaitingUpload": "Upload ausstehend",
+      "xboxWaitingLaunch": "Wartet auf Start",
+      "checkConnection": "Verbindung prüfen"
     },
     "exe": {
       "browse": "Durchsuchen…",

@@ -556,6 +556,7 @@
     "deleteProtonDescription": "Verwijdert compatibiliteitsgegevens en gebruikersbestanden",
     "warningTitle": "Waarschuwing:",
     "warningBody": "Dit zal permanent spelbestanden verwijderen die zijn opgeslagen in de Wine-prefix. Zorg dat je een back-up hebt.",
+    "unuploadedBody": "Niet-geüploade opslagen: {{count}}. Ze gaan verloren. Start het spel eenmaal om ze eerst te uploaden.",
     "cancel": "Annuleren",
     "uninstall": "Deïnstalleren"
   },
@@ -915,7 +916,10 @@
       "currentLocation": "Opslaglocatie",
       "changeLocation": "Locatie wijzigen",
       "resetLocation": "Terug naar automatisch",
-      "statusInSync": "Cloudopslag up-to-date"
+      "statusInSync": "Cloudopslag up-to-date",
+      "xboxWaitingUpload": "Wacht op upload",
+      "xboxWaitingLaunch": "Wacht op start",
+      "checkConnection": "Controleer de verbinding"
     },
     "exe": {
       "browse": "Bladeren…",

@@ -556,6 +556,7 @@
     "deleteProtonDescription": "Elimina los datos de compatibilidad y archivos del usuario",
     "warningTitle": "Advertencia:",
     "warningBody": "Esto eliminará permanentemente los datos de guardado dentro del prefijo de Wine. Asegúrate de tener una copia de seguridad.",
+    "unuploadedBody": "Partidas sin subir: {{count}}. Se perderán. Inicia el juego una vez para subirlas antes.",
     "cancel": "Cancelar",
     "uninstall": "Desinstalar"
   },
@@ -915,7 +916,10 @@
       "currentLocation": "Ubicación de guardado",
       "changeLocation": "Cambiar ubicación",
       "resetLocation": "Restablecer a automática",
-      "statusInSync": "Guardados en la nube al día"
+      "statusInSync": "Guardados en la nube al día",
+      "xboxWaitingUpload": "Pendiente de subir",
+      "xboxWaitingLaunch": "Esperando el inicio",
+      "checkConnection": "Comprueba la conexión"
     },
     "exe": {
       "browse": "Buscar…",

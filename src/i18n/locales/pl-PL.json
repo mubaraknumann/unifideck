@@ -556,6 +556,7 @@
     "deleteProtonDescription": "Usuwa dane zgodności i pliki użytkownika",
     "warningTitle": "Ostrzeżenie:",
     "warningBody": "Spowoduje to trwałe usunięcie zapisów gry z prefiksu Wine. Upewnij się, że masz ich kopię.",
+    "unuploadedBody": "Niewysłane zapisy: {{count}}. Zostaną utracone. Najpierw uruchom grę raz, aby je wysłać.",
     "cancel": "Anuluj",
     "uninstall": "Odinstaluj"
   },
@@ -915,7 +916,10 @@
       "currentLocation": "Lokalizacja zapisu",
       "changeLocation": "Zmień lokalizację",
       "resetLocation": "Przywróć automatyczną",
-      "statusInSync": "Zapisy w chmurze aktualne"
+      "statusInSync": "Zapisy w chmurze aktualne",
+      "xboxWaitingUpload": "Oczekuje na wysłanie",
+      "xboxWaitingLaunch": "Oczekuje na uruchomienie",
+      "checkConnection": "Sprawdź połączenie"
     },
     "exe": {
       "browse": "Przeglądaj…",

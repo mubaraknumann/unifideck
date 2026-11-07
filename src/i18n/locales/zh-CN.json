@@ -556,6 +556,7 @@
     "deleteProtonDescription": "删除兼容性数据和用户文件",
     "warningTitle": "警告:",
     "warningBody": "这将永久删除保存在 Wine 环境下的存档数据。请确保您有备份。",
+    "unuploadedBody": "未上传的存档：{{count}}。它们将会丢失。请先启动一次游戏以上传。",
     "cancel": "取消",
     "uninstall": "卸载"
   },
@@ -915,7 +916,10 @@
       "currentLocation": "存档位置",
       "changeLocation": "更改位置",
       "resetLocation": "重置为自动",
-      "statusInSync": "云存档已是最新"
+      "statusInSync": "云存档已是最新",
+      "xboxWaitingUpload": "等待上传",
+      "xboxWaitingLaunch": "等待启动",
+      "checkConnection": "请检查网络连接"
     },
     "exe": {
       "browse": "浏览…",

@@ -32,6 +32,7 @@ from .microsoft_config import MicrosoftConfig
 from .microsoft_device_auth import MS_AUTH_URL_FILE, MicrosoftDeviceAuth
 from .ownership import MicrosoftOwnershipReader, OwnedFetch
 from .pc_library.library import PC_ONLY, XboxPcLibrary, has_pc_rows
+from .save_status_mixin import MicrosoftSaveStatusMixin
 from .session_health import SessionHealth
 from .tokens import MicrosoftTokenManager, TokenState
 from .xodus import auto_components, single_signin
@@ -63,7 +64,7 @@ def _cancel(task: asyncio.Task[Any] | None) -> None:
         task.cancel()
 
 
-class MicrosoftStore(MicrosoftAchievementsMixin, BrowserAuthRebuildMixin, StoreBase):
+class MicrosoftStore(MicrosoftAchievementsMixin, MicrosoftSaveStatusMixin, BrowserAuthRebuildMixin, StoreBase):
     """Microsoft store."""
     store_info = StoreInfo(
         name="microsoft",
