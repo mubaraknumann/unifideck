@@ -523,6 +523,8 @@ async def _loop_reason(world: dict[str, Any], on_poll: Any = None) -> str:
     pids = itertools.count(1000)
 
     def restarting() -> dict[int, str]:
+        if not world["out"].exists():
+            return {}
         if on_poll is not None:
             on_poll()
         return {next(pids): "balatro.exe"}

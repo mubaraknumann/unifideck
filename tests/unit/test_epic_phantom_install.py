@@ -242,10 +242,13 @@ async def test_terminate_escalates_to_sigkill_when_sigterm_is_ignored() -> None:
         "-c",
         "import signal, time\n"
         "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+        "print(\"ready\", flush=True)\n"
         "time.sleep(60)\n",
+        stdout=asyncio.subprocess.PIPE,
     )
     try:
-        await asyncio.sleep(0.5)  # let the handler install
+        assert proc.stdout is not None
+        assert await asyncio.wait_for(proc.stdout.readline(), timeout=30) == b"ready\n"
         await terminate_process_tree(proc, "[test]", grace_s=0.5)
         assert proc.returncode is not None
         assert proc.returncode in (-signal.SIGKILL, signal.SIGKILL, 137)

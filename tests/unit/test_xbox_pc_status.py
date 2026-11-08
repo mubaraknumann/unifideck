@@ -149,15 +149,12 @@ async def test_enable_needs_the_notice_and_disable_deletes_nothing(tmp_path: Pat
 
 
 async def _wait_installed(facade: XboxPc) -> dict[str, Any]:
-    # A wide deadline, polled often: it costs nothing when the install is
-    # quick, and a parallel run (pytest -n auto) can starve it of CPU.
-    deadline = asyncio.get_running_loop().time() + 60
-    while asyncio.get_running_loop().time() < deadline:
-        status = await facade.status()
-        if status["runtime"]["state"] != "installing":
-            return status
-        await asyncio.sleep(0.05)
-    raise AssertionError("install did not finish")
+    # The installer stops running before the facade finishes its final probe;
+    # a retry during that gap is still refused as install_in_progress.
+    task = facade._install_task
+    assert task is not None
+    await asyncio.wait_for(asyncio.shield(task), timeout=60)
+    return await facade.status()
 
 
 async def test_turning_on_installs_missing_components(tmp_path: Path) -> None:
