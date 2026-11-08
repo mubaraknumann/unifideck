@@ -410,6 +410,7 @@
       "installingRedistMessage": "Add. runtimes…",
       "installingRedistributables": "Instalando libs…",
       "installingUbisoftMessage": "Instale pelo app",
+      "invalidCountry": "País inválido",
       "launcherError": "Falha ao iniciar",
       "nativeExitedEarly": "Fechou na hora",
       "prefixInitialized": "Prefixo pronto",

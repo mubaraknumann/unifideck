@@ -45,9 +45,7 @@ class _SyncCacheMixin:
 
     def _get_library_cache_path(self) -> Path:
         """Resolve the library_cache.json file path."""
-        from unifideck.utils.paths import get_games_map_path
-        map_path = get_games_map_path(self._config)
-        return Path(map_path).parent / "library_cache.json"
+        return library_cache_path(self._config)
 
     def _load_library_cache(self) -> None:
         """Load synced libraries from disk cache."""
@@ -69,7 +67,7 @@ class _SyncCacheMixin:
             if not isinstance(libraries_data, dict):
                 return
 
-            self._all_games = _deserialize_libraries(libraries_data)
+            self._all_games = deserialize_libraries(libraries_data)
             logger.info(
                 "[SyncService] Loaded %d cached games from library_cache.json",
                 sum(len(g) for g in self._all_games.values()),
@@ -220,7 +218,13 @@ class _SyncCacheMixin:
         except Exception as e:
             logger.warning("[SyncService] Failed to save library cache: %s", e)
 
-def _deserialize_libraries(
+def library_cache_path(config: Any) -> Path:
+    """``library_cache.json``, next to ``games.map``."""
+    from unifideck.utils.paths import get_games_map_path
+    return Path(get_games_map_path(config)).parent / "library_cache.json"
+
+
+def deserialize_libraries(
     libraries_data: dict[str, Any],
 ) -> dict[str, list[Game]]:
     """Rebuild ``{store: [Game]}`` from the cached JSON dicts.

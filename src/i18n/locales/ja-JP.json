@@ -410,6 +410,7 @@
       "installingRedistMessage": "ランタイム追加中…",
       "installingRedistributables": "ライブラリ追加中",
       "installingUbisoftMessage": "アプリから導入",
+      "invalidCountry": "無効な国",
       "launcherError": "起動できません",
       "nativeExitedEarly": "すぐ終了しました",
       "prefixInitialized": "プレフィックス準備完了",

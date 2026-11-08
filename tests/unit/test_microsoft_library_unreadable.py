@@ -370,12 +370,12 @@ async def test_successful_probe_is_authoritative() -> None:
 
 async def test_failed_probe_without_cache_is_a_guess() -> None:
     svc = _service(None, _Probe(ok=False))
-    assert await svc.get_tier_checked(None) == TierAnswer(SubscriptionTier.NONE, False)
+    assert await svc.get_tier_checked(None) == TierAnswer(SubscriptionTier.NONE, False, "http_503")
 
 
 async def test_failed_probe_with_stale_cache_is_a_guess() -> None:
     svc = _service(_Cached(SubscriptionTier.ULTIMATE, fresh=False), _Probe(ok=False))
-    assert await svc.get_tier_checked(None) == TierAnswer(SubscriptionTier.ULTIMATE, False)
+    assert await svc.get_tier_checked(None) == TierAnswer(SubscriptionTier.ULTIMATE, False, "http_503")
 
 
 async def test_get_tier_still_returns_the_bare_tier() -> None:

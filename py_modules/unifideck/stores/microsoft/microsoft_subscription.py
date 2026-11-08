@@ -206,6 +206,20 @@ def _read_error_body(e: urllib.error.HTTPError) -> str:
         return ""
 
 
+#: ``SubscriptionProbeResult.error`` when Cloud Gaming refuses the location.
+INVALID_COUNTRY = "invalid_country"
+
+
+def _error_code(body: str) -> str:
+    """The ``code`` of a JSON error body, or ``""``."""
+    try:
+        parsed = json.loads(body)
+    except ValueError:
+        return ""
+    code = parsed.get("code") if isinstance(parsed, dict) else None
+    return code if isinstance(code, str) else ""
+
+
 def _http_error_label(status: int) -> str:
     """Map a transient HTTP status to a result.error label."""
     return {
@@ -236,11 +250,24 @@ def _do_probe_http(
         # request was rejected at the edge (missing User-Agent etc.) —
         # NOT "user has no subscription". Treat as transient so the
         # service-level cache doesn't poison NONE for end-of-month.
+        body = _read_error_body(e)
+        if status == 403 and _error_code(body) == "InvalidCountry":
+            # Microsoft refuses Cloud Gaming from this connection's location
+            # (country, VPN or proxy). The plan was never asked about.
+            logger.warning(
+                "[SubscriptionProbe] Xbox Cloud Gaming refuses this connection's "
+                "location (HTTP 403 InvalidCountry on %s); this is not a plan problem",
+                endpoint_url,
+            )
+            return SubscriptionProbeResult(
+                tier=SubscriptionTier.NONE, ok=False,
+                error=INVALID_COUNTRY, http_status=status,
+            )
         if status in (401, 403, 404):
             logger.warning(
                 "[SubscriptionProbe] HTTP %d on %s — transient, "
                 "not caching as NONE (body=%s)",
-                status, endpoint_url, _read_error_body(e),
+                status, endpoint_url, body,
             )
             return SubscriptionProbeResult(
                 tier=SubscriptionTier.NONE,

@@ -410,6 +410,7 @@
       "installingRedistMessage": "Runtimes folgen…",
       "installingRedistributables": "Bibliotheken…",
       "installingUbisoftMessage": "Über die App",
+      "invalidCountry": "Ungültiges Land",
       "launcherError": "Start misslungen",
       "nativeExitedEarly": "Sofort beendet",
       "prefixInitialized": "Prefix bereit",

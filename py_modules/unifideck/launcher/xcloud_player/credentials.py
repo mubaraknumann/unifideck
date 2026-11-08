@@ -23,7 +23,7 @@ from unifideck.stores.microsoft.microsoft_auth import (
     _obtain_xbl_user_token,
     request_xsts_token,
 )
-from unifideck.stores.microsoft.microsoft_subscription import _probe_sync
+from unifideck.stores.microsoft.microsoft_subscription import INVALID_COUNTRY, _probe_sync
 from unifideck.stores.microsoft.tokens.endpoint import post_form
 from unifideck.stores.microsoft.xbox_com_grant import (
     DEFAULT_TOKEN_FILE,
@@ -52,6 +52,8 @@ class StreamLogin:
     base_uri: str = ""
     refresh_token: str = field(default="", repr=False)
     reason: str = ""
+    #: Cloud Gaming refuses this connection's location: no stream can start.
+    invalid_country: bool = False
 
     @property
     def ok(self) -> bool:
@@ -107,7 +109,8 @@ def stream_login(token_file: str = DEFAULT_TOKEN_FILE) -> StreamLogin:
         return StreamLogin(reason=chain)
     probe = _probe_sync(chain[0], chain[1], LOGIN_URL, 20, "xgpuweb")
     if not probe.gs_token:
-        return StreamLogin(reason=f"the Xbox Cloud Gaming login failed ({probe.error})")
+        return StreamLogin(reason=f"the Xbox Cloud Gaming login failed ({probe.error})",
+                           invalid_country=probe.error == INVALID_COUNTRY)
     return StreamLogin(gs_token=probe.gs_token, base_uri=_default_region(probe.regions),
                        refresh_token=refresh)
 

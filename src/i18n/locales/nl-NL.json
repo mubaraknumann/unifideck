@@ -410,6 +410,7 @@
       "installingRedistMessage": "Runtimes erbij…",
       "installingRedistributables": "Libraries erbij",
       "installingUbisoftMessage": "Gebruik de app",
+      "invalidCountry": "Ongeldig land",
       "launcherError": "Starten mislukt",
       "nativeExitedEarly": "Direct gestopt",
       "prefixInitialized": "Prefix gereed",

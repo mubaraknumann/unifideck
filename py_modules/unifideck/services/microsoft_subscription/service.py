@@ -30,6 +30,8 @@ class TierAnswer(NamedTuple):
 
     tier: SubscriptionTier
     authoritative: bool
+    #: Why the probe failed (``SubscriptionProbeResult.error``) when not authoritative.
+    reason: str = ""
 
 
 class MicrosoftSubscriptionService(
@@ -107,7 +109,7 @@ class MicrosoftSubscriptionService(
                     cached.tier.value,
                     _fmt_ts(cached.detected_at),
                 )
-                return TierAnswer(cached.tier, authoritative=False)
+                return TierAnswer(cached.tier, authoritative=False, reason=probe_result.error or "")
             # No SUBSCRIPTION_CHECK_FAILED emit here: MicrosoftStore turns a
             # non-authoritative answer into SYNC_SKIPPED(reason=
             # "subscription_check_error"), the channel the frontend renders
@@ -117,7 +119,7 @@ class MicrosoftSubscriptionService(
                 "— tier unknown",
                 probe_result.error,
             )
-            return TierAnswer(SubscriptionTier.NONE, authoritative=False)
+            return TierAnswer(SubscriptionTier.NONE, authoritative=False, reason=probe_result.error or "")
 
     async def _handle_probe_success(
         self, cache_key: str, probe_result: SubscriptionProbeResult,

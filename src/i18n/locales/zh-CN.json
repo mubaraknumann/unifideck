@@ -410,6 +410,7 @@
       "installingRedistMessage": "正在添加运行库…",
       "installingRedistributables": "正在添加依赖库",
       "installingUbisoftMessage": "请在应用中安装",
+      "invalidCountry": "国家无效",
       "launcherError": "无法启动",
       "nativeExitedEarly": "立即退出",
       "prefixInitialized": "前缀已就绪",

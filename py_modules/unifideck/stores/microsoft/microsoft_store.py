@@ -35,6 +35,7 @@ from .pc_library.library import PC_ONLY, XboxPcLibrary, has_pc_rows
 from .save_status_mixin import MicrosoftSaveStatusMixin
 from .session_health import SessionHealth
 from .tokens import MicrosoftTokenManager, TokenState
+from .xcloud_kept import kept_xcloud_rows
 from .xodus import auto_components, single_signin
 from .xodus.store_hooks import XboxPcStoreHooks
 from .xodus.ticket import XodusTicket
@@ -395,17 +396,14 @@ class MicrosoftStore(MicrosoftAchievementsMixin, MicrosoftSaveStatusMixin, Brows
         return result
 
     async def get_library(self, *, force: bool = False) -> list[Game] | None:
-        """The xCloud titles plus the Xbox PC titles, or ``None`` when unread.
-
-        A list, even an empty one, is authoritative: the post-sync
-        reconcile deletes every Microsoft shortcut missing from it. So every
-        "could not read" path returns ``None`` (keep the shortcuts), and
-        ``[]`` is reserved for Microsoft saying the account has no
-        subscription (see ``library_gate``) and no PC rows remaining. The
-        PC rows come from ``pc_library``, which needs the xCloud sign-in.
-        """
+        """The xCloud plus Xbox PC titles. Any list is authoritative (missing
+        shortcuts are deleted): unread is ``None``, an invalid country keeps the
+        last xCloud rows (``xcloud_kept``), ``[]`` is no subscription or PC rows."""
         started = self._pc_library.now()
         read = await self._read_xcloud()
+        if read.verdict is GateVerdict.INVALID_COUNTRY:
+            kept = await asyncio.to_thread(kept_xcloud_rows, self._config_manager)
+            return await self._pc_library.compose(kept, market=self._last_market, started=started)
         if read.verdict is GateVerdict.EMPTY:
             rows = await self._pc_library.compose([], market=self._last_market, started=started)
             if has_pc_rows(rows):
@@ -445,7 +443,7 @@ class MicrosoftStore(MicrosoftAchievementsMixin, MicrosoftSaveStatusMixin, Brows
         verdict = await check_subscription_gate(
             self._subscription_service, self._tokens, self._bus,
         )
-        if verdict in (GateVerdict.EMPTY, GateVerdict.UNREADABLE):
+        if verdict is not GateVerdict.PROCEED:
             return _XcloudRead(None, verdict)
         session = await self._xcloud_session()
         if session is None:

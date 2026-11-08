@@ -410,6 +410,7 @@
       "installingRedistMessage": "إضافة المكتبات…",
       "installingRedistributables": "جارٍ إضافة مكتبات",
       "installingUbisoftMessage": "ثبّت من التطبيق",
+      "invalidCountry": "دولة غير صالحة",
       "launcherError": "تعذّر البدء",
       "nativeExitedEarly": "أُغلقت فورًا",
       "prefixInitialized": "البادئة جاهزة",

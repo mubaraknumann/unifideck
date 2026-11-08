@@ -410,6 +410,7 @@
       "installingRedistMessage": "Установка…",
       "installingRedistributables": "Установка…",
       "installingUbisoftMessage": "Через клиент",
+      "invalidCountry": "Неверная страна",
       "launcherError": "Не запустилась",
       "nativeExitedEarly": "Сразу закрылась",
       "prefixInitialized": "Префикс готов",

@@ -99,12 +99,21 @@ def _end(proc: subprocess.Popen[bytes] | None) -> None:
             time.sleep(0.1)
 
 
+class _InvalidCountryError(Exception):
+    """Cloud Gaming refuses this location. xbox.com would refuse it too."""
+
+
 async def _prepare(svc: LauncherService, url: str) -> tuple[Any, ...] | None:
-    """``(login, api, title_id, browser)`` or None after logging why not."""
+    """``(login, api, title_id, browser)`` or None after logging why not.
+
+    Raises :class:`_InvalidCountryError` when no stream can start at all.
+    """
     from unifideck.launcher.xcloud_player import browser, credentials
     from unifideck.launcher.xcloud_player.api import XcloudApi
 
     login = await asyncio.to_thread(credentials.stream_login, token_file(svc))
+    if login.invalid_country:
+        raise _InvalidCountryError(login.reason)
     if not login.ok:
         logger.info("%s not used: %s. Streaming through xbox.com instead.", _LOG, login.reason)
         return None
@@ -129,7 +138,16 @@ async def try_own_player(svc: LauncherService, ctx: LaunchContext, url: str) -> 
     from unifideck.launcher.xcloud_player import browser, credentials
     from unifideck.launcher.xcloud_player.server import PlayerServer
 
-    prepared = await _prepare(svc, url)
+    try:
+        prepared = await _prepare(svc, url)
+    except _InvalidCountryError:
+        from unifideck.launcher.rpc import emit_stage
+        logger.warning("%s %s not started: Xbox Cloud Gaming refuses this connection's "
+                       "location (InvalidCountry)", _LOG, ctx.game_key)
+        await emit_stage(svc._bus, i18n_title_key="toasts.header.xboxCloud",
+                         i18n_key="toasts.launcher.invalidCountry", game_title=ctx.game_key,
+                         priority="normal", severity="warning")
+        return Result(success=False, error="xcloud_invalid_country", store=ctx.store)
     if prepared is None:
         return None
     login, api, title_id, (cmd, name) = prepared
