@@ -165,6 +165,7 @@ async def test_refresh_status_asks_about_the_microsoft_sign_in_again(
 
     facade = XboxPc.__new__(XboxPc)
     facade._refresh_signed_in = recheck
+    facade._plain_cleared = True
     facade._xcloud_signed_in = lambda: signed_in["now"]
     monkeypatch.setattr(facade, "_probe", nothing)
     monkeypatch.setattr(facade, "_refresh_account", nothing)

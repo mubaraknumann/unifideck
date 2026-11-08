@@ -13,7 +13,7 @@ type Status = {
   enabled: boolean;
   xcloud_signed_in: boolean;
   runtime: { state: string; backend_ready?: boolean };
-  account: { state: string };
+  account: { state: string; reset?: boolean };
 };
 
 const h = vi.hoisted(() => {
@@ -46,7 +46,7 @@ vi.mock("../../stores/xbox-pc-store", () => ({ xboxPcStore: h.store }));
 vi.mock("../auth/xbox-pc-sign-in", () => ({ signInXboxPc: h.signIn }));
 vi.mock("./xbox-pc-actions", () => ({ toastXboxPcError: h.toastError }));
 
-import { linkXboxPc, waitForRuntime } from "./xbox-pc-link";
+import { linkXboxPc, waitForRuntime, watchXboxPcReset } from "./xbox-pc-link";
 
 function status(over: Partial<Status> = {}): Status {
   return {
@@ -215,6 +215,19 @@ describe("linkXboxPc", () => {
     expect(finished).toBe(false);
     h.set(status({ runtime: { state: "installed", backend_ready: true } }));
     expect(await wait).toBe(true);
+  });
+
+  it("opens the sign-in once when the backend replaces a plain sign-in", async () => {
+    h.set(status({ account: { state: "signed_in" } }));
+    const stop = watchXboxPcReset();
+    const reset = status({ account: { state: "signed_out", reset: true } });
+    h.set(reset);
+    await vi.waitFor(() => expect(h.signIn).toHaveBeenCalledTimes(1));
+    await new Promise((r) => setTimeout(r, 0));
+    h.set({ ...reset });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(h.signIn).toHaveBeenCalledTimes(1);
+    stop();
   });
 
   it("shares one run between concurrent callers", async () => {

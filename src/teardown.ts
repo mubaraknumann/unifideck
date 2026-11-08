@@ -42,6 +42,7 @@ export interface TeardownHandles {
   pluginUpdateNotice?: (() => void) | null;
   bootEventListener?: (() => void) | null;
   signedOutTabs?: (() => void) | null;
+  xboxPcResetWatch?: (() => void) | null;
   groupDuplicatesRefresh?: (() => void) | null;
 }
 /**
@@ -67,6 +68,7 @@ export interface TeardownHandles {
  * `index.tsx`, so a handle is released before whatever it was built on.
  */
 const DISPOSERS: Record<keyof TeardownHandles, (h: TeardownHandles) => void> = {
+  xboxPcResetWatch: (h) => h.xboxPcResetWatch?.(),
   bootEventListener: (h) => h.bootEventListener?.(),
   launcherToastPoll: (h) => h.launcherToastPoll?.(),
   pluginUpdateNotice: (h) => h.pluginUpdateNotice?.(),

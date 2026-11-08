@@ -48,7 +48,7 @@ import { syncStore } from "./stores/sync-store";
 import { authStore } from "./stores/auth-store";
 import { storeInfoStore } from "./stores/store-info-store";
 import { xboxPcStore } from "./stores/xbox-pc-store";
-import { linkXboxPc } from "./services/store/xbox-pc-link";
+import { linkXboxPc, watchXboxPcReset } from "./services/store/xbox-pc-link";
 import { runTeardown, type TeardownHandles } from "./teardown";
 // Eager translation load — Decky's UI mounts before any
 // async work resolves, so we kick this off at module import.
@@ -166,6 +166,7 @@ export default definePlugin(() => {
   // Toggle on and Microsoft connected: make sure the components are there, and
   // ask for the Xbox PC sign-in if it never finished.
   void linkXboxPc({ auto: true });
+  handles.xboxPcResetWatch = watchXboxPcReset();
   downloadStore.start();
   syncStore.start();
   // Boot-time event listener — handles STORE_ERROR, LAUNCHER_STAGE,

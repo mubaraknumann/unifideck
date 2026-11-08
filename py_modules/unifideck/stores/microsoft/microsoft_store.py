@@ -226,6 +226,7 @@ class MicrosoftStore(MicrosoftAchievementsMixin, MicrosoftSaveStatusMixin, Brows
         Microsoft first" after every restart (ISSUES.md I-036).
         """
         try:
+            await self._xbox_pc.clear_plain_credentials()
             await self.is_available()
         except Exception:
             logger.exception("[MicrosoftStore] startup sign-in check failed")

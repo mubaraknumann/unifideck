@@ -224,6 +224,14 @@ class SecureTokenStore:
         delta = current - float(ts)
         return max(delta, 0.0)
 
+    def encrypt_bytes(self, plaintext: bytes) -> bytes:
+        """Encrypt raw bytes exactly as given, with no metadata added.
+
+        For files another program reads back: the Xodus backend seals its
+        credentials in this same format (``ours-encrypted-credentials``).
+        """
+        return self._encrypt(plaintext)
+
     def decrypt_payload(self, blob: bytes) -> dict[str, Any]:
         """Decrypt and parse `blob` back into a payload dict.
 

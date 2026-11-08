@@ -23,6 +23,7 @@
  * at boot and on a manual sync with `auto: true`, so a user who never finished
  * the sign-in gets the window again: there is no sign-in button to go back to.
  * `auto` only ever opens it for a `signed_out` account with no game running.
+ * It runs the same way when the backend replaces a plain sign-in (`watchXboxPcReset`).
  * Signing out of Microsoft signs out of both (backend `on_microsoft_logout`).
  * Failures toast (rule 8); nothing here opens a settings panel.
  */
@@ -153,4 +154,18 @@ export function linkXboxPc(opts: { auto?: boolean } = {}): Promise<boolean> {
   });
   running = { done, auto };
   return done;
+}
+
+/**
+ * Open the sign-in when the backend signs the user out to replace a plain
+ * sign-in. That usually happens mid-session, when the background update to a
+ * sealing backend finishes, long after the boot link has run.
+ */
+export function watchXboxPcReset(): () => void {
+  let seen = current()?.account.reset === true;
+  return xboxPcStore.subscribe(() => {
+    const reset = current()?.account.reset === true;
+    if (reset && !seen) void linkXboxPc({ auto: true });
+    seen = reset;
+  });
 }

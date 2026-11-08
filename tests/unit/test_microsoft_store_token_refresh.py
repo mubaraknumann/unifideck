@@ -78,7 +78,10 @@ def _store(tokens: _FakeTokens, *, config_valid: bool = True) -> MicrosoftStore:
     store._health = SessionHealth(store._bus, tokens)
     store._poll_task = None
     store._cached_available = False
-    store._xbox_pc = SimpleNamespace(notify=lambda: None)  # type: ignore[assignment]
+    async def _no_reset() -> None:
+        return None
+
+    store._xbox_pc = SimpleNamespace(notify=lambda: None, clear_plain_credentials=_no_reset)  # type: ignore[assignment]
     return store
 
 

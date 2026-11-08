@@ -32,10 +32,9 @@ from unifideck.launcher.xbox_pc.layout import (
     XBOX_PC_ENABLED_KEY,
     XBOX_PC_NOTICE_ACK_KEY,
     XBOX_PC_SOURCE_KEY,
-    credential_dir,
 )
 
-from . import account_state, auto_components, repair
+from . import account_state, auto_components, credential_reset, repair
 from .auth import XboxPcSignIn
 from .backend_first import READY_STAGE
 from .cli import XodusCli, XodusCliError
@@ -86,21 +85,6 @@ def unavailable_status() -> dict[str, Any]:
     }
 
 
-def _drop_credentials() -> int:
-    """Remove the stored Xodus credentials by hand. Used only when the CLI
-    cannot sign out (no backend). Returns how many files went."""
-    folder = credential_dir()
-    if not folder.is_dir() or folder.is_symlink():
-        return 0
-    removed = 0
-    for entry in folder.iterdir():
-        if entry.is_file() or entry.is_symlink():
-            with contextlib.suppress(OSError):
-                entry.unlink()
-                removed += 1
-    return removed
-
-
 class XboxPc:
     """The Xbox PC feature, as seen by the Microsoft store and the RPCs."""
 
@@ -141,6 +125,9 @@ class XboxPc:
         self._account_error: str | None = None
         self._account_at = 0.0
         self._saved: account_state.AccountState | None = None
+        self._plain_cleared = False
+        #: This run signed the user out to replace a plain sign-in; say so once.
+        self._reset_notice = False
         self._library: dict[str, Any] = dict(_EMPTY_LIBRARY)
         #: Called after an explicit Xodus sign-out (the PC library clears its
         #: titles). A listener may be sync or async.
@@ -232,6 +219,8 @@ class XboxPc:
             view["gamertag"] = saved.gamertag
         if self._signin.last_error and view["state"] != "signed_in":
             view.setdefault("error", self._signin.last_error)
+        if self._reset_notice and view["state"] == "signed_out":
+            view["reset"] = True
         return view
 
     def _account_state(self) -> dict[str, Any]:
@@ -294,6 +283,7 @@ class XboxPc:
 
     async def refresh_status(self) -> dict[str, Any]:
         """Probe the components, and ask again about both sign-ins."""
+        await self.clear_plain_credentials()
         if self._refresh_signed_in is not None:
             await self._refresh_signed_in()
         await self._probe()
@@ -398,6 +388,7 @@ class XboxPc:
         finally:
             self._progress = None
             await self._probe()
+            await self.clear_plain_credentials()
             self.notify()
 
     def _on_progress(self, stage: str, done: int, total: int | None) -> None:
@@ -449,6 +440,7 @@ class XboxPc:
         try:
             await self._refresh_account(force=True)
         finally:
+            self._reset_notice = False
             self._settling_sign_in = False
             self.notify()
             for listener in list(self.sign_in_listeners):
@@ -492,9 +484,13 @@ class XboxPc:
                 # A download is using the credentials. Deleting them under it
                 # would fail the download, so the sign-out is refused.
                 raise XboxPcError("xodus_busy") from None
-            removed = await asyncio.to_thread(_drop_credentials)
+            removed = await asyncio.to_thread(credential_reset.drop_all)
             logger.warning("%s logout failed (%s); removed %d credential file(s)", _LOG, e.code, removed)
         await asyncio.to_thread(account_state.clear_state)
+        await self._after_sign_out()
+        return self._snapshot()
+
+    async def _after_sign_out(self) -> None:
         self._account, self._account_error, self._saved = AccountStatus(stored=False), None, None
         for listener in list(self.sign_out_listeners):
             try:
@@ -504,7 +500,20 @@ class XboxPc:
             except Exception:
                 logger.exception("%s sign-out listener failed", _LOG)
         self.notify()
-        return self._snapshot()
+
+    async def clear_plain_credentials(self) -> None:
+        """Replace a plain sign-in left by an older build, once (``credential_reset``)."""
+        if self._plain_cleared:
+            return
+        try:
+            outcome = await credential_reset.run(self.cli)
+        except Exception:
+            logger.exception("%s could not clear the old plain sign-in", _LOG)
+            return
+        self._plain_cleared = outcome.done
+        if outcome.signed_out:
+            self._reset_notice = True
+            await self._after_sign_out()
 
     async def on_microsoft_logout(self) -> None:
         """Microsoft sign-out: sign the Xbox PC account out with it.

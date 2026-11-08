@@ -122,6 +122,10 @@ async def test_the_token_poll_checks_the_sign_in_once_at_start(monkeypatch: pyte
         calls.append(1)
         return True
 
+    async def no_reset() -> None:
+        return None
+
+    store._xbox_pc.clear_plain_credentials = no_reset
     monkeypatch.setattr(store, "is_available", available)
     monkeypatch.setattr(MicrosoftStore, "TOKEN_POLL_INTERVAL_SECONDS", 3600)
     task = asyncio.ensure_future(store._token_poll_loop())

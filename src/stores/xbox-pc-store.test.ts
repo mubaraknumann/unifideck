@@ -128,6 +128,19 @@ describe("xbox-pc-store", () => {
     store.stop();
   });
 
+  it("says why once when the sign-in was reset", async () => {
+    api.call.mockResolvedValue(envelope(status({ enabled: true })));
+    const store = _createXboxPcStore();
+    store.start();
+    await flush();
+    api.toast.mockClear();
+    const reset = status({ account: { state: "signed_out", reset: true } });
+    store.apply(reset);
+    store.apply({ ...reset, enabled: false });
+    expect(api.toast).toHaveBeenCalledTimes(1);
+    store.stop();
+  });
+
   it("reports status_unavailable, not 'off', when the call fails", async () => {
     api.call.mockResolvedValue(envelope(null, false, "boom"));
     const store = _createXboxPcStore();

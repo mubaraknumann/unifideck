@@ -43,6 +43,8 @@ class BackendPaths:
     version: str
     #: ``run`` keeps and uses offline licences (``--license-cache``).
     offline_licences: bool = False
+    #: Writes credentials and offline licences sealed (``credential_reset``).
+    sealed_credentials: bool = False
 
 
 def stream_digest(path: Path, algorithm: str) -> str:
@@ -89,6 +91,8 @@ def _cached_sha256(path: Path) -> str | None:
 
 #: The build-repo patch that adds ``run --license-cache`` (offline play).
 OFFLINE_LICENCE_PATCH = "ours-offline-play.patch"
+#: The build-repo patch that encrypts the credential folder and licence cache.
+SEALED_CREDENTIALS_PATCH = "ours-encrypted-credentials.patch"
 
 
 def _manifest(directory: Path, manifest_sha256: str) -> tuple[dict[str, str], frozenset[str]] | str:
@@ -160,6 +164,7 @@ def check_backend(active: BackendRef) -> tuple[BackendPaths | None, str | None]:
         directory=directory,
         version=active.backend_version,
         offline_licences=OFFLINE_LICENCE_PATCH in patches,
+        sealed_credentials=SEALED_CREDENTIALS_PATCH in patches,
     ), None
 
 

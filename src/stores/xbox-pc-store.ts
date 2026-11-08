@@ -191,6 +191,7 @@ class XboxPcStoreImpl {
     this._set({ status, loading: false, error: null });
     this._announceRuntime(prev, status);
     this._announceDevice(prev, status);
+    this._announceReset(prev, status);
   }
 
   // ── Actions ───────────────────────────────────────────
@@ -276,6 +277,13 @@ class XboxPcStoreImpl {
    * the same window, sometimes with a second login. Here, not in the sign-in
    * flow, so it shows however the sign-in started (Connect Microsoft too).
    */
+  /** Say why a working sign-in is gone (rule 8); the window itself may not open. */
+  private _announceReset(prev: XboxPcStatus | null, next: XboxPcStatus): void {
+    if (next.account.reset && !prev?.account.reset) {
+      notify(toastText("toasts.syncSkipped.xboxPcSignInNeeded"));
+    }
+  }
+
   private _announceDevice(prev: XboxPcStatus | null, next: XboxPcStatus): void {
     if (next.account.step !== "device" || prev?.account.step === "device") {
       return;

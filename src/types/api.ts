@@ -222,6 +222,8 @@ export interface XboxPcStatus {
     error?: string;
     /** While `signing_in`: `device` once Microsoft confirms this device. */
     step?: string;
+    /** Signed out by this run, to replace a sign-in stored in plain text. */
+    reset?: boolean;
   };
   library: {
     installable: number;

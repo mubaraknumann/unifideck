@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 #: Credential error codes that mean "sign in again". Every other code
 #: means the stored sign-in could not be read at all.
-_SIGN_IN_AGAIN = frozenset({"keyring-missing-data", "keyring-invalid-data"})
+_SIGN_IN_AGAIN = frozenset({"keyring-missing-data", "keyring-invalid-data", "credential-undecryptable"})
 
 _LICENSE_HTTP = {401: "xbox_signin_required", 403: "xbox_license_denied",
                  429: "xbox_license_rate_limited"}

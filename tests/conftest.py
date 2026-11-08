@@ -314,3 +314,21 @@ def _pin_device_type(monkeypatch):
     # detect_device_type() is memoised, so a value resolved under one
     # test's patched DMI would leak into every later test.
     device.reset_cache()
+
+
+_REAL_HOME = os.path.expanduser("~")
+
+
+@pytest.fixture(autouse=True)
+def _never_clear_a_real_sign_in(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``credential_reset`` deletes files. No test may reach the developer's own."""
+    from unifideck.stores.microsoft.xodus import credential_reset
+
+    real = credential_reset.clear_plain_files
+
+    def guarded(store: object = None) -> bool:
+        folder = str(credential_reset.credential_dir())
+        assert not folder.startswith(os.path.join(_REAL_HOME, ".local")), folder
+        return real(store)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(credential_reset, "clear_plain_files", guarded)
