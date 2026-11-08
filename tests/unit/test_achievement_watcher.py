@@ -41,7 +41,7 @@ class _Store:
 
 
 @pytest.fixture
-def make(tmp_path, monkeypatch):
+async def make(tmp_path, monkeypatch):
     """A watcher on a fake registry, state in tmp_path, toasts captured."""
     monkeypatch.setattr(w, "_RECONCILE_RETRY_DELAY_SECONDS", 0.0)
     made: list[w.AchievementWatcher] = []
@@ -58,8 +58,9 @@ def make(tmp_path, monkeypatch):
 
     yield build
     for watcher in made:
-        for key in list(watcher._poll_tasks):
-            watcher._cancel(key)
+        tasks = list(watcher._poll_tasks.values())
+        await watcher.stop()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 async def _drain() -> None:
