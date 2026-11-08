@@ -23,6 +23,7 @@ import pytest
 
 from unifideck.core.types import Events
 from unifideck.security import SecureTokenStore
+from unifideck.security.device_identity import FakeDeviceIdentity
 from unifideck.stores.microsoft.microsoft_config import MicrosoftConfig
 from unifideck.stores.microsoft.session_health import SessionHealth
 from unifideck.stores.microsoft.tokens.persistence import (
@@ -44,7 +45,7 @@ class _Bus:
 class _Tokens(PersistenceMixin):
     def __init__(self, token_file: Path, client_id: str) -> None:
         self._config = MicrosoftConfig(token_file=str(token_file), client_id=client_id)
-        self._secure_store = SecureTokenStore()
+        self._secure_store = SecureTokenStore(FakeDeviceIdentity("a" * 32))
         self._bus = None
         self._ms_access_token = None
         self._ms_refresh_token = None

@@ -335,6 +335,7 @@ async def test_microsoft_tokens_legacy_migration(
     from unifideck.stores.microsoft.microsoft_config import MicrosoftConfig
     from unifideck.stores.microsoft.tokens.persistence import PersistenceMixin
     from unifideck.security import SecureTokenStore
+    from unifideck.security.device_identity import FakeDeviceIdentity
 
     monkeypatch.setenv("HOME", str(tmp_path))
 
@@ -350,7 +351,7 @@ async def test_microsoft_tokens_legacy_migration(
     legacy_file.write_text(json.dumps(payload))
 
     config = MicrosoftConfig(token_file=str(new_file))
-    secure_store = SecureTokenStore()
+    secure_store = SecureTokenStore(FakeDeviceIdentity("a" * 32))
 
     pm = PersistenceMixin()
     pm._config = config
