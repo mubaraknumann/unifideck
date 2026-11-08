@@ -70,13 +70,8 @@ jobs:
 
       - name: Install tooling
         run: |
-          pip install \
-            flake8 \
-            flake8-cognitive-complexity \
-            mccabe \
-            radon \
-            ruff \
-            pytest
+          pip install -r requirements-dev.txt
+          pip install mccabe radon
 
       # ── Pre-flight: audit the linter scope itself ────────────
       # Loads .flake8, checks invariants (file present, valid
