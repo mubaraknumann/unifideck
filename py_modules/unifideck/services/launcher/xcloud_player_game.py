@@ -135,9 +135,6 @@ async def try_own_player(svc: LauncherService, ctx: LaunchContext, url: str) -> 
     """Play the stream in the own player; None to fall back to xbox.com."""
     if not own_player_enabled(svc):
         return None
-    from unifideck.launcher.xcloud_player import browser, credentials
-    from unifideck.launcher.xcloud_player.server import PlayerServer
-
     try:
         prepared = await _prepare(svc, url)
     except _InvalidCountryError:
@@ -150,6 +147,15 @@ async def try_own_player(svc: LauncherService, ctx: LaunchContext, url: str) -> 
         return Result(success=False, error="xcloud_invalid_country", store=ctx.store)
     if prepared is None:
         return None
+    return await _run_player(svc, ctx, prepared)
+
+
+async def _run_player(
+    svc: LauncherService, ctx: LaunchContext, prepared: tuple[Any, ...],
+) -> Result:
+    from unifideck.launcher.xcloud_player import browser, credentials
+    from unifideck.launcher.xcloud_player.server import PlayerServer
+
     login, api, title_id, (cmd, name) = prepared
     server = PlayerServer(api, title_id, lambda: credentials.transfer_ticket(login.refresh_token))
     proc: subprocess.Popen[bytes] | None = None

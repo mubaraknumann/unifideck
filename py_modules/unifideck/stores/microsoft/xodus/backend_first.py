@@ -115,6 +115,11 @@ def _promote(staged: Path, listing: BackendListing) -> bool:
     return True
 
 
+def _new_staging() -> Path:
+    ensure_private_dir(data_root())
+    return Path(tempfile.mkdtemp(prefix=STAGING_PREFIX, dir=data_root()))
+
+
 def ensure_backend(
     source: LocalDirSource | ReleaseSource, progress: ProgressFn, abort: threading.Event, stage: StageFn,
 ) -> None:
@@ -132,8 +137,7 @@ def ensure_backend(
         progress(READY_STAGE, 0, None)
         return
     listing = _listing(source, progress, abort)
-    ensure_private_dir(data_root())
-    staging = Path(tempfile.mkdtemp(prefix=STAGING_PREFIX, dir=data_root()))
+    staging = _new_staging()
     try:
         stage(listing, staging / "backend", abort)
         if not _promote(staging / "backend", listing):

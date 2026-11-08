@@ -362,8 +362,8 @@ def promote(
     with flock_path(install_lock_path(), timeout_s=PROMOTE_LOCK_WAIT_S) as held:
         if not held:
             raise ComponentInstallError("components_busy")
-        current = read_active()
-        if current is not None and _same_components(current, listing):
+        current = _already_active(listing)
+        if current is not None:
             return current
         sweep_staging(keep=staging)
         active = _active_for(listing, _place(staging, listing), features, degraded)
