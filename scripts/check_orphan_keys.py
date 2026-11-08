@@ -207,6 +207,8 @@ def flatten_json(obj: object, prefix: str = "") -> dict[str, str]:
     if not isinstance(obj, dict):
         return flat
     for key, value in obj.items():
+        if key == "_comment":
+            continue
         composed = f"{prefix}.{key}" if prefix else key
         if isinstance(value, dict):
             flat.update(flatten_json(value, composed))
@@ -220,7 +222,7 @@ def scan_frontend_files() -> dict[str, list[tuple[Path, int]]]:
     used_keys: dict[str, list[tuple[Path, int]]] = {}
 
     for p in SRC_ROOT.rglob("*"):
-        if p.suffix not in (".ts", ".tsx"):
+        if p.suffix not in (".ts", ".tsx") or p.name.endswith((".test.ts", ".test.tsx")):
             continue
         # Skip locales directory to avoid scanning translation files themselves
         if "i18n/locales" in p.as_posix():
