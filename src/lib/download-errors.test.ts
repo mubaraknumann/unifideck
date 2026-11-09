@@ -114,6 +114,12 @@ describe("friendlyDownloadError — bare backend codes", () => {
     // is on the bare code `stalled` (audit register item 28).
     ["stalled: no output for 120s while downloading", "errors.download.stalled"],
     ["stalled: no output for 600s while finalizing", "errors.download.stalled"],
+    // An unclaimed itch.io bundle game. The install flow opens the claim
+    // page on this code; the sentence is for any other path that meets it.
+    [
+      "itch_claim_required: claim this game from its bundle on itch.io first",
+      "errors.download.claimRequired",
+    ],
   ])("maps %s", (raw, key) => {
     expect(friendlyDownloadError(raw, t)).toBe(key);
   });
@@ -163,6 +169,30 @@ describe("every key this maps to is translated everywhere", () => {
     "errors.download.network",
     "errors.download.authExpired",
     "errors.download.generic",
+    // Xbox PC (`download-errors-xbox.test.ts` pins which code maps where).
+    "errors.download.xboxPcDisabled",
+    "errors.download.xboxPcRuntimeMissing",
+    "errors.download.xboxPcRuntimeDamaged",
+    "errors.download.xboxPcSignIn",
+    "errors.download.xboxPcCredentials",
+    "errors.download.xboxPcUnsupportedPlan",
+    "errors.download.xboxPcNeedsChoice",
+    "errors.download.xboxPcNoPackage",
+    "errors.download.xboxPcLicenseDenied",
+    "errors.download.xboxPcLicenseRateLimited",
+    "errors.download.xboxPcLicenseUnavailable",
+    "errors.download.xboxPcLicenseInvalid",
+    "errors.download.xboxPcFilesystem",
+    "errors.download.xboxPcIncomplete",
+    "errors.download.xboxPcResolveFailed",
+    "errors.download.xboxPcMarketUnknown",
+    "errors.download.xboxPcAlreadyInstalled",
+    "errors.download.xboxPcUpdatePending",
+    "errors.download.xboxPcGameRunning",
+    "errors.download.xboxPcComponentsBusy",
+    "errors.download.xboxPcBackendFailed",
+    "errors.download.uninstallRefused",
+    "errors.download.uninstallIncomplete",
   ];
 
   it("has all 16 locales loaded", () => {

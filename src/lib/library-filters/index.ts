@@ -841,6 +841,26 @@ export function isUnifideckCacheLoaded(): boolean {
   return cacheLoaded;
 }
 
+/** Fired on `window` after every SUCCESSFUL ``loadUnifideckCache``. Anything
+ *  derived from the cache (the `[Unifideck]` collections) rebuilds on this
+ *  rather than on `unifideck-sync-completed`, which fires before the reload
+ *  it triggers has finished and so would rebuild from the pre-sync cache. */
+export const UNIFIDECK_CACHE_UPDATED_EVENT = "unifideck-cache-updated";
+
+let resolveCacheReady: () => void = () => {};
+const cacheReady = new Promise<void>((resolve) => {
+  resolveCacheReady = resolve;
+});
+
+/** Resolves after the first SUCCESSFUL cache load, and never on failure.
+ *  Unlike {@link isUnifideckCacheLoaded}, an exhausted retry budget does not
+ *  resolve it: an empty cache makes every store filter match nothing, and a
+ *  caller that writes persistent state from those filters (the cloud-synced
+ *  collections) must not act on that. */
+export function whenUnifideckCacheLoaded(): Promise<void> {
+  return cacheReady;
+}
+
 /** Register a callback to receive per-store game counts. The
  *  tab manager uses this to drive ``shouldShowTab``. */
 export function setStoreCountSink(sink: StoreCountSink | null): void {
@@ -954,6 +974,12 @@ export async function loadUnifideckCache(): Promise<void> {
     if (cacheRetryTimer !== null) {
       clearTimeout(cacheRetryTimer);
       cacheRetryTimer = null;
+    }
+    resolveCacheReady();
+    try {
+      window.dispatchEvent(new CustomEvent(UNIFIDECK_CACHE_UPDATED_EVENT));
+    } catch {
+      /* CEF can deny CustomEvent in rare half-loaded states */
     }
   } catch (e) {
     // FAILURE: do NOT latch ``cacheLoaded`` or wipe the existing cache

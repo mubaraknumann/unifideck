@@ -37,6 +37,11 @@ logger = logging.getLogger(__name__)
 _CLOUD_INFO_TTL = 300
 
 
+class CloudUnreachableError(Exception):
+    """The store's cloud could not be reached, which is not the same as no saves."""
+
+
+
 class CloudSaveStrategy(ABC):
     """Abstract base class for store-specific cloud-save synchronization."""
 
@@ -255,7 +260,8 @@ class CloudSaveStrategy(ABC):
 
         Returns ``{"has_saves": bool, "timestamp": float, ...}`` (timestamp =
         unix epoch of the latest cloud save, 0 if unknown), or ``None`` when the
-        store can't report it cheaply. Memoized ``_CLOUD_INFO_TTL`` seconds so
+        store can't report it cheaply. Raises :class:`CloudUnreachableError` when the
+        store could not be reached at all. Memoized ``_CLOUD_INFO_TTL`` seconds so
         the status path doesn't re-spawn the store tool on every page load;
         invalidated after an upload. The store query is ``_fetch_cloud_info``.
         """

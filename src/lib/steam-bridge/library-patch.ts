@@ -217,14 +217,18 @@ export function applyLibraryPatch(bridge: SteamBridge): RouterPatchHandle {
   tabManager.initialize();
   return bridge.addRouterPatch("/library", (rawProps: unknown) => {
     const props = rawProps as LibraryRouteProps;
-    if (isTabMasterInstalled()) return props;
 
+    // Hooks before the TabMaster check, never after: that check can flip
+    // while the library is mounted (TabMaster installed, removed or reloaded,
+    // or loaded after us), and a render calling fewer hooks than the last
+    // makes React throw and takes the whole library route down.
     const [, setVersion] = useState(0);
     useEffect(() => {
       return tabManager.onTabsChanged(() => {
         setVersion((v) => v + 1);
       });
     }, []);
+    if (isTabMasterInstalled()) return props;
 
     afterPatch(
       props.children as never,

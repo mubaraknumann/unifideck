@@ -20,16 +20,21 @@ import { definePlugin } from "@decky/api";
 import { FC } from "react";
 import { initI18n } from "./i18n";
 import { SteamBridge } from "./lib/steam-bridge";
-import { tabManager } from "./lib/steam-bridge/tab-container";
+import {
+  attachGroupDuplicatesRefresh,
+  tabManager,
+} from "./lib/steam-bridge/tab-container";
 import { RootProvider } from "./contexts/RootProvider";
 import { QuickAccessPanel } from "./views/QuickAccessPanel";
 import { applyAppDetailsPatch } from "./views/AppDetailsPatch";
+import { startNativeAppDetails } from "./views/native-app-details";
 import { applyLibraryPatch } from "./lib/steam-bridge/library-patch";
 import { startUnifideckCacheAutoload } from "./lib/library-filters";
 import { startCollectionManager } from "./lib/steam-bridge/collection-manager";
 import { startOverviewEnrichment } from "./lib/steam-bridge/overview-enrichment";
 import { startTileStoreBadgePatch } from "./lib/steam-bridge/tile-store-badge-patch";
 import { applyAppContextMenuPatch } from "./lib/steam-bridge/app-context-menu-patch";
+import { applyBattlenetLaunchPicker } from "./lib/steam-bridge/battlenet-launch-picker";
 import { startStoreOwnershipRibbon } from "./lib/steam-bridge/store-ownership-ribbon";
 import { applyAppStorePatch } from "./lib/steam-bridge/app-store-patcher";
 import { loadCompatCacheFromBackend } from "./lib/protondb-cache";
@@ -42,6 +47,8 @@ import { downloadStore } from "./stores/download-store";
 import { syncStore } from "./stores/sync-store";
 import { authStore } from "./stores/auth-store";
 import { storeInfoStore } from "./stores/store-info-store";
+import { xboxPcStore } from "./stores/xbox-pc-store";
+import { linkXboxPc, watchXboxPcReset } from "./services/store/xbox-pc-link";
 import { runTeardown, type TeardownHandles } from "./teardown";
 // Eager translation load — Decky's UI mounts before any
 // async work resolves, so we kick this off at module import.
@@ -56,6 +63,15 @@ export default definePlugin(() => {
   console.log("[Unifideck] Plugin loaded");
   const bridge = new SteamBridge();
   const handles: TeardownHandles = {};
+  // Steam renders our game pages itself, steered with our data and actions.
+  // Boot-time, before any game page mounts: React caches the tabbed page's
+  // inner function on a fiber at mount. Returns null (legacy page stays in
+  // charge) when Steam's components can't be found on this build.
+  try {
+    handles.nativeAppDetails = startNativeAppDetails();
+  } catch (e) {
+    console.error("[Unifideck] native App-Details start failed:", e);
+  }
   // Apply the App Details patch immediately so the very
   // first navigation to a game's page shows our overrides.
   try {
@@ -117,6 +133,13 @@ export default definePlugin(() => {
   } catch (e) {
     console.error("[Unifideck] app context-menu patch start failed:", e);
   }
+  // Play on a Battle.net tile shows Steam's own launch-options popup:
+  // each installed version, plus the Battle.net client alone.
+  try {
+    handles.battlenetLaunchPicker = applyBattlenetLaunchPicker();
+  } catch (e) {
+    console.error("[Unifideck] Battle.net launch picker start failed:", e);
+  }
   // Mark Steam Store pages of games already owned on another store.
   try {
     handles.storeOwnershipRibbon = startStoreOwnershipRibbon();
@@ -137,7 +160,13 @@ export default definePlugin(() => {
     );
   handles.signedOutTabs = authStore.subscribe(syncSignedOutTabs);
   syncSignedOutTabs();
+  handles.groupDuplicatesRefresh = attachGroupDuplicatesRefresh();
   storeInfoStore.start();
+  xboxPcStore.start();
+  // Toggle on and Microsoft connected: make sure the components are there, and
+  // ask for the Xbox PC sign-in if it never finished.
+  void linkXboxPc({ auto: true });
+  handles.xboxPcResetWatch = watchXboxPcReset();
   downloadStore.start();
   syncStore.start();
   // Boot-time event listener — handles STORE_ERROR, LAUNCHER_STAGE,

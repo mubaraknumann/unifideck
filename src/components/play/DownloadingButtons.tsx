@@ -7,26 +7,27 @@
  *   [ Cancel ]   Extracting · 76% · 404 MB / 564 MB · 19.6 MB/s · ETA 00:00:08
  *               ────────────────────  (progress bar)
  *
- * Indeterminate phases (``extracting`` / ``verifying``) render
- * the slide animation instead of a fractional bar so the user
- * still sees a "working" signal. Cancel opens a ``ConfirmModal``
- * (destructive) before dispatching the cancel RPC — the staging
- * UX had instant cancel which led to accidental cancellations
- * during animation flashes.
+ * Indeterminate phases (``starting`` / ``extracting`` /
+ * ``verifying`` / ``finalizing`` and the rest listed in
+ * ``lib/download-phase``) render the slide animation instead of a
+ * fractional bar so the user still sees a "working" signal. Cancel
+ * opens a ``ConfirmModal`` (destructive) before dispatching the
+ * cancel RPC — the staging UX had instant cancel which led to
+ * accidental cancellations during animation flashes.
  */
 import { FC, useCallback, useState } from "react";
-import { DialogButton, ConfirmModal, showModal } from "@decky/ui";
+import { DialogButton } from "@decky/ui";
 import { useTranslation } from "react-i18next";
 import { FaTimes } from "react-icons/fa";
-import { useDownloads } from "../../contexts/DownloadContext";
-import { useGameActions } from "../../hooks/useGameActions";
-import { useToast } from "../../hooks/useToast";
+import { usePlayActions } from "../../hooks/usePlayActions";
 import { SteamBridge } from "../../lib/steam-bridge";
 import type { DownloadItem } from "../../types/downloads";
+import { showsPercent } from "../../lib/download-phase";
 import { PlayShell, actionBtnStyle, actionBtnClass } from "./PlayMeta";
 import { DownloadProgressRow } from "../downloads/DownloadProgressRow";
 
 interface Props {
+  appId: number;
   download: DownloadItem;
   bridge?: SteamBridge;
 }
@@ -34,51 +35,21 @@ interface Props {
 const defaultBridge = new SteamBridge();
 
 export const DownloadingButtons: FC<Props> = ({
+  appId,
   download,
   bridge = defaultBridge,
 }) => {
   const { t } = useTranslation();
-  const actions = useGameActions(bridge);
-  const downloads = useDownloads();
-  const toast = useToast();
+  const play = usePlayActions(appId, bridge);
   const [cancelled, setCancelled] = useState(false);
-
-  const doCancel = useCallback(async () => {
-    setCancelled(true);
-    const result = await actions.cancel(download.id);
-    if (!result?.success) {
-      setCancelled(false);
-      // Re-read the queue before saying anything. A cancel fails mainly
-      // because this row outlived the operation it describes, and without a
-      // refetch nothing else would ever replace it — the button stayed live
-      // and the user could sit here failing the same cancel forever.
-      void downloads.refresh();
-      toast.error(
-        t("toasts.cancelFailed"),
-        t("downloadsTab.toastCancelFailedBody", {
-          error: result?.error ?? t("common.unknown"),
-        }),
-      );
-    }
-  }, [actions, download.id, downloads, t, toast]);
 
   const onCancelClick = useCallback(() => {
     if (cancelled) return;
-    showModal(
-      <ConfirmModal
-        strTitle={t("play.cancelConfirmTitle")}
-        strDescription={t("play.cancelConfirmBody", {
-          title: download.game_title,
-        })}
-        strOKButtonText={t("play.cancelConfirmConfirm")}
-        strCancelButtonText={t("play.cancelConfirmCancel")}
-        bDestructiveWarning
-        onOK={() => {
-          void doCancel();
-        }}
-      />,
-    );
-  }, [cancelled, doCancel, download.game_title, t]);
+    play.cancelDownload(download, {
+      onCancelling: () => setCancelled(true),
+      onFailed: () => setCancelled(false),
+    });
+  }, [cancelled, download, play]);
 
   return (
     // autoFocus is intentional: claims gamepad focus for the primary action
@@ -86,20 +57,18 @@ export const DownloadingButtons: FC<Props> = ({
     <PlayShell autoFocus>
       <DialogButton
         className={actionBtnClass("unifideck-cancel-btn")}
-        disabled={cancelled || actions.isWorking}
+        disabled={cancelled || play.isWorking}
         onClick={onCancelClick}
         style={actionBtnStyle}
       >
         <FaTimes />
         {cancelled
           ? t("play.cancelling")
-          : download.download_phase === "manual" ||
-            download.download_phase === "preparing" ||
-            download.download_phase === "extracting"
-          ? t("play.cancel")
-          : `${t("play.cancel")} (${Math.round(
+          : showsPercent(download.download_phase)
+          ? `${t("play.cancel")} (${Math.round(
               Math.max(0, Math.min(100, download.progress_percent)),
-            )}%)`}
+            )}%)`
+          : t("play.cancel")}
       </DialogButton>
       <DownloadProgressRow download={download} marginInlineStart={20} />
     </PlayShell>

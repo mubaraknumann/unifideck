@@ -27,7 +27,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Any
 
-from unifideck.core.net import ssl_ctx_permissive as _ssl
+from unifideck.core.net import ssl_ctx_strict
 
 
 class TokenState(enum.Enum):
@@ -98,7 +98,7 @@ def _send(request: urllib.request.Request, timeout: float) -> HttpReply:
     try:
         with urllib.request.urlopen(
             request, timeout=timeout,
-            context=_ssl("Microsoft services — outdated Deck cert store"),
+            context=ssl_ctx_strict(),
         ) as response:
             return HttpReply(response.status, _json_object(response.read()))
     except urllib.error.HTTPError as e:

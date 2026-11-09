@@ -130,6 +130,8 @@ import ast
 import json
 import re
 import sys
+from collections import deque
+from collections.abc import Iterator
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -569,6 +571,14 @@ SHARED_HELPERS: dict[str, str] = {
     # had their own; the two ``_refresh_token`` copies had diverged, and each
     # carried a defect the other had fixed. Register item 47.
     "_refresh_token": "stores/epic/launcher_auth.py",
+    # Cross-process ``fcntl.flock`` with a bounded wait. The GE-Proton
+    # installer was its first user and the Xbox PC component store its
+    # second; a third hand-rolled ``LOCK_NB`` poll loop is what this stops.
+    "flock_path": "launcher/proton/infrastructure/file_lock.py",
+    # Drain a store CLI's output, kill its process tree on a stall or any
+    # exception, then reap it. Promoted ahead of its second user (Xbox PC)
+    # so check 13 does not flag a copy of Epic's envelope.
+    "run_drained_cli": "stores/shared/cli_install_helpers.py",
 }
 
 DIVERGENCE_RE = re.compile(r"#\s*intentional-divergence:\s*\S")
@@ -604,30 +614,51 @@ SHAPE_BASELINE = Path(__file__).resolve().parent / "duplicate_bodies_baseline.js
 _MIN_BODY_STATEMENTS = 3
 
 
-class _Anonymise(ast.NodeTransformer):
-    """Erase identifiers and literals, keep structure and attribute names.
+def _shape(node: object, out: list[str]) -> None:
+    """Append *node*'s anonymised shape to *out*.
 
-    Two functions match when they *do the same thing to the same attributes*
-    in the same order, whatever their parameters are called. That is the
-    property check 11 could not see: it matched on the helper's **name**, so
-    a copy that was merely renamed walked past it — ``appid_candidates``
-    existed as ``_appid_key_candidates`` and inlined a third time
-    (register item 20).
+    Erases identifiers, argument names and annotations, and literals; keeps
+    structure and attribute names. Two functions match when they *do the
+    same thing to the same attributes* in the same order, whatever their
+    parameters are called. That is the property check 11 could not see: it
+    matched on the helper's **name**, so a copy that was merely renamed
+    walked past it — ``appid_candidates`` existed as
+    ``_appid_key_candidates`` and inlined a third time (register item 20).
 
     Attribute names survive normalisation on purpose. Erasing them too would
     make every ``try: x.a() except OSError: log()`` identical, which is a
     false-positive generator; keeping them means the match says "calls
     ``mkdir`` then ``write_text`` then logs", which is a real claim.
+
+    Written as a direct walk rather than copy-and-transform: unparsing,
+    re-parsing and dumping a copy of every function cost more than the rest
+    of the script put together. ``test_validate_architecture`` pins this to
+    the same partition as the copy-based reference.
     """
-
-    def visit_Name(self, node: ast.Name) -> ast.Name:
-        return ast.copy_location(ast.Name(id="_", ctx=node.ctx), node)
-
-    def visit_arg(self, node: ast.arg) -> ast.arg:
-        return ast.copy_location(ast.arg(arg="_", annotation=None), node)
-
-    def visit_Constant(self, node: ast.Constant) -> ast.Constant:
-        return ast.copy_location(ast.Constant(value="_"), node)
+    if isinstance(node, ast.AST):
+        if isinstance(node, ast.Name):
+            out.append(f"N{type(node.ctx).__name__}")
+            return
+        if isinstance(node, ast.arg):
+            out.append("A")
+            return
+        if isinstance(node, ast.Constant):
+            out.append("C")
+            return
+        out.append(type(node).__name__)
+        out.append("(")
+        for field in node._fields:
+            _shape(getattr(node, field, None), out)
+            out.append(",")
+        out.append(")")
+    elif isinstance(node, list):
+        out.append("[")
+        for item in node:
+            _shape(item, out)
+            out.append(",")
+        out.append("]")
+    else:
+        out.append(repr(node))
 
 
 def _body_signature(fn: ast.FunctionDef | ast.AsyncFunctionDef) -> str | None:
@@ -640,11 +671,59 @@ def _body_signature(fn: ast.FunctionDef | ast.AsyncFunctionDef) -> str | None:
     ]
     if len(body) < _MIN_BODY_STATEMENTS:
         return None
-    try:
-        clone = ast.parse(ast.unparse(ast.Module(body=body, type_ignores=[])))
-    except (SyntaxError, ValueError):
-        return None
-    return ast.dump(_Anonymise().visit(clone), annotate_fields=False)
+    out: list[str] = []
+    _shape(body, out)
+    return "".join(out)
+
+
+_PARSED: dict[tuple[Path, int, int], ast.Module | None] = {}
+
+
+def _parse_file(path: Path, errors: str) -> ast.Module:
+    """``ast.parse`` of *path* decoded with *errors*, once per file content.
+
+    Several checks walk the same tree. Keyed on mtime and size as well as
+    the path, so a file rewritten between two calls (the tests do this) is
+    parsed again. Valid UTF-8 decodes the same under every *errors* mode,
+    so one parse serves them all; only an undecodable file is parsed per
+    mode. Raises what ``read_text``/``ast.parse`` raise.
+    """
+    stat = path.stat()
+    key = (path, stat.st_mtime_ns, stat.st_size)
+    if key not in _PARSED:
+        try:
+            _PARSED[key] = ast.parse(path.read_text(encoding="utf-8"))
+        except UnicodeDecodeError:
+            _PARSED[key] = None
+    tree = _PARSED[key]
+    if tree is None:
+        return ast.parse(path.read_text(encoding="utf-8", errors=errors))
+    return tree
+
+
+def _iter_statements(tree: ast.AST) -> Iterator[ast.AST]:
+    """Every statement in *tree*, at any depth, skipping expressions.
+
+    ``def``, ``import`` and ``from ... import`` are statements, so checks
+    that only look for those need not visit the expression nodes, which are
+    most of the tree. Except handlers and match cases hold statement bodies
+    without being statements themselves, so they are walked through.
+    """
+    # Breadth-first, like ``ast.walk``, so findings print in the same order.
+    queue: deque[ast.AST] = deque([tree])
+    while queue:
+        node = queue.popleft()
+        if isinstance(node, ast.stmt):
+            yield node
+        for field in node._fields:
+            value = getattr(node, field, None)
+            if isinstance(value, list):
+                queue.extend(
+                    item for item in value
+                    if isinstance(
+                        item, (ast.stmt, ast.excepthandler, ast.match_case),
+                    )
+                )
 
 
 def find_duplicate_bodies() -> list[tuple[str, list[str]]]:
@@ -659,11 +738,11 @@ def find_duplicate_bodies() -> list[tuple[str, list[str]]]:
         if "__pycache__" in file.parts:
             continue
         try:
-            tree = ast.parse(file.read_text(encoding="utf-8", errors="ignore"))
+            tree = _parse_file(file, "ignore")
         except (OSError, SyntaxError):
             continue
         rel = file.relative_to(PY).as_posix()
-        for node in ast.walk(tree):
+        for node in _iter_statements(tree):
             if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
             sig = _body_signature(node)
@@ -740,22 +819,25 @@ def find_duplicate_shared_helpers() -> list[tuple[str, str, str]]:
     written.
     """
     strays: list[tuple[str, str, str]] = []
-    patterns = {
-        name: re.compile(rf"^\s*(?:async\s+)?def\s+{re.escape(name)}\s*\(")
-        for name in SHARED_HELPERS
-    }
+    # One alternation instead of one pattern per helper: each line is
+    # matched once, not once per SHARED_HELPERS row.
+    names = "|".join(re.escape(name) for name in SHARED_HELPERS)
+    pattern = re.compile(rf"^\s*(?:async\s+)?def\s+({names})\s*\(")
     for file in sorted(PY.rglob("*.py")):
         rel = file.relative_to(PY).as_posix()
         lines = file.read_text().splitlines()
-        for name, owner in SHARED_HELPERS.items():
-            if rel == owner:
+        hits: list[tuple[str, int]] = []
+        for index, line in enumerate(lines):
+            match = pattern.match(line)
+            if match is None or SHARED_HELPERS[match.group(1)] == rel:
                 continue
-            for index, line in enumerate(lines):
-                if not patterns[name].match(line):
-                    continue
-                if _is_marked_divergent(lines, index):
-                    continue
-                strays.append((name, owner, f"{rel}:{index + 1}"))
+            if _is_marked_divergent(lines, index):
+                continue
+            hits.append((match.group(1), index))
+        # Same order as before: grouped by helper in SHARED_HELPERS order.
+        order = {name: rank for rank, name in enumerate(SHARED_HELPERS)}
+        for name, index in sorted(hits, key=lambda hit: (order[hit[0]], hit[1])):
+            strays.append((name, SHARED_HELPERS[name], f"{rel}:{index + 1}"))
     return strays
 
 
@@ -826,12 +908,12 @@ def _imported_names(path: Path) -> set[str]:
     a dozen others as orphans while some were genuinely imported.
     """
     try:
-        tree = ast.parse(path.read_text(encoding="utf-8"))
+        tree = _parse_file(path, "strict")
     except (OSError, SyntaxError):
         return set()
     pkg_parts = _module_name(path).split(".")[:-1]
     names: set[str] = set()
-    for node in ast.walk(tree):
+    for node in _iter_statements(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
                 names.add(alias.name)
@@ -1055,7 +1137,7 @@ def find_dead_rpc(methods: set[str]) -> list[str]:
 
 
 def scan_prose(
-    root: Path, pattern: re.Pattern[str], marker: str,
+    root: Path, pattern: re.Pattern[str], marker: str, keyword: str = "",
 ) -> list[tuple[str, int, re.Match[str]]]:
     """Return ``(relpath, lineno, match)`` for every hit of ``pattern``.
 
@@ -1063,9 +1145,15 @@ def scan_prose(
     exclusions and the opt-out semantics. Lines carrying ``marker``, on the
     line itself or the line above, are exempt; the line-above form is what
     lets a marker sit in a comment over the line it excuses.
+
+    *keyword* is a word every match of *pattern* contains. It is optional
+    and only saves time: the count patterns open with a lookbehind and a
+    list of number words, which the regex engine tries at every position,
+    so a file or line without the keyword is skipped before *pattern* runs.
     """
     hits: list[tuple[str, int, re.Match[str]]] = []
     seen: set[Path] = set()
+    prefilter = re.compile(re.escape(keyword), pattern.flags)
     for glob in _PROSE_GLOBS:
         for path in sorted(root.glob(glob)):
             if not path.is_file() or path in seen:
@@ -1074,11 +1162,12 @@ def scan_prose(
             rel = path.relative_to(root).as_posix()
             if rel.startswith(_PROSE_EXCLUDE):
                 continue
-            lines = path.read_text(
-                encoding="utf-8", errors="replace",
-            ).splitlines()
+            text = path.read_text(encoding="utf-8", errors="replace")
+            if not prefilter.search(text):
+                continue
+            lines = text.splitlines()
             for lineno, line in enumerate(lines, start=1):
-                if marker in line:
+                if not prefilter.search(line) or marker in line:
                     continue
                 if lineno >= 2 and marker in lines[lineno - 2]:
                     continue
@@ -1102,7 +1191,7 @@ def find_prose_mixin_counts(root: Path) -> list[tuple[str, int, str]]:
     return [
         (rel, lineno, match.group(0))
         for rel, lineno, match in scan_prose(
-            root, _MIXIN_COUNT_RE, _MIXIN_COUNT_OK,
+            root, _MIXIN_COUNT_RE, _MIXIN_COUNT_OK, "mixin",
         )
     ]
 
@@ -1118,7 +1207,7 @@ def find_prose_layer_counts(root: Path) -> list[tuple[str, int, str]]:
     return [
         (rel, lineno, match.group(0))
         for rel, lineno, match in scan_prose(
-            root, _LAYER_COUNT_RE, _LAYER_COUNT_OK,
+            root, _LAYER_COUNT_RE, _LAYER_COUNT_OK, "layer",
         )
     ]
 
@@ -1134,7 +1223,7 @@ def find_wrong_store_counts(
     """
     wrong: list[tuple[str, int, str, int]] = []
     for rel, lineno, match in scan_prose(
-        root, _STORE_COUNT_RE, _STORE_COUNT_OK,
+        root, _STORE_COUNT_RE, _STORE_COUNT_OK, "store",
     ):
         # One group per alternative in _STORE_COUNT_RE; exactly one is set.
         captured = next((g for g in match.groups() if g), None)

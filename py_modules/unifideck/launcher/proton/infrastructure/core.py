@@ -12,6 +12,9 @@ from pathlib import Path
 from unifideck.launcher.types.context import LaunchContext, RuntimeState
 from unifideck.launcher.types.errors import DependencyMissingError
 
+from .prefix_layout import game_prefix_root
+from .prefix_layout import prefixes_dir as layout_prefixes_dir
+
 logger = logging.getLogger(__name__)
 
 STORE_TO_UMU = {
@@ -130,15 +133,13 @@ def _battlenet_prefix_path(ctx: LaunchContext, prefixes_dir: Path) -> Path:
 
 def _resolve_prefix(ctx: LaunchContext) -> Path:
     """Resolve prefix."""
-    prefixes_dir = Path("~/.local/share/unifideck/prefixes").expanduser()
+    prefixes_dir = layout_prefixes_dir()
     if ctx.store == "ubisoft":
         path = _ubisoft_prefix_path(ctx, prefixes_dir)
     elif ctx.store == "battlenet":
         path = _battlenet_prefix_path(ctx, prefixes_dir)
     else:
-        path = prefixes_dir / ctx.game_id
-        while path.name == "pfx":
-            path = path.parent
+        path = game_prefix_root(ctx.game_id)
     path.mkdir(parents=True, exist_ok=True)
     return path
 def _lookup_umu_id(
@@ -485,14 +486,8 @@ def proton_prepare(
     # nothing. ``build_steam_window_env`` above is what fixes window adoption
     # in the ordinary case — if the device check confirms it is sufficient on
     # its own, this whole module goes away.
-    if os.environ.get("GAMESCOPE_WAYLAND_DISPLAY"):
-        try:
-            appid_int = int(env.get("SteamGameId") or 0)
-        except ValueError:
-            appid_int = 0
-        if appid_int > 0:
-            from .gamescope_window_tagger import start_window_tagger
-            start_window_tagger(appid_int)
+    from .gamescope_window_tagger import maybe_start_window_tagger
+    maybe_start_window_tagger(env, log_tag="launcher.proton.core")
 
     return ProtonLaunchPlan(
         context=ctx,

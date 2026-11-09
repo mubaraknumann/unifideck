@@ -32,7 +32,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from unifideck.core.store_urls import storefront_url
+from unifideck.core.store_urls import storefront_url, take_storefront_target
 from unifideck.core.types import Result
 from unifideck.launcher.types.errors import (
     DependencyMissingError,
@@ -163,10 +163,12 @@ async def handle_store_storefront(
 ) -> Result:
     """Open ``ctx``'s store shop in the shared Edge profile."""
     store = ctx.auth_store or ctx.store or ""
-    url = _resolve_storefront_url(store)
+    # A one-time page the backend asked for (itch.io's bundle claim page)
+    # wins over the landing page; the store must still have a shop at all.
+    url = take_storefront_target(store) or _resolve_storefront_url(store)
     if not edge_browser.is_installed:
         raise DependencyMissingError(
-            "Microsoft Edge flatpak required for the store browser",
+            "the plugin's browser is not downloaded yet (needed for the store window)",
             context={"store": store or ""},
         )
     busy = _busy_flavour(edge_browser)

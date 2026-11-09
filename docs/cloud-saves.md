@@ -7,7 +7,9 @@ where a game's saves can't be found automatically.
 
 > **Which games?** Cloud saves apply to **GOG** and **Epic** games launched
 > through Unifideck. Steam games use Steam's own cloud (handled by Steam).
-> Amazon, Ubisoft, and xCloud titles are not covered by this feature.
+> Xbox PC games sync on their own, inside the game: see
+> [Xbox PC games](#xbox-pc-games). Amazon, Ubisoft, and xCloud streams are not
+> covered by this feature.
 
 ---
 
@@ -43,6 +45,32 @@ next to the game's install directory) are resolved against the game's actual
 Proton prefix and **your chosen install location** (games can live on the SD card
 or an external drive; saves are found wherever the game actually writes them).
 
+### Native Linux GOG games
+
+A GOG game installed as its Linux build has no Proton prefix. GOG's cloud
+configuration only lists Windows and Mac save locations, so Unifideck maps them
+onto where the Linux build really writes. Two kinds of game map exactly:
+
+- **Unity games.** The Windows save folder under `AppData/LocalLow/<Company>/<Product>`
+  is the same folder the Linux build keeps in `~/.config/unity3d/<Company>/<Product>`.
+  It syncs as it is.
+- **DOSBox games.** On Windows, GOG keeps everything the game writes in a
+  `cloud_saves` folder. The Linux build writes into its own `data/` folder
+  instead, mixed in with the game files. Before each sync, Unifideck copies every
+  file in `data/` that the installer did not ship (or that has changed since) into
+  a staging folder, and syncs that. After a download, the files are copied back
+  into `data/`. This needs the `.gogdl-linux-manifest` file the installer leaves in
+  the game folder.
+
+Any other GOG location (Documents, Roaming AppData and so on) has no reliable
+Linux equivalent and is not mapped. For those games Unifideck falls back to the
+Linux save path from its game database when it has one; otherwise the button
+shows **"Save location not found"**.
+
+A save folder that would contain the game's own install folder, or that is a
+single file, is always rejected. A download empties the save folder first and an
+upload sends all of it, so such a path would delete the game or upload it whole.
+
 ### When saves sync
 
 - **Download (cloud → device) happens automatically when you launch a game.**
@@ -67,6 +95,9 @@ On a GOG/Epic game's page, a **cloud icon** sits in the button row next to
 | ☁️ amber ring    | **Save location not found** — sync may not work yet (see below) |
 | 🔄 spinning      | A sync is in progress                                           |
 | ☁️ dimmed        | This game has no cloud‑save support                             |
+
+If the store's cloud does not answer, the cloud‑save line and window say **Check
+Connection**. This covers GOG, Epic and Xbox PC.
 
 Selecting the icon opens the **Cloud saves** window, which shows:
 
@@ -165,17 +196,50 @@ location automatically.
 
 ---
 
+## Xbox PC games
+
+Everything above is about GOG and Epic. Installed Xbox PC games work differently:
+the game's runtime syncs your saves itself, while the game runs. It downloads
+when the game starts and uploads as the game saves. These are the same cloud
+saves xCloud and other Xbox devices use, so you can continue on any of them.
+
+Unifideck never uploads or downloads these saves. It only compares this device
+with the cloud, so there are no Download or Upload buttons. Under the play bar,
+**Cloud saves** shows one of these:
+
+| Status | What it means |
+| ------ | ------------- |
+| Up to date | The cloud has exactly what this device has. Safe to continue elsewhere. |
+| Waiting to upload | A save on this device has not reached the cloud. Launch the game to upload it. |
+| Waiting for launch | Something changed, and the game settles it at its next launch. It also shows while the game runs. |
+| Check Connection | Unifideck could not compare with the cloud. Your saves are not affected. |
+
+The plugin log has the exact reason behind **Waiting for launch**.
+
+There is no line until the game has run once under your account, because the
+save folder is what tells Unifideck which cloud storage to look at.
+
+### Uninstalling
+
+An Xbox PC game keeps its saves in its Proton prefix. If you turn on **Also delete
+Proton files**, the dialog counts any save that has not reached the cloud, because
+deleting it would lose it for good. Launch the game once to upload it first.
+
+---
+
 ## Where things are stored on your device
 
 | What                                         | Location                                                          |
 | -------------------------------------------- | ---------------------------------------------------------------- |
 | Game prefixes (where in‑prefix saves live)   | `~/.local/share/unifideck/prefixes/<game id>/`                   |
+| Native DOSBox staging (GOG Linux builds)     | `~/.local/share/unifideck/native-staging/<game id>/<namespace>/` |
 | Versioned pre‑upload backups (newest 5 kept) | `~/.local/share/unifideck/save_backups/<store>/<game id>/<ts>/`  |
 | Local backup mirror (write‑only copy)        | `~/Save Games Backup/<store>/<game id>/`                         |
 
 > The `~/Save Games Backup/` mirror is a **write‑only safety copy** — Unifideck
 > writes to it but never restores from it. Your real saves always live inside the
-> game's Proton prefix; the cloud is the source of truth for syncing.
+> game's Proton prefix (or, for a native Linux game, where that build writes
+> them); the cloud is the source of truth for syncing.
 
 ---
 

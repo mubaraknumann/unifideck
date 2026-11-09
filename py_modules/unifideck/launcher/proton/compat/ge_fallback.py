@@ -151,7 +151,7 @@ async def _persist_fallback_choice(
     await restore_or_migrate_saves(ge_plan, prefix_root)
     launcher_toast(
         "toasts.launcher.protonSwitchedTo",
-        i18n_title_key="toasts.launcher.protonUpgrade",
+        i18n_title_key="toasts.header.proton",
         i18n_params={"version": tag},
         game_title=plan.context.game_key,
     )

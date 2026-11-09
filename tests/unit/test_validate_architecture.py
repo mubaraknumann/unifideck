@@ -54,6 +54,7 @@ so no test ever mutates the working tree.
 """
 from __future__ import annotations
 
+import ast
 import importlib.util
 import subprocess
 import sys
@@ -111,6 +112,16 @@ def _run(script: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
+@pytest.fixture(scope="module")
+def real_run(script_path: Path) -> subprocess.CompletedProcess[str]:
+    """One subprocess run against the real tree, shared by the tests that only read it.
+
+    Each run walks the whole tree, so running it once per test multiplied the
+    file's cost by the number of tests reading the same output.
+    """
+    return _run(script_path)
+
+
 # Directories the script reads. Symlinked rather than copied: the real
 # stores/, src/ and docs/ must be the ones under test, so that only the
 # planted defect distinguishes the mirror from the checkout.
@@ -141,17 +152,19 @@ def _repoint(mod, root: Path) -> None:
 # ========================================================= #
 # 1. Clean run against the real source
 # ========================================================= #
-def test_passes_against_real_source(script_path: Path) -> None:
-    res = _run(script_path)
+def test_passes_against_real_source(
+    real_run: subprocess.CompletedProcess[str],
+) -> None:
+    res = real_run
     assert res.returncode == 0, (
         "architecture gate failed against real source:\n"
         f"{res.stdout}\n{res.stderr}")
     assert "architecture invariants OK" in res.stdout
 
 
-def test_every_check_reports(script_path: Path) -> None:
+def test_every_check_reports(real_run: subprocess.CompletedProcess[str]) -> None:
     """A check that stops printing has stopped running."""
-    res = _run(script_path)
+    res = real_run
     for expected in (
         "mixins composed == __all__",
         "stores agree (cache registry == disk)",
@@ -169,7 +182,7 @@ def test_every_check_reports(script_path: Path) -> None:
 
 
 def test_the_live_mixin_count_is_printed(
-    script_path: Path, repo_root: Path, mod,
+    real_run: subprocess.CompletedProcess[str], repo_root: Path, mod,
 ) -> None:
     """The count is printed, and it is the count main.py actually composes.
 
@@ -177,7 +190,7 @@ def test_the_live_mixin_count_is_printed(
     test would be the sixth stale copy of the number §2.1 is about.
     """
     composed = mod.parse_mixin_bases(repo_root / "main.py")
-    res = _run(script_path)
+    res = real_run
     assert f"OK: {len(composed)} mixins composed == __all__" in res.stdout
 
 
@@ -1215,6 +1228,60 @@ def _groups(mod) -> list[list[str]]:
 
 def test_check13_passes_when_each_body_is_unique(shape_tree, mod) -> None:
     assert _groups(mod) == []
+
+
+class _Anonymise(ast.NodeTransformer):
+    """The original, copy-based normaliser: the reference ``_shape`` must agree with."""
+
+    def visit_Name(self, node: ast.Name) -> ast.Name:
+        return ast.copy_location(ast.Name(id="_", ctx=node.ctx), node)
+
+    def visit_arg(self, node: ast.arg) -> ast.arg:
+        return ast.copy_location(ast.arg(arg="_", annotation=None), node)
+
+    def visit_Constant(self, node: ast.Constant) -> ast.Constant:
+        return ast.copy_location(ast.Constant(value="_"), node)
+
+
+def _reference_signature(mod, fn: ast.FunctionDef | ast.AsyncFunctionDef) -> str | None:
+    body = [
+        stmt for stmt in fn.body
+        if not (isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant))
+    ]
+    if len(body) < mod._MIN_BODY_STATEMENTS:
+        return None
+    try:
+        clone = ast.parse(ast.unparse(ast.Module(body=body, type_ignores=[])))
+    except (SyntaxError, ValueError):
+        return None
+    return ast.dump(_Anonymise().visit(clone), annotate_fields=False)
+
+
+def test_check13_fast_shape_partitions_the_real_tree_like_the_reference(
+    repo_root: Path, mod,
+) -> None:
+    """``_shape`` replaced a copy-and-transform signature for speed; it must group the same.
+
+    Compared as partitions over every function in the tree: the two produce
+    different strings, but must put exactly the same functions together.
+    """
+    fast: dict[str, set[str]] = {}
+    slow: dict[str, set[str]] = {}
+    for file in sorted((repo_root / "py_modules" / "unifideck").rglob("*.py")):
+        if "__pycache__" in file.parts:
+            continue
+        tree = ast.parse(file.read_text(encoding="utf-8", errors="ignore"))
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            where = f"{file}:{node.lineno}"
+            new, old = mod._body_signature(node), _reference_signature(mod, node)
+            assert (new is None) == (old is None), where
+            if new is not None and old is not None:
+                fast.setdefault(new, set()).add(where)
+                slow.setdefault(old, set()).add(where)
+    assert fast
+    assert sorted(map(sorted, fast.values())) == sorted(map(sorted, slow.values()))
 
 
 def test_check13_catches_a_copy_that_was_renamed(shape_tree: Path, mod) -> None:

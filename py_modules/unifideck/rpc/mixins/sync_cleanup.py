@@ -464,6 +464,11 @@ class CleanupRPCMixin(_CleanupFinalizeMixin):
             "save_backups",
             "ubisoft_id_map.json",
             "battlenet_id_map.json",
+            # Xbox PC: the install records index the games (and their
+            # ``installRoot`` is what destructive cleanup deletes), and the
+            # runtime is 1.5 GB. Credentials inside it are removed by the
+            # auth sweep, not here.
+            "xbox_pc",
         },
     )
 

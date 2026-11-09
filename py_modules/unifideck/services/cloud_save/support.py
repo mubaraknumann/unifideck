@@ -29,6 +29,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from unifideck.launcher.xbox_pc.layout import is_xodus_store
+
 logger = logging.getLogger(__name__)
 
 _LEGENDARY_METADATA_DIR = "~/.config/legendary/metadata"
@@ -65,6 +67,21 @@ def epic_cloud_support(game_id: str) -> bool | None:
     return bool(folder)
 
 
+def xbox_pc_cloud_support(game_id: str) -> bool | None:
+    """True when an installed Xbox PC game has save containers.
+
+    The runtime syncs them, and a runtime without cloud saves refuses to launch.
+    None otherwise: no containers says nothing about the game.
+    """
+    from unifideck.stores.microsoft.xodus.ids import record_for_game
+    from unifideck.stores.microsoft.xodus.save_status import has_local_saves
+
+    record = record_for_game(game_id)
+    if record is not None and has_local_saves(str(record["productId"])):
+        return True
+    return None
+
+
 def catalog_cloud_support(
     enriched: dict[str, Any] | None, store: str,
 ) -> bool | None:
@@ -89,6 +106,10 @@ def resolve_cloud_support(
     """
     if store == "epic":
         native = epic_cloud_support(game_id)
+        if native is not None:
+            return native
+    if is_xodus_store(store):
+        native = xbox_pc_cloud_support(game_id)
         if native is not None:
             return native
     return catalog_cloud_support(enriched, store)

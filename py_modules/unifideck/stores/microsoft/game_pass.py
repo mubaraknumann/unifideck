@@ -32,7 +32,7 @@ import urllib.request
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-from unifideck.core.net import ssl_ctx_permissive as _ssl
+from unifideck.core.net import ssl_ctx_strict
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +116,7 @@ def _fetch_list(list_id: str, market: str) -> frozenset[str]:
     try:
         with urllib.request.urlopen(
             request, timeout=20,
-            context=_ssl("Game Pass catalog lists — outdated Deck cert store"),
+            context=ssl_ctx_strict(),
         ) as response:
             data = json.loads(response.read().decode("utf-8", errors="replace"))
     except Exception as e:

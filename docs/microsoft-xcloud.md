@@ -18,10 +18,13 @@
 - [Catalog synchronization](#catalog-synchronization)
   - [Sync flow](#sync-flow)
   - [games.map format](#gamesmap-format)
+  - [Installed, streamed or PC-only: where Play goes](#installed-streamed-or-pc-only-where-play-goes)
 - [Launching an xCloud game](#launching-an-xcloud-game)
   - [Launch flow](#launch-flow)
   - [Chromium flags for xCloud](#chromium-flags-for-xcloud)
   - [Shared Chromium profile](#shared-chromium-profile)
+  - [Handing the sign-in to xbox.com](#handing-the-sign-in-to-xboxcom)
+  - [Why Xbox PC users sign in twice](#why-xbox-pc-users-sign-in-twice)
 - [Virtual keyboard](#virtual-keyboard)
   - [Injection and locale detection](#injection-and-locale-detection)
   - [Available layouts](#available-layouts)
@@ -164,9 +167,76 @@ Two fallbacks keep a pre-0.7.6 cache working: an `xcloud` tag without a
 the play URL built from the product id. The same mechanism serves itch.io's
 HTML5 games (`kind="web"`); see `.claude/skills/unifideck-architecture/stores.md`.
 
+The one exception to that fallback is a PC-only Xbox title (below): a
+Microsoft title tagged `xbox_pc` and not `xcloud` is never streamed.
+
+### Installed, streamed or PC-only: where Play goes
+
+Since the Xbox PC feature (opt-in, on the `xbox-pc` branch, not yet
+validated on a device), one Microsoft row can be any of three things:
+
+| Row | Tags | Where it comes from |
+|---|---|---|
+| Streamed only | `xcloud`, `browser` | the xCloud catalog, as above |
+| Merged | `xcloud`, `browser`, `xbox_pc` | a title in both the xCloud catalog and the user's Xbox PC library, matched by exact product id, or by name when only platform words differ (`pc_library/title_pairs.py`; editions stay apart) |
+| PC-only | `xbox_pc` | a PC title xCloud does not carry |
+
+The PC rows come from our own `xodus-cli` build (`stores/microsoft/pc_library/`).
+They are listed only while the xCloud sign-in works, because `get_library`
+reads xCloud first. `xbox_pc` is a fact about the title: it stays on an
+installed row when the feature is turned off.
+
+**Launcher.** Every Microsoft launch goes to
+`launcher/xbox_pc/routing.microsoft_context`, right after the auth and
+storefront check and before any exe lookup:
+
+| games.map row | Xbox PC toggle | Cached row has `xcloud` (or no cached row) | Result |
+|---|---|---|---|
+| yes | on | any | Xodus launch (`xodus-cli run` in our runtime) |
+| yes | off | yes | xCloud stream |
+| yes | off | no | notice `disabled`, nothing launches |
+| no | any | yes | xCloud stream (the behaviour before Xbox PC) |
+| no | any | no | notice `not_installed`, nothing launches |
+
+An installed Xbox PC title has a games.map row (`microsoft:<store_game_id>`),
+written when the install finishes. The launch reads everything else from the
+install record in `~/.local/share/unifideck/xbox_pc/installed/<PID>.json`.
+It never goes through umu, GE or the Proton selection chain.
+
+**Game page.** The frontend decides from the tags and the install state
+(`src/hooks/resolvePlaySection.ts`):
+
+- Installed: Play, which runs the PC game. **There is no Stream button on an
+  installed tile in v1.**
+- Not installed, merged row: Install is the main button and Stream is a
+  secondary one.
+- Not installed, PC-only row: Install.
+- A title Xodus cannot install yet (EA Play, Ubisoft+, an unknown plan, or a
+  package that needs a choice): Stream with the reason when the row has
+  `xcloud`, otherwise a disabled "Not supported yet" button with the reason.
+- Feature turned off: streamed and merged rows stream. A PC-only row shows
+  that the feature is off. An installed row shows why it cannot run and
+  offers Uninstall.
+
 ---
 
 ## Launching an xCloud game
+
+### Unifideck's own player (default since 0.8.0)
+
+A stream no longer opens xbox.com. `services/launcher/xcloud_player_game.py` plays it in Unifideck's own player:
+
+1. **Sign-in.** `launcher/xcloud_player/credentials.py` refreshes the saved OAuth sign-in (xbox.com's client, `microsoft_tokens.json`, read-only) and runs Xbox Live (`d=` ticket), the `gssv` XSTS and the xgpuweb login, which gives the streaming token and region. The same refresh token mints the console-transfer ticket that `/connect` needs. The Xbox PC credential cannot mint that ticket, which is why Connect also runs the OAuth sign-in (`xodus/signin_chain.py`).
+2. **Title.** `api.py` maps the Store product id to xCloud's title id through `/v2/titles` and caches it in `~/.local/share/unifideck/xcloud_title_ids.json`.
+3. **Page.** `server.py` serves `web/index.html` and `web/bundle.js` on `127.0.0.1` and makes every xCloud call (start, state, connect, SDP, ICE, keepalive). The page only does WebRTC, video, audio and input. Tokens never reach it.
+4. **Window.** `browser.py` opens the page full screen in the plugin's own browser: the pinned ungoogled-chromium build `auth/edge_browser/chrome_installer.py` downloads (about 160 MB, in the background at startup). It replaced the Microsoft Edge flatpak in 0.8.0. Being a plain process, not a flatpak, its Gamepad API reads `/run/udev` directly. A flatpak browser could not, which is why controllers only ever worked in the Edge flatpak, to which the plugin had granted that access. The window inherits Steam's game identity through `clean_env`.
+5. **End.** When the window closes, or the launch is stopped, the window's whole process group is signalled (a browser is a tree of processes, and a launcher in front of it does not forward a signal) and the cloud session is deleted.
+
+The page is built from `xcloud-player/` with `xcloud-player/build.sh`. Its player library is Greenlight's `@greenlight/player` (MIT, `xcloud-player/LICENSE-greenlight-player`); the built bundle is committed because the plugin build does not run node.
+
+The stream falls back to the xbox.com path below, with the reason in the launcher log, when there is no saved OAuth sign-in, xCloud does not list the title, or no browser is installed. Set `launcher.xcloud_player` to `"xbox_com"` in the plugin config to always use xbox.com.
+
+Measured on a Steam Deck on 2026-11-03: about 25 s from launch to picture, 1920×1080 at ~60 fps with audio, in Chromium, with no xbox.com sign-in or "Click to start playing" screen.
 
 ### Launch flow
 
@@ -181,19 +251,39 @@ flags that matter here:
 | -------------------------------------------- | -------------------------------------- |
 | `--kiosk`                                    | Fullscreen, no window chrome           |
 | `--class=unifideck-browser-game`             | Window class for this kind of window   |
-| `--remote-debugging-port=<cdp_port + 1>`     | `browser_game_cdp_port()`: tells the storefront flow a game window holds the profile |
+| `--remote-debugging-port=<cdp_port + 1>`     | `browser_game_cdp_port()`: tells the storefront flow a game window holds the profile, and is where the xbox.com sign-in is handed over |
 | `--user-data-dir=edge-auth/`                 | Shared profile with auth, so the Xbox session carries over |
 | `--autoplay-policy=no-user-gesture-required` | The stream starts without a click      |
 | window size / scale flags                    | Sized to the live display (`display.auth_window_flags`) |
 
 ### Shared Chromium profile
 
-The same directory `~/.local/share/unifideck/edge-auth/` (migrated from `chromium-auth/`) is used for:
+The stream window uses `~/.local/share/unifideck/edge-auth/` (migrated from `chromium-auth/`), the same profile as the sign-in windows.
 
-1. **Authentication** — Microsoft cookies are created here
-2. **Game launch** — Chromium reuses these cookies for xbox.com SSO
+A stream does not run on Unifideck's Microsoft tokens. It runs on xbox.com's own sign-in, which xbox.com keeps in this profile's localStorage. Signing in from the QAM does not create that sign-in: the Xbox PC sign-in leaves only session cookies, which are gone when its window closes. Before 0.8.0 a user who had signed in from the QAM was therefore asked to sign in again by the stream.
 
-This avoids double authentication.
+### Handing the sign-in to xbox.com
+
+Since 0.7.6 the device-code sign-in uses xbox.com's own client (`1f907974-…`), so the saved refresh token is one xbox.com accepts. On every stream, `launcher/flows/xbox_com_signin` checks the window over CDP:
+
+1. If xbox.com already holds a sign-in (`msal.account.keys` in localStorage), nothing happens.
+2. Otherwise `stores/microsoft/xbox_com_grant` refreshes the saved sign-in with xbox.com's scopes (`openid` added, `client_info=1`). It only reads the token file and never writes it. Microsoft keeps a refresh token valid after it is used, so the backend's copy keeps working.
+3. One CDP session sets a TV user agent and defines `globalThis.deviceCode`, the provider xbox.com's TV app asks for a device code and token. The window opens `/play/login/deviceCode`, and the page signs itself in with the answer.
+4. The session closes, which ends the user agent override and the injected script, and the window goes back to the game.
+
+xbox.com's own refresh token then renews the sign-in on later launches.
+
+A user with no saved sign-in for that client (a sign-in older than 0.7.6) sees xbox.com's own sign-in page once. The launcher log says why, and where it looked.
+
+### Why Xbox PC users sign in twice
+
+Xbox PC and xCloud use two different Microsoft credentials, and neither can produce the other (measured 2026-11-03):
+
+- The Xodus credential runs Xbox PC. xCloud's `/connect` refuses it with `MsaVeto`. It wants a console-transfer ticket, and Microsoft issues that only against an OAuth refresh token, which the Xodus sign-in never produces. Asking for that ticket with the Xodus credential is refused for both client ids (`missing field wst:TokenType`).
+- `xodus-cli login` takes no token, so the OAuth sign-in cannot drive Xbox PC either.
+- The Xodus sign-in leaves no Microsoft website session in the Edge profile: its cookies are session-only and the only survivor is a tracking cookie. Opening xbox.com's sign-in while that window is still open does not complete silently.
+
+So a Deck with Xbox PC on needs both sign-ins. `xodus/signin_chain.py` runs the OAuth one at the end of the Xbox PC sign-in, in the window that is already open and before it closes, so Connect asks once and nothing asks again. It is skipped when a usable OAuth sign-in is already stored, and it never emits store events: the Xbox PC sign-in owns the store's outcome, so a failure here cannot report the store as signed out when Xbox PC did sign in. The reason goes to the log.
 
 ### Controller support (Steam Deck)
 
@@ -411,7 +501,7 @@ The layout (AZERTY/QWERTY) is selected based on the Unifideck locale:
 ## Known limitations
 
 1. **Streaming only** — no games are downloaded or installed locally
-2. **Game Pass subscription required** — verified server-side (xbox.com) at launch
+2. **Without Game Pass, only the free titles** — an account with no plan still gets an xCloud session, but `/v2/titles` entitles it only to what Microsoft streams for free. Measured 2026-10-05, that was Fortnite alone. The login token cannot tell such an account apart (its `offeringid` is `XGPUWEB` too); the rows can, through `details.userSubscriptions` (`[]` without a plan). The sync keeps the free titles and shows "No Xbox Game Pass on this account…" (`SYNC_SKIPPED`, reason `free_titles_only`). Microsoft's ad-supported free tier for owned games (Xbox Wire, 2026-07-23; rows carry the `FERDINAND` program) is an Xbox Insider test and was not reachable from a test account; its titles should arrive through `hasEntitlement` unchanged
 3. **Requires Chromium** — installed via flatpak if missing
 4. **Network quality** — streaming depends on Internet connection
 5. **Controller works in Gaming Mode only** — input flows via Edge's Gamepad API and requires a *gamepad* Steam Input layout on the shortcut (see [Controller support (Steam Deck)](#controller-support-steam-deck)). Desktop Mode is unsupported.

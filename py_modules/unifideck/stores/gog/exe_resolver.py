@@ -4,6 +4,7 @@ GOG installers often produce nested directory structures with several
 .exe files (the game, side tools, redistributables); ``GOGExeResolver``
 implements the heuristics to pick the right one to launch:
 
+0. root ``start.sh`` — a Linux build launches through GOG's own script;
 1. ``goggame-<id>.info`` manifest — read the ``playTasks`` field;
 2. ``game/`` sub-directory check — common GOG layout;
 3. .exe size filter — exclude obvious tools (≤ 1 MiB);
@@ -21,6 +22,8 @@ import json
 import logging
 from pathlib import Path
 from typing import Any
+
+from unifideck.core.native_entry import gog_linux_start_script
 
 logger = logging.getLogger(__name__)
 _SKIP_EXE_PATTERNS = (
@@ -56,7 +59,16 @@ class GOGExeResolver:
             return None
 
     def _resolve(self, install_path: str) -> tuple[str, str] | None:
-        """Resolve."""
+        """Resolve.
+
+        A Linux build's root ``start.sh`` wins over its goggame play task:
+        the play task names the bare binary (``game/SOR4``) and launching
+        that skips GOG's entry script, which upstream gogdl always runs.
+        """
+        start_sh = gog_linux_start_script(install_path)
+        if start_sh is not None:
+            logger.info("[GOGExeResolver] Linux build, resolved via start.sh: %s", start_sh)
+            return (str(start_sh), install_path)
         search_dirs = self._build_search_dirs(install_path)
         info_result = self._resolve_via_goggame_info(
             install_path,

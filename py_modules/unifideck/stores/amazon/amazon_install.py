@@ -35,7 +35,7 @@ from typing import Any, cast
 
 from unifideck.core.binaries import clean_cli_env
 from unifideck.core.manifest import write_manifest
-from unifideck.core.safe_delete import canonical_prefix, safe_rmtree
+from unifideck.core.safe_delete import safe_rmtree
 from unifideck.core.types import Events, InstallResult, Result
 from unifideck.event_bus.event_bus import EventBus
 from unifideck.stores.shared.cli_install_helpers import (
@@ -433,18 +433,16 @@ class AmazonInstaller:
                 return game.title
         return game_id
 
-    async def uninstall_game(
-        self, game_id: str, delete_prefix: bool = False,
-    ) -> Result:
+    async def uninstall_game(self, game_id: str) -> Result:
         """Uninstall game.
 
         ``nile uninstall`` only removes the files *it* tracks: it leaves our
         own ``.unifideck_manifest.json`` marker behind (so the install dir
-        survives as a stub) and never touches the Proton prefix. On failure
-        it deletes nothing at all. So — like Epic — we resolve the install
-        dir up front (nile drops its ``installed.json`` entry on success),
-        run nile best-effort, then delete any directory + prefix it leaves
-        behind ourselves so nothing is orphaned.
+        survives as a stub). On failure it deletes nothing at all. So — like
+        Epic — we resolve the install dir up front (nile drops its
+        ``installed.json`` entry on success), run nile best-effort, then
+        delete any directory it leaves behind ourselves so nothing is
+        orphaned. The Proton prefix is the uninstall RPC's job.
         """
         # Resolve the install dir while nile's installed.json entry is intact.
         install_path = await self._resolve_install_path(
@@ -457,11 +455,8 @@ class AmazonInstaller:
             else "nile_not_found"
         )
 
-        # Fallback cleanup: remove the leftover stub dir (our manifest marker)
-        # and, if requested, the per-game Proton prefix.
+        # Fallback cleanup: remove the leftover stub dir (our manifest marker).
         removed = await self._ensure_install_dir_gone(install_path)
-        if delete_prefix:
-            await asyncio.to_thread(safe_rmtree, canonical_prefix(game_id))
 
         if not removed:
             return Result(

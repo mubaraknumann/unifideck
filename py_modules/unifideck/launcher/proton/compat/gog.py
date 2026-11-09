@@ -22,6 +22,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from unifideck.core.paths import comet_config_file, comet_config_home
 from unifideck.launcher.proton.infrastructure.umu_runtime import (
     run_umu_with_retry,
 )
@@ -63,6 +64,9 @@ COMET_IDLE_WAIT_SECONDS = 2
 # MUST exceed COMET_IDLE_WAIT plus the upload round-trip, or we'd kill Comet
 # mid-upload and lose the session's just-earned achievements.
 COMET_FLUSH_SECONDS = 10
+# How long we watch a fresh Comet for an immediate exit (a binary that
+# cannot run here dies within milliseconds; a healthy one keeps running).
+COMET_START_CHECK_SECONDS = 0.5
 
 
 def _read_gog_tokens() -> tuple[str, str, str] | None:
@@ -83,6 +87,48 @@ def _read_gog_tokens() -> tuple[str, str, str] | None:
         if access and refresh:
             return access, refresh, str(entry.get("user_id") or "")
     return None
+
+
+def _comet_env() -> dict[str, str]:
+    """Comet's environment: ours, plus its tuning and push-event config.
+
+    ``XDG_CONFIG_HOME`` points comet at the config the backend's
+    achievement watcher writes (an ``achievement_unlocked`` push URL), but
+    only while that file exists. ``XDG_DATA_HOME`` is never touched: comet
+    keeps its gameplay DB (pending offline unlocks) and the user's
+    achievement ``workarounds/`` there.
+    """
+    env = {
+        **os.environ,
+        # With the quit flag set, how long Comet lingers after the game
+        # disconnects before flushing unlocks and exiting.
+        "COMET_IDLE_WAIT": str(COMET_IDLE_WAIT_SECONDS),
+        # Log level, for diagnosability (stderr is discarded by default).
+        "COMET_LOG": os.environ.get("COMET_LOG", "info"),
+    }
+    if comet_config_file().is_file():
+        env["XDG_CONFIG_HOME"] = str(comet_config_home())
+    return env
+
+
+def _exited_at_start(proc: subprocess.Popen[bytes], comet: Path) -> bool:
+    """True (and a user-facing warning) when Comet died right after spawning.
+
+    Comet's stderr is discarded, so without this a binary that cannot run
+    on this host (comet 0.4+ needs glibc 2.38 or newer) would silently
+    cost the session its GOG achievements.
+    """
+    try:
+        rc = proc.wait(timeout=COMET_START_CHECK_SECONDS)
+    except subprocess.TimeoutExpired:
+        return False
+    logger.warning(
+        "[compat.gog] Comet exited at start (rc=%s, binary %s) — GOG "
+        "achievements and online features are OFF this session. Comet "
+        "needs glibc 2.38 or newer; run the binary by hand to see why.",
+        rc, comet,
+    )
+    return True
 
 
 def start_comet(plan: ProtonLaunchPlan) -> subprocess.Popen[bytes] | None:
@@ -113,21 +159,19 @@ def start_comet(plan: ProtonLaunchPlan) -> subprocess.Popen[bytes] | None:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             start_new_session=True,
-            # COMET_IDLE_WAIT: with the quit flag set, this is how long Comet
-            # lingers after the game disconnects before flushing unlocks and
-            # exiting. COMET_LOG raises its log level for diagnosability (goes
-            # to the inherited stderr; set comet output to a file to capture).
-            env={
-                **os.environ,
-                "COMET_IDLE_WAIT": str(COMET_IDLE_WAIT_SECONDS),
-                "COMET_LOG": os.environ.get("COMET_LOG", "info"),
-            },
+            env=_comet_env(),
         )
-        logger.info("[compat.gog] Comet started (pid=%s)", proc.pid)
-        return proc
     except OSError as e:
-        logger.warning("[compat.gog] Comet failed to start: %s", e)
+        logger.warning(
+            "[compat.gog] Comet failed to start (%s, binary %s) — GOG "
+            "achievements and online features are OFF this session",
+            e, comet,
+        )
         return None
+    if _exited_at_start(proc, comet):
+        return None
+    logger.info("[compat.gog] Comet started (pid=%s)", proc.pid)
+    return proc
 
 
 def _shutdown_comet(comet: subprocess.Popen[bytes]) -> None:

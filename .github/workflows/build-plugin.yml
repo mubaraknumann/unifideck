@@ -112,6 +112,14 @@ jobs:
         # frontend toast calls and the backend/launcher emitters.
         run: python3 scripts/check_hardcoded_strings.py
 
+      - name: Check toast strings fit the toast
+        # A toast field (header, body, action label) holds 16
+        # characters in every locale (22 width units in CJK), and
+        # every backend toast names its feature with a
+        # toasts.header.* key. A longer translation is cut off on
+        # screen, and nothing else catches it.
+        run: python3 scripts/check_toast_length.py
+
       - name: Commit regenerated locale files
         # Only on push (not PR) — PRs can't write to the target
         # repo. Commits any locale JSONs or generated TS that

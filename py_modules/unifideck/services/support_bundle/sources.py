@@ -184,6 +184,13 @@ _STATE_SMALL: tuple[SourceSpec, ...] = (
         writer="launcher/proton/infrastructure/ge_installer.py",
     ),
     SourceSpec(
+        key="xbox_pc_active", what="Which Xodus backend and runtime are installed (Xbox PC)",
+        root="data", pattern="xbox_pc/active.json", arch_dir="data/xbox_pc",
+        scrub="json", priority=50, expect="optional",
+        writer="stores/microsoft/xodus/runtime.py",
+        note="Versions, hashes, runtime features and what is degraded.",
+    ),
+    SourceSpec(
         key="download_queue", what="Install/update queue as last persisted",
         root="data", pattern="download_queue.json", arch_dir="data",
         scrub="json", priority=50, expect="always",

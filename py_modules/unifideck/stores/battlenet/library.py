@@ -223,6 +223,26 @@ def family_from_catalog(catalog: MergedCatalog, uid: str) -> str | None:
     return None
 
 
+def installed_version_fields(
+    drive_c: Path | None, uid: str, installed: InstalledGame | None,
+) -> dict[str, Any]:
+    """``family`` and ``client_selects`` for the version just installed.
+
+    The same rule a sync records (:func:`_version_family_and_client_selects`),
+    applied at install time. Without it the id map keeps the family it had
+    before the install: Classic Era installed under the ``wow`` tile kept
+    ``WoW``, and the next Play opened the client on Retail until a sync ran.
+    Empty when the catalog cannot answer, which leaves the record as it was.
+    """
+    if drive_c is None or installed is None:
+        return {}
+    entry = read_catalog(drive_c).entry_for_uid(uid)
+    if entry is None:
+        return {}
+    family, selects = _version_family_and_client_selects(entry, installed, 1)
+    return {"family": family or entry.program_id, "client_selects": selects}
+
+
 def _presumed_facts(catalog: MergedCatalog, facts: AccountFacts) -> AccountFacts:
     """``facts`` with a game account assumed for every program in the catalog."""
     return AccountFacts(
@@ -321,12 +341,15 @@ def build_library(
     by_uid = index_by_uid(installed)
     games = _granted_games(granted, catalog, by_uid, launcher_path, presumed=presumed)
     seen = {normalize_uid(g.store_game_id) for g in games}
-    # A tile that matched a variant has consumed that install; without this
-    # the orphan sweep re-adds Classic Era as a second World of Warcraft.
-    seen |= {
-        normalize_uid(str(g.metadata["installed_uid"]))
-        for g in games if g.metadata and g.metadata.get("installed_uid")
-    }
+    # Every version of a granted tile belongs to that tile, not only the one
+    # it reports as ``installed_uid`` (the most recently played). Claiming
+    # just that one re-added Classic Era as its own game whenever Retail was
+    # played last: titled ``wow_classic_era``, with a family that launches
+    # nothing.
+    for game in games:
+        entry = catalog.entry_for_uid(game.store_game_id)
+        if entry is not None:
+            seen |= {normalize_uid(uid) for uid in entry.known_uids()}
     games.extend(_orphan_installed(installed, catalog, seen, launcher_path))
     return games
 

@@ -177,7 +177,7 @@ async def launch_native(
     try:
         from unifideck.core.types.events import Events
 
-        from .helpers import run_native_subprocess
+        from .native_run import run_native_subprocess
         store = ctx.store
         game_id = ctx.game_id
 

@@ -48,6 +48,7 @@ logger = logging.getLogger(__name__)
 _PLUGIN_BACKGROUND_LOOPS: tuple[tuple[str, str, str], ...] = (
     ("_updater_service", "stop_polling", "updater"),
     ("_update_sweep_service", "stop", "update sweep"),
+    ("_xbox_partial_sweep_service", "stop", "Xbox partial sweep"),
     ("_post_sync_reconcile_service", "stop", "post-sync reconcile"),
 )
 

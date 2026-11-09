@@ -100,7 +100,11 @@ jobs:
           # pyproject addopts already; repeated -W here keeps the
           # gate strict even if that file is later weakened.
           # --junitxml feeds the no-skips gate below.
+          # -n auto : one pytest-xdist worker per core. Coverage and the
+          #           JUnit report are merged across workers by
+          #           pytest-cov / pytest itself.
           pytest tests/ \
+            -n auto \
             -W error \
             -W ignore::ResourceWarning \
             --junitxml=pytest-report.xml \

@@ -18,6 +18,7 @@ import { downloadStore } from "./stores/download-store";
 import { syncStore } from "./stores/sync-store";
 import { authStore } from "./stores/auth-store";
 import { storeInfoStore } from "./stores/store-info-store";
+import { xboxPcStore } from "./stores/xbox-pc-store";
 /**
  * Handles captured during bootstrap that {@link runTeardown}
  * must dispose on plugin unload. Currently the lifetime
@@ -26,6 +27,7 @@ import { storeInfoStore } from "./stores/store-info-store";
  */
 export interface TeardownHandles {
   routerPatch?: RouterPatchHandle | null;
+  nativeAppDetails?: (() => void) | null;
   cacheAutoload?: (() => void) | null;
   libraryPatch?: RouterPatchHandle | null;
   collectionManager?: CollectionManagerHandle | null;
@@ -33,12 +35,15 @@ export interface TeardownHandles {
   overviewEnrichment?: (() => void) | null;
   tileStoreBadgePatch?: (() => void) | null;
   appContextMenuPatch?: { unpatch: () => void } | null;
+  battlenetLaunchPicker?: { unpatch: () => void } | null;
   storeOwnershipRibbon?: (() => void) | null;
   lifetimeListener?: Unregisterable | null;
   launcherToastPoll?: (() => void) | null;
   pluginUpdateNotice?: (() => void) | null;
   bootEventListener?: (() => void) | null;
   signedOutTabs?: (() => void) | null;
+  xboxPcResetWatch?: (() => void) | null;
+  groupDuplicatesRefresh?: (() => void) | null;
 }
 /**
  * Run every disposer captured during bootstrap, in
@@ -63,15 +68,20 @@ export interface TeardownHandles {
  * `index.tsx`, so a handle is released before whatever it was built on.
  */
 const DISPOSERS: Record<keyof TeardownHandles, (h: TeardownHandles) => void> = {
+  xboxPcResetWatch: (h) => h.xboxPcResetWatch?.(),
   bootEventListener: (h) => h.bootEventListener?.(),
   launcherToastPoll: (h) => h.launcherToastPoll?.(),
   pluginUpdateNotice: (h) => h.pluginUpdateNotice?.(),
+  // Its window listener outlives a reload and would rebuild a stale tabManager.
+  groupDuplicatesRefresh: (h) => h.groupDuplicatesRefresh?.(),
   signedOutTabs: (h) => h.signedOutTabs?.(),
   // Unregisters from Steam's store-browser callback list and the router
   // history; a leak here would keep drawing ribbons after unload.
   storeOwnershipRibbon: (h) => h.storeOwnershipRibbon?.(),
   tileStoreBadgePatch: (h) => h.tileStoreBadgePatch?.(),
   appContextMenuPatch: (h) => h.appContextMenuPatch?.unpatch(),
+  // Restores Steam's own RunGame; a leak would keep wrapping it after unload.
+  battlenetLaunchPicker: (h) => h.battlenetLaunchPicker?.unpatch(),
   lifetimeListener: (h) => h.lifetimeListener?.unregister(),
   appStorePatch: (h) => h.appStorePatch?.remove(),
   // Releases two window listeners, two EventBusClient subscriptions, the
@@ -86,6 +96,8 @@ const DISPOSERS: Record<keyof TeardownHandles, (h: TeardownHandles) => void> = {
   // subscription had no disposer at all until this table existed.
   cacheAutoload: (h) => h.cacheAutoload?.(),
   routerPatch: (h) => h.routerPatch?.remove(),
+  // Restores Steam's action button, play bar row and tabbed page.
+  nativeAppDetails: (h) => h.nativeAppDetails?.(),
 };
 
 export function runTeardown(handles: TeardownHandles): void {
@@ -110,6 +122,11 @@ export function runTeardown(handles: TeardownHandles): void {
     storeInfoStore.stop();
   } catch (e) {
     console.warn("[Teardown] storeInfoStore stop failed:", e);
+  }
+  try {
+    xboxPcStore.stop();
+  } catch (e) {
+    console.warn("[Teardown] xboxPcStore stop failed:", e);
   }
   for (const [name, dispose] of Object.entries(DISPOSERS)) {
     try {

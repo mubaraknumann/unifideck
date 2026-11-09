@@ -36,9 +36,10 @@ from __future__ import annotations
 
 #: Stores with a ``get_game_achievements`` implementation. Display only —
 #: unlocking is each store's own concern (GOG via Comet, Epic via the EOS
-#: overlay). Consumed by ``rpc/mixins/achievements.py`` and, through the
-#: payload, by the App-Details achievements button.
-ACHIEVEMENT_STORES = frozenset({"gog", "epic"})
+#: overlay, Xbox via the runtime's Xbox Live session). Consumed by
+#: ``rpc/mixins/achievements.py``, the achievement watcher (unlock toasts)
+#: and, through the payload, by the game page's achievements section.
+ACHIEVEMENT_STORES = frozenset({"gog", "epic", "microsoft"})
 
 #: Stores with a ``CloudSaveStrategy``. Must equal the keys of
 #: ``CloudSaveService._strategies`` — pinned by

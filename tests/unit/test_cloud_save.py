@@ -2,6 +2,7 @@ import os
 import json
 import asyncio
 import pytest
+import urllib.error
 from unittest.mock import MagicMock, AsyncMock, patch
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from unifideck.services.cloud_save.path_resolver import WinePrefixResolver
 from unifideck.services.cloud_save.epic_strategy import EpicCloudSaveStrategy
 from unifideck.services.cloud_save.gog_strategy import GOGCloudSaveStrategy
 from unifideck.services.cloud_save.service import CloudSaveService
+from unifideck.services.cloud_save.strategy_base import CloudUnreachableError
 from unifideck.core.types import Result
 
 @pytest.fixture
@@ -337,6 +339,30 @@ async def test_service_soft_conflict_opens_modal(
     assert "remote_snapshot" in evt.kwargs
 
 
+@pytest.mark.parametrize(
+    ("registry", "expected"),
+    [({"gog:g1": {"title": "Some Game"}}, "Some Game"), ({}, "g1")],
+)
+@pytest.mark.asyncio
+async def test_conflict_names_the_game_from_the_shortcut_registry(
+    tmp_path, monkeypatch, mock_event_bus, registry, expected,
+) -> None:
+    from unifideck.launcher import game_title
+
+    path = tmp_path / "shortcuts_registry.json"
+    path.write_text(json.dumps(registry), encoding="utf-8")
+    monkeypatch.setattr(game_title, "REGISTRY_PATH", path)
+    service = CloudSaveService(
+        bus=mock_event_bus, local_save_root=str(tmp_path / "saves"), cloud_root=None,
+    )
+    conflict = SaveConflictError(
+        "local_saves_regressed", {"file_count": 2, "timestamp": 1.0, "total_bytes": 99},
+        store="gog", game_id="g1", hard=False,
+    )
+    await service._emit_save_conflict("gog", "g1", conflict)
+    assert mock_event_bus.emit.await_args.kwargs["game_title"] == expected
+
+
 @pytest.mark.asyncio
 async def test_service_hard_block_emits_error_not_modal(
     tmp_path, mock_event_bus, mock_config,
@@ -368,8 +394,8 @@ async def test_service_hard_block_emits_error_not_modal(
     evt = mock_event_bus.emit.await_args
     assert "action" not in evt.kwargs  # no retry-sync → no pick modal
     assert evt.kwargs.get("severity") == "warning"
-    assert evt.kwargs.get("i18n_title_key") == "cloudSave.uploadSkippedTitle"
-    assert evt.kwargs.get("i18n_key") == "cloudSave.uploadSkippedBody"
+    assert evt.kwargs.get("i18n_title_key") == "toasts.header.cloudSaves"
+    assert evt.kwargs.get("i18n_key") == "toasts.cloudUploadSkippedBody"
 
 
 # ── Forced pull (explicit "Use Cloud") ────────────────────────────────────
@@ -744,7 +770,10 @@ def test_gog_native_linux_routes_to_enriched_linux(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_gog_native_linux_sync_uses_os_linux(tmp_path):
+async def test_gog_native_linux_sync_uses_os_windows(tmp_path):
+    # GOG's builds API answers os/linux with 404 "Unsupported OS", which
+    # crashed gogdl's get_auth_ids. The Galaxy clientId is per product, so
+    # native-Linux installs ask for the windows manifest too.
     strat = _gog_strategy(tmp_path)
     strat.gogdl_bin = "mock_gogdl"
     strat._convert_gog_token = MagicMock(return_value="/tmp/auth.json")
@@ -760,7 +789,7 @@ async def test_gog_native_linux_sync_uses_os_linux(tmp_path):
         mock_exec.return_value = proc
         assert await strat._do_sync_down("g", str(d), False) is True
     cmd = list(mock_exec.call_args.args)
-    assert cmd[cmd.index("--os") + 1] == "linux"
+    assert cmd[cmd.index("--os") + 1] == "windows"
 
 
 def test_gog_cached_targets_roundtrip(tmp_path):
@@ -1052,3 +1081,83 @@ def test_relocate_orphaned_saves_noop_for_non_numeric_dirs(tmp_path):
 
     assert not (save_dir / "savegame.dat").exists()
 
+
+# ── a store that does not answer is not an empty cloud ─────────────────────
+
+
+@pytest.mark.parametrize(
+    ("answer", "failed"),
+    [
+        (CloudUnreachableError("offline"), True),
+        (TimeoutError(), True),
+        (None, False),
+        ({"has_saves": False}, False),
+        ({"has_saves": True, "timestamp": 1.0}, False),
+    ],
+)
+@pytest.mark.asyncio
+async def test_cloud_check_failed_only_when_the_store_was_unreachable(
+    tmp_path, mock_event_bus, mock_config, answer, failed,
+):
+    svc = CloudSaveService(mock_event_bus, str(tmp_path), cloud_root=None, config=mock_config)
+    svc._strategies["gog"].get_local_save_dir = lambda gid: None
+    svc._strategies["gog"].get_cloud_save_info = AsyncMock(side_effect=[answer])
+    assert (await svc.get_cloud_status("gog", "g1"))["cloud_check_failed"] is failed
+
+
+@pytest.mark.parametrize(
+    ("error", "unreachable"),
+    [
+        (urllib.error.URLError("no route"), True),
+        (TimeoutError(), True),
+        (urllib.error.HTTPError("https://x", 403, "no", None, None), False),
+        (ValueError("bad json"), False),
+    ],
+)
+def test_gog_only_a_network_failure_is_unreachable(error, unreachable):
+    strategy = object.__new__(GOGCloudSaveStrategy)
+    strategy._cloud_listing_blocking = MagicMock(side_effect=error)
+    if unreachable:
+        with pytest.raises(CloudUnreachableError):
+            strategy._query_cloud_info_blocking("g")
+    else:
+        assert strategy._query_cloud_info_blocking("g") is None
+
+
+@pytest.mark.asyncio
+async def test_epic_failed_listing_is_not_an_empty_cloud(monkeypatch):
+    from unifideck.services.cloud_save import epic_strategy
+
+    class Proc:
+        returncode = 1
+
+        async def communicate(self):
+            return b"", b""
+
+    async def spawn(*_args, **_kwargs):
+        return Proc()
+
+    monkeypatch.setattr(epic_strategy.asyncio, "create_subprocess_exec", spawn)
+    strategy = object.__new__(epic_strategy.EpicCloudSaveStrategy)
+    strategy.legendary_bin = "legendary"
+    with pytest.raises(CloudUnreachableError):
+        await strategy._query_cloud_info("g")
+
+
+@pytest.mark.asyncio
+async def test_epic_no_saves_is_an_empty_cloud(monkeypatch):
+    from unifideck.services.cloud_save import epic_strategy
+
+    class Proc:
+        returncode = 0
+
+        async def communicate(self):
+            return b"Save games:\n", b""
+
+    async def spawn(*_args, **_kwargs):
+        return Proc()
+
+    monkeypatch.setattr(epic_strategy.asyncio, "create_subprocess_exec", spawn)
+    strategy = object.__new__(epic_strategy.EpicCloudSaveStrategy)
+    strategy.legendary_bin = "legendary"
+    assert await strategy._query_cloud_info("g") == {"has_saves": False, "timestamp": 0.0}

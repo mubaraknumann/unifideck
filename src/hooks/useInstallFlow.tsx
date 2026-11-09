@@ -12,6 +12,17 @@
  *    Selective Downloads titles, where the language packs are
  *    separate downloads; everything else comes back empty and
  *    installs without a prompt.
+ *  - A game paid for but not yet claimed (an itch.io bundle game, tag
+ *    `claim_required`): the claim page opens first
+ *    (`services/store/claim-flow.tsx`). Also run when `install_game`
+ *    answers `*_claim_required`, for a tile whose tags predate the claim
+ *    rule, then the install is retried once.
+ *  - An Xbox PC title (tag `xbox_pc`): the setup modal opens first when
+ *    the live status says setup is incomplete (`needsXboxPcSetup`): it is
+ *    finished in place, with no dialog (`linkXboxPc`). When
+ *    `install_game` refuses with a setup code (`xbox_pc_disabled`,
+ *    `_runtime_missing`, `_not_signed_in`), setup runs and the install is
+ *    retried once. No language picker: Xodus picks the package.
  *  - Other stores: pass straight through.
  */
 import { useCallback, useState } from "react";
@@ -26,6 +37,18 @@ import { pickStorageForInstall } from "../components/modals/PickStorageModal";
 import type { Game, Result } from "../types/api";
 import type { StorageLocationsResponse } from "../types/downloads";
 import { storeHasCapability } from "./useStoreCapability";
+import {
+  claimBeforeInstall,
+  isClaimRequiredError,
+  needsClaim,
+} from "../services/store/claim-flow";
+import {
+  isXboxPcRow,
+  isXboxPcSetupError,
+  needsXboxPcSetup,
+  runXboxPcSetup,
+} from "../services/store/xbox-pc-flow";
+import { xboxPcSnapshot } from "./useXboxPcStatus";
 
 /** Steam bridge shape — same minimal surface useGameActions
  *  consumes. */
@@ -90,6 +113,35 @@ export function useInstallFlow(bridge: SteamBridgeShape): UseInstallFlowResult {
     async (game: Game): Promise<Result | null> => {
       setWorking(true);
       try {
+        if (needsClaim(game)) {
+          const claim = await claimBeforeInstall(game);
+          if (!claim?.success) return claim;
+        }
+        if (needsXboxPcSetup(game, xboxPcSnapshot().status)) {
+          if (!(await runXboxPcSetup())) return null;
+        }
+        const install = async (opts: {
+          storage: string;
+          language?: string;
+        }): Promise<Result | null> => {
+          const args = { ...opts, title: game.title };
+          const result = await actions.install(
+            game.store,
+            game.store_game_id,
+            args,
+          );
+          const retry = () =>
+            actions.install(game.store, game.store_game_id, args);
+          if (isXboxPcSetupError(result.error)) {
+            // The status was stale (or not loaded): setup, then once more.
+            if (!(await runXboxPcSetup())) return result;
+            return retry();
+          }
+          if (!isClaimRequiredError(result.error)) return result;
+          const claim = await claimBeforeInstall(game);
+          if (!claim?.success) return claim ?? result;
+          return retry();
+        };
         // `useStorageConfig` fetches once at row-mount time, which can be
         // long before the user opens this picker (e.g. an SD card inserted
         // after the library grid rendered). Re-fetch here so newly
@@ -127,9 +179,11 @@ export function useInstallFlow(bridge: SteamBridgeShape): UseInstallFlowResult {
           customPath ?? "none",
         );
 
-        const fetchLangs = storeHasCapability(game.store, "has_language_picker")
-          ? LANGUAGE_ROUTE[game.store]
-          : undefined;
+        const fetchLangs =
+          !isXboxPcRow(game) &&
+          storeHasCapability(game.store, "has_language_picker")
+            ? LANGUAGE_ROUTE[game.store]
+            : undefined;
         if (!fetchLangs) {
           console.log(
             "[useInstallFlow] installing %s/%s with storage=%s",
@@ -137,10 +191,7 @@ export function useInstallFlow(bridge: SteamBridgeShape): UseInstallFlowResult {
             game.store_game_id,
             storage,
           );
-          return await actions.install(game.store, game.store_game_id, {
-            storage,
-            title: game.title,
-          });
+          return await install({ storage });
         }
         const langs = await (fetchLangs === "gog"
           ? getGogLangs(game.store_game_id)
@@ -148,12 +199,7 @@ export function useInstallFlow(bridge: SteamBridgeShape): UseInstallFlowResult {
         ).catch(() => null);
         const list = langs?.languages ?? [];
         if (list.length <= 1) {
-          const language = list[0];
-          return await actions.install(game.store, game.store_game_id, {
-            language,
-            storage,
-            title: game.title,
-          });
+          return await install({ language: list[0], storage });
         }
         const language = await pickLanguageViaModal(
           game.title,
@@ -161,11 +207,7 @@ export function useInstallFlow(bridge: SteamBridgeShape): UseInstallFlowResult {
           langs?.labels,
         );
         if (!language) return null;
-        return await actions.install(game.store, game.store_game_id, {
-          language,
-          storage,
-          title: game.title,
-        });
+        return await install({ language, storage });
       } finally {
         setWorking(false);
       }

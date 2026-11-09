@@ -40,7 +40,7 @@ _RAW = json.dumps({
 async def _title_map(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
     monkeypatch.setattr(
         mc, "_fetch_batch_displaycatalog",
-        lambda batch, market: mc._parse_displaycatalog(_RAW),
+        lambda batch, market, languages="en-US": mc._parse_displaycatalog(_RAW),
     )
     return mc.titles_by_product(await mc.fetch_products(["brrc2bp0g9p0"], "US"))
 

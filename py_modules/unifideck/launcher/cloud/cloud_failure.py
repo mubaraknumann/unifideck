@@ -208,19 +208,16 @@ async def _emit_toast(
     """Emit toast."""
     if bus is None:
         return  # type: ignore[unreachable]  # fallback for unexpected error shape
-    i18n_key = (
+    # The reason is in the log line above; the action label points at the fix.
+    body_key = (
         "toasts.launcher.cloudSyncDownFailed"
         if phase == "sync_down"
         else "toasts.launcher.cloudSyncUpFailed"
     )
     payload: dict[str, Any] = {
         "severity": "warning",
-        "i18n_key": i18n_key,
-        "i18n_params": {
-            "store": store,
-            "error_code": code,
-            "error_i18n_key": f"cloudSync.error.{code}",
-        },
+        "i18n_title_key": "toasts.header.cloudSaves",
+        "i18n_key": body_key,
         "duration_ms": 6000,
         "game_id": game_id,
         "store": store,

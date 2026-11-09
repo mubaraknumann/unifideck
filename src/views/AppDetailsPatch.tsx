@@ -15,6 +15,11 @@
  * the returned handle is held by the plugin entry and
  * `.remove()`'d on plugin unload.
  *
+ * Since the native App-Details integration (`views/native-app-details`),
+ * this patch only injects the play wrapper and info panel as a FALLBACK,
+ * when that integration is not active. The store switcher and the
+ * metadata re-injection run either way.
+ *
  * Notes on robustness :
  *  - Anchors via CSS class names (`appDetailsClasses?.InnerContainer`,
  *    `playSectionClasses?.Container`), NOT React `displayName`
@@ -49,6 +54,7 @@ import { DownloadProvider } from "../contexts/DownloadContext";
 import { PlaySectionWrapper } from "../components/play";
 import { HIDE_NATIVE_PLAY_MARKER } from "../components/play/play.css";
 import { GameInfoPanel, GameStoreSwitcher } from "../components/info";
+import { isNativeAppDetailsActive } from "../lib/steam-bridge/native-app-details";
 
 /** Stub component that's only used in the React DevTools
  *  display name. Helps debugging in production builds. */
@@ -179,6 +185,12 @@ function injectIntoTree(ret: unknown): void {
   );
 
   if (!shouldPatch) return;
+
+  // Steam renders this page itself (src/views/native-app-details): its own
+  // play bar and tabs, steered with our data and actions. Nothing to hide
+  // and nothing to inject. The legacy row and panel below only run when
+  // that integration could not find Steam's components on this build.
+  if (isNativeAppDetailsActive()) return;
 
   // Mark the inner container so our scoped CSS rule (nativePlayHideCss)
   // hides Steam's native Play row — which renders in a *separate* subtree

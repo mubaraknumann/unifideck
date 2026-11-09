@@ -73,16 +73,17 @@ class ServiceContainer:
     support_bundle: SupportBundleService | None = None
     microsoft_subscription: MicrosoftSubscriptionService | None = None
     microsoft_ownership: MicrosoftOwnershipService | None = None
-    # AchievementWatcher — GOG live unlock toasts + end-of-session summary.
-    # Reads achievements back from GOG (Comet does the in-game unlocking);
-    # plugin-only (the launcher subset never requests it).
+    # AchievementWatcher — live unlock toasts + end-of-session summary for
+    # every achievement store (GOG, Epic, Xbox). Reads unlocks back from the
+    # store; games do the unlocking. Plugin-only (the launcher subset never
+    # requests it).
     achievements: AchievementWatcher | None = None
     # OAuth browser monitor — shared CDP-based redirect watcher
     # consumed by every store's `AuthOrchestrator`. Injected into
     # stores via `store_injector._STORE_INJECTIONS`.
     browser_monitor: OAuthBrowserMonitor | None = None
-    # Edge browser — flatpak installer + CDP launcher used by
-    # the four OAuth stores (Epic / GOG / Amazon / Microsoft).
+    # The plugin's browser (bundled ungoogled-chromium, ``chrome_installer``) + CDP
+    # launcher, used by the browser sign-ins, store windows and streams.
     # Constructed once per plugin and shared via the injector.
     edge_browser: EdgeBrowser | None = None
     # Re-binds per-user paths (shortcuts.vdf / grid / localconfig) onto the

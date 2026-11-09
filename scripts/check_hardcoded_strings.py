@@ -20,7 +20,8 @@ What is checked
 ``showToast(`` and ``toaster.toast(`` call, any string or template literal in
 the argument list must come from i18next. These forms are accepted:
 
-* the key argument of ``t(...)`` / ``i18n.t(...)``;
+* the key argument of ``t(...)`` / ``i18n.t(...)`` / ``toastText(...)`` /
+  ``headerText(...)``;
 * a ``defaultValue:`` option (``t(key, { defaultValue: "…" })`` is a legitimate
   in-place fallback and ``PluginUpdater.tsx`` uses it throughout);
 * a severity token (``"info"`` / ``"warning"`` / ``"error"``), which is a union
@@ -69,7 +70,7 @@ TOAST_CALL = re.compile(
 )
 STRING_LITERAL = re.compile(r"`[^`]*`|\"[^\"]*\"|'[^']*'")
 # The literal is the key argument of t(...) / i18n.t(...).
-T_CALL_BEFORE = re.compile(r"\b(?:i18n\.)?t\(\s*$")
+T_CALL_BEFORE = re.compile(r"\b(?:(?:i18n\.)?t|toastText|headerText)\(\s*$")
 DEFAULT_VALUE_BEFORE = re.compile(r"defaultValue\s*:\s*$")
 SEVERITY_TOKENS = frozenset({"info", "warning", "warn", "error", "success"})
 # ``${...}`` holds a value, not prose. A template assembled only from

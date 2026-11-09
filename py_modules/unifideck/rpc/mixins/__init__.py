@@ -28,7 +28,8 @@ Per-mixin scope:
 * ``StoreOwnershipRPCMixin``: "already owned elsewhere" Steam Store ribbon;
 * ``SyncRPCMixin``            — library sync + game info;
 * ``UIRPCMixin``              — Steam-UI manipulation + locale;
-* ``UpdaterRPCMixin``         — self-update + release notes.
+* ``UpdaterRPCMixin``         — self-update + release notes;
+* ``XboxPcRPCMixin``: Xbox PC toggle, components and Xodus sign-in.
 """
 
 from __future__ import annotations
@@ -51,6 +52,7 @@ from .store_ownership import StoreOwnershipRPCMixin
 from .sync import SyncRPCMixin
 from .ui import UIRPCMixin
 from .updater import UpdaterRPCMixin
+from .xbox_pc import XboxPcRPCMixin
 
 __all__ = [
     "AccountRPCMixin",
@@ -71,4 +73,5 @@ __all__ = [
     "SyncRPCMixin",
     "UIRPCMixin",
     "UpdaterRPCMixin",
+    "XboxPcRPCMixin",
 ]

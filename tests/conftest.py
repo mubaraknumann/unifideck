@@ -118,10 +118,12 @@ def _fail_on_live_data_writes():
     writes through any route — ``shutil``, ``os.replace``, a subprocess —
     not only the ones going through Python file objects.
 
-    **Session-scoped deliberately.** The tree is ~12k files (the Wine
-    prefixes dominate) and walking it costs ~0.7s, which per-test would cost
-    more than the entire suite. Once at each end is ~1.5s total and still
-    names the files that changed, which is what identifies the culprit.
+    **Session-scoped deliberately.** The tree reaches ~50k files on a dev
+    Deck (the Wine prefixes dominate) and walking it costs ~0.4s, which
+    per-test would cost more than the entire suite. Once at each end still
+    names the files that changed, which is what identifies the culprit. Under
+    ``pytest -n`` every worker runs its own pair of walks; at this cost that
+    is cheaper than coordinating one across processes.
     """
     live = _live_data_dir()
     before = _snapshot(live)
@@ -200,17 +202,33 @@ def _foreign_writer(rel_path: str, *, edge_live: bool) -> bool:
 
 
 def _snapshot(root):
-    """``{relative path: (mtime, size)}`` for every file under ``root``."""
-    if not root.is_dir():
-        return {}
+    """``{relative path: (mtime, size)}`` for every file under ``root``.
+
+    ``os.scandir`` rather than ``Path.rglob``: same files (symlinked
+    directories are not entered, symlinked files are followed), but about a
+    tenth of the time on a tree of ~50k files, because the directory listing
+    already answers ``is_dir`` and no ``Path`` is built per entry.
+    """
     snap = {}
-    for path in root.rglob("*"):
+    if not root.is_dir():
+        return snap
+    prefix = len(str(root)) + 1
+    pending = [str(root)]
+    while pending:
         try:
-            if path.is_file():
-                stat = path.stat()
-                snap[str(path.relative_to(root))] = (stat.st_mtime_ns, stat.st_size)
+            entries = os.scandir(pending.pop())
         except OSError:
             continue
+        with entries:
+            for entry in entries:
+                try:
+                    if entry.is_dir(follow_symlinks=False):
+                        pending.append(entry.path)
+                    elif entry.is_file():
+                        stat = entry.stat()
+                        snap[entry.path[prefix:]] = (stat.st_mtime_ns, stat.st_size)
+                except OSError:
+                    continue
     return snap
 
 
@@ -296,3 +314,26 @@ def _pin_device_type(monkeypatch):
     # detect_device_type() is memoised, so a value resolved under one
     # test's patched DMI would leak into every later test.
     device.reset_cache()
+
+
+_REAL_HOME = os.path.expanduser("~")
+
+
+@pytest.fixture(autouse=True)
+def _never_clear_a_real_sign_in(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``credential_reset`` deletes files. No test may reach the developer's own."""
+    try:
+        from unifideck.stores.microsoft.xodus import credential_reset
+    except ModuleNotFoundError:
+        # The complexity job installs no runtime deps (no ``cryptography``).
+        # Then no test can import credential_reset either, so nothing to guard.
+        return
+
+    real = credential_reset.clear_plain_files
+
+    def guarded(store: object = None) -> bool:
+        folder = str(credential_reset.credential_dir())
+        assert not folder.startswith(os.path.join(_REAL_HOME, ".local")), folder
+        return real(store)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(credential_reset, "clear_plain_files", guarded)

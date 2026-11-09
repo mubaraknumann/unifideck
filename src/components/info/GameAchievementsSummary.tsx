@@ -1,7 +1,8 @@
 /**
  * GameAchievementsSummary — "last session" achievements row.
  *
- * Rendered in {@link GameInfoPanel} for GOG games. Reads the achievement
+ * Rendered on the game info tab for every store with achievements
+ * (`supports_achievements`; nothing for the others). Reads the achievement
  * watcher's persisted last-session summary via {@link useLastSessionAchievements}
  * (a fast, network-free RPC — off the get_game_info hot path) and, when the
  * last play session unlocked anything, shows a one-line recap that opens the
@@ -12,6 +13,7 @@ import { Focusable, showModal } from "@decky/ui";
 import { useTranslation } from "react-i18next";
 import { FaTrophy } from "react-icons/fa";
 import { useLastSessionAchievements } from "../../hooks/useAchievements";
+import { useStoreCapability } from "../../hooks/useStoreCapability";
 import { GameAchievementsModal } from "./GameAchievementsModal";
 
 interface Props {
@@ -26,7 +28,8 @@ export const GameAchievementsSummary: FC<Props> = ({
   title,
 }) => {
   const { t } = useTranslation();
-  const summary = useLastSessionAchievements(store, gameId);
+  const supported = useStoreCapability(store, "supports_achievements");
+  const summary = useLastSessionAchievements(store, gameId, supported);
 
   const open = useCallback(() => {
     showModal(
@@ -39,7 +42,7 @@ export const GameAchievementsSummary: FC<Props> = ({
     );
   }, [store, gameId, title]);
 
-  if (!summary || summary.unlocked <= 0) return null;
+  if (!supported || !summary || summary.unlocked <= 0) return null;
 
   const shown = summary.names.slice(0, 3).filter(Boolean);
   const extra = summary.unlocked - shown.length;

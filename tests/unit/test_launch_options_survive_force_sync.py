@@ -289,3 +289,43 @@ def test_a_command_token_with_something_in_front_is_left_alone(
     documented user customisation.
     """
     assert rewrite_for_sync(before, "epic:Salt") == before
+
+
+# --------------------------------------------------------------------------
+# BNET_LAUNCH_OPTIONS: the user's switch for the Battle.net launch popup
+# --------------------------------------------------------------------------
+
+
+def test_a_battlenet_game_shortcut_starts_with_the_popup_switch_on() -> None:
+    from unifideck.services.shortcut.launch_options import with_store_defaults
+
+    assert with_store_defaults("battlenet:wow", "battlenet:wow") == (
+        "battlenet:wow BNET_LAUNCH_OPTIONS=yes"
+    )
+
+
+def test_the_users_choice_of_the_switch_is_never_overwritten() -> None:
+    """``no`` is set by "Forever" in the popup; a sync must keep it."""
+    from unifideck.services.shortcut.launch_options import rewrite_for_sync
+
+    assert rewrite_for_sync(
+        "battlenet:wow MY=1 BNET_LAUNCH_OPTIONS=no UNIFIDECK_BATTLENET_ACTION=install",
+        "battlenet:wow",
+    ) == "battlenet:wow MY=1 BNET_LAUNCH_OPTIONS=no"
+
+
+def test_an_existing_battlenet_shortcut_gains_the_switch_at_sync() -> None:
+    from unifideck.services.shortcut.launch_options import rewrite_for_sync
+
+    assert rewrite_for_sync("battlenet:wow MY=1", "battlenet:wow") == (
+        "battlenet:wow MY=1 BNET_LAUNCH_OPTIONS=yes"
+    )
+
+
+@pytest.mark.parametrize(
+    "full_id", ["battlenet:bnet-auth", "epic:abc", "ubisoft:123", "battlenet:"],
+)
+def test_the_switch_is_only_for_battlenet_game_shortcuts(full_id: str) -> None:
+    from unifideck.services.shortcut.launch_options import with_store_defaults
+
+    assert with_store_defaults(full_id, full_id) == full_id

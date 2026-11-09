@@ -30,7 +30,6 @@ from typing import TYPE_CHECKING, Any, cast
 from unifideck.auth.browser import OAuthBrowserMonitor
 from unifideck.auth.edge_browser import EdgeBrowser
 from unifideck.auth.orchestrator import AuthOrchestrator
-from unifideck.core.safe_delete import canonical_prefix, safe_rmtree
 from unifideck.core.types import (
     AuthResult,
     CLITool,
@@ -325,10 +324,12 @@ class GOGStore(BrowserAuthRebuildMixin, StoreBase):
             language=language,
         )
 
-    async def uninstall_game(
-        self, game_id: str, delete_prefix: bool = False, **kwargs: Any,
-    ) -> Result:
-        """Uninstall game."""
+    async def uninstall_game(self, game_id: str, **kwargs: Any) -> Result:
+        """Uninstall game.
+
+        The Proton prefix is the uninstall RPC's job
+        (``core.safe_delete.delete_game_prefix``), shared by every store.
+        """
         info = self._library.get_installed_game_info(game_id)
         install_path = info.get("install_path") if info else None
         result = await self._installer.uninstall_game(
@@ -341,14 +342,6 @@ class GOGStore(BrowserAuthRebuildMixin, StoreBase):
         # the shortcut stayed marked installed after a successful
         # uninstall.
         if result.success:
-            # GOG games run under Proton (umu) with a per-game prefix at the
-            # canonical flat location. The old signature swallowed
-            # ``delete_prefix`` via ``**kwargs``, so the prefix (~1.6 GB)
-            # leaked even when the user ticked "also delete Proton prefix".
-            if delete_prefix:
-                await asyncio.to_thread(
-                    safe_rmtree, canonical_prefix(game_id),
-                )
             await self._emit(
                 Events.GAME_UNINSTALLED,
                 store="gog",

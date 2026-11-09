@@ -40,6 +40,8 @@ export interface CloudSaveStatus {
   local_snapshot: Partial<SaveSnapshot>;
   /** True/false when known, null when undeterminable without a download. */
   has_cloud_saves: boolean | null;
+  /** The store's cloud did not answer, so nothing can be compared. */
+  cloud_check_failed: boolean;
   remote_snapshot: SaveSnapshot | null;
   last_sync_ts: number;
   /** Best starting folder for the manual save-location picker. */

@@ -37,7 +37,27 @@
         "argsIgnorePattern": "^_",
         "varsIgnorePattern": "^_"
       }
+    ],
+    "no-restricted-syntax": [
+      "error",
+      {
+        "selector": "MemberExpression[object.name='toaster'][property.name='toast']",
+        "message": "Show toasts through showToast() in src/services/show-toast.ts, which holds every field to the toast length budget."
+      }
     ]
   },
-  "ignorePatterns": ["dist/", "node_modules/", "*.generated.ts"]
+  "ignorePatterns": ["dist/", "node_modules/", "*.generated.ts"],
+  "overrides": [
+    {
+      "files": [
+        "src/services/show-toast.ts",
+        "src/**/*.test.ts",
+        "src/**/*.test.tsx",
+        "src/test-support/**"
+      ],
+      "rules": {
+        "no-restricted-syntax": "off"
+      }
+    }
+  ]
 }

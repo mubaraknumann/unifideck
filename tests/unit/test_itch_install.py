@@ -42,8 +42,9 @@ class _Conn:
 class _Daemon:
     def __init__(self, root: Path, *, perform: str = "ok", queue: str = "ok",
                  uploads: list[dict[str, Any]] | None = None, caves: list[dict[str, Any]] | None = None,
-                 profiles: list[dict[str, Any]] | None = None) -> None:
+                 profiles: list[dict[str, Any]] | None = None, ownership: str = "download_key") -> None:
         self.root = root
+        self.ownership = ownership
         self.perform_mode = perform
         self.queue_mode = queue
         self.uploads = [LINUX_UPLOAD] if uploads is None else uploads
@@ -65,6 +66,9 @@ class _Daemon:
 
     async def Fetch_Game(self, _c: Any, _p: dict[str, Any]) -> dict[str, Any]:
         return {"game": GAME}
+
+    async def Fetch_GameOwnership(self, _c: Any, _p: dict[str, Any]) -> dict[str, Any]:
+        return {"owned": bool(self.ownership), "source": self.ownership}
 
     async def Fetch_GameUploads(self, _c: Any, p: dict[str, Any]) -> dict[str, Any]:
         assert p["compatible"] is False and p["fresh"] is True
@@ -219,6 +223,22 @@ async def test_no_installable_upload_is_a_classified_failure(tmp_path: Path) -> 
     assert not result.success and result.error.startswith("itch_no_installable_upload:")
 
 
+async def test_an_unclaimed_bundle_game_is_never_claimed_silently(tmp_path: Path) -> None:
+    daemon = _Daemon(tmp_path, ownership="bundle")
+    result = await _installer(daemon).install("2119837", str(tmp_path), None)
+    assert not result.success and result.error.startswith("itch_claim_required:")
+    # Install.GetUploads would claim the key through the API: the user
+    # decided the claim is theirs to make, on the itch.io page.
+    called = [m for m, _ in daemon.calls]
+    assert "Install.GetUploads" not in called and "Install.Queue" not in called
+
+
+async def test_an_owned_game_installs_without_the_claim_step(tmp_path: Path) -> None:
+    daemon = _Daemon(tmp_path)
+    assert (await _installer(daemon).install("2119837", str(tmp_path), None)).success
+    assert "Install.GetUploads" not in [m for m, _ in daemon.calls]
+
+
 async def test_signed_out_install_asks_for_login(tmp_path: Path) -> None:
     daemon = _Daemon(tmp_path, profiles=[])
     result = await _installer(daemon).install("2119837", str(tmp_path), None)
@@ -252,3 +272,30 @@ def test_sweep_only_removes_butler_staging(tmp_path: Path) -> None:
     (downloads / "someones-game" / "save.dat").write_text("keep")
     assert sweep_staging(str(tmp_path)) == ["abandoned"]
     assert (downloads / "someones-game" / "save.dat").exists()
+
+
+class _TomlDaemon(_Daemon):
+    """Ships an ``.itch.toml``, whose play target comes back resolved."""
+
+    async def Install_Perform(self, conn: _Conn, p: dict[str, Any]) -> dict[str, Any]:
+        result = await super().Install_Perform(conn, p)
+        (self.root / "fear-assessment" / ".itch.toml").write_text(
+            '[[actions]]\nname = "play"\npath = "linux64/nw"\n',
+        )
+        return result
+
+
+async def test_install_into_a_symlinked_games_folder_succeeds(tmp_path: Path) -> None:
+    """``~/Games`` -> SD card is common; ``relative_to`` used to raise here
+    after the download had finished, failing a complete install."""
+    real = tmp_path / "sdcard"
+    real.mkdir()
+    link = tmp_path / "Games"
+    link.symlink_to(real, target_is_directory=True)
+    daemon = _TomlDaemon(link)
+
+    result = await _installer(daemon).install("2119837", str(link), None)
+
+    assert result.success, result.error
+    manifest = json.loads((link / "fear-assessment" / ".unifideck_manifest.json").read_text())
+    assert manifest["executable_relative"] == "linux64/nw"

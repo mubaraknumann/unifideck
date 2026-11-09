@@ -32,9 +32,18 @@ is in the Game Pass catalog or because the user owns it, and each row says
 which (:data:`GAME_PASS_KEY`). An owned title outside Game Pass streams as
 the user's own (``OwnedCopy.streams``). A Game Pass title is a Game Pass
 copy, owned or not. A row whose reason is unknown is a neutral cloud copy.
+
+**Verified access.** A row only says what the user could do at the last
+sync, and a failed sync keeps the old rows. A caller can pass
+:class:`RowAccess` per row of a store (``access``), checked against the
+account's entitlements and subscription *now*. For such a store a row claims
+only what its access says: owned on PC, installable on PC through Game Pass
+(its own "installable" copy), or streamable. A row with no access entry, or
+with none of the three, claims nothing.
 """
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -42,13 +51,19 @@ from typing import Any
 from unifideck.core.game_identity import SteamApp, build_identity
 from unifideck.core.steam_appid_map import read_positive_steam_appid
 from unifideck.core.store_capabilities import SUBSCRIPTION_LIBRARY_STORES
+from unifideck.core.types import GameTag
 from unifideck.core.types.domain import Game
-from unifideck.core.types.events import GameTag
 
 #: Rows that do not mean "you have the game". DLC is the dangerous one: the
 #: mapping is a fuzzy title search, so a DLC titled like its base game can
 #: resolve to the base game's AppID and claim ownership of it.
 NOT_OWNERSHIP_TAGS = frozenset({GameTag.DLC.value, GameTag.DEMO.value, GameTag.BETA.value})
+
+#: ``Game.metadata["ownership"]`` for a row the store granted on a
+#: presumption rather than on evidence (Battle.net presumes a game account
+#: for every free-to-play catalog program, ``stores/battlenet/library``).
+#: It earns a library tile, never an "owned" claim on a purchase page.
+PRESUMED_OWNERSHIP = "presumed"
 
 #: Distinct owned titles kept per store. Two is enough to show an edition
 #: mismatch; more would only crowd a chip.
@@ -90,6 +105,30 @@ class OwnedCopy:
     ``play_anywhere``; ``""`` when unknown or not indexed."""
     gold: bool = False
     """Every owned product is a Games with Gold grant (needs a subscription)."""
+    installable: bool = False
+    """On a subscription copy: installable on PC through Game Pass, not
+    streamed. Its own ribbon line."""
+
+
+@dataclass(frozen=True)
+class RowAccess:
+    """What one library row lets the user do now (see "Verified access").
+
+    Attributes:
+        owned_pc: a current PC licence the user bought or claimed.
+        pass_pc: installable on PC through a Game Pass plan that has not ended.
+        streams: streamable now (a recent entitlement, a usable plan).
+        product_ids: every UPPER-case store product id the row stands for,
+            so a purchase index finds the row under any of them.
+    """
+
+    owned_pc: bool = False
+    pass_pc: bool = False
+    streams: bool = False
+    product_ids: frozenset[str] = frozenset()
+
+
+_NO_ACCESS = RowAccess()
 
 
 @dataclass(frozen=True)
@@ -138,6 +177,7 @@ def find_owned_copies(
     *,
     owned_steam: Sequence[SteamApp] = (),
     steam_name: str = "",
+    access: Mapping[str, Mapping[str, RowAccess]] | None = None,
 ) -> list[OwnedCopy]:
     """Every non-Steam store holding *steam_app_id*, purchases first.
 
@@ -158,6 +198,9 @@ def find_owned_copies(
             whose rows map to a different Steam app.
         steam_name: the page's Steam name, so an unowned page still finds
             other versions by title.
+        access: verified :class:`RowAccess` by store id, then by UPPER-case
+            ``store_game_id``. A store listed here claims only what its rows'
+            access says; other stores behave as without it.
 
     Returns:
         One :class:`OwnedCopy` per store, sorted purchased before
@@ -166,16 +209,17 @@ def find_owned_copies(
     if steam_app_id <= 0:
         return []
     purchases = purchases or {}
+    access = access or {}
     games = list(games)
     same_game = _same_game_rows(games, cache, steam_app_id, owned_steam, steam_name)
-    matched, library_ids = _library_matches(games, same_game, purchases)
-    copies = [
-        copy for store in sorted(set(matched) | set(purchases))
-        for copy in _store_copies(
-            store, matched.get(store, []), purchases.get(store),
-            library_ids.get(store, set()), steam_app_id,
-        )
-    ]
+    matched, library_ids = _library_matches(games, same_game, purchases, access)
+    copies: list[OwnedCopy] = []
+    for store in sorted(set(matched) | set(purchases)):
+        rows, index, ids = matched.get(store, []), purchases.get(store), library_ids.get(store, set())
+        if store in access:
+            copies += _verified_copies(store, rows, index, ids, steam_app_id, access[store])
+        else:
+            copies += _store_copies(store, rows, index, ids, steam_app_id)
     copies.sort(key=lambda c: (c.subscription, not c.installed, c.store))
     return copies
 
@@ -199,6 +243,7 @@ def _same_game_rows(
 def _library_matches(
     games: Iterable[Game], same_game: set[int],
     purchases: Mapping[str, PurchaseIndex],
+    access: Mapping[str, Mapping[str, RowAccess]],
 ) -> tuple[dict[str, list[Game]], dict[str, set[str]]]:
     """Rows of the game per store, and every product id of the indexed
     stores' libraries (an indexed product with a row is that row's)."""
@@ -209,6 +254,8 @@ def _library_matches(
             continue
         if game.store in library_ids:
             library_ids[game.store].add(_product_id(game))
+            if game.store in access:
+                library_ids[game.store] |= _access_of(game, access[game.store]).product_ids
         if id(game) in same_game:
             matched.setdefault(game.store, []).append(game)
     return matched, library_ids
@@ -263,6 +310,71 @@ def _owned_products(
     )
 
 
+def _verified_copies(
+    store: str, rows: list[Game], index: PurchaseIndex | None,
+    library_ids: set[str], steam_app_id: int, access: Mapping[str, RowAccess],
+) -> list[OwnedCopy]:
+    """One store's answer from verified access: owned, then installable
+    through Game Pass, then streamable. A row that is none of these (a
+    lapsed plan, a stale row, an unsupported subscription) claims nothing."""
+    owned_rows: list[Game] = []
+    owned: list[PurchasedProduct] = []
+    for row in rows:
+        product = _verified_product(row, _access_of(row, access), index)
+        if product is not None:
+            owned_rows.append(row)
+            owned.append(product)
+    owned += _owned_products([], index, library_ids, steam_app_id)
+    owned_ids = {id(r) for r in owned_rows}
+    copies: list[OwnedCopy] = []
+    if owned:
+        copies.append(OwnedCopy(
+            store=store,
+            titles=_titles([r.title or "" for r in owned_rows] + [p.title for p in owned]),
+            installed=any(r.installed for r in owned_rows),
+            subscription=False,
+            streams=any(
+                _access_of(r, access).streams and _game_pass(r) is False for r in owned_rows
+            ),
+            platform=platform_label(owned),
+            gold=all(p.gold for p in owned),
+        ))
+    installable = [
+        r for r in rows if _access_of(r, access).pass_pc and id(r) not in owned_ids
+    ]
+    if installable:
+        copies.append(OwnedCopy(
+            store=store, titles=_titles(r.title or "" for r in installable),
+            installed=any(r.installed for r in installable),
+            subscription=True, game_pass=True, installable=True,
+        ))
+    streaming = [r for r in rows if _access_of(r, access).streams]
+    stream = _stream_copy(store, streaming, owned_ids)
+    return [*copies, stream] if stream else copies
+
+
+def _verified_product(
+    row: Game, access: RowAccess, index: PurchaseIndex | None,
+) -> PurchasedProduct | None:
+    """The purchase behind *row*: its index product (on PC too when the PC
+    licence is verified), a PC product for a verified licence the index
+    lacks, or None when the user does not own it."""
+    indexed = next(
+        (index.products[pid] for pid in sorted({_product_id(row)} | access.product_ids)
+         if index is not None and pid in index.products),
+        None,
+    )
+    if indexed is not None:
+        return dataclasses.replace(indexed, pc=True) if access.owned_pc else indexed
+    if access.owned_pc:
+        return PurchasedProduct(title=(row.title or "").strip(), pc=True)
+    return None
+
+
+def _access_of(game: Game, access: Mapping[str, RowAccess]) -> RowAccess:
+    return access.get(_product_id(game), _NO_ACCESS)
+
+
 def _stream_copy(store: str, rows: list[Game], owned_ids: set[int]) -> OwnedCopy | None:
     """The subscription copy next to an owned one, or None.
 
@@ -309,6 +421,8 @@ def _titles(candidates: Iterable[str]) -> tuple[str, ...]:
 def _counts_as_ownership(game: Game) -> bool:
     """Whether *game* is a non-Steam row that means "you have it"."""
     if not game.store or game.store == "steam":
+        return False
+    if (game.metadata or {}).get("ownership") == PRESUMED_OWNERSHIP:
         return False
     return not any(str(tag) in NOT_OWNERSHIP_TAGS for tag in game.tags or ())
 

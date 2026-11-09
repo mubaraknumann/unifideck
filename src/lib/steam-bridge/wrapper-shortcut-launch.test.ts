@@ -330,3 +330,44 @@ describe("store configs stay distinct", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// SetShortcutLaunchOptions is async: RunGame must wait for it
+// ---------------------------------------------------------------------------
+
+describe("launch-option application", () => {
+  it("runs the game only once Steam holds the one-run options", async () => {
+    // Measured on-device: straight after SetShortcutLaunchOptions Steam still
+    // reports the OLD options, so an immediate RunGame launched without the
+    // token and "Battle.net" in the launch popup started the game instead.
+    registerApp(3);
+    let held = "battlenet:wow";
+    let polls = 0;
+    (window as unknown as { appDetailsStore: unknown }).appDetailsStore = {
+      GetAppDetails: () => {
+        polls += 1;
+        return { strLaunchOptions: polls > 2 ? pending : held };
+      },
+    };
+    let pending = held;
+    steam.SetShortcutLaunchOptions.mockImplementation((_id: number, opts: string) => {
+      pending = opts;
+    });
+    steam.RunGame.mockImplementation(() => {
+      held = pending;
+      expect(polls).toBeGreaterThan(2);
+    });
+    vi.mocked(call).mockResolvedValue({
+      success: true,
+      data: { appid_unsigned: 3, current_launch_options: "battlenet:wow" },
+    });
+
+    const result = await launchWrapperViaShortcut(BATTLENET, "battlenet:wow", {
+      UNIFIDECK_BATTLENET_ACTION: "client",
+    });
+
+    expect(result.success).toBe(true);
+    expect(steam.RunGame).toHaveBeenCalledTimes(1);
+    delete (window as unknown as { appDetailsStore?: unknown }).appDetailsStore;
+  });
+});

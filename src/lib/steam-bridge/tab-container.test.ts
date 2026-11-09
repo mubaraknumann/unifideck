@@ -175,3 +175,29 @@ describe("rebuildTabs eagerly hydrates tab collections (C.13)", () => {
     expect(allGames?.collection.visibleApps.map((a) => a.appid)).toEqual([7]);
   });
 });
+
+// The "Group duplicates" refresh listener lives on `window`, which outlives a
+// Decky reload; it must be attached on init and removed on teardown, never
+// registered at module scope.
+describe("attachGroupDuplicatesRefresh", () => {
+  it("rebuilds on a setting change until it is disposed", async () => {
+    const { attachGroupDuplicatesRefresh, tabManager: manager } = await import("./tab-container");
+    const { GROUP_DUPLICATES_EVENT } = await import("../group-duplicates-setting");
+    manager.initialize();
+    const rebuild = vi.spyOn(manager, "rebuildTabs").mockImplementation(() => {});
+    try {
+      window.dispatchEvent(new CustomEvent(GROUP_DUPLICATES_EVENT));
+      expect(rebuild).not.toHaveBeenCalled(); // nothing listens on import
+
+      const dispose = attachGroupDuplicatesRefresh();
+      window.dispatchEvent(new CustomEvent(GROUP_DUPLICATES_EVENT));
+      expect(rebuild).toHaveBeenCalledTimes(1);
+
+      dispose();
+      window.dispatchEvent(new CustomEvent(GROUP_DUPLICATES_EVENT));
+      expect(rebuild).toHaveBeenCalledTimes(1);
+    } finally {
+      rebuild.mockRestore();
+    }
+  });
+});

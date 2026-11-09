@@ -18,9 +18,16 @@ def managed_ge_block() -> dict[str, Any]:
 
     ``tag`` is None when the plugin has never recorded one. ``dirs`` lists
     every compat root holding a ``<tag>`` directory, with ``problem`` set
-    to the completeness check's reason, or None when that copy is usable.
+    to the completeness check's reason, else the integrity check's (core
+    DLLs replaced, or files missing or resized against GE's release
+    manifest), or None when that copy is usable. ``manifest`` says whether
+    the copy has a release manifest to check against.
     """
-    from unifideck.launcher.proton.infrastructure import ge_installer, ge_marker
+    from unifideck.launcher.proton.infrastructure import (
+        ge_installer,
+        ge_marker,
+        proton_integrity,
+    )
     from unifideck.utils import vdf_compat
 
     tag = ge_marker.read_cached_latest_tag()
@@ -35,6 +42,10 @@ def managed_ge_block() -> dict[str, Any]:
             seen.add(tool_dir.resolve())
             dirs.append({
                 "path": str(tool_dir),
-                "problem": ge_installer.proton_install_problem(tool_dir / "proton"),
+                "problem": (
+                    ge_installer.proton_install_problem(tool_dir / "proton")
+                    or proton_integrity.quick_problem(tool_dir)
+                ),
+                "manifest": proton_integrity.load_manifest(tool_dir) is not None,
             })
     return {"tag": tag, "dirs": dirs}

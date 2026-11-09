@@ -24,7 +24,7 @@ install.
 
 ## Where to start
 
-There are 164 steps here. Do **not** work top to bottom — that order is by
+There are 202 steps here. Do **not** work top to bottom — that order is by
 register item, not by value, and most of it is regression cover for changes
 that are very unlikely to have broken anything.
 
@@ -730,6 +730,24 @@ pin.
 **Still not covered end to end:** DV-PX16 (three `plugin_loader` restarts; no
 passwordless sudo) and DV-PX12/DV-PX17.
 
+## DV-AX: Xbox achievements, and toasts for every achievement store
+
+Needs a Microsoft account with achievements in at least one Xbox PC game and
+one xCloud game, a GOG game and an Epic game with achievements. Run against
+the **built** plugin (`./build-plugin.sh dev install`), never the checkout
+(CLAUDE.md rule 7).
+
+| ID | Step | Expected | Status | Evidence |
+|---|---|---|---|---|
+| DV-AX1 | Open an Xbox game page that is **not** installed (xCloud or Xbox PC), e.g. Gears of War: E-Day | Your stuff shows "You've unlocked x/y" and both carousels; locked icons are grey; the Game info feature row lists Achievements. "View my achievements" opens the list with a Gamerscore on each row | ( ) | 2026-11-02 sample, before the code existed: `9N4PT8HGCDHQ` → `XboxTitleId 1810111157`; Xbox Live returned 54 rows (18 unlocked) |
+| DV-AX2 | Same for an **installed** Xbox PC game | Same as AX1; no displaycatalog request for it (the title id comes from the install record) | ( ) | |
+| DV-AX3 | Focus a locked tile | The footer shows "x% of players have this achievement" if Xbox Live sends rarity; if it does not, no footer and no error | ( ) | Rarity was not visible in the Nexus command's output, so this is unconfirmed |
+| DV-AX4 | An Xbox game with no achievements | No Achievements section and no feature row; the log has no error | ( ) | |
+| DV-AX5 | Sign out of Microsoft, open an Xbox game page; sign in again | Signed out: no section. After sign-in it returns, with no rows from a previous account | ( ) | |
+| DV-AX6 | Play an Xbox PC game and unlock one achievement; quit | A toast within about 90 s; after quitting the Game info tab shows "Last session: unlocked …". xbox.com shows the unlock. If xbox.com does not, the runtime is not unlocking (separate issue; record it in the Xodus ISSUES.md) | ( ) | |
+| DV-AX7 | Unlock one achievement in a GOG game and one in an Epic game | One toast each; on Epic, note whether the EOS overlay also notifies (a double notification means Epic should leave the toast set) | ( ) | |
+| DV-AX8 | Keep an Xbox game running for 10 minutes | The backend log shows no repeated achievements errors and at most one XSTS mint per 30 minutes | ( ) | |
+
 ## DV-X: register 70, the itch.io store
 
 Needs an itch.io account that owns or has claimed at least one free
@@ -748,6 +766,7 @@ game and an HTML-only game. Run against the **built** plugin
 | DV-X7 | Uninstall both; `sudo systemctl restart plugin_loader` | Folders gone; after restart `pgrep -a butler` shows only the new daemon (none if itch.io is unused); `butler.db`, `-wal`, `-shm` are all mode 0600 | ( ) | |
 | DV-X8 | Play an HTML-only game (Gaming Mode) | Shortcut shows Play without an install; an Edge window opens on the game's page and comes to the foreground (`docs/gaming-mode-foreground.md`); closing it ends the session | ( ) | |
 | DV-X9 | Gaming Mode sign-in, then Disconnect, then restart Steam | Sign-in works through the auth shortcut; after Disconnect the itch.io tab disappears at once and stays gone after a restart (the store reads signed out). The shortcuts themselves are kept on purpose, as for every store: a sync never sweeps a store that did not answer. The user revokes the test key on itch.io | ( ) | 2026-09-24: Disconnect logged `logout success=True`, `check_store_status` reports itch `available: false` after a Steam restart. The tab stayed (ITCH.IO 23) on that build, which is what the tab-visibility fix addresses |
+| DV-X10 | An account whose API-keys page lists a **scoped** key first (one made by `butler login`), plus an unscoped one. Connect, then Sync. Then revoke the unscoped key and Sync again | Sign-in logs `key 1 of 2 cannot read the library` then `signed in as … with key 2 of 2`; the sync lists the games. After the revoke, one toast says itch.io refused the key and the shortcuts stay; signing in again with only the scoped key fails with the "Generate new API key" message, not a silent success | ( ) | Reported 2026-10-04 (DahliaRose): sign-in succeeded with a scoped key and every sync logged `403 api key does not permit profile:owned`, with nothing shown to the user |
 
 ## DV-Y: register 79 and 80, Stop (✕) ends the game
 
@@ -761,3 +780,74 @@ about 15 s after pressing ✕ next to Resume.
 | DV-Y2 | Play a Windows game under umu (GOG, Epic or itch.io), press ✕ | Nothing left on the game's prefix, wineserver included | (x) | Built plugin, real ✕, 2026-09-24: Madness Inside (itch.io) 18 to 0, nothing left on the prefix |
 | DV-Y3 | Play a Battle.net game, press ✕ once it is in game | The game closes, then the client; the launcher log shows `stopping 1 game process(es)` before `stopping N client process(es)`; within about 30 s nothing carries the appid | (x) | Built plugin, real ✕ in game, 2026-09-24: 33 processes, then 19 at 10 s and 0 at 20 s; log shows the game stopped, then 7 client processes. A ✕ during launch setup also left 0. Before the fix `Warcraft III.exe` was still running 40 s after the stop |
 
+## DV-Z: register 82, complete itch.io libraries
+
+Needs an itch.io account that owns at least one **bundle** with games not yet
+claimed (a cheap bundle is enough), and for DV-Z1 a large library (hundreds of
+owned keys; a tester's). Run against the **built** plugin. The claim page's
+layout was never seen when this was written: DV-Z3 is the first look.
+
+| ID | Step | Expected | Status | Evidence |
+|---|---|---|---|---|
+| DV-Z1 | Large library: Sync twice | First sync either lists the itch.io games or logs `library still loading after 90s` and keeps the shortcuts; a second sync follows by itself (`library_ready:itch` in `sync_activity.log`) and lists them. Neither sync logs `itch fetch exceeded 120s` | ( ) | |
+| DV-Z2 | Bundle account: Sync | Log line `N owned + M free collection + K unclaimed bundle`; unclaimed bundle games with a Linux/Windows build appear in the itch.io tab with artwork. A second sync is fast (butler keeps bundle games for 7 days) | ( ) | |
+| DV-Z3 | Gaming Mode: Install an unclaimed bundle game | The "Claim this game first" modal names the bundle; Open itch.io opens the shop window signed in on `my-purchases/bundles`. Note how the bundle page is reached and **the URL after pressing the game's Download button** (needed for a direct claim-page link) | ( ) | |
+| DV-Z4 | Claim it on the page, close the window | The storage picker follows and the install runs; the next sync shows the game as owned (no `claim_required`) | ( ) | |
+| DV-Z5 | Install another unclaimed game, close the window without claiming | Toast "The game was not claimed…"; nothing is queued; the game is still unclaimed on itch.io (no silent API claim) | ( ) | |
+| DV-Z6 | Desktop Mode: repeat DV-Z3/Z4 once | Same result | ( ) | |
+
+## 0.7.7: register 72 and 83-96
+
+Run every step against the **built** plugin (`./build-plugin.sh dev install`),
+never the checkout (CLAUDE.md rule 7). The GOG steps need a GOG account that
+owns a game with a Linux build. DV-GS2 needs a Unity game with a Linux build
+and cloud saves; DV-GS3 needs a DOSBox game. DV-GS1 to DV-GS3 cover different
+code paths, so run all three.
+
+| ID | Step | Expected | Status | Evidence |
+|---|---|---|---|---|
+| DV-GL1 | Install a GOG game as its **Linux** build, then run Check for Updates | `.unifideck-id` holds `linux_installer_version`; the log shows `[GOGUpdatesChecker] <id> (Linux build): installed=X, remote=X, update=False`; no update is offered | ( ) | |
+| DV-GL2 | Take a Linux install made **before** 0.8.0 (no `linux_installer_version` in its marker) and check for updates | Either `update=False` (its `gameinfo` line 2 matches) or no answer (`update=None`); never an offered update. No Windows `.exe` files appear in the folder | ( ) | |
+| DV-GL3 | Install a Linux build in a non-English language that GOG offers as a separate Linux installer | The recorded version is the one for that language's installer, not the English one | ( ) | |
+| DV-GS1 | Linux-native GOG game with no supported mapping: open the cloud-save window | The log shows `[GOGSync] <id>: no Linux mapping for <template>`; the button shows the unifiDB path if the game has one, otherwise "Save location not found". Nothing is uploaded | ( ) | |
+| DV-GS2 | **Unity** Linux build with cloud saves on GOG: launch it (auto-pull), play and save, quit, Upload | Log: `Native save dir for <id> from GOG metadata: ~/.config/unity3d/<Company>/<Product>`; after the upload, GOG Galaxy on Windows (or a second device) sees the save | ( ) | |
+| DV-GS3 | **DOSBox** Linux build: save in game, quit, Upload. Then delete the in-game save file under `data/` and Download | Upload logs `staged N game-written file(s)` and sends only those files (no game data). The download logs `copied N downloaded file(s) into drive C`, and the save loads in game | ( ) | |
+| DV-GS4 | A game whose GOG cloud namespace is empty: launch it | Log: `cloud namespace '<name>' is empty for <id>; nothing to download`; no upload happens during the pull | ( ) | |
+| DV-RN1 | Rename a Unifideck shortcut through Steam's Properties, then Sync and Force Sync | The new name survives both syncs and a Steam restart. A store-side title change to a game you did **not** rename still reaches Steam | ( ) | |
+| DV-TM1 | Install TabMaster, turn collections on, build a TabMaster tab on `[Unifideck] Epic`. Restart Steam, Sync, then sign out of Epic and Sync | The tab keeps working throughout. After the sign-out the collection is empty, but it still exists with the **same id**; it is never deleted and re-created. With collections off, the setting row shows the TabMaster hint | ( ) | |
+| DV-BU1 | Open a Unifideck game page during `plugin_loader` boot, then once with the backend stopped | During boot: skeleton, then the Unifideck Play section once the backend answers. Backend stopped: after about 10 s, Steam's own Play button with "Unifideck isn't responding". After `./build-plugin.sh dev quick-install`, the unit's cgroup holds no leftover loader processes | ( ) | |
+| DV-GZ1 | GameVault: install an archive zipped with Zstandard (method 93) | Log: `uses zip compression method(s) [93] the stdlib cannot read; extracting with an external tool`; the install completes and the game launches | ( ) | |
+| DV-MT1 | Microsoft: sign in, Sync, open the Game Pass catalog, launch an xCloud game | All succeed with no `CERTIFICATE_VERIFY_FAILED` and no permissive-TLS WARN for a Microsoft host in the backend log | ( ) | |
+| DV-UP1 | Uninstall one game each from GOG, Epic, Amazon, itch.io and GameVault with "also delete the Proton prefix" ticked; uninstall a Ubisoft game the same way | Each `prefixes/<id>` is gone and the log shows `[safe_delete] deleted prefix …` once per game. The Ubisoft prefix is removed by Ubisoft's own path, not `delete_game_prefix`. No other game's prefix is touched | ( ) | **DESTRUCTIVE**: use throwaway installs, ask first |
+| DV-SP1 | Sync a large library (1,000+ games) with the progress bar open | The bar and the compat counter reach their final values (for example 1305/1305), not one short | ( ) | |
+| DV-GV1 | GameVault: install a native Linux archive | `games.map` holds the native target GameVault chose, not an `.exe` or an empty path; the game launches without Change Executable | ( ) | |
+
+### Contributor PRs #475-#479: register 92-96
+
+| ID | Step | Expected | Status | Evidence |
+|---|---|---|---|---|
+| DV-PR1 | itch.io: with `~/Games` a symlink to the SD card, install a native game there | The install finishes and the game launches; no `relative_to` error in the log after the download | ( ) | |
+| DV-PR2 | itch.io: `pkill -STOP butler` straight after a plugin restart, start an install, wait 25 s, `pkill -CONT butler`, then start the install again | The first attempt fails (`itch_install_failed` in the log) instead of hanging; the second starts a fresh daemon and installs, with no plugin restart | ( ) | |
+| DV-PR3 | Gaming Mode: play an itch.io HTML5 game, then an xCloud game | The web game opens with `--user-data-dir` under `edge-webgames` (check `ps -ef`); it is not signed in to Xbox or other stores. The xCloud game still opens signed in, in the shared profile | ( ) | |
+| DV-PR4 | Signed in to Battle.net, open the Steam Store page for Overwatch 2 (a presumed title) and for a Battle.net game you bought | No "already owned" ribbon on Overwatch 2; the bought game still gets one | ( ) | |
+| DV-PR5 | Sync, and during the metadata phase toggle "Group duplicates" twice. Then start "Delete all Unifideck data" while a sync runs | Grouping ends consistent (no game both hidden and shown as a sibling); after the delete and a Steam restart, no library comes back from `library_cache.json` | ( ) | **DESTRUCTIVE**: the delete wipes the library, ask first |
+| DV-PR6 | Open the page of a game owned on two stores, install the other copy from another page, return | The store switcher on the open page shows the new install state without leaving the page | ( ) | |
+| DV-PR7 | Reload the plugin five times (Decky reload), then in the SharedJSContext console (`steam-debug`, command-line API on) run `getEventListeners(window)["unifideck:group-duplicates-change"].length` | `1`, not `6` | ( ) | |
+
+## DV-CM: comet v0.4.1 and instant GOG achievement toasts
+
+Needs a GOG account with a Windows GOG game that has achievements and at
+least one you have not unlocked. Run against the **built** plugin
+(`./build-plugin.sh dev install`), never the checkout (CLAUDE.md rule 7).
+Comet's own log needs `COMET_LOG=info` and its stderr captured, because the
+launcher discards it by default.
+
+| ID | Step | Expected | Status | Evidence |
+|---|---|---|---|---|
+| DV-CM1 | After the install, run `~/homebrew/plugins/Unifideck/bin/comet --version` and `sha256sum` on it | `comet 0.4.1`; the file is executable; sha256 `868dd0b5…04d3a5a` | ( ) | |
+| DV-CM2 | Restart `plugin_loader`, then read the backend log and `~/.local/share/unifideck/comet-config/comet/config.toml` | Log: `[achievements.comet] push receiver on 127.0.0.1:<port>`; the config holds one `[[custom_event]]` with that port and a `token=` | ( ) | |
+| DV-CM3 | In **Gaming Mode**, launch the GOG game | The launcher log shows `Comet started (pid=…)` and no `Comet exited at start` warning | ( ) | |
+| DV-CM4 | Unlock one achievement | The achievement toast appears within about a second (not after the 60 s poll), and only once, including after the game is closed | ( ) | |
+| DV-CM5 | Quit the game | The launcher log shows `Comet flushed unlocks and exited`; the Game info tab shows "Last session: unlocked …" with the achievement | ( ) | |
+| DV-CM6 | Turn Wi-Fi off, launch the game, unlock another achievement, quit; turn Wi-Fi on and launch it again | The toast still appears while offline; after the online launch the unlock shows on gog.com | ( ) | |
+| DV-CM7 | Check comet's log from DV-CM4 for TLS or certificate errors (0.4.1 uses the system's trusted certificates instead of its own bundle) | No certificate errors; achievement sync succeeds | ( ) | |

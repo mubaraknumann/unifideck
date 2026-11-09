@@ -7,9 +7,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from pathlib import Path
 from typing import Any
 
+from unifideck.core.native_entry import gog_linux_start_script
 from unifideck.launcher.types.context import is_windows_executable
 from unifideck.launcher.wrapper_stores import uses_manual_download_phase
 
@@ -38,13 +38,24 @@ def prefix_warmup_supported(item: DownloadItem, result: Any = None) -> bool:
     ``InstallResult.metadata["exe_path"]`` (GameVault and itch.io native
     builds): the launcher will exec it directly, so no prefix is built.
 
-    The cloud-only store used to be named here as well. It no longer needs to
-    be: the warmup runs on the install success path only, and that store now
-    refuses every install outright, so the arm was unreachable.
+    An install that sets ``InstallResult.metadata["runtime_managed_prefix"]``
+    builds its prefix with its own runtime at first launch (Xbox PC games:
+    the Xodus runtime's ``proton run``, never umu or GE-Proton). A GE warmup
+    there would build the wrong prefix, so it is skipped. The flag names the
+    behaviour, not a store, so the worker does not need to know which store
+    sets it.
     """
     if uses_manual_download_phase(item.store):
         return False
-    if item.store == "gog" and (Path(item.install_path) / "start.sh").is_file():
+    metadata = getattr(result, "metadata", None) or {}
+    if metadata.get("runtime_managed_prefix"):
+        logger.info(
+            "[DownloadWorker] skipping prefix warmup for %s:%s: its runtime "
+            "builds the prefix at first launch",
+            item.store, item.game_id,
+        )
+        return False
+    if item.store == "gog" and gog_linux_start_script(item.install_path):
         logger.info(
             "[DownloadWorker] skipping prefix warmup for %s:%s — "
             "Linux-native GOG depot (start.sh), no Proton prefix needed",
@@ -52,7 +63,7 @@ def prefix_warmup_supported(item: DownloadItem, result: Any = None) -> bool:
             item.game_id,
         )
         return False
-    exe = ((getattr(result, "metadata", None) or {}).get("exe_path") or "")
+    exe = metadata.get("exe_path") or ""
     if exe and not is_windows_executable(exe):
         logger.info(
             "[DownloadWorker] skipping prefix warmup for %s:%s: native "

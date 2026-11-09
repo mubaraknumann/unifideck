@@ -88,6 +88,17 @@ _SECRETS: tuple[SourceSpec, ...] = (
         policy="presence_only", expect="ubisoft", writer="stores/ubisoft",
     ),
     SourceSpec(
+        key="xbox_pc_credentials", what="Xodus's stored Microsoft credentials (Xbox PC)",
+        root="data", pattern="xbox_pc/credentials/*", policy="presence_only",
+        expect="optional", writer="xodus-cli (XODUS_CREDENTIAL_DIR)",
+        note="Plaintext tokens, 0600: statted, never opened.",
+    ),
+    SourceSpec(
+        key="xbox_pc_account_state", what="Verified Xbox PC gamertag",
+        root="data", pattern="xbox_pc/state/account.json", policy="presence_only",
+        expect="optional", writer="stores/microsoft/xodus/account_state.py",
+    ),
+    SourceSpec(
         key="device_fingerprint", what="Per-device identity blob",
         root="config", pattern="device_fingerprint.json",
         policy="presence_only", expect="optional", writer="security",
@@ -148,6 +159,18 @@ _BULK: tuple[SourceSpec, ...] = (
         key="grid_dir", what="Steam artwork directory for our shortcuts",
         root="paths", pattern="grid_dir", policy="bulk", expect="sync",
         writer="services/artwork",
+    ),
+    SourceSpec(
+        key="xbox_pc_backend", what="Installed Xodus backend binaries (Xbox PC)",
+        root="data", pattern="xbox_pc/backend", policy="bulk", expect="optional",
+        writer="stores/microsoft/xodus/runtime.py",
+        note="About 43 MB per version. active.json names the one in use.",
+    ),
+    SourceSpec(
+        key="xbox_pc_runtime", what="Installed Xodus Wine runtime (Xbox PC)",
+        root="data", pattern="xbox_pc/runtime", policy="bulk", expect="optional",
+        writer="stores/microsoft/xodus/runtime.py",
+        note="About 1.5 GB per version.",
     ),
     SourceSpec(
         key="umu_cache", what="umu runtime payload (pressure-vessel trees)",

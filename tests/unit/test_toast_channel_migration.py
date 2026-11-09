@@ -122,7 +122,7 @@ async def test_circuit_open_toast_reaches_the_live_channel(
     assert _lookup(en_locale, kwargs["i18n_key"]) is not None
     assert kwargs["severity"] == "error"
     assert "params" not in kwargs, "the renderers read i18n_params, not params"
-    assert kwargs["i18n_params"]["count"] == 3
+    assert kwargs["i18n_title_key"] == "toasts.header.gameLaunch"
 
 
 @pytest.mark.asyncio
@@ -186,7 +186,7 @@ async def test_launcher_error_toast_reaches_the_live_channel(
     assert _lookup(en_locale, kwargs["i18n_key"]) is not None
     assert kwargs["severity"] == "error"
     assert "params" not in kwargs
-    assert kwargs["i18n_params"]["error_code"] == "prefix_init_failed"
+    assert kwargs["i18n_title_key"] == "toasts.header.gameLaunch"
 
 
 # ── shortcut write refusal ───────────────────────────────────────
@@ -209,7 +209,7 @@ async def test_write_refused_toast_reaches_the_live_channel(
     assert kwargs["i18n_key"] == "toasts.shortcuts.writeRefused"
     assert _lookup(en_locale, kwargs["i18n_key"]) is not None
     assert "params" not in kwargs
-    assert kwargs["i18n_params"]["reason"] == "foreign_entry_would_drop"
+    assert kwargs["i18n_title_key"] == "toasts.header.librarySync"
     # The string is a full paragraph; the renderers' 7.5s error default
     # cuts the read short, so this one asks for longer explicitly.
     assert kwargs["duration_ms"] == 12000

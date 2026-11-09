@@ -19,6 +19,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from unifideck.core.types import Events, SubscriptionTier
+from unifideck.stores.microsoft.microsoft_subscription import INVALID_COUNTRY
 
 if TYPE_CHECKING:
     from unifideck.event_bus.event_bus import EventBus
@@ -37,6 +38,9 @@ class GateVerdict(enum.Enum):
     """Microsoft says there is no subscription: the library is empty."""
     UNREADABLE = "unreadable"
     """We could not find out: keep the shortcuts we have."""
+    INVALID_COUNTRY = "invalid_country"
+    """Cloud Gaming refuses this location: keep the cloud shortcuts, still
+    read the Xbox PC list. Streams are blocked at launch, with a toast."""
 
 
 async def check_subscription_gate(
@@ -63,6 +67,12 @@ async def check_subscription_gate(
             reason="subscription_check_error",
         )
         return GateVerdict.UNREADABLE
+    if not answer.authoritative and answer.reason == INVALID_COUNTRY:
+        logger.warning(
+            "[MicrosoftStore] Xbox Cloud Gaming refuses this connection's location: "
+            "syncing the Xbox PC games and keeping the existing xCloud shortcuts",
+        )
+        return GateVerdict.INVALID_COUNTRY
     if not answer.authoritative:
         logger.warning(
             "[MicrosoftStore] could not confirm the Game Pass subscription "
@@ -93,6 +103,12 @@ async def check_subscription_gate(
             reason="subscription_tier_unknown",
         )
         return GateVerdict.UNREADABLE
+    if answer.tier == SubscriptionTier.FREE:
+        logger.info(
+            "[MicrosoftStore] no Game Pass (free xCloud session) — "
+            "fetching the titles Microsoft streams for free",
+        )
+        return GateVerdict.PROCEED
     logger.info(
         "[MicrosoftStore] active subscription detected (tier=%s) — "
         "fetching catalog", answer.tier.value,

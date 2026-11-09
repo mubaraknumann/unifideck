@@ -138,10 +138,15 @@ def _warn_no_32bit_vulkan() -> None:
     A warning, not a refusal. The install still runs: the client config is
     pre-seeded with hardware acceleration off, which may carry it through
     anyway, and a probe has no business costing a user their library.
+    The toast has room for the problem only; the fix is in this log line.
     """
+    logger.warning(
+        "[battlenet] no 32-bit Vulkan driver found; the 32-bit client may stall. "
+        "Install lib32-vulkan-radeon (Arch/CachyOS) or the distro's 32-bit Mesa package",
+    )
     launcher_toast(
         "toasts.launcher.battlenetNo32BitVulkanMessage",
-        i18n_title_key="toasts.launcher.battlenetNo32BitVulkan",
+        i18n_title_key="toasts.header.battlenet",
     )
 
 
@@ -161,13 +166,13 @@ def _announce_install(prefix: Path) -> None:
         )
         launcher_toast(
             "toasts.launcher.battlenetRepairingClientMessage",
-            i18n_title_key="toasts.launcher.battlenetRepairingClient",
+            i18n_title_key="toasts.header.battlenet",
         )
         return
     logger.info("[battlenet] no client in %s — installing it", prefix)
     launcher_toast(
         "toasts.launcher.battlenetInstallingClientMessage",
-        i18n_title_key="toasts.launcher.battlenetInstallingClient",
+        i18n_title_key="toasts.header.battlenet",
     )
 
 

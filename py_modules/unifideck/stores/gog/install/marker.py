@@ -25,6 +25,12 @@ import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+from unifideck.core.native_entry import gog_linux_start_script
+from unifideck.stores.gog.linux_updates import (
+    MARKER_KEY,
+    fetch_linux_installer_version,
+)
+
 from .primitives import GOGFolderOps
 
 if TYPE_CHECKING:
@@ -179,6 +185,17 @@ class _PostInstallMarker:
             game_id,
         )
         info_data["language"] = language
+        if gog_linux_start_script(install_path):
+            # Linux builds are tracked by installer version, not build id
+            # (see ``linux_updates``); without it no update can be detected.
+            version = await fetch_linux_installer_version(
+                game_id, language,
+                api_url=self._parent._config.api_gog_url,
+                user_agent=self._parent._config.user_agent,
+                bearer=self._parent._tokens.access_token,
+            )
+            if version:
+                info_data[MARKER_KEY] = version
         ok = await asyncio.to_thread(
             self._write_marker_sync,
             marker_path,

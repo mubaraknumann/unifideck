@@ -24,17 +24,15 @@ import json
 import logging
 import os
 import shutil
-import ssl
 import stat
-import tarfile
 import tempfile
-import time
 import urllib.error
 import urllib.request
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from unifideck.launcher.proton.infrastructure import ge_download, proton_integrity
+from unifideck.launcher.proton.infrastructure.ge_download import ProgressCb
 from unifideck.launcher.proton.infrastructure.ge_install_lock import (
     install_lock,
 )
@@ -47,25 +45,6 @@ logger = logging.getLogger(__name__)
 
 GE_REPO = "GloriousEggroll/proton-ge-custom"
 _LATEST_API = f"https://api.github.com/repos/{GE_REPO}/releases/latest"
-_USER_AGENT = "unifideck-proton-ge"
-
-# SteamOS's cert store is too old to verify GitHub's chain under strict TLS,
-# so GE-Proton lookups/downloads fail with CERTIFICATE_VERIFY_FAILED (the
-# plugin disables verification everywhere for this reason — see
-# ``core.net.ssl_helpers``). Kept local + stdlib-only so this module stays
-# importable in the minimal launcher bootstrap (no ``unifideck.*`` deps).
-_permissive_ssl_ctx: ssl.SSLContext | None = None
-
-
-def _ssl_ctx() -> ssl.SSLContext:
-    """Return the shared permissive TLS context (hostname + chain checks off)."""
-    global _permissive_ssl_ctx
-    if _permissive_ssl_ctx is None:
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-        _permissive_ssl_ctx = ctx
-    return _permissive_ssl_ctx
 
 # Install target — the primary root the selector scans first.
 COMPAT_TOOLS_DIR = Path("~/.steam/root/compatibilitytools.d").expanduser()
@@ -77,24 +56,32 @@ COMPAT_TOOLS_DIR = Path("~/.steam/root/compatibilitytools.d").expanduser()
 # "is this *GE tag* installed", and GE lands in ``COMPAT_TOOLS_DIR``.
 _SCAN_ROOTS: tuple[str, ...] = vdf_compat.STEAM_COMPAT_ROOTS
 
-ProgressCb = Callable[[int, int], None]
 
-
-def _fetch_latest_release(timeout: float) -> dict[str, Any] | None:
-    """GET the GitHub ``/releases/latest`` JSON, or ``None`` on failure."""
+def _fetch_json(url: str, timeout: float) -> dict[str, Any] | None:
+    """GET a GitHub API JSON document, or ``None`` on failure."""
     req = urllib.request.Request(
-        _LATEST_API,
+        url,
         headers={
-            "User-Agent": _USER_AGENT,
+            "User-Agent": ge_download.USER_AGENT,
             "Accept": "application/vnd.github+json",
         },
     )
     try:
-        with urllib.request.urlopen(req, timeout=timeout, context=_ssl_ctx()) as resp:
+        with urllib.request.urlopen(req, timeout=timeout, context=ge_download.ssl_ctx()) as resp:
             return json.loads(resp.read().decode())  # type: ignore[no-any-return]
     except (urllib.error.URLError, OSError, ValueError) as e:
-        logger.warning("[ge_installer] latest-release lookup failed: %s", e)
+        logger.warning("[ge_installer] release lookup failed (%s): %s", url, e)
         return None
+
+
+def _fetch_latest_release(timeout: float) -> dict[str, Any] | None:
+    """GET the GitHub ``/releases/latest`` JSON, or ``None`` on failure."""
+    return _fetch_json(_LATEST_API, timeout)
+
+
+def fetch_release(tag: str, timeout: float = 8.0) -> dict[str, Any] | None:
+    """GET the GitHub release JSON for one ``tag``, or ``None`` on failure."""
+    return _fetch_json(f"https://api.github.com/repos/{GE_REPO}/releases/tags/{tag}", timeout)
 
 
 def get_latest_ge_tag(timeout: float = 8.0) -> str | None:
@@ -201,6 +188,12 @@ def proton_install_problem(proton_script: Path) -> str | None:
     every official Steam Proton tool ships one as its normal per-tool
     lock, so it is deliberately not checked here.
 
+    * no damage marker. A tree can pass every check above with its Windows
+      DLLs replaced; ``proton_integrity`` finds that after a failed run or
+      at startup and records it, and this one ``stat`` keeps every launch
+      off the tree until ``ge_repair`` replaces it. The DLL and per-file
+      checks themselves never run here, so a normal launch pays nothing.
+
     Best-effort and conservative: any unreadable/unexpected state is
     treated as *incomplete* so the caller degrades to a known-good
     Proton rather than risk a hang. The reason is a short phrase for
@@ -222,6 +215,9 @@ def proton_install_problem(proton_script: Path) -> str | None:
             return "version file missing or empty"
         if not _toolmanifest_ok(root):
             return "toolmanifest.vdf missing, empty or unreadable"
+        damage = proton_integrity.damaged_marker(root)
+        if damage:
+            return f"damaged: {damage}"
     except OSError as e:
         logger.warning(
             "[ge_installer] completeness check failed for %s: %s",
@@ -267,79 +263,6 @@ def _select_tarball(assets: list[dict[str, Any]], tag: str | None = None) -> str
 
 
 
-def _download(url: str, dest: Path, progress_cb: ProgressCb | None) -> None:
-    """Stream ``url`` to ``dest``, reporting bytes via ``progress_cb``.
-
-    Raises ``OSError`` if the server declared a ``Content-Length`` and the
-    body came up short. A dropped connection mid-stream ends the read loop
-    exactly like a clean EOF, so without this comparison a truncated
-    tarball was written and returned as a SUCCESS. That is how a corrupt
-    GE-Proton reaches the compat tools dir, and from there umu dies on the
-    half-written ``toolmanifest.vdf`` (see :func:`_toolmanifest_ok`).
-    ``OSError`` is deliberate: it is already what
-    :func:`_download_with_retry` catches, so a short read now costs a
-    retry with backoff instead of a broken install.
-    """
-    req = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
-    with urllib.request.urlopen(req, timeout=30, context=_ssl_ctx()) as resp, dest.open("wb") as out:
-        total = int(resp.headers.get("Content-Length") or 0)
-        done = 0
-        while True:
-            chunk = resp.read(256 * 1024)
-            if not chunk:
-                break
-            out.write(chunk)
-            done += len(chunk)
-            if progress_cb:
-                progress_cb(done, total)
-    if total and done != total:
-        msg = (
-            f"truncated download: got {done} of {total} bytes "
-            f"({done * 100 // total}%) from {url}"
-        )
-        raise OSError(msg)
-
-
-def _download_with_retry(
-    url: str,
-    dest: Path,
-    progress_cb: ProgressCb | None,
-    attempts: int = 3,
-) -> bool:
-    """Download with exponential backoff (5/10/20s). True on success."""
-    for attempt in range(1, attempts + 1):
-        try:
-            _download(url, dest, progress_cb)
-        except (urllib.error.URLError, OSError) as e:
-            logger.warning(
-                "[ge_installer] download attempt %d/%d failed: %s",
-                attempt, attempts, e,
-            )
-            dest.unlink(missing_ok=True)
-            if attempt < attempts:
-                time.sleep(5 * (2 ** (attempt - 1)))
-        else:
-            return True
-    return False
-
-
-def _extract(tarball: Path, dest: Path) -> bool:
-    """Extract ``tarball`` into ``dest``. True on success."""
-    try:
-        with tarfile.open(tarball, "r:gz") as tar:
-            try:
-                # ``filter="data"`` (3.12, backported to 3.11.4) blocks
-                # path-traversal/symlink escapes; the older fallback is
-                # acceptable for a trusted GitHub release tarball.
-                tar.extractall(dest, filter="data")
-            except TypeError:
-                tar.extractall(dest)  # noqa: S202 — trusted GitHub release tarball
-    except (tarfile.TarError, OSError) as e:
-        logger.warning("[ge_installer] extract failed: %s", e)
-        return False
-    return True
-
-
 def _make_executable(path: Path) -> None:
     """Add the +x bit (owner/group/other) to ``path``."""
     st = path.stat()
@@ -377,7 +300,9 @@ def _find_extracted_root(staging: Path, tag: str) -> Path | None:
     return candidates[0]
 
 
-def _promote_extracted(staging: Path, tag: str) -> Path | None:
+def _promote_extracted(
+    staging: Path, tag: str, tarball_sha512: str | None = None,
+) -> Path | None:
     """Validate the extracted tree and move it into place as ``<tag>/``.
 
     The move into ``COMPAT_TOOLS_DIR`` only happens after the ``proton``
@@ -395,6 +320,10 @@ def _promote_extracted(staging: Path, tag: str) -> Path | None:
     is published rather than at launch. :func:`is_proton_install_complete`
     repeats the check because a tool dir can also rot after install (or
     arrive from somewhere other than this installer).
+
+    With ``tarball_sha512`` (a tarball that matched GE's published hash),
+    the tree's per-file manifest is recorded before it is published, so
+    ``proton_integrity`` can later tell exactly what changed.
     """
     extracted = _find_extracted_root(staging, tag)
     if extracted is None:
@@ -410,6 +339,10 @@ def _promote_extracted(staging: Path, tag: str) -> Path | None:
         )
         return None
     _make_executable(proton)
+    if tarball_sha512 is not None:
+        manifest = proton_integrity.build_manifest(extracted, tag, tarball_sha512)
+        if manifest is not None:
+            proton_integrity.write_manifest(extracted, manifest)
 
     dest = COMPAT_TOOLS_DIR / tag
     # Rename-aside, never rmtree-then-move. ``dest`` may be the Proton a game
@@ -438,33 +371,74 @@ def _promote_extracted(staging: Path, tag: str) -> Path | None:
     return final
 
 
+def _adopt_if_intact(staging: Path, tag: str, tarball_sha512: str) -> Path | None:
+    """Keep the live ``<tag>`` tree if it matches the fresh release exactly.
+
+    A tree installed before manifests existed, or one only *suspected* of
+    damage, may be byte-identical to the release. Swapping it would pull
+    files out from under any game running on it for nothing, so it gets the
+    manifest instead. Returns its ``proton`` script, or None to publish.
+    """
+    live = COMPAT_TOOLS_DIR / tag
+    extracted = _find_extracted_root(staging, tag)
+    if extracted is None or not (live / "proton").is_file():
+        return None
+    manifest = proton_integrity.build_manifest(extracted, tag, tarball_sha512)
+    if manifest is None:
+        return None
+    problem = proton_integrity.manifest_problem(live, manifest, deep=True)
+    if problem:
+        logger.warning("[ge_installer] %s differs from the release: %s", live, problem)
+        return None
+    proton_integrity.write_manifest(live, manifest)
+    proton_integrity.clear_damaged(live)
+    logger.info("[ge_installer] %s matches the official release; kept in place", live)
+    return live / "proton"
+
+
 def _download_and_install(
     tag: str,
     url: str,
     progress_cb: ProgressCb | None,
 ) -> Path | None:
-    """Download + extract ``tag`` into ``COMPAT_TOOLS_DIR``; return ``proton``.
+    """Download + verify + extract ``tag`` into ``COMPAT_TOOLS_DIR``; return ``proton``.
 
     Stages into a temp dir on the SAME filesystem and moves the result
     into place only after the ``proton`` script is confirmed present and
     made executable — so a half-finished download never leaves a broken
-    ``<tag>/`` dir that later passes a naive presence check.
+    ``<tag>/`` dir that later passes a naive presence check. A tarball that
+    does not match GE's published SHA-512 is never extracted, and a live
+    tree identical to the release is kept rather than swapped.
     """
     COMPAT_TOOLS_DIR.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=f".{tag}.dl-", dir=COMPAT_TOOLS_DIR))
     try:
-        tarball = staging / f"{tag}.tar.gz"
-        if not _download_with_retry(url, tarball, progress_cb):
+        digest = ge_download.stage_release(tag, url, staging, progress_cb)
+        if digest is None:
             return None
-        if not _extract(tarball, staging):
-            return None
-        tarball.unlink(missing_ok=True)
-        return _promote_extracted(staging, tag)
+        kept = _adopt_if_intact(staging, tag, digest)
+        return kept or _promote_extracted(staging, tag, tarball_sha512=digest)
     except OSError as e:
         logger.warning("[ge_installer] install of %s failed: %s", tag, e)
         return None
     finally:
         shutil.rmtree(staging, ignore_errors=True)
+
+
+def install_release_unlocked(
+    tag: str, release: dict[str, Any], progress_cb: ProgressCb | None = None,
+) -> Path | None:
+    """(Re)install ``tag`` from its GitHub ``release`` JSON; return ``proton``.
+
+    The caller must already hold :func:`ge_install_lock.install_lock`;
+    ``flock`` would block a second acquisition from the same process.
+    """
+    url = _select_tarball(release.get("assets", []), tag)
+    if not url:
+        logger.warning("[ge_installer] no .tar.gz asset found for %s", tag)
+        return None
+    logger.info("[ge_installer] downloading GE-Proton %s", tag)
+    return _download_and_install(tag, url, progress_cb)
 
 
 def ensure_latest_ge(

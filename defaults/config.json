@@ -124,7 +124,12 @@
       "xcloud_titles_url": "https://catalog.gamepass.com/v3/products?market=US&language=en-US",
       "xcloud_launch_url": "https://www.xbox.com/play/launch",
       "gssv_relying_party": "http://gssv.xboxlive.com/",
-      "subscription_check_url": "https://xgpuweb.gssv-play-prod.xboxlive.com/v2/login/user"
+      "subscription_check_url": "https://xgpuweb.gssv-play-prod.xboxlive.com/v2/login/user",
+      "xbox_pc": {
+        "enabled": false,
+        "source": "",
+        "notice_ack_version": 0
+      }
     },
     "battlenet": {
       "data_dir": "~/.local/share/unifideck",

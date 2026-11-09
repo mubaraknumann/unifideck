@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Xbox Cloud Gaming</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; cursor: none; }
+  #playerContainer { position: fixed; inset: 0; }
+  #status { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+            color: #fff; font: 22px sans-serif; text-align: center; max-width: 80%; z-index: 10; }
+  #status.error { color: #ff8080; }
+</style>
+</head>
+<body>
+<div id="playerContainer"></div>
+<div id="status">Starting your game…</div>
+<script src="/bundle.js"></script>
+</body>
+</html>

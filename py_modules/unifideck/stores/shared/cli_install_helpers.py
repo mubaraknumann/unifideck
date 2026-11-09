@@ -6,6 +6,7 @@ import logging
 import os
 import signal
 from collections import deque
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar, cast
 
@@ -305,6 +306,72 @@ async def wait_with_timeout(
         await terminate_process_tree(proc, log_prefix)
         return -1
     return proc.returncode or 0
+
+
+@dataclass(frozen=True)
+class DrainedRun:
+    """How one :func:`run_drained_cli` run ended.
+
+    ``rc`` is the exit code, or -1 for a stall or a post-EOF timeout.
+    ``tail`` is the last output the CLI printed, with the stall note in
+    front when ``stalled`` is True.
+    """
+
+    rc: int
+    tail: str
+    stalled: bool = False
+
+
+async def run_drained_cli(
+    proc: Any,
+    game_id: str,
+    progress_cb: CallbackT,
+    line_handler: Callable[[str, str, CallbackT], Awaitable[None]],
+    tail_buf: TailRingBuffer,
+    *,
+    log_prefix: str,
+    wait_s: int,
+    stall_s: float | None = DEFAULT_STALL_TIMEOUT_S,
+    finalize_s: float | None = None,
+    in_finalize: Callable[[], bool] | None = None,
+) -> DrainedRun:
+    """Drain a started install CLI to EOF, then reap it.
+
+    The envelope every CLI store needs around :func:`drain_install_output`.
+    On a stall, or on ANY exception from the drain (a cancel included), the
+    process tree is killed before anything else is awaited. Cancelling our
+    task only unwinds our coroutine; the CLI and its children keep running
+    and can hold the store's own locks. The exception is then re-raised. A
+    stall returns ``rc=-1`` with the stall note joined to the tail. After a
+    clean EOF the exit is awaited for at most ``wait_s`` seconds; a cancel
+    during that wait kills the tree too.
+    """
+    stalled: InstallStalledError | None = None
+    try:
+        await drain_install_output(
+            proc, game_id, progress_cb, line_handler,
+            stall_s=stall_s, finalize_s=finalize_s, in_finalize=in_finalize,
+        )
+    except InstallStalledError as e:
+        stalled = e
+    except BaseException:
+        await terminate_process_tree(proc, log_prefix)
+        raise
+    if stalled is not None:
+        await terminate_process_tree(proc, log_prefix)
+        return DrainedRun(
+            rc=-1, tail=join_tail(str(stalled), tail_buf), stalled=True,
+        )
+    try:
+        rc = await wait_with_timeout(proc, wait_s, log_prefix)
+    except BaseException:
+        # A cancel during the post-EOF wait: the CLI may still run and
+        # hold the store's locks, so it dies before the caller lets go.
+        await terminate_process_tree(proc, log_prefix)
+        raise
+    return DrainedRun(rc=rc, tail=tail_buf.tail())
+
+
 def parse_percent_re(
     line: str, pattern: re.Pattern[str],
 ) -> float | None:

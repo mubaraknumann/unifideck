@@ -193,11 +193,16 @@ def game_to_cache_format(game: dict[str, Any]) -> dict[str, Any]:
     through the metadata cache to the cloud-save save-location resolver, which
     uses them to find a game's real save directory instead of guessing.
     """
+    # The catalog is IGDB-shaped: ``summary`` and a ``publishers`` list. This
+    # read ``description`` and ``publisher``, which no catalog row has, so
+    # every game's synopsis and publisher came back empty. The old names are
+    # still read first in case the catalog ever adopts them.
+    publishers = game.get("publishers") or []
     out = {
         "title": game.get("title") or game.get("name") or "",
-        "description": game.get("description", ""),
+        "description": game.get("description") or game.get("summary") or "",
         "release_date": game.get("release_date", ""),
-        "publisher": game.get("publisher", ""),
+        "publisher": game.get("publisher") or ", ".join(publishers),
         "developers": game.get("developers", []),
         "genres": game.get("genres", []),
         "platforms": game.get("platforms", []),

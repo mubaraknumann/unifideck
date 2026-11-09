@@ -28,8 +28,8 @@ _MAX_STEAM_APP_ID = 2_000_000_000
 _MAX_STRING = 160
 
 _REQUIRED_STRINGS = (
-    "tag_owned", "tag_cloud", "message_owned", "message_cloud", "message_xcloud",
-    "installed", "via",
+    "tag_owned", "tag_cloud", "tag_installable", "message_owned", "message_cloud",
+    "message_xcloud", "message_pc_pass", "installed", "via",
 )
 
 #: The chip notes the frontend may translate (``RibbonStrings.note_labels``).
@@ -42,12 +42,16 @@ class RibbonStrings:
 
     tag_owned: str
     tag_cloud: str
+    #: The tag of the Game Pass PC line ("Installable").
+    tag_installable: str
     message_owned: str
     #: The Game Pass line ("Xbox Game Pass").
     message_cloud: str
     #: The neutral line for a title that streams for a reason we cannot name
     #: ("Xbox Cloud Gaming"): never says Game Pass, never says owned.
     message_xcloud: str
+    #: The Game Pass PC line ("Xbox Game Pass (PC)"): installable, not streamed.
+    message_pc_pass: str
     installed: str
     via: str
     direction: str
@@ -132,13 +136,14 @@ def build_ribbon_payload(
     """The data the in-page ribbon script draws (see ``cdp/store_ribbon_js``).
 
     Purchases and subscription rows are separate sections: a subscription
-    row is "playable", never "owned". Game Pass and the neutral cloud line
-    are separate too, so an owned game that is also in Game Pass shows both
-    facts. The overlay names the purchase stores when there are any,
-    otherwise the subscription service.
+    row is "playable", never "owned". Installable on PC through Game Pass,
+    streamable through Game Pass and the neutral cloud line are separate
+    lines too, so each fact shows once. The overlay names the purchase
+    stores when there are any, otherwise the subscription line.
     """
     owned = [c for c in copies if not c.subscription]
-    cloud = [c for c in copies if c.subscription]
+    installable = [c for c in copies if c.subscription and c.installable]
+    cloud = [c for c in copies if c.subscription and not c.installable]
     sections: list[dict[str, Any]] = []
     if owned:
         sections.append({
@@ -146,6 +151,13 @@ def build_ribbon_payload(
             "tag": strings.tag_owned,
             "message": strings.message_owned,
             "chips": [_owned_chip(c, strings, steam_name) for c in owned],
+        })
+    if installable:
+        sections.append({
+            "kind": "installable",
+            "tag": strings.tag_installable,
+            "message": strings.message_pc_pass,
+            "chips": _cloud_chips(installable, strings, steam_name),
         })
     for message, group in (
         (strings.message_cloud, [c for c in cloud if c.game_pass]),
@@ -161,7 +173,7 @@ def build_ribbon_payload(
     return {
         "appid": steam_app_id,
         "dir": strings.direction,
-        "overlay": _overlay(owned, cloud, strings),
+        "overlay": _overlay(owned, installable, cloud, strings),
         "sections": sections,
         "installed": strings.installed,
         "via": strings.via,
@@ -206,31 +218,37 @@ def purchase_notes(copy: OwnedCopy, strings: RibbonStrings) -> list[str]:
 def _cloud_chips(
     cloud: list[OwnedCopy], strings: RibbonStrings, steam_name: str,
 ) -> list[dict[str, Any]]:
-    """Logo + edition chips: the cloud message already names the service."""
+    """Logo + edition chips: the message already names the service. A chip
+    is drawn for a differing edition, or for an installed Game Pass PC copy
+    (a streamed copy is never installed)."""
     chips = []
     for copy in cloud:
         detail = edition_detail(copy.titles, steam_name)
-        if detail:
+        installed = copy.installable and copy.installed
+        if detail or installed:
             chips.append({
                 "label": "",
                 "detail": detail,
-                "installed": False,
+                "installed": installed,
                 "icon": strings.store_icons.get(copy.store),
             })
     return chips
 
 
 def _overlay(
-    owned: list[OwnedCopy], cloud: list[OwnedCopy], strings: RibbonStrings,
+    owned: list[OwnedCopy], installable: list[OwnedCopy], cloud: list[OwnedCopy],
+    strings: RibbonStrings,
 ) -> dict[str, Any]:
     """The tag plus a few words: the capsule strip is narrow in Gaming Mode
     (a sentence was cut to "Included with Game P…"). Purchases name their
-    stores; the subscription line names the service ("Xbox Game Pass", or
-    "Xbox Cloud Gaming" when it is not Game Pass), because "Xbox" alone read
-    as owned."""
+    stores; then the Game Pass PC line ("Xbox Game Pass (PC)"); then the
+    streaming line names the service ("Xbox Game Pass", or "Xbox Cloud
+    Gaming" when it is not Game Pass), because "Xbox" alone read as owned."""
     if owned:
         labels = [strings.store_labels.get(c.store) or c.store for c in owned]
         return {"tag": strings.tag_owned, "text": " · ".join(labels)}
+    if installable:
+        return {"tag": strings.tag_installable, "text": strings.message_pc_pass}
     game_pass = any(c.game_pass for c in cloud)
     return {
         "tag": strings.tag_cloud,

@@ -1,21 +1,22 @@
-"""services/achievements/watcher.py — live + post-play GOG achievement tracking.
+"""services/achievements/watcher.py — live + post-play achievement tracking.
 
-GOG achievements unlock *in-game* via Comet, which uploads them to GOG's
-servers in real time (see ``launcher/proton/compat/gog.py``). This watcher
-reads them back from GOG so the user gets feedback the plugin otherwise can't
-provide (Comet's overlay is disabled on Linux):
+Games unlock achievements themselves and the store's servers record them in
+near real time: GOG through Comet (``launcher/proton/compat/gog.py``), Epic
+through EOS, Xbox through the runtime's Xbox Live session. This watcher reads
+them back so the user gets feedback a Linux game often can't give (Comet's
+overlay is disabled on Linux; Xbox games have no overlay under Wine):
 
-* **During play** — polls every ~60s while a GOG game runs and fires a
-  Steam-style toast for each newly-unlocked achievement (via the launcher
-  ``frontend_bridge``, the panel-independent toast path).
-* **At game-stop** — a final reconcile (Comet has already flushed by then, as
-  the launcher waits for it before the process exits, so Steam reports the
-  stop only afterwards) and records a per-game ``last_session`` summary the
-  game-info panel surfaces.
+* **During play** — polls while the game runs and fires a Steam-style toast
+  for each newly-unlocked achievement (via the launcher ``frontend_bridge``,
+  the panel-independent toast path).
+* **At game-stop** — a final reconcile and a per-game ``last_session``
+  summary the game-info panel shows.
+* **GOG push** — comet POSTs each unlock the moment it happens (online or
+  offline) to :class:`CometEventReceiver`; it toasts at once through the
+  same ``_seen`` dedup, so the poll never repeats it.
 
-Only GOG is handled (Epic unlocks + notifies via its own EOS overlay). Driven
-by the plugin-bus ``GAME_LAUNCHED`` / ``GAME_STOPPED`` events that the frontend
-raises from Steam's app-lifetime notifications.
+Covers every store in ``ACHIEVEMENT_STORES``. Driven by the plugin-bus
+``GAME_LAUNCHED`` / ``GAME_STOPPED`` events.
 """
 from __future__ import annotations
 
@@ -24,24 +25,28 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
+from unifideck.core.store_capabilities import ACHIEVEMENT_STORES
 from unifideck.core.types import Events
 from unifideck.event_bus.event_bus_devex import auto_wire, subscribe
-from unifideck.stores.gog.achievements import (
-    GOGAchievements,
-    GOGAchievementsError,
-)
+from unifideck.launcher.game_title import registered_title
+from unifideck.stores.gog.achievements import normalize_gog_achievement
+from unifideck.stores.gog.galaxy_api import fetch_gog_client_creds
+from unifideck.stores.shared.achievements_error import StoreAchievementsError
+from unifideck.stores.shared.achievements_payload import unlocked_keys
 
+from .comet_events import CometEventReceiver
 from .state import AchievementStateStore
 
 if TYPE_CHECKING:
-    from unifideck.config import ConfigManager
     from unifideck.event_bus.event_bus import EventBus
     from unifideck.stores import StoreRegistry
 
 logger = logging.getLogger(__name__)
 
-_STORE = "gog"
 _POLL_INTERVAL_SECONDS = 60.0
+#: Per-store poll overrides. Xbox Live is a service we have not polled
+#: before, so it gets a gentler cadence.
+_POLL_INTERVALS = {"microsoft": 90.0}
 _RECONCILE_RETRIES = 2
 _RECONCILE_RETRY_DELAY_SECONDS = 5.0
 
@@ -57,33 +62,49 @@ def _track(task: asyncio.Task[Any]) -> None:
 
 
 class AchievementWatcher:
-    """Live unlock toasts + an end-of-session summary for GOG games."""
+    """Live unlock toasts + an end-of-session summary for every achievement store."""
 
     def __init__(
         self,
         bus: EventBus,
         registry: StoreRegistry | None,
-        config: ConfigManager | None = None,
     ) -> None:
         """Initialize the instance."""
         self._bus = bus
         self._registry = registry
-        self._config = config
         self._state = AchievementStateStore()
         self._poll_tasks: dict[str, asyncio.Task[Any]] = {}
         self._baseline: dict[str, set[str]] = {}
         self._seen: dict[str, set[str]] = {}
+        # GOG Galaxy client id per running GOG session, resolved on demand
+        # to route a comet push when several GOG games run at once.
+        self._client_ids: dict[str, str | None] = {}
+        self._comet: CometEventReceiver | None = None
         auto_wire(self, bus)
+
+    async def start(self) -> None:
+        """Start comet's push receiver; the poll covers GOG if it can't."""
+        receiver = CometEventReceiver(self._on_comet_unlock)
+        try:
+            await receiver.start()
+        except Exception as e:
+            logger.warning(
+                "[achievements.watcher] comet push receiver failed to start "
+                "(%s): GOG achievement toasts fall back to the %ss poll",
+                e, _POLL_INTERVAL_SECONDS,
+            )
+            return
+        self._comet = receiver
 
     @subscribe(Events.GAME_LAUNCHED)
     async def _on_game_launched(self, **kwargs: Any) -> None:
         """Snapshot the baseline unlocks and start the during-play poll."""
         store = kwargs.get("store")
         game_id = kwargs.get("game_id")
-        if store != _STORE or not game_id:
+        if store not in ACHIEVEMENT_STORES or not game_id:
             return
         key = f"{store}:{game_id}"
-        baseline = await self._unlocked_now(game_id)
+        baseline = await self._unlocked_now(store, game_id)
         if baseline is None:
             # Offline at launch — fall back to the last persisted set so the
             # session diff still has a reference point.
@@ -101,13 +122,14 @@ class AchievementWatcher:
         """Stop polling and reconcile the session in the background."""
         store = kwargs.get("store")
         game_id = kwargs.get("game_id")
-        if store != _STORE or not game_id:
+        if store not in ACHIEVEMENT_STORES or not game_id:
             return
         self._cancel(f"{store}:{game_id}")
-        gog = self._gog()
-        if gog is not None:
-            # Drop the cache so the reconcile pull is fresh (Comet flushed).
-            gog.invalidate_achievements(game_id)
+        self._client_ids.pop(f"{store}:{game_id}", None)
+        inst = self._store(store)
+        if inst is not None:
+            # Drop the cache so the reconcile pull is fresh.
+            inst.invalidate_achievements(game_id)
         # Fire-and-forget so the GAME_STOPPED emit isn't blocked on the
         # network reconcile + retries (mirrors CloudSaveService.sync_up).
         _track(asyncio.create_task(self._finish_session(store, game_id)))
@@ -124,16 +146,54 @@ class AchievementWatcher:
         self._bus.unsubscribe_all(self)
         for key in list(self._poll_tasks):
             self._cancel(key)
+        if self._comet is not None:
+            comet, self._comet = self._comet, None
+            await comet.stop()
+
+    async def _on_comet_unlock(self, client_id: str, data: dict[str, Any]) -> None:
+        """Toast a comet-pushed GOG unlock for the running game it belongs to."""
+        game_id = await self._gog_session_for(client_id)
+        if game_id is None:
+            logger.debug(
+                "[achievements.watcher] comet unlock for client %s matched no "
+                "running GOG game; the poll will catch it", client_id,
+            )
+            return
+        self._emit_new_unlocks(
+            "gog", game_id, {"achievements": [normalize_gog_achievement(data)]},
+        )
+
+    async def _gog_session_for(self, client_id: str) -> str | None:
+        """The running GOG game id a comet ``client_id`` belongs to, or None.
+
+        One running GOG game (the normal case) is the answer outright; with
+        several, each one's Galaxy client id is looked up once and matched.
+        """
+        game_ids = [k[len("gog:"):] for k in self._poll_tasks if k.startswith("gog:")]
+        if len(game_ids) <= 1:
+            return game_ids[0] if game_ids else None
+        for game_id in game_ids:
+            key = f"gog:{game_id}"
+            if key not in self._client_ids:
+                try:
+                    cid, _ = await asyncio.to_thread(fetch_gog_client_creds, game_id)
+                except Exception:
+                    cid = None
+                self._client_ids[key] = cid
+            if client_id and self._client_ids[key] == client_id:
+                return game_id
+        return None
 
     # -- internals ---------------------------------------------------------
 
     async def _poll_loop(self, store: str, game_id: str) -> None:
         """Poll."""
         key = f"{store}:{game_id}"
+        interval = _POLL_INTERVALS.get(store, _POLL_INTERVAL_SECONDS)
         try:
             while True:
-                await asyncio.sleep(_POLL_INTERVAL_SECONDS)
-                payload = await self._fetch(game_id)
+                await asyncio.sleep(interval)
+                payload = await self._fetch(store, game_id)
                 if payload is not None:
                     self._emit_new_unlocks(store, game_id, payload)
         except asyncio.CancelledError:
@@ -158,7 +218,7 @@ class AchievementWatcher:
         key = f"{store}:{game_id}"
         payload: dict[str, Any] | None = None
         for attempt in range(_RECONCILE_RETRIES + 1):
-            payload = await self._fetch(game_id)
+            payload = await self._fetch(store, game_id)
             if payload is not None and payload.get("total"):
                 break
             if attempt < _RECONCILE_RETRIES:
@@ -167,7 +227,7 @@ class AchievementWatcher:
             return
         # Toast any unlocks the poll cadence missed before the game closed.
         self._emit_new_unlocks(store, game_id, payload)
-        final_keys = GOGAchievements.unlocked_keys(payload)
+        final_keys = unlocked_keys(payload)
         baseline = self._baseline.get(key, set())
         session_new = final_keys - baseline
         names = [
@@ -205,56 +265,54 @@ class AchievementWatcher:
         try:
             from unifideck.launcher.frontend_bridge import launcher_toast
             launcher_toast(
-                "achievements.unlockedBody",
-                i18n_title_key="achievements.unlockedTitle",
+                "toasts.achievementName",
+                i18n_title_key="toasts.header.achievement",
                 i18n_params={"name": achievement.get("name") or ""},
-                game_title=self._game_title(store, game_id),
+                # Empty when unregistered: the card then heads with the store.
+                game_title=registered_title(f"{store}:{game_id}"),
+                # The frontend draws this as Steam's achievement popup:
+                # image, name, then the game and the store with its logo.
+                achievement={
+                    "name": achievement.get("name") or "",
+                    "icon": achievement.get("image_unlocked") or "",
+                    "store": store,
+                    # Share of players, for Steam's rare glow on the image.
+                    "rarity": achievement.get("rarity"),
+                },
             )
         except Exception:
             logger.debug("[achievements.watcher] toast failed", exc_info=True)
 
-    async def _fetch(self, game_id: str) -> dict[str, Any] | None:
+    async def _fetch(self, store: str, game_id: str) -> dict[str, Any] | None:
         """Fetch this game's achievements, or None on auth/network failure."""
-        gog = self._gog()
-        if gog is None:
+        inst = self._store(store)
+        if inst is None:
             return None
         try:
-            result: dict[str, Any] | None = await gog.get_game_achievements(
+            result: dict[str, Any] | None = await inst.get_game_achievements(
                 game_id, force=True,
             )
             return result
-        except GOGAchievementsError as e:
+        except StoreAchievementsError as e:
             logger.debug("[achievements.watcher] fetch skipped (%s)", e.code)
             return None
         except Exception:
             logger.debug("[achievements.watcher] fetch error", exc_info=True)
             return None
 
-    async def _unlocked_now(self, game_id: str) -> set[str] | None:
-        """Unlocked now."""
-        payload = await self._fetch(game_id)
-        return (
-            GOGAchievements.unlocked_keys(payload)
-            if payload is not None
-            else None
-        )
+    async def _unlocked_now(self, store: str, game_id: str) -> set[str] | None:
+        """The keys unlocked right now, or None when unreadable."""
+        payload = await self._fetch(store, game_id)
+        return unlocked_keys(payload) if payload is not None else None
 
-    def _gog(self) -> Any:
-        """Gog."""
+    def _store(self, store: str) -> Any:
+        """The registered store instance, or None."""
         if self._registry is None:
             return None
         try:
-            return self._registry.get_store(_STORE)
+            return self._registry.get_store(store)
         except Exception:
             return None
-
-    def _game_title(self, store: str, game_id: str) -> str:
-        """Game title."""
-        if self._config is not None:
-            title = self._config.get(f"games.{game_id}.title")
-            if title:
-                return str(title)
-        return str(game_id)
 
     def _cancel(self, key: str) -> None:
         """Cancel."""

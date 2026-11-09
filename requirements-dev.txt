@@ -38,6 +38,11 @@ pip-audit>=2.7,<3.0
 pytest>=8.0,<9.0
 pytest-asyncio>=0.23,<1.0
 pytest-cov>=5.0,<7.0
+# Parallel test runs (``pytest -n auto``): the suite is ~6.5 min serial and
+# ~1.5 min across cores. Passed by tests.yml on the command line, NOT in
+# pytest.ini addopts: complexity.yml runs pytest without this file installed,
+# and an unknown ``-n`` would fail that job.
+pytest-xdist>=3.6,<4.0
 
 # YAML loader used by the integration smoke test to validate
 # tests.yml itself (meta-test: the workflow file must parse).

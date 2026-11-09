@@ -52,8 +52,6 @@ from unifideck.stores.shared.cli_install_helpers import (
     wait_with_timeout,
 )
 
-# Imported as modules, not names: ``uninstall_game``'s own
-# ``delete_prefix`` parameter would otherwise shadow the function.
 from . import sdl, uninstall
 from .exe_resolver import EpicExeResolver
 from .legendary import write_app_language
@@ -478,9 +476,7 @@ class EpicInstaller:
             or str(Path(base) / game_id),
         )
 
-    async def uninstall_game(
-        self, game_id: str, delete_prefix: bool = False,
-    ) -> Result:
+    async def uninstall_game(self, game_id: str) -> Result:
         """Remove a game's files and clean up legendary's bookkeeping.
 
         ``legendary uninstall`` cannot be trusted to delete files: its
@@ -515,9 +511,6 @@ class EpicInstaller:
         # legendary leaves the installed.json row behind when it 401s;
         # drop it so the next sync doesn't resurrect the game as installed.
         await asyncio.to_thread(uninstall.purge_legendary_install_entry, game_id)
-
-        if delete_prefix:
-            await uninstall.delete_prefix(game_id)
 
         self._library.invalidate_installed_cache()
         await self._bus.emit(

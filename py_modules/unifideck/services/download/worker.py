@@ -178,15 +178,16 @@ class _WorkerMixin:
         if not store:
             raise RuntimeError(f"Store {item.store} not found in registry")
         # NOTE: there is deliberately no store-name branch here for the
-        # cloud-only store. One existed — `_reject_microsoft` — and it
+        # Microsoft store. One existed — `_reject_microsoft` — and it
         # bypassed `_emit_failure`, so the queue row never reached "failed"
         # and never got an `error` set, while the toast echoed a hardcoded
         # English sentence straight past `friendlyDownloadError`'s code
-        # table. The store itself now refuses with `not_supported` (audit
-        # §3.5, register item 11), so the ordinary failure path below does
-        # the whole job: correct row state, one classified error, one
-        # translated toast. A store's own refusal is the right place for
-        # this; the worker should not need to know which stores can install.
+        # table. The store now decides for itself: Xbox PC titles install
+        # through Xodus, and anything it cannot install is refused with a
+        # code (audit §3.5, register item 11). The ordinary failure path below
+        # then does the whole job: correct row state, one classified error,
+        # one translated toast. The worker should not need to know which
+        # stores can install.
         await self._begin_install(item)
 
         async def progress_cb(progress: float | dict[str, Any]) -> None:

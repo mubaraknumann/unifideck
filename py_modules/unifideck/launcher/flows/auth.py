@@ -94,7 +94,7 @@ async def handle_store_auth(
     )
     if not edge_browser.is_installed:
         raise DependencyMissingError(
-            "Microsoft Edge flatpak required for OAuth",
+            "the plugin's browser is not downloaded yet (needed for the sign-in window)",
             context={"store": store},
         )
     auth_url = read_auth_url(store)

@@ -1,6 +1,6 @@
 {
   "name": "unifideck-decky",
-  "version": "0.7.6",
+  "version": "0.8.0",
   "description": "Unified game library for Steam Deck and Steam Machine — browse, install and launch games from Epic Games, GOG, Amazon, Ubisoft, Battle.net, GameVault and Microsoft xCloud directly inside Steam's interface. Built on a 5-layer architecture with EventBus, service DI, and 90%+ test coverage.",
   "type": "module",
   "scripts": {
@@ -124,8 +124,8 @@
       "name": "nile"
     },
     {
-      "sha256hash": "2d6694d544fd3155d90d540e70bc1be767a6b9fdda130275f2b79616ff14e843",
-      "url": "https://github.com/imLinguin/comet/releases/download/v0.3.2/comet-x86_64-unknown-linux-gnu",
+      "sha256hash": "868dd0b510f2c1c63a524b8e0466dd92bb2aecdb697217a690bf9effd04d3a5a",
+      "url": "https://github.com/imLinguin/comet/releases/download/v0.4.1/comet-x86_64-unknown-linux-gnu",
       "name": "comet"
     }
   ]

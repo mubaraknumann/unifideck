@@ -438,6 +438,22 @@ def test_scan_mounts_survives_a_non_utf8_mounts_file(tmp_path: Path) -> None:
     assert [m.mount_point for m in result] == [str(good)]
 
 
+def test_an_undecodable_label_is_logged_as_utf8(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The skip warning for that label must be encodable, or the handler drops it."""
+    mounts_file = tmp_path / "proc-mounts"
+    mounts_file.write_bytes(b"/dev/sdb1 /run/media/deck/Disque\xa0Dur ext4 rw 0 0\n")
+
+    with caplog.at_level(logging.DEBUG, logger=mounts.logger.name):
+        mounts.scan_mounts(999999, mounts_path=mounts_file)
+
+    skipped = [r.getMessage() for r in caplog.records if "Disque" in r.getMessage()]
+    assert skipped and all("Disque\\xa0Dur" in m for m in skipped)
+    for message in skipped:
+        message.encode("utf-8")
+
+
 # ─── identity: UUID-based ids ──────────────────────────────────
 
 

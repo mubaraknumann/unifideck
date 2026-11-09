@@ -15,6 +15,7 @@ from unifideck.stores.gamevault.filename import (
     is_indexable,
     parse_archive_name,
     strip_extension,
+    strip_source_tags,
     version_sort_key,
 )
 
@@ -249,3 +250,41 @@ def test_is_indexable_rejects_bare_executables_and_junk():
     """The vault holds archives. A bare .exe is a deliberate exclusion."""
     for name in ("Game.exe", "Game.sh", "Game.AppImage", "notes.txt", "cover.png"):
         assert is_indexable(name) is False
+
+
+# ── Uploader tags ────────────────────────────────────────────────────
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("Alan Wake 2 AnkerGames", "Alan Wake 2"),
+        ("Game FitGirl Repack", "Game"),
+        ("Game - FitGirl", "Game"),
+        ("Game - FitGirl - Repack", "Game"),
+        ("Game ANKERGAMES", "Game"),
+        # Whole words only.
+        ("Repackaged", "Repackaged"),
+        ("Game Repackaged", "Game Repackaged"),
+        # Never stripped to nothing.
+        ("Repack", "Repack"),
+        ("FitGirl Repack", "FitGirl"),
+        # A tag in the middle is part of the title.
+        ("Dodi Quest II", "Dodi Quest II"),
+        # A separator with no removed tag after it is left alone.
+        ("Game -", "Game -"),
+        ("", ""),
+    ],
+)
+def test_strip_source_tags(raw, expected):
+    assert strip_source_tags(raw) == expected
+
+
+def test_display_title_drops_tags_but_identity_keeps_them():
+    """The ``lv_`` id derives from identity; cleaning it would re-key every
+    installed local game (new appId, lost playtime and artwork)."""
+    tagged = parse_archive_name("Alan-Wake-2-AnkerGames.rar")
+    plain = parse_archive_name("Alan Wake 2.zip")
+
+    assert tagged.title == "Alan Wake 2 AnkerGames"
+    assert tagged.display_title == "Alan Wake 2"
+    assert tagged.identity != plain.identity
+
