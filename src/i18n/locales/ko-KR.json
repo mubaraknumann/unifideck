@@ -338,6 +338,7 @@
       "xboxPcRuntimeMissing": "런타임 없음",
       "xboxPcSignIn": "먼저 로그인하세요",
       "xboxPcUnsupportedPlan": "지원 안 되는 요금제",
+      "xboxPcUnsupportedPackage": "UWP 미지원",
       "xboxPcUpdatePending": "업데이트를 마치세요",
       "xboxRefused": "Xbox가 거부함"
     },
@@ -436,6 +437,7 @@
       "wrapperOpening": "여는 중…",
       "xboxPcAlreadyRunning": "이미 실행 중",
       "xboxPcAntiCheatUnsupported": "Linux EAC 미지원",
+      "xboxPcAppRuntimeMissing": "App Runtime 없음",
       "xboxPcBattlEyeRuntimeMissing": "BattlEye 필요",
       "xboxPcCloudSaveUnavailable": "클라우드 저장 없음",
       "xboxPcCompatToolSet": "호환 도구 켜짐",
@@ -616,6 +618,7 @@
       "xboxPcSignIn": "Unifideck 설정에서 Xbox PC 게임에 로그인한 후 다시 시도하세요.",
       "xboxPcCredentials": "Xbox PC 로그인 정보를 읽을 수 없습니다. Unifideck 설정에서 다시 로그인하세요.",
       "xboxPcUnsupportedPlan": "이 구독의 게임은 아직 설치할 수 없습니다.",
+      "xboxPcUnsupportedPackage": "UWP 게임은 아직 설치할 수 없습니다.",
       "xboxPcNeedsChoice": "이 게임은 여러 에디션으로 제공됩니다. 에디션 선택은 아직 지원되지 않습니다.",
       "xboxPcNoPackage": "이 게임에는 설치할 수 있는 PC 패키지가 없습니다.",
       "xboxPcLicenseDenied": "Microsoft가 이 게임의 라이선스를 부여하지 않았습니다. 에디션, 구독 및 스토어 지역을 확인하세요.",
@@ -1325,6 +1328,7 @@
       "eaPlay": "EA Play 타이틀은 아직 설치할 수 없습니다.",
       "ubisoftPlus": "Ubisoft+ 타이틀은 아직 설치할 수 없습니다.",
       "unknownPlan": "이 구독의 타이틀은 아직 설치할 수 없습니다.",
+      "uwp": "이 타이틀은 UWP 패키지라 아직 설치할 수 없습니다.",
       "needsChoice": "이 타이틀에는 선택할 수 있는 패키지가 여러 개 있습니다. 패키지 선택은 아직 지원되지 않습니다.",
       "unavailable": "이 타이틀의 PC 버전은 설치할 수 없습니다."
     }

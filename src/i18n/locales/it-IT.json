@@ -338,6 +338,7 @@
       "xboxPcRuntimeMissing": "Runtime mancante",
       "xboxPcSignIn": "Accedi prima",
       "xboxPcUnsupportedPlan": "Piano non valido",
+      "xboxPcUnsupportedPackage": "UWP non gestito",
       "xboxPcUpdatePending": "Finisci aggiorn.",
       "xboxRefused": "Xbox ha negato"
     },
@@ -436,6 +437,7 @@
       "wrapperOpening": "Apertura…",
       "xboxPcAlreadyRunning": "Già avviato",
       "xboxPcAntiCheatUnsupported": "EAC senza Linux",
+      "xboxPcAppRuntimeMissing": "No App Runtime",
       "xboxPcBattlEyeRuntimeMissing": "Serve BattlEye",
       "xboxPcCloudSaveUnavailable": "Cloud non pronto",
       "xboxPcCompatToolSet": "Compat attivo",
@@ -616,6 +618,7 @@
       "xboxPcSignIn": "Accedi ai giochi Xbox PC nelle impostazioni di Unifideck, poi riprova.",
       "xboxPcCredentials": "Non è stato possibile leggere l'accesso a Xbox PC. Accedi di nuovo nelle impostazioni di Unifideck.",
       "xboxPcUnsupportedPlan": "I giochi di questo abbonamento non possono ancora essere installati.",
+      "xboxPcUnsupportedPackage": "I giochi UWP non possono ancora essere installati.",
       "xboxPcNeedsChoice": "Questo gioco è disponibile in più edizioni. La scelta di un'edizione non è ancora supportata.",
       "xboxPcNoPackage": "Questo gioco non ha un pacchetto PC installabile.",
       "xboxPcLicenseDenied": "Microsoft non ha concesso una licenza per questo gioco. Controlla l'edizione, l'abbonamento e la regione dello Store.",
@@ -1325,6 +1328,7 @@
       "eaPlay": "I titoli di EA Play non possono ancora essere installati.",
       "ubisoftPlus": "I titoli di Ubisoft+ non possono ancora essere installati.",
       "unknownPlan": "I titoli di questo abbonamento non possono ancora essere installati.",
+      "uwp": "Questo titolo usa un pacchetto UWP che non può ancora essere installato.",
       "needsChoice": "Questo titolo ha più pacchetti tra cui scegliere. La scelta di un pacchetto non è ancora supportata.",
       "unavailable": "La versione PC di questo titolo non può essere installata."
     }

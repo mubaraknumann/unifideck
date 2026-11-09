@@ -338,6 +338,7 @@
       "xboxPcRuntimeMissing": "缺少執行環境",
       "xboxPcSignIn": "請先登入",
       "xboxPcUnsupportedPlan": "方案不支援",
+      "xboxPcUnsupportedPackage": "UWP 不支援",
       "xboxPcUpdatePending": "請先完成更新",
       "xboxRefused": "Xbox 拒絕了請求"
     },
@@ -436,6 +437,7 @@
       "wrapperOpening": "開啟中…",
       "xboxPcAlreadyRunning": "已在執行中",
       "xboxPcAntiCheatUnsupported": "Linux 不支援 EAC",
+      "xboxPcAppRuntimeMissing": "缺少 App Runtime",
       "xboxPcBattlEyeRuntimeMissing": "需要 BattlEye",
       "xboxPcCloudSaveUnavailable": "無雲端存檔",
       "xboxPcCompatToolSet": "已指定相容工具",
@@ -616,6 +618,7 @@
       "xboxPcSignIn": "請在 Unifideck 設定中登入 Xbox PC 遊戲，然後再試一次。",
       "xboxPcCredentials": "無法讀取 Xbox PC 登入資訊。請在 Unifideck 設定中重新登入。",
       "xboxPcUnsupportedPlan": "暫時無法安裝此訂閱中的遊戲。",
+      "xboxPcUnsupportedPackage": "暫時無法安裝 UWP 遊戲。",
       "xboxPcNeedsChoice": "此遊戲有多個版本。暫不支援選擇版本。",
       "xboxPcNoPackage": "此遊戲沒有可安裝的 PC 套件。",
       "xboxPcLicenseDenied": "Microsoft 未授予此遊戲的授權。請檢查版本、訂閱以及 Store 地區。",
@@ -1325,6 +1328,7 @@
       "eaPlay": "暫時無法安裝 EA Play 中的遊戲。",
       "ubisoftPlus": "暫時無法安裝 Ubisoft+ 中的遊戲。",
       "unknownPlan": "暫時無法安裝此訂閱中的遊戲。",
+      "uwp": "此遊戲使用 UWP 套件，暫時無法安裝。",
       "needsChoice": "此遊戲有多個套件可供選擇。暫不支援選擇套件。",
       "unavailable": "無法安裝此遊戲的 PC 版本。"
     }

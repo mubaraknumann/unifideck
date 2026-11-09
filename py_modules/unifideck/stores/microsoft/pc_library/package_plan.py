@@ -40,6 +40,11 @@ MAX_CHOICES = 128
 _TITLE_CHARS = 240
 #: Catalog languages, as the patch asks for them.
 CATALOG_LANGUAGES = "en-US,neutral"
+#: Store package formats of UWP apps (upper-cased). Xodus installs MSIXVC only.
+UWP_FORMATS = frozenset({
+    "APPX", "APPXBUNDLE", "EAPPX", "EAPPXBUNDLE",
+    "MSIX", "MSIXBUNDLE", "EMSIX", "EMSIXBUNDLE",
+})
 
 FetchDetailed = Callable[..., Awaitable[tuple[dict[str, dict[str, Any]], list[str]]]]
 
@@ -97,6 +102,18 @@ class Plan:
         if len(eligible) == 1 and eligible[0].kind == "Game":
             return eligible[0]
         return None
+
+    @property
+    def uwp_only(self) -> bool:
+        """No supported choice, but a desktop game package in a UWP format.
+
+        Such a title is listed as not supported instead of hidden. A product
+        with no package at all is not called UWP: nothing says what it is.
+        """
+        return not self.supported() and any(
+            c.platform == "Windows.Desktop" and c.format in UWP_FORMATS and c.kind == "Game"
+            for c in self.choices
+        )
 
     @property
     def status(self) -> str:

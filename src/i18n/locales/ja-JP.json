@@ -338,6 +338,7 @@
       "xboxPcRuntimeMissing": "ランタイムがありません",
       "xboxPcSignIn": "先にログインしてください",
       "xboxPcUnsupportedPlan": "プラン非対応",
+      "xboxPcUnsupportedPackage": "UWP 非対応",
       "xboxPcUpdatePending": "更新を完了してください",
       "xboxRefused": "Xboxに拒否されました"
     },
@@ -436,6 +437,7 @@
       "wrapperOpening": "起動中…",
       "xboxPcAlreadyRunning": "すでに実行中です",
       "xboxPcAntiCheatUnsupported": "LinuxはEAC非対応",
+      "xboxPcAppRuntimeMissing": "App Runtime なし",
       "xboxPcBattlEyeRuntimeMissing": "BattlEyeが必要です",
       "xboxPcCloudSaveUnavailable": "クラウドセーブ不可",
       "xboxPcCompatToolSet": "互換ツールが有効です",
@@ -616,6 +618,7 @@
       "xboxPcSignIn": "Unifideck の設定で Xbox PC ゲームにサインインしてから、もう一度お試しください。",
       "xboxPcCredentials": "Xbox PC のサインイン情報を読み込めませんでした。Unifideck の設定でもう一度サインインしてください。",
       "xboxPcUnsupportedPlan": "このサブスクリプションのゲームはまだインストールできません。",
+      "xboxPcUnsupportedPackage": "UWP のゲームはまだインストールできません。",
       "xboxPcNeedsChoice": "このゲームには複数のエディションがあります。エディションの選択にはまだ対応していません。",
       "xboxPcNoPackage": "このゲームにはインストール可能な PC パッケージがありません。",
       "xboxPcLicenseDenied": "Microsoft がこのゲームのライセンスを付与しませんでした。エディション、サブスクリプション、ストアの地域を確認してください。",
@@ -1325,6 +1328,7 @@
       "eaPlay": "EA Play のタイトルはまだインストールできません。",
       "ubisoftPlus": "Ubisoft+ のタイトルはまだインストールできません。",
       "unknownPlan": "このサブスクリプションのタイトルはまだインストールできません。",
+      "uwp": "このタイトルは UWP パッケージのため、まだインストールできません。",
       "needsChoice": "このタイトルには選択可能なパッケージが複数あります。パッケージの選択にはまだ対応していません。",
       "unavailable": "このタイトルの PC 版はインストールできません。"
     }

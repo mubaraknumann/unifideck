@@ -11,6 +11,7 @@ Stdlib only, Python 3.10 safe.
 """
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,7 +20,11 @@ from . import xml_lite
 from .errors import XboxPcLaunchError
 from .xml_lite import Element
 
+logger = logging.getLogger(__name__)
+
 MANIFEST_NAME = "MicrosoftGame.config"
+_EMU_MENU_EXE = "emumenu.exe"
+_EMU_MENU_ARGS = "EmuMenuLaunchArguments.txt"
 CONTAINER_NAME = ".xodus-streaming.msixvc"
 APPX_MANIFEST_NAME = "appxmanifest.xml"
 _VC_REDIST = "Engine/Extras/Redist/en-us/vc_redist.x64.exe"
@@ -57,6 +62,9 @@ class GameInfo:
     #: ``Microsoft.VCLibs.140.00`` framework: the game wants Microsoft's
     #: VC++ DLLs, not Wine's builtins (I-047).
     needs_vc_runtime: bool = False
+    #: An Xbox back-compat package: ``executable`` is the emulator its
+    #: EmuMenu launcher names, not the manifest's executable (I-081).
+    backcompat: bool = False
 
     @property
     def exe_name(self) -> str:
@@ -198,6 +206,65 @@ def _executable(nodes: list[Element]) -> str:
     return executable
 
 
+def _backcompat_target(root: Path, executable: str) -> str | None:
+    """The emulator a back-compat package's menu would start, or None.
+
+    Xbox back-compat packages name ``EmuMenu\\EmuMenu.exe``, a WinUI 3 menu
+    that needs the Windows App Runtime, which no prefix has. The menu's
+    ``EmuMenuLaunchArguments.txt`` names the emulator (``exe=..\\Emu.exe``),
+    which reads its own ``LaunchArguments.txt``. The target must stay inside
+    the package and exist; its bytes are encrypted, so only its presence is
+    checked. Any other executable gives None.
+    """
+    parts = _split_path(executable)
+    if not parts or parts[-1].lower() != _EMU_MENU_EXE:
+        return None
+    menu_dir = _find_ci_path(root, parts[:-1])
+    value = _menu_exe_value(menu_dir) if menu_dir is not None else ""
+    target = _join_inside(parts[:-1], value)
+    if not target:
+        return None
+    found = _find_ci_path(root, target)
+    return "\\".join(target) if found is not None and found.is_file() else None
+
+
+def _split_path(path: str) -> list[str]:
+    """A Windows or POSIX relative path's non-empty parts."""
+    return [p for p in re.split(r"[\\/]", path) if p]
+
+
+def _menu_exe_value(menu_dir: Path) -> str:
+    """The ``exe=`` value of the menu's arguments file, or ``""``."""
+    args = find_ci(menu_dir, _EMU_MENU_ARGS)
+    if args is None:
+        return ""
+    try:
+        lines = args.read_text(encoding="utf-8-sig", errors="replace").splitlines()
+    except OSError:
+        return ""
+    for line in lines:
+        key, _, value = line.partition("=")
+        if key.strip().lower() == "exe":
+            return value.strip()
+    return ""
+
+
+def _join_inside(base: list[str], relative: str) -> list[str] | None:
+    """``base`` joined with ``relative``, or None if it is empty, absolute or
+    leaves the package root."""
+    if not relative or relative.startswith(("\\", "/")) or ":" in relative:
+        return None
+    joined = list(base)
+    for part in _split_path(relative):
+        if part == "..":
+            if not joined:
+                return None
+            joined.pop()
+        elif part != ".":
+            joined.append(part)
+    return joined
+
+
 def _architecture(nodes: list[Element]) -> str | None:
     """``<ProcessorArchitecture>`` lower-cased, or None when absent."""
     return _text(_first(nodes, "ProcessorArchitecture")).lower() or None
@@ -226,6 +293,13 @@ def inspect_game(directory: Path) -> GameInfo:
     nodes = _parse_manifest(root)
     title, store_id, title_id = _identity(nodes, root)
     executable = _executable(nodes)
+    emulator = _backcompat_target(root, executable)
+    if emulator is not None:
+        logger.info(
+            "[xbox_pc] back-compat package: launching %s instead of the %s menu",
+            emulator, executable,
+        )
+        executable = emulator
     needs_vc, vc_encrypted = _vc_facts(nodes, root)
     return GameInfo(
         path=root,
@@ -240,4 +314,5 @@ def inspect_game(directory: Path) -> GameInfo:
         architecture=_architecture(nodes),
         battleye=_anticheat_dir(root, executable, _BATTLEYE_DIRS, _BATTLEYE_MARKERS),
         needs_vc_runtime=needs_vc,
+        backcompat=emulator is not None,
     )

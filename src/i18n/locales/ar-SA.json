@@ -338,6 +338,7 @@
       "xboxPcRuntimeMissing": "التشغيل مفقود",
       "xboxPcSignIn": "سجّل الدخول أولًا",
       "xboxPcUnsupportedPlan": "اشتراك غير مدعوم",
+      "xboxPcUnsupportedPackage": "UWP غير مدعوم",
       "xboxPcUpdatePending": "أكمل التحديث",
       "xboxRefused": "رفض Xbox الطلب"
     },
@@ -436,6 +437,7 @@
       "wrapperOpening": "جارٍ الفتح…",
       "xboxPcAlreadyRunning": "يعمل بالفعل",
       "xboxPcAntiCheatUnsupported": "لا EAC على Linux",
+      "xboxPcAppRuntimeMissing": "بلا App Runtime",
       "xboxPcBattlEyeRuntimeMissing": "يلزم BattlEye",
       "xboxPcCloudSaveUnavailable": "لا حفظ سحابي",
       "xboxPcCompatToolSet": "أداة توافق مفعّلة",
@@ -616,6 +618,7 @@
       "xboxPcSignIn": "سجّل الدخول إلى ألعاب Xbox PC في إعدادات Unifideck، ثم حاول مرة أخرى.",
       "xboxPcCredentials": "تعذرت قراءة تسجيل الدخول إلى Xbox PC. سجّل الدخول مرة أخرى من إعدادات Unifideck.",
       "xboxPcUnsupportedPlan": "لا يمكن تثبيت ألعاب هذا الاشتراك بعد.",
+      "xboxPcUnsupportedPackage": "لا يمكن تثبيت ألعاب UWP بعد.",
       "xboxPcNeedsChoice": "تتوفر هذه اللعبة بعدة إصدارات. اختيار أحدها غير مدعوم بعد.",
       "xboxPcNoPackage": "لا تحتوي هذه اللعبة على حزمة للكمبيوتر يمكن تثبيتها.",
       "xboxPcLicenseDenied": "لم تمنح Microsoft ترخيصاً لهذه اللعبة. تحقق من الإصدار والاشتراك ومنطقة المتجر.",
@@ -1325,6 +1328,7 @@
       "eaPlay": "لا يمكن تثبيت عناوين EA Play بعد.",
       "ubisoftPlus": "لا يمكن تثبيت عناوين Ubisoft+ بعد.",
       "unknownPlan": "لا يمكن تثبيت عناوين هذا الاشتراك بعد.",
+      "uwp": "يستخدم هذا العنوان حزمة UWP، ولا يمكن تثبيتها بعد.",
       "needsChoice": "لهذا العنوان عدة حزم للاختيار من بينها. اختيار إحداها غير مدعوم بعد.",
       "unavailable": "لا يمكن تثبيت إصدار الكمبيوتر من هذا العنوان."
     }

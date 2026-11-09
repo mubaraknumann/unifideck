@@ -62,6 +62,7 @@ const XBOX_PC_CODE_KEYS: ReadonlyArray<readonly [RegExp, string]> = [
   ],
   [/^xbox_credentials_unavailable$/, "errors.download.xboxPcCredentials"],
   [/^xbox_pc_unsupported_plan$/, "errors.download.xboxPcUnsupportedPlan"],
+  [/^xbox_pc_unsupported_package$/, "errors.download.xboxPcUnsupportedPackage"],
   [
     /^xbox_pc_needs_choice$|^xbox_package_choice$/,
     "errors.download.xboxPcNeedsChoice",
@@ -300,6 +301,8 @@ const TOAST_KEYS: Readonly<Record<string, ToastKey>> = {
   "errors.download.xboxPcRuntimeMissing":
     "toasts.downloadError.xboxPcRuntimeMissing",
   "errors.download.xboxPcSignIn": "toasts.downloadError.xboxPcSignIn",
+  "errors.download.xboxPcUnsupportedPackage":
+    "toasts.downloadError.xboxPcUnsupportedPackage",
   "errors.download.xboxPcUnsupportedPlan":
     "toasts.downloadError.xboxPcUnsupportedPlan",
   "errors.download.xboxPcUpdatePending":

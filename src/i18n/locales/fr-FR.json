@@ -338,6 +338,7 @@
       "xboxPcRuntimeMissing": "Runtime manquant",
       "xboxPcSignIn": "Connectez-vous",
       "xboxPcUnsupportedPlan": "Offre non gérée",
+      "xboxPcUnsupportedPackage": "UWP non géré",
       "xboxPcUpdatePending": "Finissez la màj",
       "xboxRefused": "Xbox a refusé"
     },
@@ -436,6 +437,7 @@
       "wrapperOpening": "Ouverture…",
       "xboxPcAlreadyRunning": "Déjà en cours",
       "xboxPcAntiCheatUnsupported": "Pas d'EAC Linux",
+      "xboxPcAppRuntimeMissing": "Sans App Runtime",
       "xboxPcBattlEyeRuntimeMissing": "BattlEye requis",
       "xboxPcCloudSaveUnavailable": "Pas de cloud",
       "xboxPcCompatToolSet": "Compat. forcée",
@@ -616,6 +618,7 @@
       "xboxPcSignIn": "Connectez-vous aux jeux Xbox PC dans les paramètres d'Unifideck, puis réessayez.",
       "xboxPcCredentials": "La connexion Xbox PC n'a pas pu être lue. Reconnectez-vous dans les paramètres d'Unifideck.",
       "xboxPcUnsupportedPlan": "Les jeux de cet abonnement ne peuvent pas encore être installés.",
+      "xboxPcUnsupportedPackage": "Les jeux UWP ne peuvent pas encore être installés.",
       "xboxPcNeedsChoice": "Ce jeu existe en plusieurs éditions. Le choix d'une édition n'est pas encore pris en charge.",
       "xboxPcNoPackage": "Ce jeu n'a aucun paquet PC installable.",
       "xboxPcLicenseDenied": "Microsoft n'a pas accordé de licence pour ce jeu. Vérifiez l'édition, l'abonnement et la région du Store.",
@@ -1325,6 +1328,7 @@
       "eaPlay": "Les titres EA Play ne peuvent pas encore être installés.",
       "ubisoftPlus": "Les titres Ubisoft+ ne peuvent pas encore être installés.",
       "unknownPlan": "Les titres de cet abonnement ne peuvent pas encore être installés.",
+      "uwp": "Ce titre utilise un paquet UWP qui ne peut pas encore être installé.",
       "needsChoice": "Ce titre propose plusieurs paquets au choix. Le choix d'un paquet n'est pas encore pris en charge.",
       "unavailable": "La version PC de ce titre ne peut pas être installée."
     }

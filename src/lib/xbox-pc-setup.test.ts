@@ -13,6 +13,7 @@ import {
 } from "./xbox-pc-setup";
 import {
   asPcUnsupportedReason,
+  pcUnsupportedKey,
   splitCode,
   xboxPcErrorKey,
   xboxPcErrorText,
@@ -153,6 +154,8 @@ describe("xboxPcErrorText", () => {
 
   it("narrows only known unsupported reasons", () => {
     expect(asPcUnsupportedReason("ea_play")).toBe("ea_play");
+    expect(asPcUnsupportedReason("uwp")).toBe("uwp");
+    expect(pcUnsupportedKey("uwp")).toBe("xboxPc.unsupported.uwp");
     expect(asPcUnsupportedReason("gamepass")).toBeNull();
     expect(asPcUnsupportedReason(null)).toBeNull();
   });

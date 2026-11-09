@@ -44,6 +44,9 @@ _NOISE = ("Failed to read magic",)
 #: ``(reason, lower-case markers)``, first match wins. The markers come
 #: from the backend's diagnostics; an unknown failure is ``launch_failed``.
 _FAILURE_MARKERS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    # A WinUI 3 executable whose Windows App Runtime framework package the
+    # prefix lacks; Wine reports it through the event log.
+    ("app_runtime_missing", ("bootstrapper initialization failed",)),
     ("sign_in_required", (
         "not signed in", "sign in again", "no stored account",
         "credential", "user-session", "invalid_grant",

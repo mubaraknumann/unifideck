@@ -47,6 +47,7 @@ REASON_TOAST_KEYS: dict[str, str] = {
     "eac_runtime_missing": _PREFIX + "xboxPcEacRuntimeMissing",
     "battleye_runtime_missing": _PREFIX + "xboxPcBattlEyeRuntimeMissing",
     "anticheat_unsupported": _PREFIX + "xboxPcAntiCheatUnsupported",
+    "app_runtime_missing": _PREFIX + "xboxPcAppRuntimeMissing",
     "restart_loop": _PREFIX + "xboxPcRestartLoop",
     "license_denied": _PREFIX + "xboxPcLicenseDenied",
     "launch_failed": LAUNCH_FAILED_KEY,

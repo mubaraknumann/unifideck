@@ -23,6 +23,13 @@ TITLE_ENV: dict[str, dict[str, str]] = {
 }
 
 
-def title_env(store_id: str | None) -> dict[str, str]:
-    """The extra env for ``store_id``; empty for any other title."""
-    return dict(TITLE_ENV.get((store_id or "").upper(), {}))
+def title_env(store_id: str | None, *, backcompat: bool = False) -> dict[str, str]:
+    """The extra env for ``store_id``; empty for any other title.
+
+    Every Xbox back-compat package runs the same emulator, which asks for
+    IGameInput v3 and quits without it (I-081), so ``backcompat`` turns
+    that on whatever the product id.
+    """
+    env = dict(_GAMEINPUT_V3) if backcompat else {}
+    env.update(TITLE_ENV.get((store_id or "").upper(), {}))
+    return env

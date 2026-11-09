@@ -373,7 +373,7 @@ class XboxPcLaunch:
             backend.service, build_env(clean_env(base), plan.credentials), self._sink, pid=plan.pid,
         )
         await self._service.start()
-        extra = title_env(game.store_id or plan.pid)
+        extra = title_env(game.store_id or plan.pid, backcompat=game.backcompat)
         if extra:
             logger.info("[xbox_pc] runtime features for this title: %s", ", ".join(f"{k}={v}" for k, v in extra.items()))
         env = build_game_env(

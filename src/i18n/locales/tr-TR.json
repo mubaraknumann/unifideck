@@ -338,6 +338,7 @@
       "xboxPcRuntimeMissing": "Çalışma ort. yok",
       "xboxPcSignIn": "Önce giriş yapın",
       "xboxPcUnsupportedPlan": "Plan uygun değil",
+      "xboxPcUnsupportedPackage": "UWP uygun değil",
       "xboxPcUpdatePending": "Önce güncelleyin",
       "xboxRefused": "Xbox reddetti"
     },
@@ -436,6 +437,7 @@
       "wrapperOpening": "Açılıyor…",
       "xboxPcAlreadyRunning": "Zaten çalışıyor",
       "xboxPcAntiCheatUnsupported": "Linux'ta EAC yok",
+      "xboxPcAppRuntimeMissing": "App Runtime yok",
       "xboxPcBattlEyeRuntimeMissing": "BattlEye gerekli",
       "xboxPcCloudSaveUnavailable": "Bulut kaydı yok",
       "xboxPcCompatToolSet": "Araç zorlanıyor",
@@ -616,6 +618,7 @@
       "xboxPcSignIn": "Unifideck ayarlarından Xbox PC oyunları için oturum açın, sonra tekrar deneyin.",
       "xboxPcCredentials": "Xbox PC oturum bilgileri okunamadı. Unifideck ayarlarından yeniden oturum açın.",
       "xboxPcUnsupportedPlan": "Bu abonelikteki oyunlar henüz yüklenemiyor.",
+      "xboxPcUnsupportedPackage": "UWP oyunları henüz yüklenemiyor.",
       "xboxPcNeedsChoice": "Bu oyunun birkaç sürümü var. Sürüm seçme henüz desteklenmiyor.",
       "xboxPcNoPackage": "Bu oyunun yüklenebilecek bir PC paketi yok.",
       "xboxPcLicenseDenied": "Microsoft bu oyun için lisans vermedi. Sürümü, aboneliği ve Store bölgesini kontrol edin.",
@@ -1325,6 +1328,7 @@
       "eaPlay": "EA Play oyunları henüz yüklenemiyor.",
       "ubisoftPlus": "Ubisoft+ oyunları henüz yüklenemiyor.",
       "unknownPlan": "Bu abonelikteki oyunlar henüz yüklenemiyor.",
+      "uwp": "Bu oyun henüz yüklenemeyen bir UWP paketi kullanıyor.",
       "needsChoice": "Bu oyunda seçilebilecek birkaç paket var. Paket seçme henüz desteklenmiyor.",
       "unavailable": "Bu oyunun PC sürümü yüklenemiyor."
     }

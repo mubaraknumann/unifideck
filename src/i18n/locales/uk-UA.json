@@ -338,6 +338,7 @@
       "xboxPcRuntimeMissing": "Компонентів нема",
       "xboxPcSignIn": "Спершу увійдіть",
       "xboxPcUnsupportedPlan": "Тариф не працює",
+      "xboxPcUnsupportedPackage": "UWP не працює",
       "xboxPcUpdatePending": "Спершу оновіть",
       "xboxRefused": "Xbox відмовив"
     },
@@ -436,6 +437,7 @@
       "wrapperOpening": "Відкриття…",
       "xboxPcAlreadyRunning": "Уже запущено",
       "xboxPcAntiCheatUnsupported": "EAC не для Linux",
+      "xboxPcAppRuntimeMissing": "Без App Runtime",
       "xboxPcBattlEyeRuntimeMissing": "Додайте BattlEye",
       "xboxPcCloudSaveUnavailable": "Хмара недоступна",
       "xboxPcCompatToolSet": "Заданий Proton",
@@ -616,6 +618,7 @@
       "xboxPcSignIn": "Увійдіть в ігри Xbox PC у налаштуваннях Unifideck і повторіть спробу.",
       "xboxPcCredentials": "Не вдалося прочитати дані входу Xbox PC. Увійдіть знову в налаштуваннях Unifideck.",
       "xboxPcUnsupportedPlan": "Ігри з цієї підписки поки що не можна встановити.",
+      "xboxPcUnsupportedPackage": "Ігри UWP поки що не можна встановити.",
       "xboxPcNeedsChoice": "Ця гра виходить у кількох виданнях. Вибір видання поки що не підтримується.",
       "xboxPcNoPackage": "Ця гра не має пакета для ПК, який можна встановити.",
       "xboxPcLicenseDenied": "Microsoft не видав ліцензію на цю гру. Перевірте видання, підписку та регіон Store.",
@@ -1325,6 +1328,7 @@
       "eaPlay": "Ігри з EA Play поки що не можна встановити.",
       "ubisoftPlus": "Ігри з Ubisoft+ поки що не можна встановити.",
       "unknownPlan": "Ігри з цієї підписки поки що не можна встановити.",
+      "uwp": "Ця гра використовує пакет UWP, який поки що не можна встановити.",
       "needsChoice": "Ця гра має кілька пакетів на вибір. Вибір пакета поки що не підтримується.",
       "unavailable": "Версію цієї гри для ПК встановити не можна."
     }

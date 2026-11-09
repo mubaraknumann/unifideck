@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 CACHE_NAME = "microsoft_xbox_pc"
 _LIBRARY_KEY = "library"
-_PLANS_PREFIX = "plans:"
+_PLANS_PREFIX = "plans2:"
 _VERSION = 1
 PLAN_TTL_S = 24 * 3600
 

@@ -338,6 +338,7 @@
       "xboxPcRuntimeMissing": "Runtime missing",
       "xboxPcSignIn": "Sign in first",
       "xboxPcUnsupportedPlan": "Plan unsupported",
+      "xboxPcUnsupportedPackage": "UWP unsupported",
       "xboxPcUpdatePending": "Finish update",
       "xboxRefused": "Xbox refused"
     },
@@ -436,6 +437,7 @@
       "wrapperOpening": "Opening…",
       "xboxPcAlreadyRunning": "Already running",
       "xboxPcAntiCheatUnsupported": "No Linux EAC",
+      "xboxPcAppRuntimeMissing": "No App Runtime",
       "xboxPcBattlEyeRuntimeMissing": "Needs BattlEye",
       "xboxPcCloudSaveUnavailable": "No cloud saves",
       "xboxPcCompatToolSet": "Compat tool on",
@@ -616,6 +618,7 @@
       "xboxPcSignIn": "Sign in to Xbox PC games in Unifideck's settings, then try again.",
       "xboxPcCredentials": "The Xbox PC sign-in could not be read. Sign in again in Unifideck's settings.",
       "xboxPcUnsupportedPlan": "Games from this subscription can't be installed yet.",
+      "xboxPcUnsupportedPackage": "UWP games can't be installed yet.",
       "xboxPcNeedsChoice": "This game comes in several editions. Choosing one is not supported yet.",
       "xboxPcNoPackage": "This game has no PC package that can be installed.",
       "xboxPcLicenseDenied": "Microsoft did not grant a license for this game. Check the edition, the subscription and the Store region.",
@@ -1325,6 +1328,7 @@
       "eaPlay": "Titles from EA Play can't be installed yet.",
       "ubisoftPlus": "Titles from Ubisoft+ can't be installed yet.",
       "unknownPlan": "Titles from this subscription can't be installed yet.",
+      "uwp": "This title uses a UWP package, which can't be installed yet.",
       "needsChoice": "This title has several packages to choose from. Choosing one is not supported yet.",
       "unavailable": "The PC version of this title can't be installed."
     }

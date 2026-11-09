@@ -29,6 +29,7 @@ describe("friendlyDownloadError: Xbox PC codes", () => {
     ["xodus_credential_keyring_missing_data", "errors.download.xboxPcSignIn"],
     ["xbox_credentials_unavailable: credential-io", "errors.download.xboxPcCredentials"],
     ["xbox_pc_unsupported_plan", "errors.download.xboxPcUnsupportedPlan"],
+    ["xbox_pc_unsupported_package", "errors.download.xboxPcUnsupportedPackage"],
     ["xbox_pc_needs_choice", "errors.download.xboxPcNeedsChoice"],
     ["xbox_package_choice: 2 editions", "errors.download.xboxPcNeedsChoice"],
     ["xbox_pc_no_package", "errors.download.xboxPcNoPackage"],

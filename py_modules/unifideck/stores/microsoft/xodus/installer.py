@@ -64,6 +64,8 @@ def plan_code(info: dict[str, Any]) -> str | None:
     """Why the library's package plan for a title rules out an install."""
     state = info.get("state")
     if state == "not_supported":
+        if info.get("reason") == "uwp":
+            return "xbox_pc_unsupported_package"
         return "xbox_pc_unsupported_plan"
     if state == "choice" and (info.get("reason") == "needs_choice" or not info.get("content_id")):
         # A choice row whose one supported Game sits beside add-ons already

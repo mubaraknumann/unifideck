@@ -195,6 +195,7 @@ export type PcUnsupportedReason =
   | "ea_play"
   | "ubisoft_plus"
   | "unknown_plan"
+  | "uwp"
   | "needs_choice"
   | "unavailable";
 
@@ -204,6 +205,7 @@ const REASON_KEYS: Readonly<Record<PcUnsupportedReason, string>> = {
   ea_play: "xboxPc.unsupported.eaPlay",
   ubisoft_plus: "xboxPc.unsupported.ubisoftPlus",
   unknown_plan: "xboxPc.unsupported.unknownPlan",
+  uwp: "xboxPc.unsupported.uwp",
   needs_choice: "xboxPc.unsupported.needsChoice",
   unavailable: "xboxPc.unsupported.unavailable",
 };

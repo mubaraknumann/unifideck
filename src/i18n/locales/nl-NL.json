@@ -338,6 +338,7 @@
       "xboxPcRuntimeMissing": "Runtime mist",
       "xboxPcSignIn": "Eerst aanmelden",
       "xboxPcUnsupportedPlan": "Plan ongeschikt",
+      "xboxPcUnsupportedPackage": "UWP ongeschikt",
       "xboxPcUpdatePending": "Werk eerst bij",
       "xboxRefused": "Xbox weigerde"
     },
@@ -436,6 +437,7 @@
       "wrapperOpening": "Openen…",
       "xboxPcAlreadyRunning": "Al actief",
       "xboxPcAntiCheatUnsupported": "Geen Linux-EAC",
+      "xboxPcAppRuntimeMissing": "Geen App Runtime",
       "xboxPcBattlEyeRuntimeMissing": "BattlEye nodig",
       "xboxPcCloudSaveUnavailable": "Geen cloudopslag",
       "xboxPcCompatToolSet": "Compat-tool aan",
@@ -616,6 +618,7 @@
       "xboxPcSignIn": "Meld je aan voor Xbox PC-games in de instellingen van Unifideck en probeer het opnieuw.",
       "xboxPcCredentials": "De Xbox PC-aanmelding kon niet worden gelezen. Meld je opnieuw aan in de instellingen van Unifideck.",
       "xboxPcUnsupportedPlan": "Games uit dit abonnement kunnen nog niet worden geïnstalleerd.",
+      "xboxPcUnsupportedPackage": "UWP-games kunnen nog niet worden geïnstalleerd.",
       "xboxPcNeedsChoice": "Deze game heeft meerdere edities. Een editie kiezen wordt nog niet ondersteund.",
       "xboxPcNoPackage": "Deze game heeft geen pc-pakket dat kan worden geïnstalleerd.",
       "xboxPcLicenseDenied": "Microsoft heeft geen licentie voor deze game verleend. Controleer de editie, het abonnement en de Store-regio.",
@@ -1325,6 +1328,7 @@
       "eaPlay": "Titels uit EA Play kunnen nog niet worden geïnstalleerd.",
       "ubisoftPlus": "Titels uit Ubisoft+ kunnen nog niet worden geïnstalleerd.",
       "unknownPlan": "Titels uit dit abonnement kunnen nog niet worden geïnstalleerd.",
+      "uwp": "Deze titel gebruikt een UWP-pakket dat nog niet kan worden geïnstalleerd.",
       "needsChoice": "Deze titel heeft meerdere pakketten om uit te kiezen. Een pakket kiezen wordt nog niet ondersteund.",
       "unavailable": "De pc-versie van deze titel kan niet worden geïnstalleerd."
     }

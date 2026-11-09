@@ -338,6 +338,7 @@
       "xboxPcRuntimeMissing": "Runtime fehlt",
       "xboxPcSignIn": "Erst anmelden",
       "xboxPcUnsupportedPlan": "Abo ungeeignet",
+      "xboxPcUnsupportedPackage": "UWP ungeeignet",
       "xboxPcUpdatePending": "Update beenden",
       "xboxRefused": "Xbox lehnt ab"
     },
@@ -436,6 +437,7 @@
       "wrapperOpening": "Wird geöffnet…",
       "xboxPcAlreadyRunning": "Läuft bereits",
       "xboxPcAntiCheatUnsupported": "Kein Linux-EAC",
+      "xboxPcAppRuntimeMissing": "Kein App Runtime",
       "xboxPcBattlEyeRuntimeMissing": "BattlEye nötig",
       "xboxPcCloudSaveUnavailable": "Kein Cloud-Save",
       "xboxPcCompatToolSet": "Kompat.-Tool an",
@@ -616,6 +618,7 @@
       "xboxPcSignIn": "Melde dich in den Unifideck-Einstellungen für Xbox-PC-Spiele an und versuche es dann erneut.",
       "xboxPcCredentials": "Die Xbox-PC-Anmeldung konnte nicht gelesen werden. Melde dich in den Unifideck-Einstellungen erneut an.",
       "xboxPcUnsupportedPlan": "Spiele aus diesem Abonnement können noch nicht installiert werden.",
+      "xboxPcUnsupportedPackage": "UWP-Spiele können noch nicht installiert werden.",
       "xboxPcNeedsChoice": "Dieses Spiel gibt es in mehreren Editionen. Die Auswahl einer Edition wird noch nicht unterstützt.",
       "xboxPcNoPackage": "Für dieses Spiel gibt es kein installierbares PC-Paket.",
       "xboxPcLicenseDenied": "Microsoft hat keine Lizenz für dieses Spiel erteilt. Prüfe die Edition, das Abonnement und die Store-Region.",
@@ -1325,6 +1328,7 @@
       "eaPlay": "Titel aus EA Play können noch nicht installiert werden.",
       "ubisoftPlus": "Titel aus Ubisoft+ können noch nicht installiert werden.",
       "unknownPlan": "Titel aus diesem Abonnement können noch nicht installiert werden.",
+      "uwp": "Dieser Titel nutzt ein UWP-Paket, das noch nicht installiert werden kann.",
       "needsChoice": "Für diesen Titel stehen mehrere Pakete zur Auswahl. Die Auswahl eines Pakets wird noch nicht unterstützt.",
       "unavailable": "Die PC-Version dieses Titels kann nicht installiert werden."
     }

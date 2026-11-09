@@ -36,6 +36,8 @@ from .entitlements import (
 from .package_plan import MissingProductError, Plan, PlanError, PlanProducts, build_plan
 from .title_pairs import pair_by_title
 
+#: ``reason`` of a title whose only desktop package is a UWP one.
+UWP_REASON = "uwp"
 META_KEY = "xbox_pc"
 META_VERSION = 1
 #: Dedupe priority of the access kinds (lower wins), then of the states.
@@ -110,6 +112,7 @@ def summarize(root: str, plan: Plan | None, product: Mapping[str, Any]) -> dict[
         "kind": kind if isinstance(kind, str) else "",
         "title": title if isinstance(title, str) and title else root,
         "target_id": root, "content_id": None, "size_bytes": None, "choices": [],
+        "uwp": bool(plan and plan.uwp_only),
     }
     if plan is None:
         return summary
@@ -160,6 +163,8 @@ def _title_from(pid: str, access: str, summary: dict[str, Any], snap: Entitlemen
     content_id = summary.get("content_id")
     if access not in INSTALL_ACCESS:
         state, reason = "not_supported", access
+    elif summary["status"] == "unavailable":
+        state, reason = "not_supported", UWP_REASON
     elif summary["status"] == "ready":
         state, reason = "ready", None
     else:
@@ -195,8 +200,10 @@ def classify(
     """``(titles, entitlement ids whose plan is unknown)``.
 
     Entitlements without access, absent products, non-``Game`` products and
-    ``unavailable`` plans produce no title. Access outside
-    ``INSTALL_ACCESS`` gives ``not_supported`` with that access as reason.
+    ``unavailable`` plans produce no title, except a plan whose desktop
+    package is UWP: that is ``not_supported`` with reason ``uwp``. Access
+    outside ``INSTALL_ACCESS`` gives ``not_supported`` with that access as
+    reason.
     """
     titles: list[PcTitle] = []
     unknown: set[str] = set()
@@ -208,7 +215,9 @@ def classify(
             unknown.add(pid)
             continue
         summary = summaries.get(pid)
-        if not summary or summary.get("kind") != "Game" or summary.get("status") == "unavailable":
+        if not summary or summary.get("kind") != "Game":
+            continue
+        if summary.get("status") == "unavailable" and summary.get("uwp") is not True:
             continue
         titles.append(_title_from(pid, access, summary, snap))
     return dedupe_titles(titles), unknown

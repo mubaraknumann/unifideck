@@ -99,6 +99,8 @@ def test_tail_keeps_the_last_200_lines() -> None:
 @pytest.mark.parametrize(("tail", "reason"), [
     ("error: not signed in", "sign_in_required"),
     ("NEXUS_CONTENT_LICENSE_DIAGNOSTIC_V1 content-parsed 403", "license_denied"),
+    ('00f4:err:eventlog:ReportEventW L"ERROR 0x80004001: Bootstrapper initialization failed '
+     'while looking for version 1.8"', "app_runtime_missing"),
     ("wine: could not load kernel32.dll", "launch_failed"),
     ("", "launch_failed"),
 ])

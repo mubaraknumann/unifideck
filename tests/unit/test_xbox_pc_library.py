@@ -251,7 +251,7 @@ async def test_a_failed_catalog_batch_reuses_the_last_title(env: SimpleNamespace
     await env.lib.compose([], market="IN")
     # A fresh library on the same cache, with the plan cache gone, and the
     # batch holding the owned game failing.
-    for key in [k for k in env.cache.data if k[1].startswith("plans:")]:
+    for key in [k for k in env.cache.data if k[1].startswith("plans")]:
         del env.cache.data[key]
     env.catalog.failing = {OWNED}
     rows = _by_id(await env.make().compose([], market="IN"))
