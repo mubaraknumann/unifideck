@@ -352,6 +352,12 @@ def _active_for(
     )
 
 
+def _switch_active(active: ActiveComponents) -> None:
+    """Point ``active.json`` at ``active``; it supersedes any backend-first record."""
+    write_active(active)
+    backend_first.clear_record()
+
+
 def promote(
     staging: Path, listing: SourceListing, features: tuple[str, ...], degraded: tuple[str, ...],
 ) -> ActiveComponents:
@@ -362,13 +368,12 @@ def promote(
     with flock_path(install_lock_path(), timeout_s=PROMOTE_LOCK_WAIT_S) as held:
         if not held:
             raise ComponentInstallError("components_busy")
-        current = read_active()
-        if current is not None and _same_components(current, listing):
+        current = _already_active(listing)
+        if current is not None:
             return current
         sweep_staging(keep=staging)
         active = _active_for(listing, _place(staging, listing), features, degraded)
-        write_active(active)
-        backend_first.clear_record()
+        _switch_active(active)
         removed = gc_unreferenced(active)
     if removed:
         logger.info("[XboxPcRuntime] removed old components: %s", ", ".join(removed))

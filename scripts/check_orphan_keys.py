@@ -225,6 +225,10 @@ def scan_frontend_files() -> dict[str, list[tuple[Path, int]]]:
         # Skip locales directory to avoid scanning translation files themselves
         if "i18n/locales" in p.as_posix():
             continue
+        # Skip vitest files: they mock i18next with their own strings, so a
+        # key they name is a fixture, not one the shipped UI uses.
+        if p.name.endswith((".test.ts", ".test.tsx")):
+            continue
 
         try:
             content = p.read_text(encoding="utf-8")

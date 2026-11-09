@@ -131,25 +131,22 @@ async def _prepare(svc: LauncherService, url: str) -> tuple[Any, ...] | None:
     return login, api, title_id, picked
 
 
-async def try_own_player(svc: LauncherService, ctx: LaunchContext, url: str) -> Result | None:
-    """Play the stream in the own player; None to fall back to xbox.com."""
-    if not own_player_enabled(svc):
-        return None
+async def _refuse_invalid_country(svc: LauncherService, ctx: LaunchContext) -> Result:
+    """Tell the user xCloud refused their location, and fail the launch."""
+    from unifideck.launcher.rpc import emit_stage
+    logger.warning("%s %s not started: Xbox Cloud Gaming refuses this connection's "
+                   "location (InvalidCountry)", _LOG, ctx.game_key)
+    await emit_stage(svc._bus, i18n_title_key="toasts.header.xboxCloud",
+                     i18n_key="toasts.launcher.invalidCountry", game_title=ctx.game_key,
+                     priority="normal", severity="warning")
+    return Result(success=False, error="xcloud_invalid_country", store=ctx.store)
+
+
+async def _stream(svc: LauncherService, ctx: LaunchContext, prepared: tuple[Any, ...]) -> Result:
+    """Serve the player page, open it in the browser and wait for the window to close."""
     from unifideck.launcher.xcloud_player import browser, credentials
     from unifideck.launcher.xcloud_player.server import PlayerServer
 
-    try:
-        prepared = await _prepare(svc, url)
-    except _InvalidCountryError:
-        from unifideck.launcher.rpc import emit_stage
-        logger.warning("%s %s not started: Xbox Cloud Gaming refuses this connection's "
-                       "location (InvalidCountry)", _LOG, ctx.game_key)
-        await emit_stage(svc._bus, i18n_title_key="toasts.header.xboxCloud",
-                         i18n_key="toasts.launcher.invalidCountry", game_title=ctx.game_key,
-                         priority="normal", severity="warning")
-        return Result(success=False, error="xcloud_invalid_country", store=ctx.store)
-    if prepared is None:
-        return None
     login, api, title_id, (cmd, name) = prepared
     server = PlayerServer(api, title_id, lambda: credentials.transfer_ticket(login.refresh_token))
     proc: subprocess.Popen[bytes] | None = None
@@ -164,3 +161,16 @@ async def try_own_player(svc: LauncherService, ctx: LaunchContext, url: str) -> 
     finally:
         _end(proc)
         await server.stop()
+
+
+async def try_own_player(svc: LauncherService, ctx: LaunchContext, url: str) -> Result | None:
+    """Play the stream in the own player; None to fall back to xbox.com."""
+    if not own_player_enabled(svc):
+        return None
+    try:
+        prepared = await _prepare(svc, url)
+    except _InvalidCountryError:
+        return await _refuse_invalid_country(svc, ctx)
+    if prepared is None:
+        return None
+    return await _stream(svc, ctx, prepared)

@@ -115,6 +115,18 @@ def _promote(staged: Path, listing: BackendListing) -> bool:
     return True
 
 
+def _usable_backend() -> str | None:
+    """``"runtime"`` when ``active.json`` names a usable install, ``"backend"``
+    when only a backend-first record does, else None."""
+    current = read_active()
+    if current is not None and check_backend(current)[1] is None:
+        return "runtime"
+    record = read_record()
+    if record is not None and check_backend(record)[1] is None:
+        return "backend"
+    return None
+
+
 def ensure_backend(
     source: LocalDirSource | ReleaseSource, progress: ProgressFn, abort: threading.Event, stage: StageFn,
 ) -> None:
@@ -124,11 +136,10 @@ def ensure_backend(
     like the full install does; a busy install lock only delays the sign-in to
     the end of the install, so it is logged and the install carries on.
     """
-    current = read_active()
-    if current is not None and check_backend(current)[1] is None:
+    ready = _usable_backend()
+    if ready == "runtime":
         return
-    record = read_record()
-    if record is not None and check_backend(record)[1] is None:
+    if ready == "backend":
         progress(READY_STAGE, 0, None)
         return
     listing = _listing(source, progress, abort)

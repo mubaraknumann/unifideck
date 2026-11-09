@@ -284,6 +284,19 @@ def _parse_manifest(root: Path) -> list[Element]:
         raise XboxPcLaunchError("not_downloaded", f"unreadable {config.name}: {err}") from err
 
 
+def _launch_executable(nodes: list[Element], root: Path) -> tuple[str, bool]:
+    """The executable to launch, and whether it is a back-compat emulator."""
+    executable = _executable(nodes)
+    emulator = _backcompat_target(root, executable)
+    if emulator is None:
+        return executable, False
+    logger.info(
+        "[xbox_pc] back-compat package: launching %s instead of the %s menu",
+        emulator, executable,
+    )
+    return emulator, True
+
+
 def inspect_game(directory: Path) -> GameInfo:
     """Read ``directory``'s manifest. Raises ``not_downloaded`` when it has none.
 
@@ -292,14 +305,7 @@ def inspect_game(directory: Path) -> GameInfo:
     root = directory.resolve()
     nodes = _parse_manifest(root)
     title, store_id, title_id = _identity(nodes, root)
-    executable = _executable(nodes)
-    emulator = _backcompat_target(root, executable)
-    if emulator is not None:
-        logger.info(
-            "[xbox_pc] back-compat package: launching %s instead of the %s menu",
-            emulator, executable,
-        )
-        executable = emulator
+    executable, backcompat = _launch_executable(nodes, root)
     needs_vc, vc_encrypted = _vc_facts(nodes, root)
     return GameInfo(
         path=root,
@@ -314,5 +320,5 @@ def inspect_game(directory: Path) -> GameInfo:
         architecture=_architecture(nodes),
         battleye=_anticheat_dir(root, executable, _BATTLEYE_DIRS, _BATTLEYE_MARKERS),
         needs_vc_runtime=needs_vc,
-        backcompat=emulator is not None,
+        backcompat=backcompat,
     )

@@ -77,9 +77,7 @@ describe("withDisplayStatus", () => {
       selected_clientid = "0";
       per_client_data = [{ clientid: "0", display_status: 9 }];
       get selected_per_client_data() {
-        return this.per_client_data.find(
-          (pcd) => pcd.clientid === this.selected_clientid,
-        );
+        return this.per_client_data.find((pcd) => pcd.clientid === this.selected_clientid);
       }
     }
     const real = new GetterOverview();

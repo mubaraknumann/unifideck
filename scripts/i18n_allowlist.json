@@ -250,5 +250,31 @@
   "gameInfoPanel.labels.genres": {
     "locales": ["de-DE", "nl-NL"],
     "reason": "'Genres' is the correct German and Dutch word, spelled the same as English."
+  },
+  "storeOwnership.messageGamePassPc": {
+    "locales": [
+      "ar-SA",
+      "de-DE",
+      "es-ES",
+      "fr-FR",
+      "it-IT",
+      "ja-JP",
+      "ko-KR",
+      "nl-NL",
+      "pl-PL",
+      "pt-BR",
+      "tr-TR",
+      "zh-CN",
+      "zh-TW"
+    ],
+    "reason": "Brand name, like storeOwnership.messageGamePass. Only ru-RU and uk-UA localize the '(PC)' part."
+  },
+  "storeOwnership.tagInstallable": {
+    "locales": ["fr-FR"],
+    "reason": "'Installable' is the correct French word, spelled the same as English."
+  },
+  "toasts.launcher.xboxPcAppRuntimeMissing": {
+    "locales": ["it-IT"],
+    "reason": "'No' + noun reads naturally as a short Italian label, and every fuller phrasing ('Senza App Runtime', 'Manca App Runtime') exceeds the 16-character toast budget."
   }
 }
