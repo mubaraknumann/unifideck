@@ -182,6 +182,15 @@ class MicrosoftDeviceAuth:
         self._edge = edge
         self._task: asyncio.Task[None] | None = None
 
+    @property
+    def running(self) -> bool:
+        """Whether a sign-in is waiting for the user's approval.
+
+        The Xbox PC sign-in refuses to start while this is True, because both
+        use the same auth window.
+        """
+        return self._task is not None and not self._task.done()
+
     @audit_auth_flow(store="microsoft", method="oauth_device_code")
     async def start_auth(self) -> AuthResult:
         """Ask for a code, point the auth window at it, start polling."""
@@ -280,7 +289,7 @@ class MicrosoftDeviceAuth:
 
     async def _finish(self, body: dict[str, Any]) -> None:
         await self._tokens.accept_token_body(body)
-        problem = await self._account_problem()
+        problem = await self.account_problem()
         if problem is not None:
             await self._tokens.clear()
             await self._fail(problem)
@@ -291,8 +300,11 @@ class MicrosoftDeviceAuth:
         logger.info("[MicrosoftDeviceAuth] signed in")
         await self._emit(Events.STORE_AUTH_COMPLETE)
 
-    async def _account_problem(self) -> str | None:
+    async def account_problem(self) -> str | None:
         """Why this account cannot use Xbox, if Xbox said so.
+
+        Public because the chained sign-in (``xodus/signin_chain``) stores
+        tokens outside this flow and must judge the account the same way.
 
         A network failure here is not a problem with the account: the
         tokens are good and the next sync will mint the chain.

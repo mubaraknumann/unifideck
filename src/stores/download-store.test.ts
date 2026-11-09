@@ -36,7 +36,29 @@ vi.mock("../api/event-bus-client", () => ({
 }));
 
 vi.mock("i18next", () => ({
-  default: { t: (key: string) => key },
+  default: {
+    t: (key: string, params?: Record<string, string>) =>
+      params ? `${key}:${Object.values(params).join(",")}` : key,
+  },
+}));
+// The translate helpers echo the mock's text, unbudgeted, so the
+// assertions read whole keys.
+vi.mock("../services/toast-text", async (importOriginal) => {
+  const real = await importOriginal<typeof import("../services/toast-text")>();
+  const echo = (key: string, params?: Record<string, string>) =>
+    params ? `${key}:${Object.values(params).join(",")}` : key;
+  return {
+    ...real,
+    toastText: echo,
+    wholeToastText: echo,
+    headerText: echo,
+    backendToastText: echo,
+    backendHeaderText: echo,
+  };
+});
+// Records the toast instead of showing it.
+vi.mock("../services/show-toast", () => ({
+  showToast: (options: unknown) => mockToast(options),
 }));
 const mockInvalidateGameInfo = vi.fn();
 const mockBumpGameStateVersion = vi.fn();
@@ -48,7 +70,7 @@ vi.mock("../lib/game-state-version", () => ({
 }));
 vi.mock("../lib/game-size-cache", () => ({ invalidateGameSize: vi.fn() }));
 vi.mock("../lib/download-errors", () => ({
-  friendlyDownloadError: (raw: string) => `friendly:${raw}`,
+  downloadErrorToast: (raw: string) => `friendly:${raw}`,
 }));
 vi.mock("../utils/ubisoftShortcutLaunch", () => ({
   launchUbisoftInstallViaShortcut: vi.fn(),
@@ -150,7 +172,7 @@ describe("download_failed handling", () => {
     downloadStore.start();
   });
 
-  it("toasts once, naming the game, from the item's error", () => {
+  it("toasts once, from the item's error", () => {
     handlers.get("download_failed")?.({
       item: item({
         status: "failed",
@@ -165,9 +187,16 @@ describe("download_failed handling", () => {
       title: string;
       body: string;
     };
-    // The title the store-shaped duplicate could never produce.
-    expect(toast.title).toContain("A Game");
+    expect(toast.title).toBe("toasts.header.downloadGame:A Game");
     expect(toast.body).toBe("friendly:legendary_exit_1: no asset found");
+  });
+
+  it("falls back to the plain header when the payload has no title", () => {
+    handlers.get("download_failed")?.({ error: "network unreachable" });
+
+    expect(mockToast).toHaveBeenCalledTimes(1);
+    const toast = mockToast.mock.calls[0][0] as { title: string };
+    expect(toast.title).toBe("toasts.header.download");
   });
 });
 

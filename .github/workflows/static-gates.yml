@@ -122,3 +122,10 @@ jobs:
 
       - name: Validate translation-key coverage
         run: python3 scripts/check_orphan_keys.py
+
+      # Every toast field (header, body, action label) fits 16
+      # characters in every locale, and every backend toast has a
+      # toasts.header.* header. Unfiltered here, so a locale-only PR
+      # is gated too.
+      - name: Validate toast string length
+        run: python3 scripts/check_toast_length.py

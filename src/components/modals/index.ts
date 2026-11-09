@@ -10,6 +10,7 @@
  *  - GameVaultConnectModal    (remote server vs local vault chooser)
  *  - GameVaultLocalVaultModal (local vault folder setup)
  *  - ForceSyncModal           (force-sync artwork picker)
+ *  - XboxPcNoticeModal        (unofficial notice before Xbox PC games)
  *  - StorageBrowserModal      (full-screen path picker)
  *  - ToastEventListener       (event-driven toast / modal host)
  *
@@ -27,5 +28,6 @@ export { GameVaultCredentialsModal } from "./GameVaultCredentialsModal";
 export { GameVaultLocalVaultModal } from "./GameVaultLocalVaultModal";
 export { ForceSyncModal } from "./ForceSyncModal";
 export { ChromiumInstallModal } from "./ChromiumInstallModal";
+export { XboxPcNoticeModal } from "./XboxPcNoticeModal";
 export { PickStorageModal, pickStorageForInstall } from "./PickStorageModal";
 export { StoragePathPicker } from "./StoragePathPicker";

@@ -3,8 +3,9 @@
 The cached ``appdetails`` payload (see :mod:`.appdetails`) carries only
 ``recommendations.total`` — a raw review *count*, not the 0-9
 ``review_score`` / positive-percentage that Steam's library "Steam
-Review" sort reads off ``AppOverview.review_score_with_bombs`` /
-``review_percentage_with_bombs``.
+Review" sort reads. The frontend writes it to both the
+``review_*_with_bombs`` and ``review_*_without_bombs`` overview fields,
+because Steam picks the pair from the user's store review preference.
 
 This module hits the public ``appreviews`` summary endpoint to get
 those, so the overview-enrichment layer can populate the review sort

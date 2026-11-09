@@ -25,6 +25,7 @@ from unifideck.core.cross_store_ownership import (
     OwnedCopy,
     PurchasedProduct,
     PurchaseIndex,
+    RowAccess,
     find_owned_copies,
     platform_label,
 )
@@ -144,3 +145,76 @@ def test_platform_labels() -> None:
     assert platform_label([PurchasedProduct("x", pc=True, console=True)]) == "play_anywhere"
     assert platform_label([PurchasedProduct("x", play_anywhere=True)]) == "play_anywhere"
     assert platform_label([PurchasedProduct("x")]) == ""
+
+
+# ── verified access (Xbox PC entitlements, current xCloud answers) ───────
+CYBERPUNK, CODMW = 1091500, 2000950
+
+
+def _pc_row(app_id: int, pid: str, title: str, *, installed: bool = False,
+            xcloud: bool = False, game_pass: bool | None = None) -> Game:
+    tags = ["xbox_pc"] + (["xcloud", "browser"] if xcloud else [])
+    metadata = {} if game_pass is None else {GAME_PASS_KEY: game_pass}
+    return Game(app_id=app_id, store="microsoft", store_game_id=pid, title=title,
+                installed=installed, tags=tags, metadata=metadata)
+
+
+CP_ROW = _pc_row(-21, "9NCPCP000001", "Cyberpunk 2077", installed=True)
+COD_ROW = _pc_row(-22, "9NCOD0000001", "Call of Duty: Modern Warfare", xcloud=True, game_pass=True)
+PC_CACHE = _Cache({"-21": CYBERPUNK, "-22": CODMW})
+
+
+def _access(**rows: RowAccess) -> dict[str, dict[str, RowAccess]]:
+    return {"microsoft": rows}
+
+
+def test_a_verified_pc_licence_is_owned_on_pc_without_an_index() -> None:
+    access = _access(**{"9NCPCP000001": RowAccess(owned_pc=True)})
+    [copy] = find_owned_copies([CP_ROW], PC_CACHE, CYBERPUNK, access=access)
+    assert copy == OwnedCopy("microsoft", ("Cyberpunk 2077",), True, False, platform="pc")
+
+
+def test_a_game_pass_pc_title_is_installable_not_streamable() -> None:
+    row = _pc_row(-22, "9NCOD0000001", "Call of Duty: Modern Warfare", game_pass=True)
+    access = _access(**{"9NCOD0000001": RowAccess(pass_pc=True)})
+    [copy] = find_owned_copies([row], PC_CACHE, CODMW, access=access)
+    assert (copy.subscription, copy.installable, copy.game_pass, copy.streams) == (True, True, True, False)
+
+
+def test_installable_and_streamable_are_two_copies() -> None:
+    access = _access(**{"9NCOD0000001": RowAccess(pass_pc=True, streams=True)})
+    copies = find_owned_copies([COD_ROW], PC_CACHE, CODMW, access=access)
+    assert sorted((c.installable, c.streams) for c in copies) == [(False, True), (True, False)]
+
+
+def test_an_unverified_row_claims_nothing() -> None:
+    assert find_owned_copies([COD_ROW], PC_CACHE, CODMW, access=_access()) == []
+    nothing = _access(**{"9NCOD0000001": RowAccess()})
+    assert find_owned_copies([COD_ROW], PC_CACHE, CODMW, access=nothing) == []
+
+
+def test_an_owned_row_that_streams_outside_game_pass_gets_the_cloud_note() -> None:
+    row = _pc_row(-21, "9NCPCP000001", "Cyberpunk 2077", xcloud=True, game_pass=False)
+    access = _access(**{"9NCPCP000001": RowAccess(owned_pc=True, streams=True)})
+    [copy] = find_owned_copies([row], PC_CACHE, CYBERPUNK, access=access)
+    assert (copy.subscription, copy.streams, copy.platform) == (False, True, "pc")
+
+
+def test_an_index_product_found_under_the_rows_other_id_answers_once() -> None:
+    index = _index({"9ENTCP000001": PurchasedProduct("Cyberpunk 2077", console=True)},
+                   {CYBERPUNK: ("9ENTCP000001",)})
+    access = _access(**{"9NCPCP000001": RowAccess(
+        owned_pc=True, product_ids=frozenset({"9NCPCP000001", "9ENTCP000001"}))})
+    [copy] = find_owned_copies([CP_ROW], PC_CACHE, CYBERPUNK, index, access=access)
+    assert copy.platform == "play_anywhere" and copy.installed
+
+
+def test_index_only_purchases_still_answer_under_verified_access() -> None:
+    [copy] = find_owned_copies([], CACHE, SEKIRO, OWNED, access=_access())
+    assert (copy.store, copy.platform) == ("microsoft", "console")
+
+
+def test_other_stores_ignore_the_access_map() -> None:
+    gog = Game(app_id=-31, store="gog", store_game_id="1", title="Cyberpunk 2077")
+    [copy] = find_owned_copies([gog], _Cache({"-31": CYBERPUNK}), CYBERPUNK, access=_access())
+    assert copy.store == "gog" and not copy.subscription

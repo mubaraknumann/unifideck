@@ -31,6 +31,11 @@ import { ForceSyncModal } from "../modals/ForceSyncModal";
 // stay hidden during artwork download if we required a specific
 // in-progress value. Inverting the check makes new phases work
 // without needing to add them here.
+//
+// It also requires ``isSyncing``: once the run has ended, a progress
+// snapshot that still names a post-sync phase is stale, and showing it
+// left "Checking compatibility data… 1304 / 1305" on screen after a
+// finished sync.
 const TERMINAL_STATUSES = new Set(["idle", "complete", "error", "cancelled"]);
 
 export const LibrarySync: FC = () => {
@@ -124,7 +129,7 @@ export const LibrarySync: FC = () => {
           </ButtonItem>
         </PanelSectionRow>
       )}
-      {progress && !TERMINAL_STATUSES.has(progress.status) && (
+      {isSyncing && progress && !TERMINAL_STATUSES.has(progress.status) && (
         <div style={{ fontSize: 12, width: "100%" }}>
           <div style={{ marginBottom: 5, opacity: 0.9 }}>
             {progress.current_game?.label

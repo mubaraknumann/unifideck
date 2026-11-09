@@ -145,11 +145,35 @@ def rewrite_for_sync(current_launch_options: object, new_store_id: str) -> str:
         if isinstance(current_launch_options, str)
         else ""
     )
-    return _drop_leading_command_token(
+    return with_store_defaults(_drop_leading_command_token(
         preserve_user_params(
             strip_unifideck_env_tokens(text), new_store_id,
         ),
-    )
+    ), new_store_id)
+
+
+#: The user-visible switch for the Battle.net launch popup. ``yes`` shows
+#: Steam's launch-options dialog on every Play; picking "Forever" there sets
+#: it to ``no``, and the user sets it back to ``yes`` in Steam's Properties.
+#: Deliberately NOT a ``UNIFIDECK_*`` token: those are ours and stripped on
+#: every sync, and this one is the user's to change.
+BNET_LAUNCH_OPTIONS_FLAG = "BNET_LAUNCH_OPTIONS"
+_BNET_FLAG_RE = re.compile(rf"(?<!\S){BNET_LAUNCH_OPTIONS_FLAG}=\S*")
+
+
+def with_store_defaults(launch_options: str, full_id: str) -> str:
+    """``launch_options`` plus the per-store tokens a shortcut starts with.
+
+    Today that is only ``BNET_LAUNCH_OPTIONS=yes`` on a Battle.net game
+    shortcut that has no value yet. An existing value is the user's and is
+    never changed here. Sign-in shortcuts (``<store>:<x>-auth``) get nothing.
+    """
+    store, _, game_id = full_id.partition(":")
+    if store != "battlenet" or not game_id or game_id.endswith("-auth"):
+        return launch_options
+    if _BNET_FLAG_RE.search(launch_options):
+        return launch_options
+    return f"{launch_options} {BNET_LAUNCH_OPTIONS_FLAG}=yes".strip()
 
 
 def _drop_leading_command_token(launch_options: str) -> str:

@@ -142,7 +142,14 @@ class SyncStoreImpl {
         this._pendingPhases.delete(phase);
         if (this._pendingPhases.size === 0) {
           this._update({ isSyncing: false, isCancelling: false });
-          this._stopPolling();
+          // Poll once more instead of stopping cold. Post-sync counters
+          // reach the frontend only through this poll, and the backend
+          // marks the run complete in the same step that emits this
+          // event, so the last poll before it can be one tick behind
+          // (measured: compat stuck at 1304/1305 after a finished sync).
+          // `_pollOnce` stops the loop itself once the backend reports
+          // `syncing: false`.
+          void this._pollOnce();
           if (this._pendingRestart && this._observedActiveSync) {
             this._pendingRestart = false;
             try {

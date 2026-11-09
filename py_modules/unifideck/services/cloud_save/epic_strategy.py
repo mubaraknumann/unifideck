@@ -12,7 +12,7 @@ from typing import Any
 from unifideck.core.binaries import clean_cli_env
 from unifideck.launcher.proton.infrastructure.prefix_layout import resolve_registry_prefix
 from unifideck.services.cloud_save.path_resolver import WinePrefixResolver
-from unifideck.services.cloud_save.strategy_base import CloudSaveStrategy
+from unifideck.services.cloud_save.strategy_base import CloudSaveStrategy, CloudUnreachableError
 
 logger = logging.getLogger(__name__)
 
@@ -211,9 +211,14 @@ class EpicCloudSaveStrategy(CloudSaveStrategy):
                 env=clean_cli_env(),
             )
             stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=20)
+        except TimeoutError as e:
+            raise CloudUnreachableError("list-saves timed out") from e
         except Exception as e:
             logger.debug("[EpicSync] list-saves failed for %s: %s", game_id, e)
             return None
+        if proc.returncode != 0:
+            # Offline or signed out. No saves exits 0, so this is not an empty cloud.
+            raise CloudUnreachableError(f"list-saves exited {proc.returncode}")
         text = stdout.decode("utf-8", "replace")
         stamps: list[float] = []
         # Manifests are named ``YYYY.MM.DD-HH.MM.SS.manifest`` (UTC).

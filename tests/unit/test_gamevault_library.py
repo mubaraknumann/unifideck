@@ -10,7 +10,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from unifideck.core.types import Game
-
 from unifideck.stores.gamevault.library import (
     GameVaultFetchError,
     GameVaultLibraryReader,
@@ -52,6 +51,10 @@ def _game(game_id: str = "1", title: str = "My Game") -> Game:
 
 
 # ── _parse_title_from_filename ───────────────────────────────────────
+def test_parse_title_from_filename_drops_uploader_tags():
+    assert _parse_title_from_filename("Alan-Wake-2-AnkerGames.rar") == "Alan Wake 2"
+
+
 def test_parse_title_strips_extension_and_year():
     assert _parse_title_from_filename("Half-Life 2 (2004).zip") == "Half Life 2"
 
@@ -106,6 +109,22 @@ def test_extract_title_falls_back_to_file_path_parsing():
     reader = _reader()
     item = {"file_path": "My Game (2021).zip"}
     assert reader._extract_title(item) == "My Game"
+
+
+def test_extract_title_strips_uploader_tags_from_the_server_title():
+    """A remote server derives ``title`` from the filename, tags and all."""
+    reader = _reader()
+    item = {"title": "Alan Wake 2 AnkerGames", "file_path": "x.rar"}
+    assert reader._extract_title(item) == "Alan Wake 2"
+
+
+def test_extract_title_leaves_a_curated_metadata_title_alone():
+    """``metadata`` is the owner's or a provider's choice, not a filename."""
+    reader = _reader()
+    item = {"metadata": {"title": "Repack"}, "title": "Repack Repack"}
+    assert reader._extract_title(item) == "Repack"
+    item = {"metadata": {"title": "Space Game GOG"}}
+    assert reader._extract_title(item) == "Space Game GOG"
 
 
 def test_extract_title_falls_back_to_id_placeholder():
@@ -250,12 +269,14 @@ def test_map_to_game_malformed_item_returns_none_not_raises():
 
 
 # ── get_library() install-state overlay ───────────────────────────────
-async def test_get_library_marks_installed_games():
+async def test_get_library_marks_installed_games(tmp_path):
+    install_dir = tmp_path / "mygame"
+    install_dir.mkdir()
     installer = MagicMock()
-    installer.get_install_info.return_value = {
-        "install_path": "/games/mygame",
-        "exe_path": "/games/mygame/Game.exe",
-    }
+    installer.get_installed.return_value = {"1": {
+        "install_path": str(install_dir),
+        "exe_path": str(install_dir / "Game.exe"),
+    }}
     reader = GameVaultLibraryReader(
         installer=installer, catalog=_FakeCatalog([_game()]),
     )
@@ -264,7 +285,7 @@ async def test_get_library_marks_installed_games():
 
     assert len(games) == 1
     assert games[0].installed is True
-    assert games[0].install_path == "/games/mygame"
+    assert games[0].install_path == str(install_dir)
     # The exe is deliberately NOT carried, even though the marker has one.
     # Reconcile only rewrites a games.map row when the synced game brings an
     # exe, so carrying it would revert the user's Change Executable choice on
@@ -277,7 +298,7 @@ async def test_get_library_marks_installed_games():
 
 async def test_get_library_uninstalled_games_stay_uninstalled():
     installer = MagicMock()
-    installer.get_install_info.return_value = None
+    installer.get_installed.return_value = {}
     reader = GameVaultLibraryReader(
         installer=installer, catalog=_FakeCatalog([_game("2", "Not Installed")]),
     )
@@ -285,6 +306,25 @@ async def test_get_library_uninstalled_games_stay_uninstalled():
     games = await reader.get_library()
 
     assert games[0].installed is False
+
+
+async def test_get_library_marker_with_missing_dir_is_not_installed(tmp_path):
+    # A marker outlives its folder after a manual delete or a wiped SD card.
+    # Reading it as installed put a PLAY button on a game with no files and
+    # an Installed-list row with no size, because there was nothing to size.
+    installer = MagicMock()
+    installer.get_installed.return_value = {"3": {
+        "install_path": str(tmp_path / "gone"),
+        "exe_path": str(tmp_path / "gone" / "Game.exe"),
+    }}
+    reader = GameVaultLibraryReader(
+        installer=installer, catalog=_FakeCatalog([_game("3", "Deleted")]),
+    )
+
+    games = await reader.get_library()
+
+    assert games[0].installed is False
+    assert not games[0].install_path
 
 
 # ── A failed fetch must not read as an empty library ──────────────────

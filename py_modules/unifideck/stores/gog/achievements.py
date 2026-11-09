@@ -17,13 +17,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import time
 from typing import TYPE_CHECKING, Any, NoReturn
 from urllib.error import HTTPError, URLError
 
 from unifideck.stores.shared.achievements_error import (
     StoreAchievementsError,
 )
+from unifideck.stores.shared.achievements_payload import TtlCache, build_payload
 from unifideck.stores.shared.timestamps import parse_timestamp
 
 from .galaxy_api import (
@@ -37,10 +37,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Cache TTL — long enough that paging/reopening the modal in a session is
-# instant, short enough that it self-heals. Modal-scoped, not render-hot,
-# so 60s (vs the 5s game-info cache) avoids hammering the paginated endpoint.
-_CACHE_TTL_SECONDS = 60.0
 # Hard bound on the pagination loop so a malformed page_token can't spin.
 _MAX_PAGES = 50
 
@@ -59,7 +55,7 @@ class GOGAchievements:
     def __init__(self, tokens: GOGTokenManager) -> None:
         """Initialize the instance."""
         self._tokens = tokens
-        self._cache: dict[str, tuple[float, dict[str, Any]]] = {}
+        self._cache = TtlCache()
 
     async def get_game_achievements(
         self, game_id: str, force: bool = False,
@@ -73,7 +69,7 @@ class GOGAchievements:
         """
         key = str(game_id)
         if not force:
-            cached = self._get_cached(key)
+            cached = self._cache.get(key)
             if cached is not None:
                 return cached
 
@@ -89,30 +85,14 @@ class GOGAchievements:
         payload = await asyncio.to_thread(
             self._fetch_blocking, key, refresh_token, user_id,
         )
-        self._cache[key] = (time.monotonic(), payload)
+        self._cache.put(key, payload)
         return payload
 
     def invalidate(self, game_id: str) -> None:
         """Drop a game's cached achievements (e.g. on game-stop)."""
-        self._cache.pop(str(game_id), None)
-
-    @staticmethod
-    def unlocked_keys(payload: dict[str, Any]) -> set[str]:
-        """The set of unlocked achievement keys in a payload (for diffing)."""
-        return {
-            str(a.get("key"))
-            for a in payload.get("achievements", [])
-            if a.get("unlocked")
-        }
+        self._cache.invalidate(game_id)
 
     # -- internals ---------------------------------------------------------
-
-    def _get_cached(self, key: str) -> dict[str, Any] | None:
-        """Cached."""
-        entry = self._cache.get(key)
-        if entry and (time.monotonic() - entry[0]) < _CACHE_TTL_SECONDS:
-            return entry[1]
-        return None
 
     def _fetch_blocking(
         self, game_id: str, refresh_token: str, user_id: str,
@@ -133,28 +113,11 @@ class GOGAchievements:
         game_id: str, items: list[dict[str, Any]],
     ) -> dict[str, Any]:
         """Normalize + sort + summarize the raw GOG achievement items."""
-        normalized = [
+        return build_payload("gog", game_id, [
             GOGAchievements._normalize(it)
             for it in items
             if isinstance(it, dict)
-        ]
-        # Unlocked first (most-recent unlock on top); locked keep GOG's
-        # native order (the developer's intended display order). Python's
-        # sort is stable, so the locked group's order is preserved.
-        unlocked = [a for a in normalized if a["unlocked"]]
-        locked = [a for a in normalized if not a["unlocked"]]
-        unlocked.sort(key=lambda a: a["unlocked_at"] or 0.0, reverse=True)
-        ordered = unlocked + locked
-        total = len(ordered)
-        n_unlocked = len(unlocked)
-        return {
-            "store": "gog",
-            "game_id": str(game_id),
-            "total": total,
-            "unlocked": n_unlocked,
-            "percent": round(n_unlocked / total * 100, 1) if total else 0.0,
-            "achievements": ordered,
-        }
+        ])
 
     @staticmethod
     def _normalize(item: dict[str, Any]) -> dict[str, Any]:
@@ -176,6 +139,15 @@ class GOGAchievements:
             "unlocked_at": parse_timestamp(date_unlocked),
             "rarity": item.get("rarity"),
         }
+
+
+def normalize_gog_achievement(item: dict[str, Any]) -> dict[str, Any]:
+    """One raw GOG achievement item → the frontend-facing shape.
+
+    Public for comet's ``achievement_unlocked`` push event, whose ``data`` is
+    the same GOG API item (``achievement_key``, ``image_url_unlocked``, ...).
+    """
+    return GOGAchievements._normalize(item)
 
 
 def _raise_gog_http(e: HTTPError) -> NoReturn:

@@ -9,7 +9,7 @@ import urllib.request
 from typing import TYPE_CHECKING, Any
 
 from unifideck.core.cross_store_ownership import GAME_PASS_KEY
-from unifideck.core.net import ssl_ctx_permissive as _ssl
+from unifideck.core.net import ssl_ctx_strict
 from unifideck.core.types import Game, GameTag
 from unifideck.utils.locale import get_unifideck_locale
 
@@ -22,6 +22,15 @@ if TYPE_CHECKING:
 from unifideck.launcher.browser_games import BROWSER_URL_KEY, XCLOUD_PLAY_URL
 
 logger = logging.getLogger(__name__)
+
+#: ``Game.metadata`` key on an xCloud row: epoch seconds of the
+#: ``/v2/titles`` read that last said the title is entitled. A failed read
+#: keeps the old rows (and this old time), so the Steam Store ribbon can
+#: tell a current "streamable" from one left over from an older sync.
+XCLOUD_CHECKED_AT_KEY = "xcloud_checked_at"
+#: ``Game.metadata`` key on an xCloud row: False when the title is
+#: time-capped and no play time is left this period. Absent = no cap seen.
+XCLOUD_PLAYABLE_KEY = "xcloud_playable"
 
 # Batch size for displaycatalog.mp.microsoft.com GET. 50 productIds
 # per query stays well under the 4096-char URL limit.
@@ -66,6 +75,8 @@ class MicrosoftCatalogReader:
         """Initialize the instance."""
         self._config = config
         self._config_manager = config_manager
+        self.has_subscription: bool | None = None
+        """What the last ``fetch_games`` saw (see ``_account_has_subscription``)."""
 
     async def fetch_games(
         self,
@@ -78,6 +89,7 @@ class MicrosoftCatalogReader:
         shortcut). ``[]`` only when ``/v2/titles`` answered and none of its
         titles are entitled.
         """
+        self.has_subscription = None
         if not session.gs_token or not session.regions:
             logger.warning(
                 "[MicrosoftCatalog] session has no gs_token/regions",
@@ -108,6 +120,7 @@ class MicrosoftCatalogReader:
         entitled = _entitled_titles(titles, base_uri)
         if entitled is None:
             return None
+        self.has_subscription = _account_has_subscription(entitled)
 
         product_ids = _unique_product_ids(entitled)
         if not product_ids:
@@ -120,19 +133,23 @@ class MicrosoftCatalogReader:
         logger.info(
             "[MicrosoftCatalog] total fetch_games: %.1fs", time.time() - t0,
         )
-        return self._build_xcloud_games(entitled, title_map, game_pass)
+        return self._build_xcloud_games(entitled, title_map, game_pass, checked_at=t0)
 
     @staticmethod
     def _build_xcloud_games(
         entitled: list[dict[str, Any]], title_map: dict[str, Any],
         game_pass: dict[str, bool] | None = None,
+        *,
+        checked_at: float | None = None,
     ) -> list[Game]:
         """Build xCloud ``Game`` records from entitled titles + names.
 
         *game_pass* (UPPER-case product id → in the catalog) is recorded as
         ``metadata[GAME_PASS_KEY]``; ``None`` leaves the key out, which reads
-        as "unknown", never as "not in Game Pass".
+        as "unknown", never as "not in Game Pass". *checked_at* (default:
+        now) is when ``/v2/titles`` answered (:data:`XCLOUD_CHECKED_AT_KEY`).
         """
+        checked = time.time() if checked_at is None else checked_at
         games: list[Game] = []
         for t in entitled:
             pid = (t.get("details") or {}).get("productId") or ""
@@ -141,6 +158,9 @@ class MicrosoftCatalogReader:
             metadata: dict[str, Any] = {BROWSER_URL_KEY: XCLOUD_PLAY_URL.format(game_id=pid)}
             if game_pass is not None:
                 metadata[GAME_PASS_KEY] = game_pass.get(pid.upper(), False)
+            metadata[XCLOUD_CHECKED_AT_KEY] = checked
+            if _time_cap_spent(t):
+                metadata[XCLOUD_PLAYABLE_KEY] = False
             games.append(Game(
                 app_id=0,
                 store="microsoft",
@@ -242,6 +262,35 @@ def _entitled_titles(
         return None
     return entitled
 
+def _account_has_subscription(entitled: list[dict[str, Any]]) -> bool | None:
+    """Whether the account streams through a Game Pass plan.
+
+    The login token cannot tell: a free account's ``xgpuweb`` login also
+    carries ``offeringid`` XGPUWEB. Each ``/v2/titles`` row can, in
+    ``details.userSubscriptions``: the user's own plans, ``[]`` for a free
+    account (measured 2026-10-05; that account was entitled to Fortnite
+    only). ``None`` when a row lacks the list, so a changed response shape
+    never reads as "no Game Pass".
+    """
+    plans = [(t.get("details") or {}).get("userSubscriptions") for t in entitled]
+    if not plans or not all(isinstance(p, list) for p in plans):
+        return None
+    return any(plans)
+
+
+def _time_cap_spent(title: dict[str, Any]) -> bool:
+    """True when the row is time-capped and has no play time left.
+
+    ``remainingGameplayTimeInSeconds`` appears only on time-capped rows;
+    xbox.com treats a title as playable when it is absent or above zero.
+    """
+    for source in (title.get("details"), title):
+        value = source.get("remainingGameplayTimeInSeconds") if isinstance(source, dict) else None
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return value <= 0
+    return False
+
+
 def _unique_product_ids(entitled: list[dict[str, Any]]) -> list[str]:
     """Extract unique productIds preserving first-seen order."""
     seen: dict[str, None] = {}
@@ -281,10 +330,7 @@ def _xcloud_titles_sync(
     try:
         with urllib.request.urlopen(
             req, timeout=30,
-            context=_ssl(
-                "Microsoft xCloud /v2/titles — "
-                "outdated Deck cert store",
-            ),
+            context=ssl_ctx_strict(),
         ) as r:
             raw = r.read().decode("utf-8", errors="replace")
     except urllib.error.HTTPError as e:
@@ -325,16 +371,31 @@ async def fetch_products(
 ) -> dict[str, dict[str, Any]]:
     """Raw displaycatalog products by UPPER-case productId.
 
+    The plain view of :func:`fetch_products_detailed`: a failed batch
+    contributes nothing, and callers treat a missing product as "unknown",
+    never as absent. Shared by the xCloud library (titles) and the
+    owned-products index (titles and platforms).
+    """
+    products, _failed = await fetch_products_detailed(product_ids, market)
+    return products
+
+
+async def fetch_products_detailed(
+    product_ids: list[str], market: str, *, languages: str = "en-US",
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    """``(products by UPPER-case productId, ids whose batch failed)``.
+
     displaycatalog.mp.microsoft.com is a public CDN endpoint with no auth
     requirement — faster and more reliable than catalog.gamepass.com/v3,
     which requires undisclosed calling-app-name headers and routinely 500s
     under even modest concurrency.
 
     Batches of ``_TITLE_BATCH_SIZE`` run concurrently, at most
-    ``_TITLE_BATCH_CONCURRENCY`` at a time. A failed batch contributes
-    nothing; callers treat a missing product as "unknown", never as absent.
-    Shared by the xCloud library (titles) and the owned-products index
-    (titles and platforms).
+    ``_TITLE_BATCH_CONCURRENCY`` at a time. Every id of a batch that failed
+    (HTTP error, network error, non-JSON body) is listed in the second
+    value, so the caller can keep what it knew before. An id that a
+    successful batch left out is in neither value: the catalog has no such
+    product in this market.
     """
     batches = [
         product_ids[i: i + _TITLE_BATCH_SIZE]
@@ -348,19 +409,26 @@ async def fetch_products(
     )
     sem = asyncio.Semaphore(_TITLE_BATCH_CONCURRENCY)
 
-    async def run_one(batch: list[str]) -> list[dict[str, Any]]:
+    async def run_one(batch: list[str]) -> list[dict[str, Any]] | None:
         async with sem:
-            return await asyncio.to_thread(_fetch_batch_displaycatalog, batch, market)
+            return await asyncio.to_thread(
+                _fetch_batch_displaycatalog, batch, market, languages,
+            )
 
     out: dict[str, dict[str, Any]] = {}
-    for products in await asyncio.gather(*(run_one(b) for b in batches)):
+    failed: list[str] = []
+    results = await asyncio.gather(*(run_one(b) for b in batches))
+    for batch, products in zip(batches, results, strict=True):
+        if products is None:
+            failed.extend(batch)
+            continue
         for raw in products:
             pid = raw.get("ProductId")
             if isinstance(pid, str) and pid:
                 # UPPER: store_game_ids are sometimes lowercase, and every
                 # lookup case-folds (see ``_title_for``).
                 out[pid.upper()] = raw
-    return out
+    return out, failed
 
 
 def titles_by_product(products: dict[str, dict[str, Any]]) -> dict[str, str]:
@@ -378,13 +446,17 @@ def product_title(raw: dict[str, Any]) -> str:
 
 
 def _fetch_batch_displaycatalog(
-    batch: list[str], market: str,
-) -> list[dict[str, Any]]:
-    """GET displaycatalog.mp.microsoft.com for one batch of productIds."""
+    batch: list[str], market: str, languages: str = "en-US",
+) -> list[dict[str, Any]] | None:
+    """GET displaycatalog.mp.microsoft.com for one batch of productIds.
+
+    None means the batch failed. An empty list is a real answer: none of
+    these ids is a product in this market.
+    """
     from urllib.parse import urlencode as _uenc
     qs = _uenc({
         "bigIds": ",".join(batch),
-        "market": market, "languages": "en-US",
+        "market": market, "languages": languages,
     })
     url = (
         "https://displaycatalog.mp.microsoft.com/v7.0/products?" + qs
@@ -395,10 +467,7 @@ def _fetch_batch_displaycatalog(
     try:
         with urllib.request.urlopen(
             req, timeout=30,
-            context=_ssl(
-                "Microsoft displaycatalog — "
-                "outdated Deck cert store",
-            ),
+            context=ssl_ctx_strict(),
         ) as r:
             raw = r.read().decode("utf-8", errors="replace")
     except urllib.error.HTTPError as e:
@@ -407,18 +476,23 @@ def _fetch_batch_displaycatalog(
             "(batch size %d)",
             e.code, len(batch),
         )
-        return []
+        return None
     except Exception as e:
         logger.warning(
             "[MicrosoftCatalog] displaycatalog %s (batch size %d)",
             type(e).__name__, len(batch),
         )
-        return []
-    return _parse_displaycatalog(raw)
+        return None
+    return _products_or_none(raw)
 
 
 def _parse_displaycatalog(raw: str) -> list[dict[str, Any]]:
     """Parse a displaycatalog response → its ``Products`` list."""
+    return _products_or_none(raw) or []
+
+
+def _products_or_none(raw: str) -> list[dict[str, Any]] | None:
+    """A displaycatalog body's ``Products`` list, or None when unreadable."""
     try:
         data = json.loads(raw)
     except json.JSONDecodeError:
@@ -427,8 +501,8 @@ def _parse_displaycatalog(raw: str) -> list[dict[str, Any]]:
             "(len=%d, first=%.200s)",
             len(raw), raw,
         )
-        return []
+        return None
     products = data.get("Products") if isinstance(data, dict) else None
     if not isinstance(products, list):
-        return []
+        return None
     return [p for p in products if isinstance(p, dict)]

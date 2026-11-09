@@ -7,7 +7,7 @@ Microsoft's xCloud game streaming.
 
 Three internal helpers are composed at construction time:
 
-  - ``EdgeInstaller``       : flatpak install + detection + udev
+  - ``ChromeInstaller``     : download + verify the plugin's own browser
   - ``EdgeCDPClient``       : /json/list, navigate, close targets
   - ``EdgeProfileManager``  : profile dir, singleton, cookies
 
@@ -42,6 +42,8 @@ Reference: Technical Document v1.0 — Section 3.1.5
 """
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
 import subprocess
 from collections.abc import Callable
@@ -50,9 +52,8 @@ from typing import Any
 
 from . import launch as _launch
 from . import process_ops
-from .cdp_client import EdgeCDPClient
-from .env import clean_env
-from .installer import EdgeInstaller
+from .cdp_client import EdgeCDPClient, close_browser_blocking
+from .chrome_installer import NETWORK_FAILURE, ChromeInstaller
 from .profile import EdgeProfileManager
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,14 @@ PROFILE_DIR = str(Path(
 ).expanduser())
 LOG_FILE = str(Path(
     "~/.local/share/unifideck/edge-auth.log",
+).expanduser())
+
+#: HTML5 web games (itch.io) get their own profile. Their pages and scripts
+#: are written by game creators, so they must not run where the Microsoft /
+#: Xbox, itch.io and store sign-in sessions live. Only xCloud streams, which
+#: need the Xbox session cookies, open in ``PROFILE_DIR``.
+WEB_GAME_PROFILE_DIR = str(Path(
+    "~/.local/share/unifideck/edge-webgames",
 ).expanduser())
 
 # Legacy paths, used only for the one-shot migration. The
@@ -92,10 +101,17 @@ _MS_COOKIE_DOMAINS = (
 # three flavours share one profile by design — so the port is what tells
 # a caller WHICH window is currently alive before it tries to spawn.
 _BROWSER_GAME_CDP_OFFSET = 1
+#: Waits between the boot-time download attempts (seconds).
+_BACKGROUND_INSTALL_RETRY_S = (15, 30, 60, 120)
 _STOREFRONT_CDP_OFFSET = 2
 
 # Edge flags shared between auth and game launch
 _BASE_FLAGS = [
+    # X11 always (XWayland): with a Wayland display in its environment Chrome
+    # opens a native Wayland window, which gamescope cannot tie to the Steam
+    # app and the window tagger cannot see, so it stays hidden behind Gaming
+    # Mode (measured 2026-11-04). The Edge flatpak only ever ran on X11.
+    "--ozone-platform=x11",
     "--no-first-run",
     "--disable-translate",
     "--disable-infobars",
@@ -105,6 +121,21 @@ _BASE_FLAGS = [
     "--disable-dev-shm-usage",
     "--disable-background-networking",
 ]
+
+
+def _make_web_game_profile_manager() -> EdgeProfileManager:
+    """An EdgeProfileManager for the isolated web-game profile.
+
+    Only its singleton cleanup is used: there is no legacy directory to
+    migrate and no cookie set that logout has to clear.
+    """
+    return EdgeProfileManager(
+        profile_dir=WEB_GAME_PROFILE_DIR,
+        log_file=LOG_FILE,
+        legacy_profile_dir=WEB_GAME_PROFILE_DIR,
+        legacy_log_file=LOG_FILE,
+        cookie_domain_patterns=(),
+    )
 
 
 def _make_profile_manager() -> EdgeProfileManager:
@@ -125,12 +156,12 @@ def _make_profile_manager() -> EdgeProfileManager:
 
 
 class EdgeBrowser:
-    """Manages the Microsoft Edge browser for auth and xCloud.
+    """Manages the plugin's browser for sign-ins, stores and browser games.
 
     One instance per plugin — the store coordinator (any of the four
-    OAuth stores) injects a shared reference. The class is 100%
-    Edge-specific: the flatpak app id, the native binary names, and
-    the browser flags are all Edge's.
+    OAuth stores) injects a shared reference. The browser is the
+    plugin's own Chromium build (``chrome_installer``); the class kept its
+    name from the Edge flatpak it replaced.
 
     Attributes:
       cdp_port: CDP remote debugging port. Auth flows use 9222;
@@ -150,10 +181,12 @@ class EdgeBrowser:
         self.cdp_port = cdp_port
         self.locale_fn = locale_fn or (lambda: "en-US")
         self.process: subprocess.Popen[bytes] | None = None
-        # Composed installer — owns detection + flatpak install
-        # + default-browser snapshot + controller permissions.
-        # Extracted from this class to keep each concern cohesive.
-        self._installer = EdgeInstaller(clean_env_fn=clean_env)
+        #: CDP port of ``process`` (set at spawn), for a clean ``kill``.
+        self.process_cdp_port: int | None = None
+        self._install_task: asyncio.Task[None] | None = None
+        # Composed installer — the plugin's own Chromium build
+        # (``chrome_installer``), which replaced the Edge flatpak.
+        self._installer = ChromeInstaller()
         # Composed CDP client — owns /json/version, /json/list,
         # navigation and target-close traffic over the debugging port.
         self._cdp = EdgeCDPClient(cdp_port=cdp_port)
@@ -260,54 +293,53 @@ class EdgeBrowser:
             self.cleanup_stale_profile_state()
         return closed
 
-    # ── Controller permissions ───────────────────────────────────────
-
-    @staticmethod
-    def ensure_controller_permissions() -> bool:
-        """Delegate to EdgeInstaller.ensure_controller_permissions.
-
-        Kept as a @staticmethod for API compatibility: callers that
-        invoke this without an EdgeBrowser instance still work by
-        instantiating a one-shot installer here.
-        """
-        return EdgeInstaller(
-            clean_env_fn=clean_env,
-        ).ensure_controller_permissions()
-
-    # ── Detection & install (delegated to EdgeInstaller) ─────────────
-
-    def _flatpak_remote_names(self, scope: str) -> set[str]:
-        """Delegate to EdgeInstaller."""
-        return self._installer._flatpak_remote_names(scope)
-
-    async def _ensure_user_flathub_remote(self) -> bool:
-        """Delegate to EdgeInstaller."""
-        return await self._installer._ensure_user_flathub_remote()
+    # ── Detection & install (delegated to ChromeInstaller) ───────────
 
     def find_cmd(self) -> list[str] | None:
-        """Delegate to EdgeInstaller."""
+        """The browser command, or None until it is installed."""
         return self._installer.find_cmd()
 
     @property
     def is_installed(self) -> bool:
-        """Delegate to EdgeInstaller."""
+        """True once the plugin's browser is downloaded and verified."""
         return self._installer.is_installed
 
-    @staticmethod
-    def _get_default_browser() -> str | None:
-        """Delegate to EdgeInstaller (instantiates one-shot installer)."""
-        return EdgeInstaller(clean_env_fn=clean_env)._get_default_browser()
-
-    @staticmethod
-    def _restore_default_browser(original: str | None) -> None:
-        """Delegate to EdgeInstaller (instantiates one-shot installer)."""
-        EdgeInstaller(
-            clean_env_fn=clean_env,
-        )._restore_default_browser(original)
-
     async def install(self) -> dict[str, Any]:
-        """Delegate to EdgeInstaller."""
+        """Download and verify the plugin's browser."""
         return await self._installer.install()
+
+    async def start(self) -> None:
+        """Startup hook: fetch the browser in the background when it is missing.
+
+        Upgraders from the Edge flatpak have no browser yet; without this their
+        first stream would stop on "browser required", since only a store
+        sign-in offered the download. Non-blocking, like the GE-Proton fetch.
+        """
+        if self.is_installed:
+            return
+        self._install_task = asyncio.create_task(self._background_install(),
+                                                 name="browser-install")
+
+    async def _background_install(self) -> None:
+        # The plugin starts before the network is up on a cold boot, so the
+        # first attempt can fail on name resolution: retry with backoff.
+        # Only a network failure is retried: a bad checksum or a build that
+        # does not run would fail the same way again.
+        result: dict[str, Any] = {}
+        for delay in _BACKGROUND_INSTALL_RETRY_S:
+            result = await self.install()
+            if result.get("success") or self.is_installed:
+                return
+            if result.get("error") != NETWORK_FAILURE:
+                break
+            logger.info("[Browser] background download failed (%s); retrying in %d s",
+                        result.get("error"), delay)
+            await asyncio.sleep(delay)
+        else:
+            result = await self.install()
+        if not result.get("success"):
+            logger.warning("[Browser] background download failed (%s); sign-ins, store "
+                           "windows and streams offer it again", result.get("error"))
 
     # ── Launch / kill ────────────────────────────────────────────────
 
@@ -319,21 +351,30 @@ class EdgeBrowser:
         """Launch a browsable store window — delegate to launch module."""
         return _launch.launch_storefront(self, url)
 
-    def launch_browser_game(self, url: str) -> bool:
+    def launch_browser_game(self, url: str, *, kind: str) -> bool:
         """Launch Edge in kiosk mode on a browser game: delegate to launch module."""
-        return _launch.launch_browser_game(self, url)
+        return _launch.launch_browser_game(self, url, kind=kind)
 
     def kill(self) -> None:
-        """Gracefully terminate the auth browser process.
+        """Close the browser this instance launched, cleanly when it can.
 
-        Thin forward to ``process_ops.graceful_kill``; the
-        lifecycle logic lives in its own module for testability.
-        After the kill returns, the process handle is cleared
-        and any stale profile state is cleaned up so the next
-        launch starts from a known-good baseline.
+        ``Browser.close`` on the window's own CDP port first, because a
+        signal loses the cookies of a sign-in made in the last ~30 s; only
+        then ``process_ops.graceful_kill`` (SIGTERM, then SIGKILL). After it
+        returns, the process handle is cleared and stale profile state is
+        cleaned up so the next launch starts from a known-good baseline.
         """
-        process_ops.graceful_kill(self.process)
+        proc = self.process
+        if proc is not None and proc.poll() is None and self.process_cdp_port is not None:
+            # Browser.close first: a signal loses the cookies of a sign-in
+            # made in the last ~30 s (``cdp_client.close_browser``).
+            if close_browser_blocking(self.process_cdp_port):
+                with contextlib.suppress(subprocess.TimeoutExpired):
+                    proc.wait(timeout=10)
+        if proc is not None and proc.poll() is None:
+            process_ops.graceful_kill(proc)
         self.process = None
+        self.process_cdp_port = None
         self.cleanup_stale_profile_state()
 
     # ── Cookie management (static, via one-shot profile manager) ─────

@@ -23,7 +23,11 @@ from unifideck.core.types import Game
 from unifideck.core.types.events import Events
 from unifideck.event_bus.event_bus_devex import auto_wire, subscribe
 from unifideck.services import metadata_backfill, metadata_sources, pcgw_backfill
-from unifideck.services.metadata_completeness import has_complete_metadata
+from unifideck.services.metadata_completeness import (
+    has_complete_metadata,
+    metadata_negative_stale,
+    negative_marker,
+)
 from unifideck.services.metadata_steam_mixin import (
     CACHE_NAMESPACE,
     _SteamMetadataMixin,
@@ -47,7 +51,10 @@ _SAVEDATA_SCHEMA_KEY = "_savedata_v"
 # buckets by the raw title, so every "The …" / "A …" title missed its shard
 # entirely and got stamped v1 with no save data (The Witcher 3 among them).
 # The bump makes those entries re-query now that the shard is right.
-_SAVEDATA_SCHEMA = 2
+# v3: description and publisher were read under names the catalog never used
+# (``summary``/``publishers``), so every entry cached them empty. The top-up
+# now also fills those two where they are empty.
+_SAVEDATA_SCHEMA = 3
 DEFAULT_CACHE_TTL = 7 * 24 * 3600  # fallback if config missing
 
 # Per-game concurrency cap. Steam's ``appdetails`` rate limit is the
@@ -450,6 +457,10 @@ class MetadataService(_SteamMetadataMixin):
             value = fresh.get(field)
             if value:
                 topped[field] = value
+        # Fill only: a non-empty value may be the Steam half's, which wins.
+        for field in ("description", "publisher"):
+            if not topped.get(field) and fresh.get(field):
+                topped[field] = fresh[field]
         # Stamp regardless of whether the catalog had anything, so a game with
         # genuinely no save data is not re-queried on every single enrich().
         topped[_SAVEDATA_SCHEMA_KEY] = _SAVEDATA_SCHEMA
@@ -458,6 +469,24 @@ class MetadataService(_SteamMetadataMixin):
         except Exception as e:  # pragma: no cover - cache is best-effort
             logger.debug("[MetadataService] save-data top-up write failed: %s", e)
         return topped
+
+    async def _from_cache(
+        self, game: Game, cache_key: str,
+    ) -> dict[str, Any] | None:
+        """The cached answer for *game*, or None when it must be fetched.
+
+        ``{}`` is an answer: a negative marker for the current title.
+        """
+        try:
+            cached = self._cache.get(CACHE_NAMESPACE, cache_key)
+        except Exception as e:
+            logger.debug("[MetadataService] Cache read failed for %s: %s", cache_key, e)
+            return None
+        if not isinstance(cached, dict) or not cached:
+            return None
+        if cached.get("_negative"):
+            return None if metadata_negative_stale(cached, game.title) else {}
+        return await self._served_from_cache(game, cached, cache_key)
 
     async def enrich(
         self,
@@ -474,15 +503,9 @@ class MetadataService(_SteamMetadataMixin):
         cache_key = f"{game.store}:{game.store_game_id}"
 
         if not force:
-            try:
-                cached = self._cache.get(CACHE_NAMESPACE, cache_key)
-                if isinstance(cached, dict):
-                    if cached.get("_negative"):
-                        return {}
-                    if cached:
-                        return await self._served_from_cache(game, cached, cache_key)
-            except Exception as e:
-                logger.debug("[MetadataService] Cache read failed for %s: %s", cache_key, e)
+            served = await self._from_cache(game, cache_key)
+            if served is not None:
+                return served
 
         # Cache miss — fetch
         logger.debug("[MetadataService] Fetching metadata for %s", game.title)
@@ -504,7 +527,7 @@ class MetadataService(_SteamMetadataMixin):
         merged.update(steam_data)
 
         try:
-            payload = merged if merged else {"_negative": True}
+            payload = merged if merged else negative_marker(game.title)
             # Deferred write — the enrichment loop calls this once per
             # game; ``_finalize_enrichment`` flushes at the phase end.
             self._cache.set(CACHE_NAMESPACE, cache_key, payload, flush=False)

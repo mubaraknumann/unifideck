@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import datetime
+import datetime as dt
 import json
 import logging
 from collections.abc import Iterator
@@ -281,7 +281,7 @@ async def write_install_marker(
             # Always serialize timestamps in UTC so the marker is
             # comparable across machines and DST transitions.
             "install_date": (
-                datetime.datetime.now(datetime.UTC).isoformat()
+                dt.datetime.now(dt.UTC).isoformat()
             ),
         }
         install_p = Path(install_path)

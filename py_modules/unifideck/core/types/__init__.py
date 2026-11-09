@@ -1,12 +1,12 @@
 """Typed records — enums, dataclasses, ``Result`` family.
 
-Re-exports the public typed surface from the three sibling
+Re-exports the public typed surface from the four sibling
 modules:
 
 * ``domain``  — domain dataclasses (``Game``, ``StoreInfo``,
   ``CLITool``);
-* ``events``  — ``Events`` enum (bus event names) plus the
-  smaller enums (``StoreEnum``, ``StoreStatus``,
+* ``events``  — ``Events`` enum (bus event names);
+* ``enums``   — the smaller enums (``StoreEnum``, ``StoreStatus``,
   ``OwnershipType``, ``SubscriptionTier``, ``GameTag``,
   ``ErrorCode``);
 * ``results`` — the ``Result`` family (one per concern) plus
@@ -26,15 +26,15 @@ from .domain import (
     StoreInfo,
     SyncRequest,
 )
-from .events import (
+from .enums import (
     ErrorCode,
-    Events,
     GameTag,
     OwnershipType,
     StoreEnum,
     StoreStatus,
     SubscriptionTier,
 )
+from .events import Events
 from .results import (
     AccountResult,
     ArtworkResult,

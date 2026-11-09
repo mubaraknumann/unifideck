@@ -17,7 +17,7 @@ from unifideck.launcher.proton.infrastructure.game_log import (
 )
 
 from .container_escape import escape_argv
-from .proton_health import assert_proton_still_complete
+from .proton_health import assert_proton_still_complete, check_after_failure
 
 logger = logging.getLogger(__name__)
 # Short pause before a recoverable umu retry — gives a transient
@@ -303,7 +303,7 @@ def ensure_umu_runtime_ready() -> None:
     if not any((UMU_CACHE_DIR / variant).exists() for variant in UMU_RUNTIME_VARIANTS):
         launcher_toast(
             "toasts.launcher.downloadingRuntime",
-            i18n_title_key="toasts.launcher.firstTimeSetup",
+            i18n_title_key="toasts.header.gameSetup",
         )
     UMU_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     os.environ["UMU_LOG"] = "1"
@@ -338,7 +338,7 @@ async def _prepare_retry(rc: int, attempt: int, max_attempts: int) -> None:
     )
     launcher_toast(
         "toasts.launcher.retryingUmu",
-        i18n_title_key="toasts.launcher.launchRetry",
+        i18n_title_key="toasts.header.gameSetup",
         i18n_params={
             "seconds": _RETRY_BACKOFF_SECONDS,
             "attempt": attempt + 1,
@@ -426,6 +426,8 @@ async def run_umu_with_retry(
             return rc
         return last_rc
     finally:
+        if last_rc != 0:  # a damaged Proton fails every game; see check_after_failure
+            check_after_failure(env)
         if game_log is not None:
             with contextlib.suppress(OSError):
                 game_log.close()

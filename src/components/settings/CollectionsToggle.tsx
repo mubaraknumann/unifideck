@@ -8,7 +8,9 @@
  *    only those who want store collections mirrored into Desktop mode /
  *    their other Steam devices turn this on. Reads/writes via
  *    `useCollectionsEnabled`, so toggling takes effect live — turning it
- *    off deletes the collections immediately.
+ *    off deletes the collections immediately. With TabMaster installed and
+ *    collections off, the row says what that costs: TabMaster hides our
+ *    library tabs, so collections are the only way to get store tabs.
  *  - "Group duplicates" for the "All Games" / "Great on Deck" /
  *    "Installed" native tabs — collapse a title's cross-store copies to
  *    one tile (on) or show every store's copy separately (off, the
@@ -22,6 +24,7 @@ import { PanelSection, PanelSectionRow, ToggleField } from "@decky/ui";
 import { useTranslation } from "react-i18next";
 import { useCollectionsEnabled } from "../../hooks/useCollectionsEnabled";
 import { useGroupDuplicatesEnabled } from "../../hooks/useGroupDuplicatesEnabled";
+import { isTabMasterInstalled } from "../../lib/steam-bridge/tab-container";
 
 export const CollectionsToggle: FC = () => {
   const { t } = useTranslation();
@@ -36,6 +39,11 @@ export const CollectionsToggle: FC = () => {
             enabled
               ? t("collectionSettings.enabled")
               : t("collectionSettings.disabled")
+          }
+          description={
+            !enabled && isTabMasterInstalled()
+              ? t("collectionSettings.tabMasterHint")
+              : undefined
           }
           checked={enabled}
           onChange={setEnabled}

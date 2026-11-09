@@ -70,7 +70,8 @@ class _CacheMixin:
         cache to end-of-month — Microsoft bills monthly so a paid
         tier is stable for that window. Negative results (NONE) cache
         for 30 minutes only, so a transient gateway 403 can't lock
-        out the user for weeks.
+        out the user for weeks. FREE uses the same short window, so a
+        subscription bought mid-month is picked up on the next sync.
 
         Synchronous: this used to end with an ``_emit_state_change`` await,
         which was the only reason it was a coroutine. That emitted
@@ -78,7 +79,7 @@ class _CacheMixin:
         consumer on any leg and was retired (audit §1.3).
         """
         now = time.time()
-        if tier == SubscriptionTier.NONE:
+        if tier in (SubscriptionTier.NONE, SubscriptionTier.FREE):
             expires_at = now + _NEGATIVE_CACHE_SECONDS
         else:
             expires_at = _end_of_month_utc()

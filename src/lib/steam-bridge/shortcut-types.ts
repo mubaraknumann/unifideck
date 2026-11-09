@@ -159,7 +159,7 @@ export function getShortcutRunGameId(appId: number): string {
  *  in-memory app store. Status values are Steam-internal
  *  (no public enum) — observed values include
  *  1 = launching, 4 = running. */
-function getShortcutDisplayStatus(appId: number): number | undefined {
+export function getShortcutDisplayStatus(appId: number): number | undefined {
   const entry = getAppStoreEntry(appId);
   if (!entry) return undefined;
 
@@ -178,4 +178,23 @@ function getShortcutDisplayStatus(appId: number): number | undefined {
 export function isShortcutAppRunning(appId: number): boolean {
   const status = getShortcutDisplayStatus(appId);
   return status === 1 || status === 4;
+}
+
+/**
+ * Set a shortcut's compatibility tool, but only to a named tool.
+ *
+ * An empty name is skipped on purpose. Older Steam clients read
+ * `SpecifyCompatTool(appId, "")` as "no tool". The Steam Deck client of
+ * 2026-11 reads it as "the global Steam Play default", so on a device with
+ * "Steam Play for all other titles" on, it put Proton on every temporary
+ * sign-in and store shortcut (measured: a fresh shortcut reads tool "", the
+ * same shortcut after the call reads `proton_experimental`). A shortcut Steam
+ * just created already has no tool, so skipping the call keeps it that way.
+ */
+export function specifyNamedCompatTool(
+  appId: number,
+  tool: string | null | undefined,
+): void {
+  if (!tool) return;
+  window.SteamClient?.Apps?.SpecifyCompatTool?.(appId, tool);
 }

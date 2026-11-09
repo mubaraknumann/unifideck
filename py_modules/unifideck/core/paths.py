@@ -31,6 +31,24 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 _DECKY_DEFAULT_PATH = Path.home() / "homebrew" / "plugins" / "unifideck"
 
+
+def comet_config_home() -> Path:
+    """The ``XDG_CONFIG_HOME`` we hand to the bundled comet.
+
+    Comet then reads OUR ``comet/config.toml`` (the achievement push-event
+    URL) and never the user's own ``~/.config/comet``. Written by the
+    backend's achievement watcher, read by the launcher's ``start_comet``;
+    stdlib-only so both processes can import it. Resolved per call, not at
+    import, so a redirected ``HOME`` (tests) is honoured.
+    """
+    return Path.home() / ".local" / "share" / "unifideck" / "comet-config"
+
+
+def comet_config_file() -> Path:
+    """Comet's ``config.toml`` under :func:`comet_config_home`."""
+    return comet_config_home() / "comet" / "config.toml"
+
+
 def resolve_plugin_dir(start: Path | None = None) -> Path:
     """Return the plugin's root directory using a 4-step fallback chain.
 

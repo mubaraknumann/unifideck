@@ -17,6 +17,7 @@ class LaunchRPCMixin:
 
     bus: Any
     config: Any
+    registry: Any
     services: Any
 
     def _require_launch_history(self) -> Any:
@@ -147,6 +148,36 @@ class LaunchRPCMixin:
             or info.get("game_id")
         )
         return info.get("store"), resolved_game, info.get("title")
+
+    async def get_battlenet_launch_choices(self, game_id: str) -> Any:
+        """Installed versions of a Battle.net tile, for the launch popup.
+
+        ``{"choices": [{"uid", "label"}, …]}``, read from the game's prefix
+        so a version installed since the last sync is offered. Empty when
+        the store is unavailable; the frontend then lets Steam launch as
+        usual rather than showing a popup with nothing to pick.
+        """
+        store = self.registry.get_store("battlenet") if self.registry else None
+        if store is None:
+            return {"choices": []}
+        # The id map is keyed on the bare uid; a ``battlenet:wow`` key found
+        # no prefix and offered nothing, so the popup silently never showed.
+        uid = game_id.removeprefix("battlenet:")
+        return {"choices": await store.launch_choices(uid)}
+
+    async def set_battlenet_launch_choice(self, game_id: str, choice: str) -> Any:
+        """Record the launch popup's pick before the frontend starts the game.
+
+        ``choice`` is a version uid from ``get_battlenet_launch_choices`` or
+        ``"client"``. The launcher consumes it once, while fresh. Answers
+        ``{"recorded": bool}``; a refusal means the frontend should not start
+        the shortcut expecting that choice.
+        """
+        store = self.registry.get_store("battlenet") if self.registry else None
+        if store is None:
+            return {"recorded": False}
+        uid = game_id.removeprefix("battlenet:")
+        return {"recorded": await store.record_launch_choice(uid, choice)}
 
     async def get_launch_failures(self, game_key: str) -> Any:
         """Return recent failures + circuit state for a game.

@@ -105,7 +105,7 @@ async def boot_plugin(
     _boot_layer4_stores(plugin, decky_plugin_dir)
     await _boot_layer5_services(plugin, pipeline, decky_plugin_dir)
     await _boot_updater(plugin, decky_plugin_dir)
-    await _boot_update_sweep(plugin)
+    await _boot_background_sweeps(plugin)
     _boot_post_sync_reconcile(plugin)
     await _start_store_background_tasks(plugin)
     _wire_prefix_bridge(plugin)
@@ -283,6 +283,12 @@ async def _boot_updater(plugin: Any, decky_plugin_dir: str) -> None:
         logger.exception("[Updater] failed to wire — update checking disabled")
         plugin._updater_service = None
 
+async def _boot_background_sweeps(plugin: Any) -> None:
+    """Wire the periodic sweeps. Neither can fail boot."""
+    await _boot_update_sweep(plugin)
+    await _boot_xbox_partial_sweep(plugin)
+
+
 async def _boot_update_sweep(plugin: Any) -> None:
     """Wire the background game-update sweep.
 
@@ -304,6 +310,32 @@ async def _boot_update_sweep(plugin: Any) -> None:
     except Exception:
         logger.exception("[UpdateSweep] failed to wire — updates checked on demand")
         plugin._update_sweep_service = None
+
+async def _boot_xbox_partial_sweep(plugin: Any) -> None:
+    """Wire the sweep that discards abandoned Xbox PC downloads.
+
+    A failure here never blocks boot. The cost is disk space that does not
+    come back, so it is logged as an error.
+    """
+    try:
+        from unifideck.stores.microsoft.xodus.partial_sweep import PartialSweepService
+
+        def active_game_ids() -> frozenset[str]:
+            queue = plugin.services.download.get_queue()
+            items = [queue.get("current"), *queue.get("queued", []), *queue.get("running", [])]
+            return frozenset(
+                item["game_id"] for item in items if item and item.get("store") == "microsoft"
+            )
+
+        svc = PartialSweepService(active_game_ids)
+        plugin._xbox_partial_sweep_service = svc
+        await svc.start()
+    except Exception:
+        logger.exception(
+            "[xbox_install] failed to wire the sweep; abandoned downloads will keep their disk space",
+        )
+        plugin._xbox_partial_sweep_service = None
+
 
 def _boot_post_sync_reconcile(plugin: Any) -> None:
     """Wire the boot-time post-sync data reconcile.

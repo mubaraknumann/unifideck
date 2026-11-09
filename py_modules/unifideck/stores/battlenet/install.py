@@ -294,6 +294,9 @@ class BattlenetInstaller:
             install_path=final_dir,
             exe_path=exe,
             total_bytes=size or None,
+            **library_mod.installed_version_fields(
+                paths.drive_c(prepared.prefix), game_id, row,
+            ),
         )
         logger.info(
             "[Battlenet] install complete: %s (%.1f GB)",

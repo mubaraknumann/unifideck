@@ -24,6 +24,18 @@ export const rpcRoutes = {
   prepareStoreWebSession: "prepare_store_web_session",
   // Edge prereq (EdgeRPCMixin)
   installEdge: "install_edge",
+  browserInstalled: "browser_installed",
+  // Xbox PC titles through our own Xodus build (XboxPcRPCMixin). Every
+  // status route answers with the `XboxPcStatus` snapshot.
+  getXboxPcStatus: "get_xbox_pc_status",
+  refreshXboxPcStatus: "refresh_xbox_pc_status",
+  setXboxPcEnabled: "set_xbox_pc_enabled",
+  installXboxPcRuntime: "install_xbox_pc_runtime",
+  startXboxPcSignIn: "start_xbox_pc_sign_in",
+  cancelXboxPcSignIn: "cancel_xbox_pc_sign_in",
+  repairXboxPcGame: "repair_xbox_pc_game",
+  getXboxPcSaveStatus: "get_xbox_pc_save_status",
+  getUninstallSaveWarning: "get_uninstall_save_warning",
   // Auth-shortcut context (AuthShortcutsRPCMixin)
   getEpicAuthShortcutContext: "get_epic_auth_shortcut_context",
   getGogAuthShortcutContext: "get_gog_auth_shortcut_context",
@@ -54,6 +66,10 @@ export const rpcRoutes = {
   clearDownloadHistory: "clear_download_history",
   getAvailableUpdates: "get_available_updates",
   updateGame: "update_game",
+  // A game paid for but not yet claimed (itch.io bundles): arm the claim
+  // page before the shop window opens, check the claim once it closes.
+  beginStoreClaim: "begin_store_claim",
+  finishStoreClaim: "finish_store_claim",
   // Game info / metadata (StoreRPCMixin)
   getGameInfo: "get_game_info",
   getGameMetadataDisplay: "get_game_metadata_display",
@@ -90,6 +106,9 @@ export const rpcRoutes = {
   getLaunchFailures: "get_launch_failures",
   clearLaunchFailures: "clear_launch_failures",
   armCircuitBypass: "arm_circuit_bypass",
+  // Battle.net launch popup: installed versions of a tile.
+  getBattlenetLaunchChoices: "get_battlenet_launch_choices",
+  setBattlenetLaunchChoice: "set_battlenet_launch_choice",
   getPlaytime: "get_playtime",
   // Action dispatcher (ActionRPCMixin) — bidirectional bridge
   dispatchUnifideckAction: "dispatch_unifideck_action",
@@ -102,7 +121,7 @@ export const rpcRoutes = {
   listGameExecutables: "list_game_executables",
   setGameExecutable: "set_game_executable",
   resetGameExecutable: "reset_game_executable",
-  // Achievements (AchievementsRPCMixin) — GOG display + last-session summary
+  // Achievements (AchievementsRPCMixin) — GOG/Epic/Xbox display + last-session summary
   getGameAchievements: "get_game_achievements",
   getLastSessionAchievements: "get_last_session_achievements",
   // Observability (ObservabilityRPCMixin) — event bridge + support bundle

@@ -103,6 +103,29 @@ class StoreBase(ABC):
         """
         return None
 
+    async def install_precondition(self, game_id: str) -> str | None:
+        """An error code when *game_id* cannot be queued yet, else ``None``.
+
+        Checked by the ``install_game`` RPC before anything is queued, so
+        the frontend gets a synchronous answer it can act on (itch.io
+        answers ``itch_claim_required`` for an unclaimed bundle game, and
+        the frontend opens the claim page). Default: nothing to check.
+        """
+        return None
+
+    async def begin_claim(self, game_id: str) -> dict[str, Any] | None:
+        """Prepare the store's claim page for *game_id*; ``None`` if it has none.
+
+        Answers ``{"url", "bundle_title"}``. The frontend then opens the
+        store's shop window, which lands on that page, and calls
+        :meth:`finish_claim` when the window closes.
+        """
+        return None
+
+    async def finish_claim(self, game_id: str) -> bool:
+        """Whether *game_id* was claimed, checked after the claim window closed."""
+        return False
+
     async def shutdown(self) -> None:
         """Release what the store holds open for the plugin's lifetime.
 

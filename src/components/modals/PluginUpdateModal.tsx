@@ -35,6 +35,11 @@ import { FaDownload } from "react-icons/fa";
 import { useRPCQuery, useRPCMutation } from "../../api/useRPC";
 import { rpcRoutes } from "../../api/rpc-routes";
 import { useToast } from "../../hooks/useToast";
+import {
+  toastText,
+  headerText,
+  type ToastKey,
+} from "../../services/toast-text";
 import { ReleaseNotesModal } from "./ReleaseNotesModal";
 import {
   INSTALL_TYPE_DOWNGRADE,
@@ -164,11 +169,8 @@ export const PluginUpdateModal: FC<Props> = ({ closeModal }) => {
         setDownloadActive(false);
         logEvent("error", "watchdog_timeout after 45s of inactivity");
         toast.error(
-          t("updater.installFailedTitle", { defaultValue: "Install Failed" }),
-          t("updater.installTimeoutMessage", {
-            defaultValue:
-              "No response from Decky Loader — the install may have stalled or failed. Please try again.",
-          }),
+          headerText("toasts.header.unifideckUpdate"),
+          toastText("toasts.updater.installTimeout"),
         );
       }, INSTALL_WATCHDOG_TIMEOUT_MS);
     };
@@ -277,18 +279,14 @@ export const PluginUpdateModal: FC<Props> = ({ closeModal }) => {
       await Promise.all([forceCheckMut.mutate(), forceVersionsMut.mutate()]);
       await Promise.all([checkUpdate(), refetchVersions()]);
       toast.success(
-        t("updater.checkCompleteTitle", {
-          defaultValue: "Update Check Complete",
-        }),
-        t("updater.checkCompleteMessage", {
-          defaultValue: "Successfully fetched latest version info.",
-        }),
+        headerText("toasts.header.unifideckUpdate"),
+        toastText("toasts.updater.checkComplete"),
       );
     } catch (e) {
-      const message = e instanceof Error ? e.message : undefined;
+      console.error("[PluginUpdateModal] update check failed:", e);
       toast.error(
-        t("updater.checkFailedTitle", { defaultValue: "Check Failed" }),
-        message ?? t("errors.unknown"),
+        headerText("toasts.header.unifideckUpdate"),
+        toastText("toasts.updater.checkFailed"),
       );
     } finally {
       setChecking(false);
@@ -311,10 +309,8 @@ export const PluginUpdateModal: FC<Props> = ({ closeModal }) => {
     const backend = getDeckyBackend();
     if (!backend) {
       toast.error(
-        t("updater.installFailedTitle", { defaultValue: "Install Failed" }),
-        t("updater.noBackend", {
-          defaultValue: "Decky backend is unavailable.",
-        }),
+        headerText("toasts.header.unifideckUpdate"),
+        toastText("toasts.updater.noBackend"),
       );
       return;
     }
@@ -338,11 +334,8 @@ export const PluginUpdateModal: FC<Props> = ({ closeModal }) => {
         // shows the release is right there.
         if (fresh === null) {
           toast.error(
-            t("updater.installFailedTitle", { defaultValue: "Install Failed" }),
-            t("updater.refreshFailedMessage", {
-              defaultValue:
-                "Could not verify the latest release info. Check your connection and try again.",
-            }),
+            headerText("toasts.header.unifideckUpdate"),
+            toastText("toasts.updater.refreshFailed"),
           );
           setInstalling(false);
           return;
@@ -350,11 +343,8 @@ export const PluginUpdateModal: FC<Props> = ({ closeModal }) => {
         const match = fresh.find((v) => v.tag === release.tag);
         if (!match) {
           toast.error(
-            t("updater.installFailedTitle", { defaultValue: "Install Failed" }),
-            t("updater.releaseGoneMessage", {
-              defaultValue:
-                "This release is no longer available. Please Check for Updates and select again.",
-            }),
+            headerText("toasts.header.unifideckUpdate"),
+            toastText("toasts.updater.releaseGone"),
           );
           setInstalling(false);
           return;
@@ -378,9 +368,15 @@ export const PluginUpdateModal: FC<Props> = ({ closeModal }) => {
         "triggered",
         `${typeLabel} v${displayVersion} (type=${installType}) url=${release.asset_url}`,
       );
+      const installingKey: ToastKey =
+        installType === INSTALL_TYPE_REINSTALL
+          ? "toasts.updater.reinstalling"
+          : installType === INSTALL_TYPE_DOWNGRADE
+          ? "toasts.updater.downgrading"
+          : "toasts.updater.updating";
       toast.info(
-        t("updater.installingTitle", { defaultValue: "Installing Plugin" }),
-        `${typeLabel} v${displayVersion}...`,
+        headerText("toasts.header.unifideckUpdate"),
+        toastText(installingKey),
       );
 
       // Hand off to Decky Loader's installer via the GLOBAL ws router.
@@ -401,8 +397,8 @@ export const PluginUpdateModal: FC<Props> = ({ closeModal }) => {
       const message = e instanceof Error ? e.message : undefined;
       logEvent("error", message ?? String(e));
       toast.error(
-        t("updater.installFailedTitle", { defaultValue: "Install Failed" }),
-        message ?? t("errors.unknown"),
+        headerText("toasts.header.unifideckUpdate"),
+        toastText("toasts.updater.installFailed"),
       );
     } finally {
       // The call returns before the install runs; never leave the modal locked.

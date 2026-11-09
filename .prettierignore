@@ -19,6 +19,7 @@ tmp
 out
 dist
 .venv
+.venv.*
 venv
 
 # Vendored Python deps live under py_modules/* (gitignored); only our own
@@ -39,3 +40,11 @@ docs/
 # (committed by the build's i18n step). Its formatting follows the
 # generator, not Prettier, so exclude it from the formatting gate.
 src/i18n/locales.generated.ts
+
+# Captured CLI stdout. The parser reads one JSON line, so the fixture must
+# stay on a single line exactly as the CLI prints it.
+tests/fixtures/microsoft/xbox_pc_library_IN.json
+
+# xCloud player: vendored MIT library (Greenlight) and its built bundle.
+xcloud-player/
+py_modules/unifideck/launcher/xcloud_player/web/

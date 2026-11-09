@@ -105,7 +105,7 @@ CANONICAL_SCHEMA: dict[str, set[str]] = {
     # ``game_ids`` is the store's COMPLETE current set of updatable games,
     # not a delta — a game that drops out of it has had its update applied.
     "GAME_UPDATE_AVAILABLE":        {"game_ids", "store"},
-    "LAUNCHER_STAGE":               {"action", "duration_ms", "game_id", "game_title", "i18n_key", "i18n_params", "i18n_title_key", "local_snapshot", "priority", "remote_snapshot", "severity", "store"},
+    "LAUNCHER_STAGE":               {"achievement", "action", "duration_ms", "game_id", "game_title", "i18n_key", "i18n_params", "i18n_title_key", "local_snapshot", "priority", "remote_snapshot", "severity", "store"},
     "LIBRARY_SYNC_CANCELLED":       {"cancelled_at_store", "store_count"},
     "LIBRARY_SYNC_COMPLETED":       {"duration_ms", "errors", "game_count", "store_count"},
     "LIBRARY_SYNC_STARTED":         {"started_at_ms", "stores"},
@@ -122,6 +122,7 @@ CANONICAL_SCHEMA: dict[str, set[str]] = {
     "STORE_AUTH_COMPLETE":          {"store"},
     "STORE_AUTH_FAILED":            {"error", "store"},
     "STORE_AUTH_STARTED":           {"store"},
+    "STORE_LIBRARY_READY":          {"store"},
     "STORE_LOGOUT":                 {"store"},
     "STORE_REGISTERED":             set(),
     "SYNC_CANCELLED":               set(),
@@ -132,6 +133,12 @@ CANONICAL_SCHEMA: dict[str, set[str]] = {
     "SYNC_STARTED":                 {"registered_phases", "run_id", "scope", "stores"},
     "BATTLENET_INSTALL_LAUNCH_REQUESTED": {"store_game_id"},
     "UBISOFT_INSTALL_LAUNCH_REQUESTED": {"store_game_id"},
+    # The whole Xbox PC status snapshot, the same shape the
+    # ``get_xbox_pc_status`` RPC returns.
+    "XBOX_PC_STATE_CHANGED": {
+        "account", "available", "enabled", "library", "notice_ack_version",
+        "notice_version", "runtime", "xcloud_signed_in",
+    },
 }
 
 # Events with a single owning subsystem, as a path prefix relative to
@@ -145,10 +152,16 @@ CANONICAL_SCHEMA: dict[str, set[str]] = {
 # emitting DOWNLOAD_* is a duplicate by construction, and its "complete"
 # fires before the worker has run prefix warmup. Audit item #4.
 EMITTER_OWNERS: dict[str, str] = {
-    f"DOWNLOAD_{name}": "services/download/"
-    for name in (
-        "QUEUED", "STARTED", "PROGRESS", "COMPLETE", "FAILED", "CANCELLED",
-    )
+    **{
+        f"DOWNLOAD_{name}": "services/download/"
+        for name in (
+            "QUEUED", "STARTED", "PROGRESS", "COMPLETE", "FAILED", "CANCELLED",
+        )
+    },
+    # A snapshot event: a second emitter would send a partial status that
+    # the frontend store takes for the whole thing. The ``XboxPc`` facade
+    # is the one sender.
+    "XBOX_PC_STATE_CHANGED": "stores/microsoft/xodus/",
 }
 
 

@@ -56,7 +56,7 @@ async def ensure_redist_downloaded(
 
     launcher_toast(
         "toasts.launcher.installingRedistMessage",
-        i18n_title_key="toasts.launcher.installingRedist",
+        i18n_title_key="toasts.header.gameSetup",
         game_title=plan.context.game_key,
     )
     gogdl = _gogdl_bin(plan)

@@ -40,6 +40,10 @@ from .uploads import choose_upload
 logger = logging.getLogger(__name__)
 
 
+#: An unclaimed bundle game: the itch.io claim page must open first.
+CLAIM_REQUIRED = "itch_claim_required: claim this game from its bundle on itch.io first"
+
+
 def _fail(game_id: str, error: str) -> InstallResult:
     logger.warning("[itch] install %s failed: %s", game_id, error)
     return InstallResult(success=False, game_id=game_id, store=STORE, error=error)
@@ -89,6 +93,23 @@ def _location_for(locations: list[dict[str, Any]], root: str) -> str | None:
     return None
 
 
+def _relative_launch_path(exe: str | None, folder: str) -> str:
+    """*exe* relative to *folder*, comparing real paths.
+
+    ``.itch.toml`` targets come back resolved while butler's install folder
+    does not, so a symlinked Games folder (commonly ``~/Games`` pointing at
+    the SD card) made ``Path.relative_to`` raise after the download had
+    finished. A target outside the folder is treated as no target.
+    """
+    if not exe:
+        return ""
+    rel = os.path.relpath(os.path.realpath(exe), os.path.realpath(folder))
+    if rel == os.pardir or rel.startswith(os.pardir + os.sep):
+        logger.error("[itch] launch target %s is outside the install folder %s", exe, folder)
+        return ""
+    return rel
+
+
 def _remove_if_ours(folder: str, owner_key: str) -> None:
     """Delete *folder* unless games.map says another store installed there."""
     if os.path.exists(folder) and not foreign_installs_under(folder, owner_key=owner_key):
@@ -118,34 +139,64 @@ class ItchInstaller:
         self._default_root = default_install_root
         self._stall_s = stall_s
 
+    async def claim_needed(self, game_id: str, profile: int | None = None) -> bool:
+        """True for a bundle game the user has not claimed yet.
+
+        The user decided the claim is theirs to make, on the itch.io page
+        (``bundles.py``). butler's install calls would claim a bundle game
+        through the API on their own (``ClaimBundleGame``), so an
+        unclaimed one never reaches them. Any butlerd failure answers
+        False: the install then reports its own, more specific error.
+        """
+        try:
+            profile = profile if profile is not None else await self._library.profile_id()
+            if profile is None:
+                return False
+            return await self._library.ownership_source(profile, game_id) == "bundle"
+        except (ButlerdError, OSError, TimeoutError, ValueError) as e:
+            logger.info("[itch] ownership check for %s failed: %s", game_id, e)
+            return False
+
     async def install(
         self, game_id: str, base_path: str | None,
         progress_cb: ProgressCallback | None,
     ) -> InstallResult:
         """Install the best upload of *game_id* under *base_path*."""
         try:
-            profile = await self._library.profile_id()
-            if profile is None:
-                return _fail(game_id, "itch_not_signed_in: itch.io login required")
-            game = await self._library.owned_game(game_id)
-            if game is None:
-                return _fail(game_id, "itch_game_not_found")
-            await self._drop_stale_cave(game_id)
-            uploads = await self._daemon.call(
-                "Fetch.GameUploads",
-                {"gameId": int(game_id), "compatible": False, "fresh": True},
-            )
-            upload = choose_upload(uploads.get("uploads") or [])
-            if upload is None:
-                return _fail(game_id, "itch_no_installable_upload: no Linux or "
-                                      "Windows build of this game can be installed")
-            root = await asyncio.to_thread(_prepare_root, base_path or self._default_root)
-            location = await self._ensure_location(root)
+            prepared = await self._prepare_install(game_id, base_path)
         except ButlerdError as e:
             return _fail(game_id, f"itch_install_failed: {e}")
+        if isinstance(prepared, InstallResult):
+            return prepared
+        game, upload, root, location, profile = prepared
         queue = {"game": game, "upload": upload, "installLocationId": location,
                  "profileId": profile, "reason": "install"}
         return await self._run(_Job(game_id, game, upload, queue, root), progress_cb)
+
+    async def _prepare_install(
+        self, game_id: str, base_path: str | None,
+    ) -> InstallResult | tuple[dict[str, Any], dict[str, Any], str, str, int]:
+        """Resolve everything ``install`` queues, or the failure to report."""
+        profile = await self._library.profile_id()
+        if profile is None:
+            return _fail(game_id, "itch_not_signed_in: itch.io login required")
+        if await self.claim_needed(game_id, profile):
+            return _fail(game_id, CLAIM_REQUIRED)
+        game = await self._library.owned_game(game_id)
+        if game is None:
+            return _fail(game_id, "itch_game_not_found")
+        await self._drop_stale_cave(game_id)
+        uploads = await self._daemon.call(
+            "Fetch.GameUploads",
+            {"gameId": int(game_id), "compatible": False, "fresh": True},
+        )
+        upload = choose_upload(uploads.get("uploads") or [])
+        if upload is None:
+            return _fail(game_id, "itch_no_installable_upload: no Linux or "
+                                  "Windows build of this game can be installed")
+        root = await asyncio.to_thread(_prepare_root, base_path or self._default_root)
+        location = await self._ensure_location(root)
+        return game, upload, root, location, profile
 
     async def update(
         self, game_id: str, progress_cb: ProgressCallback | None,
@@ -256,7 +307,7 @@ class ItchInstaller:
                 "the shortcut will not launch until one is chosen with "
                 "Change Executable", title, folder,
             )
-        rel = str(Path(exe).relative_to(folder)) if exe else ""
+        rel = _relative_launch_path(exe, folder)
         await write_manifest(folder, STORE, game_id, title, rel,
                              platform="linux" if exe and not exe.endswith(".exe") else "windows")
         logger.info("[itch] installed %s (%s upload) → %s, launch %s",

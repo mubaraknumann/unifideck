@@ -8,7 +8,10 @@
     "locales": "*",
     "reason": "A filesystem path and nothing else. The label that used to precede it (\"Default: \") was removed at the user's request, leaving no words to translate."
   },
-
+  "toasts.launcher.xboxPcVcRuntimeTitle": {
+    "locales": "*",
+    "reason": "Visual C++ is a Microsoft product name; it is not translated in any language."
+  },
   "deckTabs.microsoft": {
     "locales": "*",
     "reason": "Company name. Unchanged in every supported language."
@@ -56,7 +59,6 @@
     ],
     "reason": "Brand name plus a colon. fr-FR differs only by its spaced colon; ko/zh append a word for 'score'."
   },
-
   "gameInfoPanel.labels.status": {
     "locales": ["de-DE", "nl-NL", "pl-PL", "pt-BR"],
     "reason": "'Status' is the native word in German, Dutch, Polish and Brazilian Portuguese."
@@ -81,7 +83,6 @@
     "locales": ["de-DE"],
     "reason": "German uses the English plural 'Stores' for digital storefronts."
   },
-
   "gameInfoPanel.buttons.details": {
     "locales": ["de-DE", "nl-NL"],
     "reason": "'Details' is the native word in German and Dutch."
@@ -106,7 +107,6 @@
     "locales": ["nl-NL"],
     "reason": "Steam leaves 'Points Shop' untranslated in its Dutch UI."
   },
-
   "launchLogs.filterInfo": {
     "locales": ["de-DE", "fr-FR", "it-IT", "nl-NL"],
     "reason": "'Info' is the native abbreviation in these four languages."
@@ -143,7 +143,6 @@
     "locales": ["es-ES"],
     "reason": "'Error' is the Spanish word."
   },
-
   "downloads.title": {
     "locales": ["de-DE", "nl-NL", "pt-BR"],
     "reason": "'Downloads' is the established plural in German, Dutch and Brazilian Portuguese."
@@ -215,5 +214,67 @@
   "storeOwnership.messageXboxCloud": {
     "locales": "*",
     "reason": "Brand name (Xbox Cloud Gaming), unchanged on Microsoft's own localized pages."
+  },
+  "toasts.header.edge": {
+    "locales": "*",
+    "reason": "Product name (Microsoft Edge), used as the toast header for its install. Not translated in any language."
+  },
+  "toasts.header.xboxPc": {
+    "locales": "*",
+    "reason": "Product name (Xbox PC games), the toast header for that feature. Not translated in any language."
+  },
+  "toasts.header.xboxCloud": {
+    "locales": "*",
+    "reason": "Product name (Xbox Cloud Gaming), the toast header for that feature. Not translated in any language."
+  },
+  "toasts.header.download": {
+    "locales": ["de-DE", "it-IT", "nl-NL", "pt-BR"],
+    "reason": "'Download' is the everyday word for it in these languages' software UI (Steam uses it too); the native alternatives do not fit a 16-character toast header."
+  },
+  "toasts.header.downloadGame": {
+    "locales": ["de-DE", "it-IT", "nl-NL", "pt-BR"],
+    "reason": "Same word as toasts.header.download ('Download' is the everyday term in these languages), followed by the game name."
+  },
+  "toasts.header.update": {
+    "locales": ["de-DE", "nl-NL"],
+    "reason": "'Update' is the standard German and Dutch software term (Steam, Windows, phones); 'Aktualisierung'/'Bijwerken' read as stiff here."
+  },
+  "toasts.auth.clientRejected": {
+    "locales": ["nl-NL"],
+    "reason": "'Update Unifideck' is idiomatic Dutch: 'updaten' is the usual verb and the imperative reads the same as English."
+  },
+  "xboxPc.section.backendVersion": {
+    "locales": ["de-DE", "es-ES", "fr-FR", "it-IT", "nl-NL", "pl-PL", "pt-BR"],
+    "reason": "'Backend' is the standard technical loanword in these languages; the other locales that have a native word use it."
+  },
+  "gameInfoPanel.labels.genres": {
+    "locales": ["de-DE", "nl-NL"],
+    "reason": "'Genres' is the correct German and Dutch word, spelled the same as English."
+  },
+  "storeOwnership.messageGamePassPc": {
+    "locales": [
+      "ar-SA",
+      "de-DE",
+      "es-ES",
+      "fr-FR",
+      "it-IT",
+      "ja-JP",
+      "ko-KR",
+      "nl-NL",
+      "pl-PL",
+      "pt-BR",
+      "tr-TR",
+      "zh-CN",
+      "zh-TW"
+    ],
+    "reason": "Brand name, like storeOwnership.messageGamePass. Only ru-RU and uk-UA localize the '(PC)' part."
+  },
+  "storeOwnership.tagInstallable": {
+    "locales": ["fr-FR"],
+    "reason": "'Installable' is the correct French word, spelled the same as English."
+  },
+  "toasts.launcher.xboxPcAppRuntimeMissing": {
+    "locales": ["it-IT"],
+    "reason": "'No' + noun reads naturally as a short Italian label, and every fuller phrasing ('Senza App Runtime', 'Manca App Runtime') exceeds the 16-character toast budget."
   }
 }

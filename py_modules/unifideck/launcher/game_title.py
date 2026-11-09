@@ -30,6 +30,20 @@ _DATA_DIR = Path(
 REGISTRY_PATH = _DATA_DIR / "shortcuts_registry.json"
 
 
+def registered_title(game_key: str, *, registry_path: Path | None = None) -> str:
+    """The title the registry records for ``store:game_id``, or ``""``."""
+    path = registry_path or REGISTRY_PATH
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ""
+    if not isinstance(data, dict):
+        return ""
+    entry = data.get(game_key)
+    title = entry.get("title") if isinstance(entry, dict) else None
+    return title if isinstance(title, str) else ""
+
+
 def resolve_title(game_key: str, *, registry_path: Path | None = None) -> str:
     """The display title for ``store:game_id``, or ``game_key`` unchanged.
 
@@ -37,13 +51,4 @@ def resolve_title(game_key: str, *, registry_path: Path | None = None) -> str:
     a toast reading "Starting battlenet:D1" is poor, but one reading
     "Starting" is broken.
     """
-    path = registry_path or REGISTRY_PATH
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return game_key
-    if not isinstance(data, dict):
-        return game_key
-    entry = data.get(game_key)
-    title = entry.get("title") if isinstance(entry, dict) else None
-    return title if isinstance(title, str) and title else game_key
+    return registered_title(game_key, registry_path=registry_path) or game_key

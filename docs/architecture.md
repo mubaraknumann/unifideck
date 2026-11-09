@@ -1,6 +1,6 @@
 # Unifideck — Architecture & Build Process
 
-> **Version:** 0.7.4 · **Last re-synced:** 2026-08-24 (see `docs/architecture-audit.md`)
+> **Version:** 0.7.7 · **Last re-synced:** 2026-08-24 (see `docs/architecture-audit.md`) · **0.7.7 pass:** 2026-10-20 added the `native_entry`, `safe_delete`, `ssl_helpers` and cloud-save rows only; the rest was not re-measured · **xbox-pc pass:** 2026-10-21 added the `XboxPcRPCMixin` row and the Xbox PC part of the Microsoft row only
 
 ---
 
@@ -67,6 +67,7 @@ Pure data island. No side-effects, no I/O. Safe to import from any layer.
 | ------------ | --------------------------------------------- |
 | `domain.py`  | `Game`, `StoreId`, `InstallState` dataclasses |
 | `events.py`  | All typed `EventBus` event payloads           |
+| `enums.py`   | `GameTag`, `StoreStatus`, `ErrorCode` and the other small enums |
 | `results.py` | `Result[T]` envelope (success/error/code)     |
 
 ### Layer 2 — `core/`
@@ -79,12 +80,14 @@ Infrastructure primitives. No store or service knowledge.
 | `manifest.py`                   | Plugin installation manifest reader       |
 | `metrics_collector.py`          | Latency/counter telemetry                 |
 | `exe_finder.py`                 | Heuristic executable discovery            |
+| `native_entry.py`               | GOG Linux builds launch via their root `start.sh`. One rule shared by the resolver, launcher, prefix warmup and cloud saves |
 | `paths.py`                      | Canonical path resolution                 |
 | `store_urls.py`                 | Per-store storefront/search URL builders  |
 | `cross_source_dedupe.py`        | Drops a title owned on two stores at once |
 | `game_grouping.py`              | Display-only: stamps `dedupe_group_id`, `edition_label` and the owned Steam copy on each game, for the "Group duplicates" tabs and the game-page store switcher. Never removes a shortcut |
 | `game_identity.py`              | Which library rows and owned Steam apps are the same game (any version of it). One rule shared by `game_grouping.py` and the ownership ribbon's join |
-| `safe_delete.py`                | Guarded delete used by every sweep        |
+| `safe_delete.py`                | Guarded delete used by every sweep. `delete_game_prefix` is the one Uninstall prefix delete for every non-wrapper store |
+| `net/ssl_helpers.py`            | TLS contexts. `ssl_ctx_strict` (system store plus certifi) for every Microsoft endpoint; `ssl_ctx_permissive` for the other stores. The self-updater builds its own certifi context |
 | `cleanup_sweeps.py`             | The blocking sweeps behind "delete all data" |
 | `marker_sweep.py`               | Install-dir ownership via `.unifideck*` markers |
 | `stale_installs.py`             | Detects install records with no files left |
@@ -135,7 +138,7 @@ A connector sub-package for each store (the set is `bootstrap/cache_registry._ST
 | `stores/amazon/`    | Amazon Games            | `bin/nile`                           |
 | `stores/ubisoft/`   | Ubisoft Connect         | UPC client in a per-game Wine prefix |
 | `stores/battlenet/` | Battle.net              | Battle.net client in a Wine prefix   |
-| `stores/microsoft/` | Xbox Cloud Gaming + owned Xbox purchases | xbox.com device-code sign-in in the Edge window; Collections for ownership (`ownership/`) |
+| `stores/microsoft/` | Xbox Cloud Gaming + owned Xbox purchases + Xbox PC games (opt-in) | xbox.com device-code sign-in in the Edge window; Collections for ownership (`ownership/`). Xbox PC titles come from our own `xodus-cli` build (`xodus/` runs it, `pc_library/` turns its library into rows) |
 | `stores/gamevault/` | GameVault (self-hosted) | The user's own server over HTTP, or a local folder of archives |
 | `stores/itch/`      | itch.io                 | `bin/butler/butler`, run as the butlerd JSON-RPC daemon |
 
@@ -147,15 +150,15 @@ Infrastructure services that subscribe to the EventBus and own cross-cutting con
 | ---------------------------------- | --------------------------------------------- |
 | `services/download/`               | Download queue, progress tracking, worker     |
 | `services/playtime/`               | Session recording, DB persistence             |
-| `services/cloud_save/`             | Save sync — upload/download/conflict          |
+| `services/cloud_save/`             | Save sync — upload/download/conflict. `gog_native.py` maps GOG saves onto Linux-native builds (Unity, DOSBox) |
 | `services/shortcut/`               | Steam VDF shortcut create/delete/update       |
 | `services/artwork/`                | SteamGridDB artwork fetching                  |
-| `services/launcher/`               | Game launch orchestration, circuit breaker    |
+| `services/launcher/`               | Game launch orchestration, circuit breaker. `xbox_pc_game.py` runs an Xbox PC title through `launcher/xbox_pc/` |
 | `services/security/`               | Token store, bruteforce protection, audit log |
 | `services/microsoft_subscription/` | Game Pass entitlement probing                 |
 | `services/microsoft_ownership/`    | Xbox purchase index for the Steam Store ownership ribbon (never library rows) |
 | `services/launch_history/`         | Per-game launch timestamps                    |
-| `services/achievements/`           | Achievement fetch + last-session summary      |
+| `services/achievements/`           | Unlock toasts during play + last-session summary (GOG, Epic, Xbox) |
 | `services/compatibility/`          | ProtonDB + Valve per-device ratings (Deck / Machine / SteamOS) |
 | `services/playtime_sync/`          | Pushes playtime back to GOG/Epic              |
 | `services/support_bundle/`         | Capture Logs: collects the diagnostic zip     |
@@ -176,9 +179,9 @@ The `Plugin` class in `main.py` is composed from the RPC mixin classes enumerate
 | `SyncRPCMixin`             | `sync_libraries`, `force_sync_libraries`, `get_game_info`, `get_sync_progress`   |
 | `DownloadRPCMixin`         | `install_game`, `uninstall_game`, `update_game`, `cancel_download`, `get_download_queue`, `get_available_updates` |
 | `StorageRPCMixin`          | `get_storage_locations`, `get_browseable_devices`, `set_custom_install_path`    |
-| `LaunchRPCMixin`           | `notify_game_launched`, `notify_game_stopped`, `get_launch_failures`             |
+| `LaunchRPCMixin`           | `notify_game_launched`, `notify_game_stopped`, `get_launch_failures`, `get_battlenet_launch_choices`, `set_battlenet_launch_choice` |
 | `AuthShortcutsRPCMixin`    | `get_<store>_auth_shortcut_context`, `get_compat_tool_for_game`                  |
-| `EdgeRPCMixin`             | `install_edge`                                                                  |
+| `EdgeRPCMixin`             | `install_edge`, `browser_installed`                                             |
 | `ExecutableRPCMixin`       | `list_game_executables`, `set_game_executable`, `reset_game_executable`          |
 | `LibraryFacetsRPCMixin`    | `get_overview_enrichment`                                                       |
 | `StoreOwnershipRPCMixin`   | `show_store_ownership` (draws the "already owned" ribbon on a Steam Store page; CDP only when owned) |
@@ -186,10 +189,11 @@ The `Plugin` class in `main.py` is composed from the RPC mixin classes enumerate
 | `ObservabilityRPCMixin`    | `subscribe_replay`, `get_launcher_toasts`, `capture_logs`                        |
 | `ActionRPCMixin`           | `dispatch_unifideck_action` (URI dispatch)                                      |
 | `AccountRPCMixin`          | `check_account_switch`, `migrate_account_data`                                  |
-| `AchievementsRPCMixin`     | `get_game_achievements`, `get_last_session_achievements`                         |
+| `AchievementsRPCMixin`     | `get_game_achievements`, `get_last_session_achievements` (stores in `ACHIEVEMENT_STORES`: gog, epic, microsoft) |
 | `CloudSaveRPCMixin`        | `get_cloud_save_status`, `cloud_save_pull`, `cloud_save_push`, `set_game_save_path` |
 | `UIRPCMixin`               | `get_game_metadata_display`, `get_language_preference`, `set_language_preference`, `get_device_type` |
 | `UpdaterRPCMixin`          | `check_plugin_update`, `get_available_versions`, `log_update_event`              |
+| `XboxPcRPCMixin`           | `get_xbox_pc_status`, `set_xbox_pc_enabled`, `install_xbox_pc_runtime`, `refresh_xbox_pc_status`, `start_xbox_pc_sign_in`, `cancel_xbox_pc_sign_in`, `repair_xbox_pc_game`, `get_xbox_pc_save_status`, `get_uninstall_save_warning` (thin proxy to the `XboxPc` facade on the Microsoft store; the repair queues through `DownloadRPCMixin._queue_install`) |
 
 ---
 
@@ -210,7 +214,7 @@ These sit alongside the layered stack and can be imported by any layer.
 | `metadata/`      | Metacritic scraper, UnifiDB API client                                                                     |
 | `steam/`         | Steam library path discovery, VDF shortcuts, SteamGridDB, owned games                                      |
 | `utils/`         | Shared path helpers, locale utilities, config helpers                                                      |
-| `launcher/`      | Game launcher dispatcher, Proton infrastructure, language setup, cloud save trigger, CDP flows, game fixes |
+| `launcher/`      | Game launcher dispatcher, Proton infrastructure, language setup, cloud save trigger, CDP flows, game fixes. `launcher/xbox_pc/` holds the Xbox PC launch and the shared on-disk layout (stdlib only) |
 | `actions/`       | `dispatch.py` — `unifideck://` URI handler; `unifideck_uri.py` — URI parser                                |
 | `rpc/`           | `auto_wrap_rpc_methods` decorator + `rpc/mixins/` composition                                               |
 
@@ -252,7 +256,7 @@ Contains **only** compiled binaries and shell wrappers. All old `bin/*.py` helpe
 | `legendary`                     | ~4.5 MB | Epic Games Store CLI (upstream) — Python zipapp                                          |
 | `gogdl`                         | ~1.5 MB | GOG download manager (upstream, Heroic) — Python zipapp                                  |
 | `nile`                          | ~10 MB  | Amazon Games CLI (upstream, imLinguin)                                                   |
-| `comet`                         | —       | GOG online services / Galaxy stub (upstream, imLinguin)                                  |
+| `comet`                         | —       | GOG online services / Galaxy stub (upstream, imLinguin); pushes achievement unlocks to the watcher |
 | `winetricks`                    | ~820 KB | Wine component installer (shell script)                                                  |
 | `unifideck-launcher`            | shell   | Entry-point wrapper — bootstraps `py_modules/` path and calls `launcher.dispatcher.main` |
 | `unifideck-launcher.py`         | Python  | Python source for the launcher (companion to the shell wrapper)                          |
@@ -423,7 +427,7 @@ All remote binaries are declared in `package.json` under `"remote_binary"`. The 
 | `legendary`  | 0.20.43  | `github.com/Heroic-Games-Launcher/legendary`    |
 | `gogdl`      | v1.3.0   | `github.com/Heroic-Games-Launcher/heroic-gogdl` |
 | `nile`       | v1.1.2   | `github.com/imLinguin/nile`                     |
-| `comet`      | v0.3.2   | `github.com/imLinguin/comet`                    |
+| `comet`      | v0.4.1   | `github.com/imLinguin/comet`                    |
 | `winetricks` | 20260125 | `github.com/Winetricks/winetricks`              |
 | `butler`     | 15.31.0  | `broth.itch.zone/butler/linux-amd64` (archive; see below) |
 

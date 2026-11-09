@@ -30,6 +30,7 @@ import pytest
 
 from unifideck.stores.battlenet import paths
 from unifideck.stores.battlenet.prefix import client_install as ci
+from unifideck.stores.battlenet.prefix import stall_watchdog as sw
 from unifideck.utils.vulkan import Vulkan32, Vulkan32Report
 
 
@@ -533,10 +534,10 @@ async def test_an_installer_writing_nothing_is_killed(
 ) -> None:
     prefix = tmp_path / "pfx"
     prefix.mkdir()
-    monkeypatch.setattr(ci, "STALL_POLL_SECONDS", 0.01)
+    monkeypatch.setattr(sw, "STALL_POLL_SECONDS", 0.01)
     proc = _FakeProc()
 
-    await ci._stall_watchdog(prefix, proc, 0.03)  # type: ignore[arg-type]
+    await sw.stall_watchdog(prefix, proc, 0.03)  # type: ignore[arg-type]
 
     assert proc.killed is True
 
@@ -553,7 +554,7 @@ async def test_a_slow_but_growing_install_is_left_alone(
     """
     prefix = tmp_path / "pfx"
     prefix.mkdir()
-    monkeypatch.setattr(ci, "STALL_POLL_SECONDS", 0.01)
+    monkeypatch.setattr(sw, "STALL_POLL_SECONDS", 0.01)
     proc = _FakeProc()
 
     async def grow() -> None:
@@ -562,7 +563,7 @@ async def test_a_slow_but_growing_install_is_left_alone(
             await asyncio.sleep(0.01)
 
     watchdog = asyncio.ensure_future(
-        ci._stall_watchdog(prefix, proc, 0.03),  # type: ignore[arg-type]
+        sw.stall_watchdog(prefix, proc, 0.03),  # type: ignore[arg-type]
     )
     await grow()
     watchdog.cancel()
@@ -579,7 +580,7 @@ async def test_a_killed_installer_is_reported_as_stalled(
     """The wiring behind the error code: watchdog fired, so blame the stall."""
     prefix = tmp_path / "pfx"
     prefix.mkdir()
-    monkeypatch.setattr(ci, "STALL_POLL_SECONDS", 0.01)
+    monkeypatch.setattr(sw, "STALL_POLL_SECONDS", 0.01)
     monkeypatch.setattr(ci.paths, "client_installed", lambda _p: False)
 
     class _Proc:
@@ -607,7 +608,7 @@ async def test_a_normal_failure_is_not_reported_as_stalled(
 ) -> None:
     prefix = tmp_path / "pfx"
     prefix.mkdir()
-    monkeypatch.setattr(ci, "STALL_POLL_SECONDS", 0.01)
+    monkeypatch.setattr(sw, "STALL_POLL_SECONDS", 0.01)
     monkeypatch.setattr(ci.paths, "client_installed", lambda _p: False)
 
     class _Proc:

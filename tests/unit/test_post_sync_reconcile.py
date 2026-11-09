@@ -210,8 +210,8 @@ async def test_toast_summarises_only_what_was_repaired(_patch_gap_probe):
 
     toasts = [e for e in bus.emitted if e["event"] == "launcher_stage"]
     assert len(toasts) == 1
-    assert toasts[0]["i18n_key"] == "reconcile.repairedBody"
-    assert toasts[0]["i18n_params"]["artwork"] == 1
+    assert toasts[0]["i18n_title_key"] == "toasts.header.librarySync"
+    assert toasts[0]["i18n_key"] == "toasts.libraryRepairedBody"
 
 
 # ── the safety half ─────────────────────────────────────

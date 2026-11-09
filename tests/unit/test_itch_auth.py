@@ -12,20 +12,29 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from unifideck.core.types import AuthResult, Events
-from unifideck.stores.itch.auth import KEY_CAPTURE, ItchAuthFlow, should_steer
+from unifideck.stores.itch.auth import KEY_CAPTURE, KEY_LIMITED, ItchAuthFlow, should_steer
 from unifideck.stores.itch.butlerd import ButlerdError
 
 DUMMY_KEY = "A" * 20 + "b" * 20  # 40 alphanumerics, the measured key shape
+SCOPED_KEY = "S" * 40  # a key another tool made: signs in, cannot read owned keys
+_SCOPE_403 = ButlerdError(
+    "itch.io API error (403): /profile/owned-keys: api key does not permit `profile:owned`",
+    code=12000, api_status=403,
+)
 
 
 class _Daemon:
     available = True
 
     def __init__(self, *, profiles: list[dict[str, Any]] | None = None,
-                 saved_ok: bool = True, login_ok: bool = True) -> None:
+                 saved_ok: bool = True, login_ok: bool = True,
+                 saved_scoped: bool = False, owned_error: ButlerdError | None = None) -> None:
         self.profiles = profiles if profiles is not None else []
         self.saved_ok = saved_ok
         self.login_ok = login_ok
+        self.owned_error = owned_error
+        # Whether the key butler is using now can read owned keys.
+        self.key_scoped = saved_scoped
         self.calls: list[tuple[str, dict[str, Any]]] = []
 
     async def call(self, method: str, params: dict[str, Any] | None = None, **_: Any) -> dict[str, Any]:
@@ -39,7 +48,14 @@ class _Daemon:
         if method == "Profile.LoginWithAPIKey":
             if not self.login_ok:
                 raise ButlerdError("invalid key", code=12000, api_status=403)
+            self.key_scoped = (params or {})["apiKey"] == SCOPED_KEY
             return {"profile": {"id": 7, "user": {"username": "someone"}}}
+        if method == "Fetch.ProfileOwnedKeys":
+            if self.owned_error is not None:
+                raise self.owned_error
+            if self.key_scoped:
+                raise _SCOPE_403
+            return {"items": []}
         if method == "Profile.Forget":
             return {"success": True}
         raise AssertionError(method)
@@ -53,10 +69,11 @@ def _flow(daemon: _Daemon) -> tuple[ItchAuthFlow, MagicMock, MagicMock]:
     return ItchAuthFlow(bus, orch, daemon, lambda: None), bus, orch
 
 
-def test_capture_reads_the_hidden_key_element_not_inner_text() -> None:
+def test_capture_reads_every_hidden_key_element_not_inner_text() -> None:
     # The key sits in a <code class="full_key"> that stays hidden until "View";
     # innerText never contains it, so the default expression cannot be used.
-    assert "code.full_key" in KEY_CAPTURE.expression
+    # Every key is read, not the first: the first can be a scoped one.
+    assert "querySelectorAll('td.key_cell code.full_key')" in KEY_CAPTURE.expression
     assert "innerText" not in KEY_CAPTURE.expression
     assert KEY_CAPTURE.trigger_url == "itch.io/user/settings/api-keys"
 
@@ -67,6 +84,9 @@ def test_capture_reads_the_hidden_key_element_not_inner_text() -> None:
     ("", None),                             # no key generated yet
     ("3Tskz8O...", None),                   # the truncated display text
     (DUMMY_KEY + "X", None),                # 41 chars is not a key
+    (f"{SCOPED_KEY},{DUMMY_KEY}", f"{SCOPED_KEY},{DUMMY_KEY}"),  # several keys
+    (f"{DUMMY_KEY},", None),                # a trailing comma is not a key list
+    (f"{DUMMY_KEY},short", None),
 ])
 def test_key_regex(text: str, expected: str | None) -> None:
     m = re.search(KEY_CAPTURE.regex, text)
@@ -125,3 +145,43 @@ async def test_logout_forgets_every_profile() -> None:
     flow, _bus, _orch = _flow(daemon)
     assert (await flow.logout()).success
     assert [p for m, p in daemon.calls if m == "Profile.Forget"] == [{"profileId": 7}, {"profileId": 8}]
+
+
+async def test_scoped_first_key_is_skipped_for_one_that_reads_the_library() -> None:
+    # The reporter's account: the first key signed in, then every sync got 403.
+    daemon = _Daemon()
+    flow, _bus, _orch = _flow(daemon)
+    result = await flow._login_with_key(f"{SCOPED_KEY},{DUMMY_KEY}")
+    assert result.success
+    logins = [p["apiKey"] for m, p in daemon.calls if m == "Profile.LoginWithAPIKey"]
+    assert logins == [SCOPED_KEY, DUMMY_KEY]
+    # The scoped key's profile is forgotten before the next key is tried.
+    assert [m for m, _ in daemon.calls] == [
+        "Profile.LoginWithAPIKey", "Fetch.ProfileOwnedKeys", "Profile.Forget",
+        "Profile.LoginWithAPIKey", "Fetch.ProfileOwnedKeys",
+    ]
+
+
+async def test_only_scoped_keys_fail_with_a_message_and_leave_no_profile() -> None:
+    daemon = _Daemon()
+    flow, _bus, _orch = _flow(daemon)
+    result = await flow._login_with_key(SCOPED_KEY)
+    assert not result.success and result.error == KEY_LIMITED
+    assert ("Profile.Forget", {"profileId": 7}) in daemon.calls
+
+
+async def test_an_unrelated_probe_failure_does_not_reject_the_key() -> None:
+    daemon = _Daemon(owned_error=ButlerdError("timed out", code=-1))
+    flow, _bus, _orch = _flow(daemon)
+    assert (await flow._login_with_key(DUMMY_KEY)).success
+    assert not any(m == "Profile.Forget" for m, _ in daemon.calls)
+
+
+async def test_a_saved_scoped_key_opens_the_edge_flow() -> None:
+    # Otherwise "Sign in" would report success and keep the useless key.
+    daemon = _Daemon(profiles=[{"id": 7}], saved_scoped=True)
+    flow, _bus, orch = _flow(daemon)
+    await flow.start_auth()
+    orch.run_flow.assert_awaited_once()
+    assert ("Profile.Forget", {"profileId": 7}) in daemon.calls
+    flow._stop_steering()

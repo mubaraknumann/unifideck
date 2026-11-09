@@ -203,7 +203,9 @@ def _merge_into_metadata_cache(
     existing = cache.get(CACHE_NAMESPACE, cache_key)
     merged: dict[str, Any] = dict(existing) if isinstance(existing, dict) else {}
     merged.update(data)
-    merged.pop("_negative", None)
+    if merged.pop("_negative", None):
+        # The marker's searched title is not metadata; drop it with the flag.
+        merged.pop("title", None)
     # Stamp the resolved real Steam AppID when known. The facet now reads
     # metacritic by the ``store:game_id`` key, but keeping steam_appid on
     # the entry keeps any steam_appid-keyed reader correct (defensive).

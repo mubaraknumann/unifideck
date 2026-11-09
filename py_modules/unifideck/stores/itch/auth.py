@@ -1,11 +1,18 @@
 """itch.io sign-in through the standard Edge auth window.
 
-The credential butler needs is an **API key**: keys generated on the user's
-settings page are unscoped and can download (itch.io server-side docs), while
-OAuth tokens issued to third-party apps cannot (itch.io staff, itch.io/t/1588368).
-So the "code" this flow captures is the key itself, read off
-``itch.io/user/settings/api-keys`` once the user has signed in, and the
-"exchange" is butlerd ``Profile.LoginWithAPIKey``. Lutris, GameHub and itch-dl
+The credential butler needs is an **API key**: a key generated with the
+settings page's own button is unscoped and can download (itch.io server-side
+docs), while OAuth tokens issued to third-party apps cannot (itch.io staff,
+itch.io/t/1588368). So the "code" this flow captures is the key itself, read
+off ``itch.io/user/settings/api-keys`` once the user has signed in, and the
+"exchange" is butlerd ``Profile.LoginWithAPIKey``.
+
+**Not every key on that page can read the library.** The page also lists keys
+other tools made, and those can be scoped: a reporter's first key signed in
+fine (``/profile`` only needs ``profile:me``) and then every sync answered
+``403 api key does not permit `profile:owned```. So the capture takes every
+key on the page, and the exchange keeps the first one that can read owned
+keys (:func:`key_reads_library`). A saved login gets the same check. Lutris, GameHub and itch-dl
 all use keys from that page; Lutris moved to it after its embedded-browser
 login looped on Cloudflare Turnstile.
 
@@ -15,9 +22,9 @@ What the page does, measured 2026-09-23:
 * A user with no key sees "You currently don't have any API keys." and one
   **Generate new API key** button. The user presses it; nothing is clicked on
   their behalf.
-* The key (40 alphanumerics) sits in ``td.key_cell code.full_key``, which is
-  **hidden** until "View" is clicked, so it is not in ``innerText``. The
-  capture evaluates that element's ``textContent`` instead.
+* Each key (40 alphanumerics) sits in a ``td.key_cell code.full_key``, which
+  is **hidden** until "View" is clicked, so it is not in ``innerText``. The
+  capture joins those elements' ``textContent`` with commas instead.
 * ``return_to`` on the login URL is dropped by a password reset (the test
   user landed on ``/my-feed``). A small steering task sends any signed-in
   itch.io page that is not part of the login flow to the API-keys page.
@@ -53,12 +60,16 @@ AUTH_URL_FILE = "~/.local/share/unifideck/itch_auth_url.txt"
 
 KEY_CAPTURE = ContentCapture(
     trigger_url="itch.io/user/settings/api-keys",
-    regex=r"^\s*([A-Za-z0-9]{40})\s*$",
+    regex=r"^\s*([A-Za-z0-9]{40}(?:,[A-Za-z0-9]{40})*)\s*$",
     expression=(
-        "(document.querySelector('td.key_cell code.full_key') || {})"
-        ".textContent || ''"
+        "Array.from(document.querySelectorAll('td.key_cell code.full_key'))"
+        ".map(e => (e.textContent || '').trim())"
+        ".filter(k => /^[A-Za-z0-9]{40}$/.test(k)).join(',')"
     ),
 )
+
+#: The sign-in error when no key on the page can read the library.
+KEY_LIMITED = "itch_key_limited"
 
 #: itch.io paths that belong to signing in, where steering must not interrupt.
 _LOGIN_FLOW_PREFIXES = (
@@ -76,6 +87,23 @@ def should_steer(url: str) -> bool:
     if parsed.scheme != "https" or parsed.hostname != "itch.io":
         return False
     return not parsed.path.startswith(_LOGIN_FLOW_PREFIXES)
+
+
+async def key_reads_library(daemon: ButlerDaemon, profile_id: int) -> bool:
+    """False when itch.io refuses this profile's key the owned-keys read.
+
+    A 403 is the scoped-key answer (and a revoked key's). Any other failure
+    is not evidence against the key, so it does not reject it.
+    """
+    try:
+        await daemon.call("Fetch.ProfileOwnedKeys", {
+            "profileId": profile_id, "limit": 1, "fresh": True,
+        })
+    except ButlerdError as e:
+        if e.api_status == 403:
+            return False
+        logger.warning("[itch] could not check the key's library access: %s", e)
+    return True
 
 
 class ItchAuthFlow:
@@ -126,25 +154,49 @@ class ItchAuthFlow:
     async def _login_url(self) -> str:
         return LOGIN_URL
 
-    async def _login_with_key(self, key: str) -> AuthResult:
-        """The orchestrator's exchange step: hand the captured key to butler."""
+    async def _login_with_key(self, captured: str) -> AuthResult:
+        """The orchestrator's exchange step: the first captured key that works.
+
+        ``captured`` is every key on the page, comma-separated. A key butler
+        accepts but that cannot read owned keys is forgotten and the next
+        one is tried.
+        """
         self._stop_steering()
-        try:
-            result = await self._daemon.call("Profile.LoginWithAPIKey", {"apiKey": key})
-        except ButlerdError as e:
-            return AuthResult(success=False, store=STORE, error=f"itch_login_failed: {e}")
-        user = (result.get("profile") or {}).get("user") or {}
-        logger.info("[itch] signed in as %s", user.get("username") or "<unknown>")
-        return AuthResult(success=True, store=STORE, tokens_cached=True)
+        keys = list(dict.fromkeys(k for k in captured.split(",") if k))
+        error = KEY_LIMITED
+        # A scoped key is the more useful thing to report than a bad one.
+        limited = False
+        for index, key in enumerate(keys, start=1):
+            try:
+                result = await self._daemon.call("Profile.LoginWithAPIKey", {"apiKey": key})
+                profile = result.get("profile") or {}
+                if await key_reads_library(self._daemon, int(profile["id"])):
+                    user = profile.get("user") or {}
+                    logger.info("[itch] signed in as %s with key %d of %d",
+                                user.get("username") or "<unknown>", index, len(keys))
+                    return AuthResult(success=True, store=STORE, tokens_cached=True)
+                logger.warning("[itch] key %d of %d cannot read the library "
+                               "(scoped or revoked); trying the next", index, len(keys))
+                await self._daemon.call("Profile.Forget", {"profileId": profile["id"]})
+                limited = True
+            except ButlerdError as e:
+                logger.warning("[itch] key %d of %d rejected: %s", index, len(keys), e)
+                error = f"itch_login_failed: {e}"
+        return AuthResult(success=False, store=STORE, error=KEY_LIMITED if limited else error)
 
     async def _saved_login_valid(self) -> bool:
-        """True when butler holds a profile whose key itch.io still accepts."""
+        """True when butler holds a profile whose key can still read the library."""
         try:
             listed = await self._daemon.call("Profile.List")
             profiles = listed.get("profiles") or []
             if not profiles:
                 return False
-            await self._daemon.call("Profile.UseSavedLogin", {"profileId": profiles[0]["id"]})
+            profile_id = int(profiles[0]["id"])
+            await self._daemon.call("Profile.UseSavedLogin", {"profileId": profile_id})
+            if not await key_reads_library(self._daemon, profile_id):
+                logger.info("[itch] saved key cannot read the library; signing in again")
+                await self._daemon.call("Profile.Forget", {"profileId": profile_id})
+                return False
         except ButlerdError as e:
             logger.info("[itch] saved login rejected (%s); signing in again", e)
             return False

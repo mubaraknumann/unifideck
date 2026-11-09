@@ -41,7 +41,9 @@ signed-out web page.
 """
 from __future__ import annotations
 
+import time
 import urllib.parse
+from pathlib import Path
 
 # Shop landing pages for the browser-OAuth stores only.
 #
@@ -84,6 +86,46 @@ def storefront_url(store: str) -> str:
     rather than a URL to open — see the module docstring.
     """
     return _STOREFRONT_URLS.get(store, "")
+
+
+#: A one-time page a store asks the next shop window to open instead of
+#: its landing page: itch.io's bundles page, where an unclaimed bundle game
+#: is claimed before it installs. Written by the backend, taken (read and
+#: removed) by ``launcher/flows/storefront.py``. Older than this, it is
+#: left over from a window that never opened and is ignored.
+_TARGET_MAX_AGE_S = 300
+
+
+def storefront_target_path(store: str) -> Path:
+    """Where the backend leaves ``store``'s one-time shop page."""
+    return Path.home() / ".local" / "share" / "unifideck" / f"storefront_target_{store}.url"
+
+
+def _same_site(store: str, url: str) -> bool:
+    """``url`` is https on ``store``'s shop host or one of its subdomains."""
+    home = urllib.parse.urlparse(storefront_url(store)).hostname or ""
+    parsed = urllib.parse.urlparse(url)
+    host = parsed.hostname or ""
+    return bool(home) and parsed.scheme == "https" and (
+        host == home or host.endswith("." + home)
+    )
+
+
+def take_storefront_target(store: str) -> str:
+    """The one-time page for ``store``'s next shop window, or ``""``.
+
+    Removed as it is read, so it opens once. A page that is stale or not
+    on the store's own site is dropped: this file decides what a signed-in
+    browser opens.
+    """
+    path = storefront_target_path(store)
+    try:
+        age = time.time() - path.stat().st_mtime
+        url = path.read_text(encoding="utf-8").strip()
+        path.unlink()
+    except OSError:
+        return ""
+    return url if age <= _TARGET_MAX_AGE_S and _same_site(store, url) else ""
 
 
 def store_search_url(store: str, title: str) -> str:

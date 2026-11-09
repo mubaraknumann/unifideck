@@ -934,6 +934,22 @@
         },
         "subscription_check_url": {
           "$ref": "#/$defs/httpsUrl"
+        },
+        "xbox_pc": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "source": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "notice_ack_version": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
         }
       }
     },

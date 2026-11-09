@@ -408,14 +408,9 @@ class PostSyncReconcileService:
         try:
             await self._bus.emit(
                 Events.LAUNCHER_STAGE,
-                i18n_title_key="reconcile.repairedTitle",
-                i18n_key="reconcile.repairedBody",
+                i18n_title_key="toasts.header.librarySync",
+                i18n_key="toasts.libraryRepairedBody",
                 severity="info",
-                i18n_params={
-                    "artwork": report.artwork_repaired,
-                    "metadata": report.metadata_repaired,
-                    "compat": report.compat_repaired,
-                },
             )
         except Exception:
             logger.exception("[PostSyncReconcile] summary toast failed")

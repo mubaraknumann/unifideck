@@ -88,13 +88,11 @@ export const GameInfoPanel: FC<Props> = ({ appId }) => {
           onToggleSynopsis={() => setSynopsisOpen((v) => !v)}
         />
         <GameInfoInfoRow appId={appId} game={game} meta={meta} />
-        {game.store === "gog" && (
-          <GameAchievementsSummary
-            store={game.store}
-            gameId={game.id}
-            title={game.title}
-          />
-        )}
+        <GameAchievementsSummary
+          store={game.store}
+          gameId={game.id}
+          title={game.title}
+        />
         {synopsisOpen && meta.description && (
           <GameInfoSynopsisSection description={meta.description} />
         )}

@@ -25,3 +25,4 @@ export { useSteamLibrary } from "./useSteamLibrary";
 export { useStorageConfig } from "./useStorageConfig";
 export { useInstallFlow } from "./useInstallFlow";
 export { useSyncCooldown } from "./useSyncCooldown";
+export { useXboxPcStatus, xboxPcSnapshot } from "./useXboxPcStatus";

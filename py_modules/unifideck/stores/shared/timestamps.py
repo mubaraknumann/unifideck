@@ -17,8 +17,13 @@ running.
 """
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Any
+
+#: Fractional seconds past microseconds. Xbox Live writes seven digits
+#: (``…11.9770000Z``); ``fromisoformat`` only promises six.
+_EXTRA_FRACTION = re.compile(r"(\.\d{6})\d+")
 
 
 def parse_timestamp(value: Any) -> float | None:
@@ -38,6 +43,7 @@ def parse_timestamp(value: Any) -> float | None:
     if isinstance(value, (int, float)):
         return float(value)
     try:
-        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
+        text = _EXTRA_FRACTION.sub(r"\1", str(value).replace("Z", "+00:00"))
+        return datetime.fromisoformat(text).timestamp()
     except (ValueError, TypeError):
         return None

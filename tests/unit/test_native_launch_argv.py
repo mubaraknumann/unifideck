@@ -28,8 +28,11 @@ def _ctx(store: str, exe_path: Path) -> LaunchContext:
 
 
 def test_gog_start_sh_routes_through_dosbox_module(tmp_path):
+    # Every GOG Linux build launches via start.sh now; the bundled dosbox/
+    # folder is what marks a DOSBox title.
     start_sh = tmp_path / "start.sh"
     start_sh.write_text("#!/bin/bash\n")
+    (tmp_path / "dosbox").mkdir()
     ctx = _ctx("gog", start_sh)
     state = RuntimeState()
 

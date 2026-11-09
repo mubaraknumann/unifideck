@@ -46,6 +46,12 @@ _MODERN_PYTHON_CANDIDATES: tuple[str, ...] = (
 # ``_escape_pressure_vessel``/``_reexec_on_modern_python``'s docstrings.
 _REEXEC_GUARD_ENV = "_UNIFIDECK_LAUNCHER_REEXECED"
 _ESCAPE_CLIENT = "steam-runtime-launch-client"
+# Variables the container escape carries across (``_escape_pressure_vessel``):
+# the Steam app identity, and the re-exec guard itself.
+_ESCAPE_PASS_ENV = (
+    "SteamAppId", "SteamGameId", "SteamOverlayGameId", "STEAM_COMPAT_APP_ID",
+    _REEXEC_GUARD_ENV,
+)
 
 
 def _in_pressure_vessel() -> bool:
@@ -141,8 +147,15 @@ def _escape_pressure_vessel() -> None:
     env = dict(os.environ)
     env[_REEXEC_GUARD_ENV] = "1"
     script_path = os.path.abspath(__file__)
+    # The client does not hand its own environment to the escaped process:
+    # that starts from Steam's launcher-service environment, which carries no
+    # app identity. Without SteamAppId/SteamGameId a browser window the
+    # launcher opens is never adopted by Gaming Mode and stays hidden behind
+    # it (seen when the Steam client applied the global Steam Play tool to
+    # Unifideck's temporary sign-in shortcuts).
+    passed = [f"--pass-env={name}" for name in _ESCAPE_PASS_ENV]
     argv = [
-        client, "--alongside-steam", "--",
+        client, "--alongside-steam", *passed, "--pass-env-matching=UNIFIDECK_*", "--",
         "python3", script_path, *sys.argv[1:],
     ]
     try:

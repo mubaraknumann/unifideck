@@ -39,10 +39,13 @@ async def emit_circuit_open_toast(
     """
     from .error_toasts import emit_launch_error_toast
 
+    logger.warning(
+        "[CircuitBreaker] %s refused: %d recent launch failures", ctx.game_key, failure_count,
+    )
     await emit_launch_error_toast(
         svc, ctx,
         i18n_key="toasts.launcher.errorCircuitBreakerOpen",
-        extra_params={"count": failure_count},
+        i18n_title_key="toasts.header.gameLaunch",
         tag="CircuitBreaker",
     )
 

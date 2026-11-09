@@ -491,6 +491,22 @@ def test_two_installed_versions_hand_the_choice_to_the_client() -> None:
     assert games[0].metadata["client_selects"] is True
 
 
+def test_every_installed_version_stays_under_its_tile() -> None:
+    """Measured: Retail played last, Classic Era beside it.
+
+    Only the most recently played version is the tile's ``installed_uid``,
+    so the orphan sweep re-added Classic Era as its own game, titled
+    ``wow_classic_era`` with family ``wow_classic_era``, which launches nothing.
+    """
+    games = build_library(
+        _wow_versions_catalog(), AccountFacts(),
+        {"wow": _ready("wow", last_played_ms=9),
+         "wow_classic_era": _ready("wow_classic_era", last_played_ms=1)},
+        launcher_path=LAUNCHER,
+    )
+    assert [g.store_game_id for g in games] == ["wow"]
+
+
 def test_a_title_with_nothing_installed_keeps_its_program_id() -> None:
     games = build_library(
         _wow_versions_catalog(), AccountFacts(), {}, launcher_path=LAUNCHER,

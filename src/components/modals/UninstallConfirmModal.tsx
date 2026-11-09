@@ -7,11 +7,19 @@
  * red warning when the toggle is on, and two custom DialogButtons
  * (Cancel + red Uninstall with trash icon). The parent receives
  * the toggle state via `onConfirm(deletePrefix)`.
+ *
+ * An Xbox PC save written as a game quits can stay on the device until the
+ * next launch, in the prefix. So the warning counts any such save (I-040). The
+ * user can still delete: only launching the game can upload it, because
+ * Unifideck never pushes a save itself.
  */
-import { FC, useState } from "react";
+import { FC, useEffect, useState } from "react";
 import { ConfirmModal, DialogButton, ToggleField } from "@decky/ui";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { FaExclamationTriangle, FaTrash } from "react-icons/fa";
+import { useRPCQuery } from "../../api";
+import { rpcRoutes } from "../../api/rpc-routes";
 
 interface Props {
   gameId: number;
@@ -20,14 +28,36 @@ interface Props {
   closeModal: () => void;
 }
 
+/** The red warning's body: counts saves that have not uploaded, when any. */
+export function prefixWarningText(t: TFunction, unuploaded: number): string {
+  return unuploaded > 0
+    ? t("uninstallModal.unuploadedBody", { count: unuploaded })
+    : t("uninstallModal.warningBody");
+}
+
 export const UninstallConfirmModal: FC<Props> = ({
-  gameId: _gameId,
+  gameId,
   gameTitle,
   onConfirm,
   closeModal,
 }) => {
   const { t } = useTranslation();
   const [deletePrefix, setDeletePrefix] = useState(false);
+  const warning = useRPCQuery<[number], { unuploaded: number }>(
+    rpcRoutes.getUninstallSaveWarning,
+    [gameId],
+    { enabled: gameId > 0 },
+  );
+  const unuploaded = warning.data?.unuploaded ?? 0;
+  useEffect(() => {
+    // The dialog keeps the general warning, which is still true.
+    if (warning.error) {
+      console.warn(
+        "[UninstallConfirmModal] could not count unuploaded saves:",
+        warning.error,
+      );
+    }
+  }, [warning.error]);
   return (
     <>
       <style>{`
@@ -88,7 +118,7 @@ export const UninstallConfirmModal: FC<Props> = ({
               />
               <div style={{ color: "#fca5a5", fontSize: 13, lineHeight: 1.4 }}>
                 <strong>{t("uninstallModal.warningTitle")}</strong>{" "}
-                {t("uninstallModal.warningBody")}
+                {prefixWarningText(t, unuploaded)}
               </div>
             </div>
           )}

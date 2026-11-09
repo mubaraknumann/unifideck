@@ -34,6 +34,9 @@ class XBLTokenChain:
     user_hash: str
     xuid: str | None = None
     xbl_token: str | None = None
+    #: The classic gamertag (``gtg``). The Xbox PC sign-in compares it with
+    #: the account Xodus signed in to.
+    gamertag: str | None = None
 
 
 @dataclass(frozen=True)
@@ -122,7 +125,8 @@ class XBLChainMixin:
             and time.time() < cached.expires_at - _USER_TOKEN_MARGIN_SECONDS
         ):
             return cached
-        prefer_d = self._config.uses_device_code
+        # A Xodus ticket is a login.live.com MBI_SSL ticket: ``t=`` goes first.
+        prefer_d = self._config.uses_device_code and not getattr(self, "_using_ticket", False)
         try:
             resp = await asyncio.get_event_loop().run_in_executor(
                 None,
@@ -181,6 +185,7 @@ def _chain_from_xsts(
         user_hash=user_hash,
         xuid=claims[0].get("xid"),
         xbl_token=xbl_token,
+        gamertag=claims[0].get("gtg"),
     )
 
 

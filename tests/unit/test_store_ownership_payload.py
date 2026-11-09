@@ -26,9 +26,11 @@ from unifideck.rpc.mixins._store_ownership_payload import (
 STRINGS: dict[str, Any] = {
     "tag_owned": "Owned",
     "tag_cloud": "Cloud",
+    "tag_installable": "Installable",
     "message_owned": "You already own this game on:",
     "message_cloud": "Xbox Game Pass",
     "message_xcloud": "Xbox Cloud Gaming",
+    "message_pc_pass": "Xbox Game Pass (PC)",
     "installed": "Installed",
     "via": "via Unifideck",
     "dir": "ltr",
@@ -283,3 +285,29 @@ def test_an_owned_xbox_chip_carries_its_notes() -> None:
     [section] = payload["sections"]
     assert section["kind"] == "owned"
     assert section["chips"][0]["notes"] == ["Console"]
+
+
+def test_the_game_pass_pc_line_sits_between_owned_and_streaming() -> None:
+    copies = [
+        OwnedCopy("battlenet", ("Call of Duty",), False, False),
+        OwnedCopy("microsoft", ("Call of Duty",), True, True, game_pass=True, installable=True),
+        OwnedCopy("microsoft", ("Call of Duty",), False, True, streams=True, game_pass=True),
+    ]
+    payload = build_ribbon_payload(2000950, copies, _strings(), "Call of Duty")
+    kinds = [(s["kind"], s["tag"], s["message"]) for s in payload["sections"]]
+    assert kinds == [
+        ("owned", "Owned", "You already own this game on:"),
+        ("installable", "Installable", "Xbox Game Pass (PC)"),
+        ("cloud", "Cloud", "Xbox Game Pass"),
+    ]
+    [chip] = payload["sections"][1]["chips"]
+    assert chip["installed"] is True and chip["label"] == ""
+    assert payload["sections"][2]["chips"] == []
+
+
+def test_the_overlay_prefers_owned_then_installable() -> None:
+    pc_pass = OwnedCopy("microsoft", ("A",), False, True, game_pass=True, installable=True)
+    stream = OwnedCopy("microsoft", ("A",), False, True, streams=True, game_pass=True)
+    payload = build_ribbon_payload(1, [pc_pass, stream], _strings(), "A")
+    assert payload["overlay"] == {"tag": "Installable", "text": "Xbox Game Pass (PC)"}
+    assert not payload["sections"][0]["chips"]

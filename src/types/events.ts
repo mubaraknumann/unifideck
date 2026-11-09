@@ -16,6 +16,10 @@ export const Events = {
   STORE_AUTH_FAILED: "store_auth_failed",
   STORE_LOGOUT: "store_logout",
   STORE_REGISTERED: "store_registered",
+  // Xbox PC status snapshot. The payload is the whole `XboxPcStatus`, the
+  // same shape `get_xbox_pc_status` returns, so a subscriber replaces its
+  // copy. Consumed by `stores/xbox-pc-store.ts`.
+  XBOX_PC_STATE_CHANGED: "xbox_pc_state_changed",
   // Library sync
   SYNC_STARTED: "sync_started",
   SYNC_PROGRESS: "sync_progress",
@@ -113,4 +117,16 @@ export interface ToastActionPayload {
    * have read `undefined` here (audit register item 4b).
    */
   action?: { verb: string; args: string[]; i18n_label_key?: string };
+  /**
+   * An unlocked achievement (from the achievement watcher). Rendered as a
+   * Steam-style achievement popup instead of the text toast; `i18n_key`
+   * stays the plain-text fallback.
+   */
+  achievement?: {
+    name: string;
+    icon?: string;
+    store: string;
+    /** Share of players with it: under 10% draws Steam's rare glow. */
+    rarity?: number | null;
+  };
 }

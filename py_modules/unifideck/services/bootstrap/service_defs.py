@@ -251,15 +251,15 @@ _SERVICE_DEFS: tuple[tuple[Any, ...], ...] = (
         lambda b, r, c, cfg, p, pl: (b, r, c),
         lambda b, r, c, cfg, p, pl: {"config": cfg},
     ),
-    # AchievementWatcher — GOG live unlock toasts (during play) + an
-    # end-of-session summary (persisted for the game-info panel). Needs the
-    # registry to reach the GOG store; plugin-only (not in the launcher
-    # subset), so registry is always present here.
+    # AchievementWatcher — live unlock toasts (during play) + an
+    # end-of-session summary (persisted for the game-info panel) for every
+    # achievement store. Needs the registry to reach the stores; plugin-only
+    # (not in the launcher subset), so registry is always present here.
     (
         "achievements", "unifideck.services.achievements",
         "AchievementWatcher",
         lambda b, r, c, cfg, p, pl: (b, r),
-        lambda b, r, c, cfg, p, pl: {"config": cfg},
+        lambda b, r, c, cfg, p, pl: {},
     ),
     # PlaytimeSyncService — reports finalized local play sessions up to GOG/Epic
     # (Heroic #1240) and reconciles store totals for display. Needs the registry

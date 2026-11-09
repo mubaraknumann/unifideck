@@ -135,6 +135,12 @@ function lookupRealId(shortcutAppId: number): number {
   );
 }
 
+/** The real Steam AppID matched to a Unifideck shortcut, or 0 (exported
+ *  for the native App-Details artwork patch). */
+export function getMatchedSteamAppId(shortcutAppId: number): number {
+  return lookupRealId(shortcutAppId);
+}
+
 function extractLanguages(
   data: AppDetailsRaw["supported_languages"],
 ): Array<{ strLanguageName: string }> {

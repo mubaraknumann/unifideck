@@ -29,6 +29,7 @@ import { useTranslation } from "react-i18next";
 import { useRPC } from "../../api/useRPC";
 import { rpcRoutes } from "../../api/rpc-routes";
 import { useToast } from "../../hooks/useToast";
+import { toastText, headerText } from "../../services/toast-text";
 import { formatBytes, copyTextToClipboard } from "../../utils";
 import { CaptureLogsConfirmModal } from "../modals/CaptureLogsConfirmModal";
 
@@ -91,42 +92,43 @@ export const CaptureLogsSection: FC = () => {
     setTimeout(
       () =>
         toast.info(
-          t("toasts.captureLogsStarted"),
-          t("toasts.captureLogsStartedMessage"),
+          headerText("toasts.header.captureLogs"),
+          toastText("toasts.captureLogsStartedMessage"),
         ),
       400,
     );
     try {
       const captured = await captureLogs();
       if (captured.in_progress) {
-        toast.info(t("toasts.captureLogsBusy"));
+        toast.info(
+          headerText("toasts.header.captureLogs"),
+          toastText("toasts.captureLogsBusy"),
+        );
         return;
       }
       lastCapture = captured;
       setResult(captured);
+      // The path is in the section below the button; a toast has no room.
       const failures = captured.errors?.length ?? 0;
-      const vars = {
-        path: captured.archive_path,
-        size: formatBytes(captured.bytes),
-        files: captured.file_count,
-        failures,
-      };
       if (failures > 0) {
         toast.show(
-          t("toasts.captureLogsPartial"),
-          t("toasts.captureLogsPartialMessage", vars),
+          headerText("toasts.header.captureLogs"),
+          toastText("toasts.captureLogsPartialMessage"),
           { duration: 10000 },
         );
       } else {
         toast.success(
-          t("toasts.captureLogsDone"),
-          t("toasts.captureLogsDoneMessage", vars),
+          headerText("toasts.header.captureLogs"),
+          toastText("toasts.captureLogsDoneMessage", {
+            size: formatBytes(captured.bytes),
+          }),
         );
       }
     } catch (e) {
+      console.error("[CaptureLogs] capture failed:", e);
       toast.error(
-        t("toasts.captureLogsFailed"),
-        e instanceof Error ? e.message : t("errors.unknown"),
+        headerText("toasts.header.captureLogs"),
+        toastText("toasts.captureLogsFailed"),
       );
     } finally {
       runningRef.current = false;
@@ -145,9 +147,18 @@ export const CaptureLogsSection: FC = () => {
       result.archive_path,
       rowRef.current?.ownerDocument?.defaultView ?? null,
     );
-    if (ok) toast.info(t("toasts.captureLogsCopied"));
-    // A failed copy still shows the path, so the user can read it off.
-    else toast.error(t("toasts.captureLogsCopyFailed"), result.archive_path);
+    if (ok)
+      toast.info(
+        headerText("toasts.header.captureLogs"),
+        toastText("toasts.captureLogsCopied"),
+      );
+    // A failed copy still shows the path in the section, so the user can
+    // read it off there.
+    else
+      toast.error(
+        headerText("toasts.header.captureLogs"),
+        toastText("toasts.captureLogsCopyFailed"),
+      );
   };
 
   const failureCount = result?.errors?.length ?? 0;

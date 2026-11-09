@@ -7,17 +7,16 @@
  *   ──────────────────  (4 px bar, slide-anim while indeterminate)
  *   404 MB / 564 MB         19.6 MB/s · ETA 00:00:08
  *
- * Indeterminate phases (``extracting`` / ``verifying``) hide
- * the byte counter and show the localized phase label (the i18n
- * fallback) so the user still has a textual signal.
+ * Indeterminate phases (``starting``, ``extracting``, ``verifying``,
+ * ``finalizing`` and the others in ``lib/download-phase``) hide the
+ * byte counter and show a localized detail line so the user still
+ * has a textual signal.
  */
 import { FC, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import type { DownloadItem, DownloadPhase } from "../../types/downloads";
-import type { StoreId } from "../../types/api";
-import { STORE_VISUALS } from "../../types/store";
-import { formatBytes } from "../play/PlayMeta";
+import type { DownloadItem } from "../../types/downloads";
 import { injectPlayFocusStyles } from "../play/play.css";
+import { describeDownload } from "./download-progress-text";
 
 interface Props {
   download: DownloadItem;
@@ -25,57 +24,6 @@ interface Props {
    *  because the play-section variant sits next to a Cancel button
    *  and needs the gap, while the QAM panel doesn't. */
   marginInlineStart?: number;
-}
-
-function formatEta(secs: number): string {
-  if (!secs || secs <= 0) return "--:--";
-  const h = Math.floor(secs / 3600);
-  const m = Math.floor((secs % 3600) / 60);
-  const s = secs % 60;
-  const pad = (n: number) => n.toString().padStart(2, "0");
-  return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
-}
-
-function isIndeterminate(phase: DownloadPhase | undefined): boolean {
-  return (
-    phase === "extracting" ||
-    phase === "verifying" ||
-    phase === "manual" ||
-    phase === "preparing"
-  );
-}
-
-/**
- * Display name of the vendor client driving a `manual` install.
- *
- * The `manual` phase belongs to every wrapper store, not just Ubisoft, so
- * the label has to name the client the user is actually being sent to — a
- * Battle.net install used to say "Installing Ubisoft Connect". Reads the
- * single source of truth for store branding rather than a second map.
- */
-function clientName(store: StoreId | undefined): string {
-  return (store && STORE_VISUALS[store]?.display_name) || "";
-}
-
-function statusLabelKey(
-  status: DownloadItem["status"],
-  phase: DownloadPhase | undefined,
-  prev: boolean,
-): string {
-  // Wrapper-store (vendor-client-driven) installs: no real download — show
-  // a dedicated label and let the indeterminate path render the detail.
-  if (phase === "manual") return "downloadsTab.installingViaClientLabel";
-  if (phase === "preparing") return "downloadsTab.preparingLabel";
-  if (phase === "extracting") return "downloadsTab.extractingLabel";
-  if (phase === "verifying") return "downloadsTab.verifyingLabel";
-  if (status === "queued") {
-    return prev
-      ? "downloadsTab.updateQueuedLabel"
-      : "downloadsTab.downloadQueuedLabel";
-  }
-  return prev
-    ? "downloadsTab.downloadingUpdateLabel"
-    : "downloadsTab.downloadingLabel";
 }
 
 export const DownloadProgressRow: FC<Props> = ({
@@ -89,30 +37,12 @@ export const DownloadProgressRow: FC<Props> = ({
   useEffect(() => {
     injectPlayFocusStyles();
   }, []);
-  const indeterminate = isIndeterminate(download.download_phase);
-  const pct = Math.max(0, Math.min(100, download.progress_percent));
-  const prev = Boolean(download.is_update);
-  const client = clientName(download.store);
-  const label = t(
-    statusLabelKey(download.status, download.download_phase, prev),
-    { client },
+  // The words and numbers are shared with the native play bar's status
+  // line (see download-progress-text.ts), so both always agree.
+  const { label, indeterminate, detail, bytes, rate, pct } = describeDownload(
+    download,
+    t,
   );
-  // Indeterminate detail line: rendered purely from phase (+ percent) so it
-  // is always localized. The backend used to also send a ``phase_message``
-  // of hardcoded English that was deliberately never displayed; it carried
-  // from nine producers through the queue item to this component and was
-  // deleted end to end (audit register item 45).
-  const phase = download.download_phase;
-  const detail =
-    phase === "preparing"
-      ? t("downloadsTab.preparingMessage")
-      : phase === "extracting"
-      ? t("downloadsTab.extractingMessage")
-      : phase === "verifying"
-      ? t("downloadsTab.verifyingMessage", { pct: pct.toFixed(1) })
-      : phase === "manual"
-      ? t("downloadsTab.installingViaClientMessage", { client })
-      : t("downloadsTab.finalizingInstallation");
 
   return (
     <div
@@ -175,24 +105,8 @@ export const DownloadProgressRow: FC<Props> = ({
           <span>{detail}</span>
         ) : (
           <>
-            <span>
-              {download.total_bytes > 0
-                ? `${formatBytes(download.downloaded_bytes)} / ${formatBytes(
-                    download.total_bytes,
-                  )}`
-                : `${pct.toFixed(1)}%`}
-            </span>
-            {download.status === "running" && (
-              <span style={{ marginInlineStart: "auto" }}>
-                {t("downloadsTab.speedMbps", {
-                  speed: download.speed_mbps.toFixed(1),
-                })}
-                {" · "}
-                {t("downloadsTab.etaLabel", {
-                  eta: formatEta(download.eta_seconds),
-                })}
-              </span>
-            )}
+            <span>{bytes}</span>
+            {rate && <span style={{ marginInlineStart: "auto" }}>{rate}</span>}
           </>
         )}
       </div>

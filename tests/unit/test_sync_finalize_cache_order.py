@@ -23,6 +23,11 @@ from unifideck.core.types import Game, SyncResult
 from unifideck.event_bus import EventBus
 
 
+class _Registry:
+    def all(self) -> list[object]:
+        return []
+
+
 class _Svc(m._SyncFinalizeMixin):
     def __init__(self, bus: EventBus) -> None:
         self._bus = bus
@@ -34,6 +39,7 @@ class _Svc(m._SyncFinalizeMixin):
         self._generation = SyncGeneration()
         self._watchdog_task: asyncio.Task[None] | None = None
         self._cache_snapshot = None
+        self._registry = _Registry()
         self.calls: list[str] = []
 
     def _populate_app_ids(self, libraries: dict[str, list[Game]]) -> None:

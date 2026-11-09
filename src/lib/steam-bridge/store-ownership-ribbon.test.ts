@@ -137,6 +137,8 @@ describe("buildRibbonStrings", () => {
     expect(s.message_cloud).toBe("t:storeOwnership.messageGamePass");
     expect(s.message_xcloud).toBe("t:storeOwnership.messageXboxCloud");
     expect(s.tag_cloud).toBe("t:storeOwnership.tagStreamable");
+    expect(s.tag_installable).toBe("t:storeOwnership.tagInstallable");
+    expect(s.message_pc_pass).toBe("t:storeOwnership.messageGamePassPc");
     expect(s.dir).toBe("ltr");
     expect(s.store_labels.gog).toBe("GOG");
     expect(s.store_labels.microsoft).toBe("Xbox");

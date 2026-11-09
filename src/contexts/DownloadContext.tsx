@@ -18,7 +18,7 @@ import {
   useContext,
   useSyncExternalStore,
 } from "react";
-import { useRPCMutation } from "../api/useRPC";
+import { useRPC, useRPCMutation } from "../api/useRPC";
 import { rpcRoutes } from "../api/rpc-routes";
 import { downloadStore } from "../stores/download-store";
 import type { DownloadQueueInfo } from "../types/downloads";
@@ -28,15 +28,18 @@ import type { Result, StoreId } from "../types/api";
 interface DownloadContextValue {
   queue: DownloadQueueInfo | null;
   loading: boolean;
+  /** Rejects with an `RpcError` when the backend refuses, so the caller
+   *  can read the refusal code. `useGameActions` turns that back into a
+   *  `{ success: false, error }` result. Resolves `null` on success: the
+   *  backend answers `{success, error}` only, and the envelope lifts both
+   *  out, leaving no data. */
   installGame: (
     store: StoreId,
     gameId: string,
     options?: { storage?: string; language?: string; title?: string },
   ) => Promise<Result | null>;
-  uninstallGame: (
-    appId: number,
-    deletePrefix?: boolean,
-  ) => Promise<Result | null>;
+  /** Rejects like `installGame`. */
+  uninstallGame: (appId: number, deletePrefix?: boolean) => Promise<Result>;
   cancelDownload: (downloadId: string) => Promise<Result | null>;
   /** Queue an update for an already-installed game. */
   updateGame: (appId: number) => Promise<Result | null>;
@@ -57,17 +60,19 @@ export const DownloadProvider: FC<{ children: ReactNode }> = ({ children }) => {
     downloadStore.getSnapshot,
   );
 
-  // RPC mutations — user-initiated, stay in the React layer
-  const installMut = useRPCMutation<
+  // RPC mutations — user-initiated, stay in the React layer. Install and
+  // uninstall use the throwing call: a mutation turns a refusal into
+  // `null`, which hid every precondition refusal from the user.
+  const installRpc = useRPC<
     [
       StoreId,
       string,
       { storage?: string; language?: string; title?: string } | undefined,
     ],
-    Result
+    Result | null
   >(rpcRoutes.installGame);
 
-  const uninstallMut = useRPCMutation<[number, boolean], Result>(
+  const uninstallRpc = useRPC<[number, boolean], Result>(
     rpcRoutes.uninstallGame,
   );
 
@@ -86,14 +91,13 @@ export const DownloadProvider: FC<{ children: ReactNode }> = ({ children }) => {
       store: StoreId,
       gameId: string,
       options?: { storage?: string; language?: string; title?: string },
-    ) => installMut.mutate(store, gameId, options),
-    [installMut],
+    ) => installRpc(store, gameId, options),
+    [installRpc],
   );
 
   const uninstallGame = useCallback(
-    (appId: number, deletePrefix = false) =>
-      uninstallMut.mutate(appId, deletePrefix),
-    [uninstallMut],
+    (appId: number, deletePrefix = false) => uninstallRpc(appId, deletePrefix),
+    [uninstallRpc],
   );
 
   const cancelDownload = useCallback(

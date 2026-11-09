@@ -36,6 +36,7 @@ import {
   type ShortcutLaunchResult,
   getShortcutRunGameId,
   isShortcutAppRunning,
+  specifyNamedCompatTool,
 } from "./shortcut-types";
 import {
   createTemporaryShortcut,
@@ -166,6 +167,52 @@ function appStore(): AppStoreShape | undefined {
   return (window as unknown as { appStore?: AppStoreShape }).appStore;
 }
 
+interface AppDetailsStoreShape {
+  GetAppDetails?: (id: number) => { strLaunchOptions?: string } | undefined;
+}
+
+function appDetailsStore(): AppDetailsStoreShape | undefined {
+  return (window as unknown as { appDetailsStore?: AppDetailsStoreShape })
+    .appDetailsStore;
+}
+
+const LAUNCH_OPTIONS_POLL_MS = 50;
+const LAUNCH_OPTIONS_TIMEOUT_MS = 2000;
+
+/**
+ * Wait until Steam holds `expected` as the shortcut's launch options.
+ *
+ * `SetShortcutLaunchOptions` applies asynchronously. Measured 2026-11-01:
+ * read back straight after the call, Steam still held the OLD options, and
+ * the new ones appeared within 500 ms. A `RunGame` issued in that window
+ * launches with the old options, so a one-run `UNIFIDECK_*` token (such as
+ * the install action) never reaches the launcher.
+ * Gives up after {@link LAUNCH_OPTIONS_TIMEOUT_MS} and says so; returns at
+ * once when Steam's details store is not available to poll.
+ */
+export async function waitForLaunchOptions(
+  appId: number,
+  expected: string,
+  logTag: string,
+): Promise<void> {
+  const store = appDetailsStore();
+  if (!store?.GetAppDetails) return;
+  const startedAt = Date.now();
+  while (store.GetAppDetails(appId)?.strLaunchOptions !== expected) {
+    if (Date.now() - startedAt >= LAUNCH_OPTIONS_TIMEOUT_MS) {
+      console.warn(
+        `${logTag} Steam still has the old launch options for appId=${appId} ` +
+          `after ${LAUNCH_OPTIONS_TIMEOUT_MS} ms — launching anyway; the ` +
+          `one-run options may not reach the launcher`,
+      );
+      return;
+    }
+    await new Promise<void>((resolve) =>
+      window.setTimeout(resolve, LAUNCH_OPTIONS_POLL_MS),
+    );
+  }
+}
+
 /** Whether Steam has this shortcut in its in-memory app store. */
 export function isShortcutRegistered(appId: number): boolean {
   return Boolean(appStore()?.m_mapApps?.get?.(appId));
@@ -242,7 +289,7 @@ function scheduleLaunchStateRestore(
       return;
     }
     try {
-      steamApps.SpecifyCompatTool?.(appId, targetTool);
+      specifyNamedCompatTool(appId, targetTool);
       steamApps.SetShortcutLaunchOptions?.(appId, originalLaunchOptions);
     } catch (error) {
       console.error(`${logTag} Restore failed for appId=${appId}:`, error);
@@ -281,7 +328,7 @@ async function launchViaTemporaryShortcut(
   }
   const alreadyRunning = isShortcutAppRunning(tempAppId);
   try {
-    steamApps.SpecifyCompatTool?.(tempAppId, ctx.tool_name ?? "");
+    specifyNamedCompatTool(tempAppId, ctx.tool_name);
     steamApps.SetShortcutLaunchOptions?.(tempAppId, launchOptions);
     steamApps.RunGame(getShortcutRunGameId(tempAppId), "", -1, 100);
     scheduleTemporaryShortcutCleanup(tempAppId, config.logTag);
@@ -357,8 +404,9 @@ export async function launchWrapperViaShortcut(
 
   const alreadyRunning = isShortcutAppRunning(appId);
   try {
-    steamApps.SpecifyCompatTool?.(appId, ctx.tool_name ?? "");
+    specifyNamedCompatTool(appId, ctx.tool_name);
     steamApps.SetShortcutLaunchOptions(appId, tempOptions);
+    await waitForLaunchOptions(appId, tempOptions, config.logTag);
     steamApps.RunGame(getShortcutRunGameId(appId), "", -1, 100);
     if (!skipStateRestore) {
       scheduleLaunchStateRestore(appId, ctx, originalOptions, config.logTag);

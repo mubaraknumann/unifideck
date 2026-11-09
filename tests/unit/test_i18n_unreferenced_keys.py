@@ -143,6 +143,24 @@ def test_a_key_nothing_references_is_reported(mod, tmp_path, monkeypatch) -> Non
     assert found == ["dead.two"]
 
 
+def test_the_condensed_haystack_answers_like_the_full_one(mod) -> None:
+    """``_condense`` exists for speed only; it must not change a single answer.
+
+    The cases are the ways a substring can sit in raw text: alone, glued to
+    other key characters, split by a separator, and repeated.
+    """
+    keys = {"toasts.saved", "a.b.notFound", "x.y", "solo", "gone.missing"}
+    haystack = (
+        "t('toasts.saved')\x00\x01notFoundHere...x.y.z\n"
+        "solo solo s.o.l.o toasts\x00saved gone.miss ing\n"
+    )
+    condensed = mod._condense(haystack, keys)
+    needles = keys | {k.rsplit(".", 1)[-1] for k in keys}
+    for needle in sorted(needles):
+        assert (needle in condensed) == (needle in haystack), needle
+    assert len(condensed) < len(haystack)
+
+
 def test_a_key_referenced_only_from_python_is_not_reported(
     mod, tmp_path, monkeypatch,
 ) -> None:

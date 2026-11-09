@@ -42,9 +42,10 @@ class StoreOwnershipRPCMixin:
         Args:
             steam_app_id: the real Steam AppID parsed from the store URL.
             strings: translated ribbon text from the frontend
-                (``tag_owned``, ``tag_cloud``, ``message_owned``,
-                ``message_cloud``, ``installed``, ``via``, ``dir``,
-                ``store_labels``).
+                (``tag_owned``, ``tag_cloud``, ``tag_installable``,
+                ``message_owned``, ``message_cloud``, ``message_xcloud``,
+                ``message_pc_pass``, ``installed``, ``via``, ``dir``,
+                ``store_labels``, ``store_icons``, ``note_labels``).
 
         Returns:
             ``{"shown", "reason", "stores"}``. ``reason`` is ``bad_appid``,
@@ -88,7 +89,26 @@ class StoreOwnershipRPCMixin:
             games, cache, appid, self._purchase_indexes(),
             owned_steam=load_owned_steam_apps(getattr(self, "config", None)),
             steam_name=read_steam_name(cache, appid),
+            access=self._row_access(games),
         )
+
+    def _row_access(self, games: list[Any]) -> dict[str, Any]:
+        """Verified access of the Microsoft rows (``RowAccess``).
+
+        A missing or broken ownership service verifies nothing, so no Xbox
+        row claims owned, installable or streamable: a claim we cannot check
+        is worse than no line.
+        """
+        service = getattr(getattr(self, "services", None), "microsoft_ownership", None)
+        try:
+            access = service.row_access(games) if service is not None else None
+        except Exception as exc:
+            logger.warning(
+                "[StoreOwnership] could not verify Xbox access (%s); Steam Store "
+                "pages show no Xbox line until it can be checked", exc,
+            )
+            access = None
+        return access if isinstance(access, dict) else {"microsoft": {}}
 
     def _purchase_indexes(self) -> dict[str, Any]:
         """Authenticated purchase lists (Xbox), and a nudge if they are stale.

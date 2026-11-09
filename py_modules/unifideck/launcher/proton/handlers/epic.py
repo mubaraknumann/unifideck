@@ -101,7 +101,7 @@ async def epic_launch(plan: ProtonLaunchPlan) -> int:
     logger.info("[launcher.proton.epic] launching %s", plan.context.game_key)
     launcher_toast(
         "toasts.launcher.startingEpicGame",
-        i18n_title_key="toasts.launcher.launchingGame",
+        i18n_title_key="toasts.header.epic",
         game_title=plan.context.game_key,
     )
     cleanup_epic_artifacts(plan)

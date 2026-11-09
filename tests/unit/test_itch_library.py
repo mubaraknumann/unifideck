@@ -6,6 +6,7 @@ game can still be a native download, and one owned item is an asset pack.
 """
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import Any
 
@@ -26,7 +27,11 @@ class _FakeDaemon:
     """Scripted ``ButlerDaemon.call``: a method → list-of-answers table."""
 
     def __init__(self, script: dict[str, list[Any]]) -> None:
-        defaults: dict[str, list[Any]] = {"Fetch.ProfileCollections": [{"items": []}]}
+        defaults: dict[str, list[Any]] = {
+            "Fetch.ProfileCollections": [{"items": []}],
+            "Fetch.ProfileBundleOwnerships": [{"syncedBundles": 0, "totalBundles": 0}],
+            "Fetch.ProfileOwnedBundles": [{"items": []}],
+        }
         self.script = {k: list(v) for k, v in {**defaults, **script}.items()}
         self.calls: list[tuple[str, dict[str, Any]]] = []
 
@@ -59,7 +64,7 @@ def test_to_game_maps_id_title_and_cover() -> None:
     assert g.metadata["platforms"] == ["linux", "windows"]
 
 
-async def test_library_pages_through_owned_keys_with_fresh() -> None:
+async def test_library_pages_through_owned_keys_fresh_on_the_first_page_only() -> None:
     daemon = _FakeDaemon({
         "Profile.List": [_PROFILE],
         "Fetch.ProfileOwnedKeys": [
@@ -70,10 +75,12 @@ async def test_library_pages_through_owned_keys_with_fresh() -> None:
     })
     games = await ItchLibraryReader(daemon).get_library()
     assert [g.store_game_id for g in games or []] == ["1", "2"]
-    owned_calls = [p for m, p in daemon.calls if m == "Fetch.ProfileOwnedKeys"]
+    first, second = [p for m, p in daemon.calls if m == "Fetch.ProfileOwnedKeys"]
     # Without fresh butler answers [] from an empty cache on a new DB.
-    assert all(p["fresh"] is True and p["profileId"] == 42 for p in owned_calls)
-    assert owned_calls[1]["cursor"] == "c1"
+    assert first["fresh"] is True and first["profileId"] == 42
+    # butler re-walks the whole remote list on every fresh call, cursor or
+    # not, so a fresh second page would cost a second full walk.
+    assert second["cursor"] == "c1" and "fresh" not in second
 
 
 async def test_installed_caves_overlay_install_state(tmp_path: Path) -> None:
@@ -214,3 +221,202 @@ async def test_tagged_games_cost_no_upload_lookups() -> None:
     })
     await ItchLibraryReader(daemon).get_library()
     assert "Fetch.GameUploads" not in [m for m, _ in daemon.calls]
+
+
+@pytest.mark.parametrize(("error", "rejected"), [
+    (ButlerdError("api key does not permit `profile:owned`", code=12000, api_status=403), True),
+    (ButlerdError("itch.io API error (500)", code=12000, api_status=500), False),
+    (TimeoutError("slow"), False),
+])
+async def test_a_403_marks_the_key_rejected(error: Exception, rejected: bool) -> None:
+    daemon = _FakeDaemon({"Profile.List": [_PROFILE], "Fetch.ProfileOwnedKeys": [error]})
+    reader = ItchLibraryReader(daemon)
+    assert await reader.get_library() is None
+    assert reader.key_rejected is rejected
+
+
+async def test_stale_uploads_are_fetched_fresh() -> None:
+    daemon = _FakeDaemon({
+        "Profile.List": [_PROFILE],
+        "Fetch.ProfileOwnedKeys": [{"items": [{"game": _game(1, "Untagged", platforms={})}]}],
+        "Fetch.GameUploads": [
+            {"uploads": [], "stale": True},
+            {"uploads": [{"id": 1, "type": "default", "storage": "hosted",
+                          "platforms": {"linux": "all"}, "filename": "game-linux.zip"}]},
+        ],
+        "Fetch.Caves": [_NO_CAVES],
+    })
+    games = await ItchLibraryReader(daemon).get_library() or []
+    assert [g.store_game_id for g in games] == ["1"]
+    cached, fresh = [p for m, p in daemon.calls if m == "Fetch.GameUploads"]
+    assert "fresh" not in cached and fresh["fresh"] is True
+
+
+async def test_untagged_games_are_classified_once_per_run() -> None:
+    daemon = _FakeDaemon({
+        "Profile.List": [_PROFILE],
+        "Fetch.ProfileOwnedKeys": [{"items": [{"game": _game(1, "Untagged", platforms={})}]}],
+        "Fetch.GameUploads": [{"uploads": [
+            {"id": 1, "type": "default", "storage": "hosted", "platforms": {}, "filename": "game-win.zip"},
+        ]}],
+        "Fetch.Caves": [_NO_CAVES],
+    })
+    reader = ItchLibraryReader(daemon)
+    assert [g.store_game_id for g in await reader.get_library() or []] == ["1"]
+    assert [g.store_game_id for g in await reader.get_library() or []] == ["1"]
+    assert [m for m, _ in daemon.calls].count("Fetch.GameUploads") == 1
+
+
+# ── a read that outlasts the sync ──────────────────────────────────────
+class _GatedDaemon(_FakeDaemon):
+    """Holds ``Fetch.ProfileOwnedKeys`` until the test opens the gate."""
+
+    def __init__(self, script: dict[str, list[Any]]) -> None:
+        super().__init__(script)
+        self.gate = asyncio.Event()
+
+    async def call(self, method: str, params: dict[str, Any] | None = None, **kw: Any) -> dict[str, Any]:
+        if method == "Fetch.ProfileOwnedKeys":
+            await self.gate.wait()
+        return await super().call(method, params, **kw)
+
+
+async def test_a_slow_read_keeps_shortcuts_then_asks_for_a_sync(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(lib_mod, "_SYNC_BUDGET_S", 0.01)
+    daemon = _GatedDaemon({
+        "Profile.List": [_PROFILE],
+        "Fetch.ProfileOwnedKeys": [{"items": [{"game": _game(1, "A")}]}],
+        "Fetch.Caves": [_NO_CAVES],
+    })
+    ready = asyncio.Event()
+
+    async def on_ready() -> None:
+        ready.set()
+
+    reader = ItchLibraryReader(daemon, on_ready=on_ready)
+    # None, never []: the sync keeps the shortcuts it has.
+    assert await reader.get_library() is None
+    daemon.gate.set()
+    await asyncio.wait_for(ready.wait(), 1)
+    # The sync that answers picks up the finished read instead of
+    # walking the library again.
+    games = await reader.get_library()
+    assert [g.store_game_id for g in games or []] == ["1"]
+    assert [m for m, _ in daemon.calls].count("Fetch.ProfileOwnedKeys") == 1
+
+
+async def test_a_read_that_finishes_in_time_asks_for_nothing() -> None:
+    calls: list[int] = []
+
+    async def on_ready() -> None:
+        calls.append(1)
+
+    daemon = _FakeDaemon({
+        "Profile.List": [_PROFILE],
+        "Fetch.ProfileOwnedKeys": [{"items": [{"game": _game(1, "A")}]}],
+        "Fetch.Caves": [_NO_CAVES],
+    })
+    assert await ItchLibraryReader(daemon, on_ready=on_ready).get_library()
+    await asyncio.sleep(0)
+    assert calls == []
+
+
+async def test_a_failed_read_is_retried_by_the_next_sync() -> None:
+    daemon = _FakeDaemon({
+        "Profile.List": [_PROFILE],
+        "Fetch.ProfileOwnedKeys": [ButlerdError("butlerd connection lost"),
+                                   {"items": [{"game": _game(1, "A")}]}],
+        "Fetch.Caves": [_NO_CAVES],
+    })
+    reader = ItchLibraryReader(daemon)
+    assert await reader.get_library() is None
+    assert [g.store_game_id for g in await reader.get_library() or []] == ["1"]
+
+
+async def test_cancel_read_stops_a_read_in_flight(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(lib_mod, "_SYNC_BUDGET_S", 0.01)
+    daemon = _GatedDaemon({"Profile.List": [_PROFILE],
+                           "Fetch.ProfileOwnedKeys": [{"items": []}]})
+    reader = ItchLibraryReader(daemon)
+    assert await reader.get_library() is None
+    await reader.cancel_read()
+    assert reader._read is None
+
+
+# ── bundles ────────────────────────────────────────────────────────────
+_RACIAL_JUSTICE = {"id": 520, "title": "Bundle for Racial Justice and Equality",
+                   "url": "https://itch.io/b/520/bundle-for-racial-justice-and-equality"}
+
+
+def _bundle_daemon(bundle_games: list[dict[str, Any]], **script: list[Any]) -> _FakeDaemon:
+    return _FakeDaemon({
+        "Profile.List": [_PROFILE],
+        "Fetch.ProfileOwnedKeys": [{"items": [{"game": _game(1, "Claimed already")}]}],
+        "Fetch.ProfileOwnedBundles": [{"items": [{"bundleId": 520, "bundle": _RACIAL_JUSTICE}]}],
+        "Fetch.BundleGames": [{"items": [{"bundleId": 520, "game": g} for g in bundle_games]}],
+        "Fetch.Caves": [_NO_CAVES],
+        **script,
+    })
+
+
+async def test_unclaimed_bundle_games_are_listed_and_need_a_claim() -> None:
+    daemon = _bundle_daemon([
+        _game(1, "Claimed already"),
+        _game(2, "Sky Rogue", platforms={"windows": "all", "linux": "all"}),
+    ])
+    games = {g.store_game_id: g for g in await ItchLibraryReader(daemon).get_library() or []}
+    assert set(games) == {"1", "2"}
+    assert games["1"].metadata["source"] == "owned" and "claim_required" not in games["1"].tags
+    sky = games["2"]
+    assert sky.metadata["source"] == "bundle" and sky.tags == ["claim_required"]
+    assert (sky.metadata["bundle_id"], sky.metadata["bundle_title"]) == (
+        520, "Bundle for Racial Justice and Equality")
+    ownerships = next(p for m, p in daemon.calls if m == "Fetch.ProfileBundleOwnerships")
+    assert ownerships == {"profileId": 42, "fresh": True}
+    games_call = next(p for m, p in daemon.calls if m == "Fetch.BundleGames")
+    # butler keeps a bundle's games for 7 days and refetches on a version
+    # bump, so the read itself never forces a walk.
+    assert "fresh" not in games_call
+    assert games_call["filters"] == {"classification": "game"}
+
+
+async def test_a_bundle_game_with_only_a_scanned_build_is_kept() -> None:
+    daemon = _bundle_daemon([
+        _game(3, "Scanned", platforms={}) | {"scannedPlatforms": ["windows-amd64"]},
+        _game(4, "Mac only", platforms={"osx": "all"}) | {"scannedPlatforms": ["darwin-amd64"]},
+        _game(5, "Unscanned, untagged", platforms={}),
+    ])
+    games = {g.store_game_id: g for g in await ItchLibraryReader(daemon).get_library() or []}
+    assert set(games) == {"1", "3"}
+    assert games["3"].metadata["platforms"] == ["windows"]
+    # An unclaimed paid game lists no uploads, so it is never looked up.
+    assert "Fetch.GameUploads" not in [m for m, _ in daemon.calls]
+
+
+async def test_a_free_collection_game_in_a_bundle_needs_no_claim() -> None:
+    daemon = _bundle_daemon(
+        [_game(6, "Free and bundled")],
+        **{"Fetch.ProfileCollections": [{"items": [{"id": 9, "title": "Mine"}]}],
+           "Fetch.Collection.Games": [{"items": [{"game": _game(6, "Free and bundled")}]}]},
+    )
+    games = {g.store_game_id: g for g in await ItchLibraryReader(daemon).get_library() or []}
+    assert games["6"].metadata["source"] == "collection" and games["6"].tags == []
+
+
+async def test_a_game_in_two_bundles_is_listed_once() -> None:
+    other = {"id": 77, "title": "Another bundle"}
+    daemon = _bundle_daemon(
+        [_game(2, "Sky Rogue")],
+        **{"Fetch.ProfileOwnedBundles": [{"items": [{"bundle": _RACIAL_JUSTICE}, {"bundle": other}]}]},
+    )
+    games = [g for g in await ItchLibraryReader(daemon).get_library() or [] if g.store_game_id == "2"]
+    assert len(games) == 1 and games[0].metadata["bundle_id"] == 520
+
+
+async def test_a_failed_bundle_read_keeps_every_shortcut() -> None:
+    daemon = _bundle_daemon(
+        [], **{"Fetch.ProfileBundleOwnerships": [ButlerdError("butlerd connection lost")]},
+    )
+    assert await ItchLibraryReader(daemon).get_library() is None

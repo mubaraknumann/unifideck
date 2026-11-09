@@ -9,17 +9,18 @@
  * Install delegates to ``useInstallFlow.start(game)`` which
  * runs the storage picker + GOG language modal before
  * queueing the download.
+ *
+ * A merged Xbox PC + xCloud row passes ``streamUrl``: a secondary Stream
+ * button then sits beside Install (Install stays primary).
  */
-import { FC, useCallback } from "react";
+import { FC } from "react";
 import { DialogButton } from "@decky/ui";
 import { useTranslation } from "react-i18next";
 import { FaDownload } from "react-icons/fa";
 import { SteamControllerIcon, SteamGearIcon } from "../shared";
 import { useGameInfo } from "../../hooks/useGameInfo";
-import { useInstallFlow } from "../../hooks/useInstallFlow";
-import { useToast } from "../../hooks/useToast";
+import { usePlayActions } from "../../hooks/usePlayActions";
 import { SteamBridge } from "../../lib/steam-bridge";
-import { openNativeAppManageMenu } from "../../utils/nativeAppMenu";
 import {
   PlayShell,
   MetaInline,
@@ -30,59 +31,27 @@ import {
   iconBtnClass,
   controllerBtnClass,
 } from "./PlayMeta";
+import { openControllerConfig, openGearMenu } from "./steamAppDialogs";
+import { StreamSecondaryButton } from "./StreamSecondaryButton";
 
 interface Props {
   appId: number;
   bridge?: SteamBridge;
+  /** Set on a merged Xbox PC + xCloud row: show a secondary Stream. */
+  streamUrl?: string;
 }
 
 const defaultBridge = new SteamBridge();
 
-function openControllerConfig(appId: number): void {
-  (
-    window as unknown as {
-      SteamClient?: {
-        Apps?: { ShowControllerConfigurator?: (id: number) => void };
-      };
-    }
-  ).SteamClient?.Apps?.ShowControllerConfigurator?.(appId);
-}
-
-function openAppSettings(appId: number): void {
-  (
-    window as unknown as {
-      SteamClient?: {
-        Apps?: { OpenAppSettingsDialog?: (id: number, page: string) => void };
-      };
-    }
-  ).SteamClient?.Apps?.OpenAppSettingsDialog?.(appId, "general");
-}
-
 export const NotInstalledButtons: FC<Props> = ({
   appId,
   bridge = defaultBridge,
+  streamUrl,
 }) => {
   const { t } = useTranslation();
   const { data: game, loading } = useGameInfo(appId);
-  const installFlow = useInstallFlow(bridge);
-  const toast = useToast();
-
-  const onInstall = useCallback(async () => {
-    if (!game) return;
-    const result = await installFlow.start(game);
-    if (result == null) return;
-    if (result.success) {
-      toast.success(
-        t("toasts.downloadQueued"),
-        t("toasts.downloadQueuedBody", { title: game.title }),
-      );
-    } else {
-      toast.error(
-        t("toasts.downloadFailed"),
-        result.error ?? t("toasts.downloadFailedUnknown"),
-      );
-    }
-  }, [installFlow, game, t, toast]);
+  const play = usePlayActions(appId, bridge);
+  const onInstall = play.install;
 
   return (
     // autoFocus is intentional: claims gamepad focus for the primary action
@@ -90,15 +59,14 @@ export const NotInstalledButtons: FC<Props> = ({
     <PlayShell autoFocus>
       <DialogButton
         className={actionBtnClass("unifideck-install-btn")}
-        disabled={loading || installFlow.isWorking || !game}
+        disabled={loading || play.isWorking || !game}
         onClick={onInstall}
         style={actionBtnStyle}
       >
         <FaDownload />
-        {installFlow.isWorking
-          ? t("playButton.installing")
-          : t("playButton.install")}
+        {play.isWorking ? t("playButton.installing") : t("playButton.install")}
       </DialogButton>
+      {streamUrl && <StreamSecondaryButton appId={appId} url={streamUrl} />}
 
       <MetaInline
         sizeBytes={game?.size_bytes}
@@ -120,13 +88,7 @@ export const NotInstalledButtons: FC<Props> = ({
         <DialogButton
           className={iconBtnClass()}
           style={iconBtnStyle}
-          onClick={(e) => {
-            // Open Steam's native app menu (Manage / Properties / …),
-            // matching the native gear; fall back to Properties directly.
-            if (!openNativeAppManageMenu(e?.currentTarget as HTMLElement)) {
-              openAppSettings(appId);
-            }
-          }}
+          onClick={(e) => openGearMenu(e?.currentTarget as HTMLElement, appId)}
           aria-label={t("playButton.appSettings")}
         >
           <SteamGearIcon />

@@ -12,13 +12,22 @@ from typing import NoReturn
 logger = logging.getLogger(__name__)
 DOSBOX_CALL_RE = re.compile(r'run_dosbox\s+((?:\"[^\"]+\"\s*)+)')
 def find_steam_runtime() -> Path | None:
-    """Find steam runtime."""
-    candidates = (
-        Path.home() / ".steam" / "steam" / "ubuntu12_32" / "steam-runtime",
-        Path.home() / ".local" / "share" / "Steam" / "ubuntu12_32" / "steam-runtime",
-    )
+    """The scout Steam Runtime tree whose libraries GOG's DOSBox builds need.
+
+    Current Steam clients ship ``ubuntu12_32/steam-runtime`` as a 68 KB stub
+    (``legacy-run-stub.sh``) with no libraries, so GOG's bundled DOSBox died
+    on ``libFLAC.so.8``. The same scout tree still ships inside the Steam
+    Linux Runtime 1.0 tool. A candidate counts only if it holds a library
+    directory, never merely because the folder exists.
+    """
+    homes = (Path.home() / ".steam" / "steam", Path.home() / ".local" / "share" / "Steam")
+    candidates = [h / "ubuntu12_32" / "steam-runtime" for h in homes]
+    candidates += [
+        h / "steamapps" / "common" / "SteamLinuxRuntime" / "steam-runtime"
+        for h in homes
+    ]
     for candidate in candidates:
-        if candidate.exists():
+        if (candidate / "usr" / "lib" / "x86_64-linux-gnu").is_dir():
             return candidate
     return None
 def build_runtime_library_paths(

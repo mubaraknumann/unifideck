@@ -19,7 +19,19 @@ import { useDownloads } from "../contexts/DownloadContext";
 import { invalidateGameInfo } from "./useGameInfo";
 import { bumpGameStateVersion } from "../lib/game-state-version";
 import { UpdateStore } from "../stores/update-store";
+import { RpcError } from "../api/rpc-errors";
 import type { Result, StoreId } from "../types/api";
+
+/** A refused or failed RPC as a failed result.
+ *
+ *  The backend's refusal code (`xbox_pc_disabled`, `itch_claim_required`,
+ *  ...) is the `RpcError` message, so callers can map it to a friendly
+ *  string or retry on it. Anything that is not an `RpcError` is a bug in
+ *  our own code and is rethrown. */
+function refusalResult(err: unknown): Result {
+  if (err instanceof RpcError) return { success: false, error: err.message };
+  throw err;
+}
 
 /** Steam bridge shape. */
 interface SteamBridgeShape {
@@ -38,8 +50,9 @@ export interface UseGameActionsResult {
     store: StoreId,
     gameId: string,
     options?: { storage?: string; language?: string; title?: string },
-  ) => Promise<Result | null>;
-  uninstall: (appId: number, deletePrefix?: boolean) => Promise<Result | null>;
+  ) => Promise<Result>;
+  /** A refusal resolves as `{ success: false, error }`, never `null`. */
+  uninstall: (appId: number, deletePrefix?: boolean) => Promise<Result>;
   cancel: (downloadId: string) => Promise<Result | null>;
   launch: (appId: number) => void;
   terminate: (appId: number, force?: boolean) => void;
@@ -74,7 +87,12 @@ export function useGameActions(bridge: SteamBridgeShape): UseGameActionsResult {
     ) => {
       setWorking(true);
       try {
-        return await downloads.installGame(store, gameId, options);
+        // A queued install answers with no data at all (the envelope lifts
+        // `success` and `error` out), so null means success here.
+        const result = await downloads.installGame(store, gameId, options);
+        return result ?? { success: true };
+      } catch (err) {
+        return refusalResult(err);
       } finally {
         setWorking(false);
       }
@@ -92,6 +110,8 @@ export function useGameActions(bridge: SteamBridgeShape): UseGameActionsResult {
           bumpGameStateVersion(appId);
         }
         return result;
+      } catch (err) {
+        return refusalResult(err);
       } finally {
         setWorking(false);
       }

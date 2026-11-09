@@ -164,6 +164,7 @@ class SyncService(
             self._on_shortcut_install_state_changed,
         )
         self._subscribe_grouping_refresh()
+        self._subscribe_store_library_ready()
 
     async def sync_all(
         self,

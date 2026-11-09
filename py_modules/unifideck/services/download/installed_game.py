@@ -85,7 +85,9 @@ async def build_installed_game(
         )
         return None
 
-    exe_path = await _resolve_exe(store, install_path, item.game_id)
+    exe_path = result.metadata.get("exe_path")
+    if not isinstance(exe_path, str) or not exe_path:
+        exe_path = await _resolve_exe(store, install_path, item.game_id)
 
     # Title fallback: stored on the item; if missing, derive from the install
     # folder name so the shortcut tile reads sensibly.

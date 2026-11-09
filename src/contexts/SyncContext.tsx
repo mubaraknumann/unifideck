@@ -22,6 +22,7 @@ import { useRPCMutation } from "../api/useRPC";
 import { rpcRoutes } from "../api/rpc-routes";
 import { syncStore } from "../stores/sync-store";
 import { prepareForSync } from "../lib/steam-bridge/prepare-sync";
+import { linkXboxPc } from "../services/store/xbox-pc-link";
 import type { SyncProgress } from "../types/syncProgress";
 
 /** Sync context value. */
@@ -59,6 +60,9 @@ export const SyncProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
   const startSync = useCallback(async () => {
     if (isSyncing) return;
+    // A signed-out Xbox PC has no other way back to the sign-in. It resyncs by
+    // itself when it ends, and that sync queues behind this one.
+    void linkXboxPc({ auto: true });
     // Confirm the live active Steam user + refresh the owned-library snapshot
     // before the backend fetch, so shortcuts land in the right userdata dir
     // and Steam-linked Ubisoft games are hidden this run. Shared with the
@@ -71,6 +75,7 @@ export const SyncProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
   const forceSync = useCallback(
     async (resyncArtwork?: boolean) => {
+      void linkXboxPc({ auto: true });
       await prepareForSync();
       void forceMut
         .mutate(resyncArtwork)

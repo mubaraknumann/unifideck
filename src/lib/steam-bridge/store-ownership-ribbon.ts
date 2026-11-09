@@ -57,10 +57,14 @@ const LOG = "[Unifideck] Store ownership ribbon:";
 export interface RibbonStrings {
   tag_owned: string;
   tag_cloud: string;
+  /** Tag of the Game Pass PC line: installable through Xbox PC, not streamed. */
+  tag_installable: string;
   message_owned: string;
   message_cloud: string;
   /** The neutral streaming line: it streams, but not via Game Pass or a known purchase. */
   message_xcloud: string;
+  /** The Game Pass PC line ("Xbox Game Pass (PC)"). */
+  message_pc_pass: string;
   installed: string;
   via: string;
   dir: "ltr" | "rtl";
@@ -98,9 +102,13 @@ export function buildRibbonStrings(): RibbonStrings {
     // Gaming when the reason it streams is unknown. Streaming an owned game
     // is the "Cloud" note on the owned chip instead.
     tag_cloud: t("storeOwnership.tagStreamable"),
+    // Game Pass titles the user can install on PC (Xbox PC) get their own
+    // line; the backend only sends it while the entitlement is current.
+    tag_installable: t("storeOwnership.tagInstallable"),
     message_owned: t("storeOwnership.messageOwned"),
     message_cloud: t("storeOwnership.messageGamePass"),
     message_xcloud: t("storeOwnership.messageXboxCloud"),
+    message_pc_pass: t("storeOwnership.messageGamePassPc"),
     installed: t("storeOwnership.installed"),
     via: t("storeOwnership.via"),
     dir: typeof i18n.dir === "function" && i18n.dir() === "rtl" ? "rtl" : "ltr",

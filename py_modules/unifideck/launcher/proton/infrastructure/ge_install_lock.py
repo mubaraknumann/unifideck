@@ -8,13 +8,10 @@ because this is concurrency, not fetch-and-extract.
 from __future__ import annotations
 
 import contextlib
-import fcntl
-import logging
-import os
 from collections.abc import Iterator
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
+from unifideck.launcher.proton.infrastructure.file_lock import flock_path
 
 # Held for the whole of ``ensure_latest_ge``. Deliberately NOT inside
 # ``compatibilitytools.d`` — Steam scans that directory and treats every entry
@@ -38,17 +35,6 @@ def install_lock() -> Iterator[bool]:
     opened, in which case the caller proceeds unserialised rather than losing
     the ability to install Proton at all.
     """
-    try:
-        INSTALL_LOCK.parent.mkdir(parents=True, exist_ok=True)
-        fd = os.open(INSTALL_LOCK, os.O_CREAT | os.O_RDWR, 0o644)
-    except OSError as e:
-        logger.warning("[ge_installer] cannot open install lock: %s", e)
-        yield False
-        return
-    try:
-        fcntl.flock(fd, fcntl.LOCK_EX)
-        yield True
-    finally:
-        with contextlib.suppress(OSError):
-            fcntl.flock(fd, fcntl.LOCK_UN)
-        os.close(fd)
+    # ``flock_path`` logs the open failure and yields False for it.
+    with flock_path(INSTALL_LOCK, mode=0o644) as held:
+        yield held

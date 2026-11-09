@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
-from unifideck.core.types import StoreInfo
+from unifideck.core.types import Events, StoreInfo
 from unifideck.stores.itch.butlerd import ButlerdError
 from unifideck.stores.itch.store import ItchStore
 
@@ -71,6 +71,31 @@ async def test_library_without_butler_is_unreadable_not_empty(tmp_path: Path) ->
     assert await store.get_library() is None
 
 
+async def test_a_refused_key_toasts_once_per_streak_and_keeps_shortcuts(tmp_path: Path) -> None:
+    # Rule 8: a 403 costs the whole itch.io library, so it is not log-only.
+    store = _store(tmp_path)
+    store.cli_path = "/bin/true"
+
+    async def refused() -> None:
+        store._library.key_rejected = True
+
+    async def readable() -> list[Any]:
+        store._library.key_rejected = False
+        return []
+
+    store._library.get_library = AsyncMock(side_effect=refused)  # type: ignore[method-assign]
+    assert await store.get_library() is None
+    assert await store.get_library() is None
+    toasts = [c for c in store._bus.emit.await_args_list if c.args[0] == Events.LAUNCHER_STAGE]
+    assert len(toasts) == 1
+    assert toasts[0].kwargs["i18n_key"] == "toasts.itchKeyRejectedMessage"
+    store._library.get_library = AsyncMock(side_effect=readable)  # type: ignore[method-assign]
+    assert await store.get_library() == []
+    store._library.get_library = AsyncMock(side_effect=refused)  # type: ignore[method-assign]
+    await store.get_library()
+    assert store._bus.emit.await_count == 2
+
+
 async def test_start_auth_needs_edge(tmp_path: Path) -> None:
     store = _store(tmp_path)
     store._auth = MagicMock()
@@ -99,23 +124,17 @@ async def test_shutdown_stops_the_daemon(tmp_path: Path) -> None:
     store._daemon.shutdown.assert_awaited_once()
 
 
-async def test_uninstall_announces_it_and_honours_delete_prefix(
-    tmp_path: Path, monkeypatch: Any,
-) -> None:
+async def test_uninstall_announces_it(tmp_path: Path) -> None:
     # The first device run: files gone, but the shortcut still said Play and
-    # the games.map row and Proton prefix stayed, because nothing emitted
-    # GAME_UNINSTALLED (the event ShortcutService acts on).
+    # the games.map row stayed, because nothing emitted GAME_UNINSTALLED (the
+    # event ShortcutService acts on). The prefix is the uninstall RPC's job,
+    # covered in test_uninstall_prefix_cleanup.py.
     from unifideck.core.types import Events, Result
-    from unifideck.stores.itch import store as store_mod
 
     store = _store(tmp_path)
     store._installer.uninstall = AsyncMock(return_value=Result(success=True, store="itch"))  # type: ignore[method-assign]
-    removed: list[Path] = []
-    monkeypatch.setattr(store_mod, "canonical_prefix", lambda gid: tmp_path / "prefixes" / gid)
-    monkeypatch.setattr(store_mod, "safe_rmtree", lambda p: removed.append(Path(p)) or True)
     result = await store.uninstall_game("1193828", delete_prefix=True)
     assert result.success
-    assert removed == [tmp_path / "prefixes" / "1193828"]
     store._bus.emit.assert_awaited_with(Events.GAME_UNINSTALLED, store="itch", game_id="1193828")
 
 
@@ -126,3 +145,65 @@ async def test_failed_uninstall_announces_nothing(tmp_path: Path) -> None:
     store._installer.uninstall = AsyncMock(return_value=Result(success=False, store="itch", error="x"))  # type: ignore[method-assign]
     assert not (await store.uninstall_game("1", delete_prefix=True)).success
     store._bus.emit.assert_not_awaited()
+
+
+# ── bundle claim ───────────────────────────────────────────────────────
+class _OwnershipDaemon:
+    """Answers the reads the claim hooks make; a claim flips ownership."""
+
+    def __init__(self, source: str, *, claims_on_refresh: bool) -> None:
+        self.source = source
+        self.claims_on_refresh = claims_on_refresh
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+
+    async def call(self, method: str, params: dict[str, Any] | None = None, **_: Any) -> dict[str, Any]:
+        self.calls.append((method, params or {}))
+        if method == "Profile.List":
+            return {"profiles": [{"id": 42}]}
+        if method == "Fetch.GameOwnership":
+            return {"owned": True, "source": self.source, "bundleId": 520}
+        if method == "Fetch.ProfileOwnedBundles":
+            return {"items": [{"bundle": {"id": 520, "title": "Racial Justice"}}]}
+        if method == "Fetch.ProfileOwnedKeys":
+            if self.claims_on_refresh:
+                self.source = "download_key"
+            return {"items": []}
+        raise AssertionError(method)
+
+
+def _claim_store(tmp_path: Path, monkeypatch: Any, daemon: _OwnershipDaemon) -> ItchStore:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    store = _store(tmp_path)
+    store.cli_path = "/bin/true"
+    store._daemon.call = daemon.call  # type: ignore[method-assign]
+    return store
+
+
+async def test_an_unclaimed_bundle_game_is_refused_before_queueing(tmp_path: Path, monkeypatch: Any) -> None:
+    store = _claim_store(tmp_path, monkeypatch, _OwnershipDaemon("bundle", claims_on_refresh=False))
+    assert (await store.install_precondition("2") or "").startswith("itch_claim_required:")
+    store = _claim_store(tmp_path, monkeypatch, _OwnershipDaemon("download_key", claims_on_refresh=False))
+    assert await store.install_precondition("2") is None
+
+
+async def test_begin_claim_points_the_next_shop_window_at_the_bundles_page(
+    tmp_path: Path, monkeypatch: Any,
+) -> None:
+    from unifideck.core.store_urls import take_storefront_target
+
+    store = _claim_store(tmp_path, monkeypatch, _OwnershipDaemon("bundle", claims_on_refresh=False))
+    info = await store.begin_claim("2")
+    assert info == {"url": "https://itch.io/my-purchases/bundles", "bundle_title": "Racial Justice"}
+    assert take_storefront_target("itch") == "https://itch.io/my-purchases/bundles"
+    assert take_storefront_target("itch") == ""  # one-time
+
+
+async def test_finish_claim_rereads_the_owned_keys(tmp_path: Path, monkeypatch: Any) -> None:
+    daemon = _OwnershipDaemon("bundle", claims_on_refresh=True)
+    store = _claim_store(tmp_path, monkeypatch, daemon)
+    assert await store.finish_claim("2") is True
+    refresh = next(p for m, p in daemon.calls if m == "Fetch.ProfileOwnedKeys")
+    assert refresh["fresh"] is True and refresh["profileId"] == 42
+    # Closed without claiming: still a bundle game.
+    store = _claim_store(tmp_path, monkeypatch, _OwnershipDaemon("bundle", claims_on_refresh=False))
+    assert await store.finish_claim("2") is False

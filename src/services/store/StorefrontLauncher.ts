@@ -36,6 +36,7 @@
 import { call } from "@decky/api";
 import { EventBusClient } from "../../api/event-bus-client";
 import { rpcRoutes } from "../../api/rpc-routes";
+import { unwrapRpcEnvelope } from "../../api/useRPC";
 import { prepareForSync } from "../../lib/steam-bridge/prepare-sync";
 import { watchAppStopped } from "../../lib/steam-bridge/shortcut-types";
 import { authStore } from "../../stores/auth-store";
@@ -104,6 +105,52 @@ async function prepareWebSession(store: StoreId): Promise<void> {
   }
 }
 
+/** The error a browser shop returns while the plugin's browser is missing,
+ *  the same one a browser sign-in returns. */
+export const BROWSER_MISSING = "edge_not_installed";
+
+/**
+ * Whether the plugin's browser is downloaded.
+ *
+ * Asked before a browser shop opens: the window starts through a Steam
+ * shortcut, so a missing browser could not be reported back and the window
+ * would just never appear. A failed check answers "yes", leaving the launch
+ * to behave as it did before the check existed.
+ */
+async function browserReady(): Promise<boolean> {
+  try {
+    const raw = await call<[], unknown>(rpcRoutes.browserInstalled);
+    const result = unwrapRpcEnvelope<{ installed?: boolean } | null>(raw, {
+      route: rpcRoutes.browserInstalled,
+      throwing: false,
+    });
+    return result?.installed !== false;
+  } catch (e) {
+    console.warn("[StorefrontLauncher] browser check failed:", e);
+    return true;
+  }
+}
+
+/**
+ * Open `store`'s browser shop window, and nothing more.
+ *
+ * For the claim flow (`claim-flow.tsx`): the backend has already pointed
+ * the window at the claim page, and the flow checks the claim itself when
+ * the window closes, so the full post-close sync {@link openStorefront}
+ * runs would only repeat that work.
+ */
+export async function openStorefrontWindow(
+  store: StoreId,
+): Promise<ShortcutLaunchResult> {
+  const launch = BROWSER_STOREFRONTS[store];
+  if (!launch) {
+    return { success: false, error: `No browser storefront for ${store}` };
+  }
+  if (!(await browserReady()))
+    return { success: false, error: BROWSER_MISSING };
+  return launch();
+}
+
 /** Whether this store has a shop the cart can open at all. */
 export function hasStorefront(store: StoreId): boolean {
   return store in BROWSER_STOREFRONTS || store in CLIENT_STOREFRONTS;
@@ -149,6 +196,9 @@ export async function openStorefront(
   const launch = BROWSER_STOREFRONTS[store] ?? CLIENT_STOREFRONTS[store];
   if (!launch) {
     return { success: false, error: `No storefront for ${store}` };
+  }
+  if (store in BROWSER_STOREFRONTS && !(await browserReady())) {
+    return { success: false, error: BROWSER_MISSING };
   }
   EventBusClient.bumpToFast();
   if (store in BROWSER_STOREFRONTS) await prepareWebSession(store);

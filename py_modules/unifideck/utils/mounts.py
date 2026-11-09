@@ -344,11 +344,34 @@ def _probe_stat_dev(mount_point: str, uid: int, gid: int | None) -> int:
         return 0
 
 
+def _printable(path: str) -> str:
+    """*path* safe to log: undecodable label bytes shown as ``\\xNN`` escapes.
+
+    ``scan_mounts`` decodes with surrogateescape, so a non-UTF-8 label
+    carries lone surrogates. A UTF-8 log handler cannot encode those and
+    drops the whole line, which is the warning that explains a missing drive.
+    """
+    return path.encode("utf-8", "surrogateescape").decode("utf-8", "backslashreplace")
+
+
+def _log_skip(mp: str, fstype: str, reason: str) -> None:
+    """Log why a mount was refused.
+
+    Refusing user-plugged media is the whole "drive not detected" failure,
+    so say so at a level that reaches the log file — these were debug-only,
+    which is why five session logs in the first report of this bug mentioned
+    it exactly zero times.
+    """
+    level = logging.WARNING if is_user_media(mp) else logging.DEBUG
+    logger.log(level, "[mounts] skip %s (%s): %s", _printable(mp), fstype, reason)
+
+
 def _resolve_mount(
     device: str, mp: str, fstype: str, raw_options: str, require_writable: bool,
     uuid: str = "",
 ) -> MountInfo | None:
     """Build a ``MountInfo`` for one already-eligible-type mount line, or ``None``."""
+    shown = _printable(mp)
     options = parse_mount_options(raw_options)
     uid = _parse_uid(options.get("uid"))
     gid = _parse_uid(options.get("gid")) if uid is not None else None
@@ -365,24 +388,19 @@ def _resolve_mount(
             effective_uid, effective_gid = uid, gid
             logger.info(
                 "[mounts] %s (%s) accessible only via demoted uid=%s "
-                "(FUSE mount, no allow_other)", mp, fstype, uid,
+                "(FUSE mount, no allow_other)", shown, fstype, uid,
             )
         else:
             logger.debug(
                 "[mounts] %s (%s) inaccessible even as uid=%s after demoted retry",
-                mp, fstype, uid,
+                shown, fstype, uid,
             )
 
-    # Refusing user-plugged media is the whole "drive not detected"
-    # failure, so say so at a level that reaches the log file — these
-    # were debug-only, which is why five session logs in the first
-    # report of this bug mentioned it exactly zero times.
-    reject = logger.warning if is_user_media(mp) else logger.debug
     if not is_dir:
-        reject("[mounts] skip %s (%s): not an accessible directory", mp, fstype)
+        _log_skip(mp, fstype, "not an accessible directory")
         return None
     if require_writable and not writable:
-        reject("[mounts] skip %s (%s): not writable by uid %s", mp, fstype, os.geteuid())
+        _log_skip(mp, fstype, f"not writable by uid {os.geteuid()}")
         return None
 
     return MountInfo(
