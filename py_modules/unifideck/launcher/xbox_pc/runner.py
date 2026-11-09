@@ -54,6 +54,9 @@ from .runtime import Runtime
 RUNNER_NAME = "unifideck-xbox-wine"
 STOP_FLAG = "--unifideck-stop-prefix"
 NO_WAIT_FLAG = "--unifideck-no-wait"
+#: Extra command-line words for the game (diagnostics, I-081). Not a
+#: ``UNIFIDECK_`` name: those are stripped from the game's env.
+GAME_ARGS_ENV = "XBOX_PC_GAME_ARGS"
 
 _HTTP2_FEATURE = "wine-winhttp-http2-v1"
 _HOST_LIBS_FEATURE = "wine-host-libraries-v1"
@@ -160,7 +163,9 @@ def _modes(runtime: Runtime) -> list[str]:
         f'  exec {q(runtime.wine)} "$@"',
         "fi",
         "launch_status=0",
-        f'{q(runtime.wine)} "$@" || launch_status=$?',
+        # Diagnostics: extra words for the game's command line, which
+        # xodus-cli cannot pass (I-081). Word-split on purpose.
+        f'{q(runtime.wine)} "$@" ${{{GAME_ARGS_ENV}:-}} || launch_status=$?',
         "wait_status=0",
         f"{q(runtime.wineserver)} -w || wait_status=$?",
         'if [ "$launch_status" -ne 0 ]; then exit "$launch_status"; fi',

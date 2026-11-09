@@ -6,11 +6,14 @@ emulator it would start, and :func:`inspect_game` launches that instead.
 """
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
 
 from unifideck.launcher.xbox_pc.game_manifest import inspect_game
+from unifideck.launcher.xbox_pc.runner import GAME_ARGS_ENV, write_runner
+from unifideck.launcher.xbox_pc.runtime import Runtime
 from unifideck.launcher.xbox_pc.title_env import title_env
 
 CONFIG = """<?xml version="1.0" encoding="utf-8"?>
@@ -79,7 +82,38 @@ def test_only_a_redirected_package_is_flagged_back_compat(tmp_path: Path) -> Non
     assert not inspect_game(_package(tmp_path / "c", exe="Game\\Game.exe")).backcompat
 
 
-def test_back_compat_titles_get_gameinput_v3_and_others_do_not() -> None:
-    assert title_env("C4B8XR1LCXR5", backcompat=True) == {"XODUS_GAMEINPUT_V3": "1"}
+BACKCOMPAT_ENV = {
+    "XODUS_GAMEINPUT_V3": "1",
+    "XODUS_SPECIAL_USER_APC": "1",
+    "XODUS_FILE_ALLOCATION_INFO": "1",
+}
+
+
+def test_back_compat_titles_get_the_emulator_opt_ins_and_others_do_not() -> None:
+    assert title_env("C4B8XR1LCXR5", backcompat=True) == BACKCOMPAT_ENV
     assert title_env("C4B8XR1LCXR5") == {}
-    assert title_env(None, backcompat=True) == {"XODUS_GAMEINPUT_V3": "1"}
+    assert title_env(None, backcompat=True) == BACKCOMPAT_ENV
+    # A known non-back-compat title keeps only its own entry.
+    assert title_env("C261457LCNMJ") == {"XODUS_GAMEINPUT_V3": "1"}
+
+
+def _arg_recording_runtime(root: Path, calls: Path) -> Runtime:
+    """A runtime whose wine writes each argument on its own line."""
+    bin_dir = root / "files/bin"
+    bin_dir.mkdir(parents=True)
+    (bin_dir / "wine").write_text(f'#!/bin/sh\nfor a in "$@"; do echo "$a" >> {calls}; done\n')
+    (bin_dir / "wineserver").write_text("#!/bin/sh\nexit 0\n")
+    for name in ("wine", "wineserver"):
+        (bin_dir / name).chmod(0o755)
+    return Runtime(root)
+
+
+def test_game_args_env_appends_words_to_the_game_command_line(tmp_path: Path) -> None:
+    calls = tmp_path / "calls"
+    runner = write_runner(_arg_recording_runtime(tmp_path / "runtime", calls), tmp_path)
+    env = {"PATH": "/usr/bin:/bin", GAME_ARGS_ENV: r"-log Z:\logs\emu -nobootanim"}
+    subprocess.run([str(runner), "Emu.exe"], check=True, env=env)
+    assert calls.read_text().splitlines() == ["Emu.exe", "-log", r"Z:\logs\emu", "-nobootanim"]
+    calls.unlink()
+    subprocess.run([str(runner), "Emu.exe"], check=True, env={"PATH": "/usr/bin:/bin"})
+    assert calls.read_text().splitlines() == ["Emu.exe"]
