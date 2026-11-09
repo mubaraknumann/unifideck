@@ -322,7 +322,12 @@ _REAL_HOME = os.path.expanduser("~")
 @pytest.fixture(autouse=True)
 def _never_clear_a_real_sign_in(monkeypatch: pytest.MonkeyPatch) -> None:
     """``credential_reset`` deletes files. No test may reach the developer's own."""
-    from unifideck.stores.microsoft.xodus import credential_reset
+    try:
+        from unifideck.stores.microsoft.xodus import credential_reset
+    except ModuleNotFoundError:
+        # The complexity job installs no runtime deps (no ``cryptography``).
+        # Then no test can import credential_reset either, so nothing to guard.
+        return
 
     real = credential_reset.clear_plain_files
 

@@ -34,7 +34,7 @@ def _fake_wine(root: Path, calls: Path) -> None:
     for name in ("wine", "wineserver"):
         script = bin_dir / name
         script.write_text(
-            f'#!/bin/sh\necho "{name} $* prefix=$WINEPREFIX overrides=$WINEDLLOVERRIDES'
+            f'#!/bin/sh\nprintf \'%s\\n\' "{name} $* prefix=$WINEPREFIX overrides=$WINEDLLOVERRIDES'
             f' eac=$PROTON_EAC_RUNTIME battleye=$PROTON_BATTLEYE_RUNTIME" >> {calls}\n',
         )
         script.chmod(0o755)
@@ -110,7 +110,7 @@ def test_runner_keeps_the_users_dll_overrides_and_library_path(tmp_path: Path) -
     calls = tmp_path / "calls"
     _fake_wine(root, calls)
     (root / "files/bin/wine").write_text(
-        f'#!/bin/sh\necho "overrides=$WINEDLLOVERRIDES ld=$LD_LIBRARY_PATH" >> {calls}\n',
+        f'#!/bin/sh\nprintf \'%s\\n\' "overrides=$WINEDLLOVERRIDES ld=$LD_LIBRARY_PATH" >> {calls}\n',
     )
     runner = write_runner(Runtime(root), tmp_path, nvapi=True)
     subprocess.run([str(runner), NO_WAIT_FLAG, "x"], check=True, env=_PATH)
@@ -182,7 +182,7 @@ def test_runner_runs_a_32_bit_game_in_new_wow64(tmp_path: Path) -> None:
     root = tmp_path / "runtime"
     calls = tmp_path / "calls"
     _fake_wine(root, calls)
-    (root / "files/bin/wine").write_text(f'#!/bin/sh\necho "arch=$WINEARCH" >> {calls}\n')
+    (root / "files/bin/wine").write_text(f'#!/bin/sh\nprintf \'%s\\n\' "arch=$WINEARCH" >> {calls}\n')
     subprocess.run([str(write_runner(Runtime(root), tmp_path)), NO_WAIT_FLAG, "x"], check=True, env=_PATH)
     assert calls.read_text() == "arch=win64\n"
     calls.unlink()
@@ -223,7 +223,7 @@ def test_runner_keeps_the_vkd3d_shader_cache_in_the_prefix(tmp_path: Path) -> No
     root = tmp_path / "runtime"
     calls = tmp_path / "calls"
     _fake_wine(root, calls)
-    (root / "files/bin/wine").write_text(f'#!/bin/sh\necho "cache=$VKD3D_SHADER_CACHE_PATH" >> {calls}\n')
+    (root / "files/bin/wine").write_text(f'#!/bin/sh\nprintf \'%s\\n\' "cache=$VKD3D_SHADER_CACHE_PATH" >> {calls}\n')
     compat = tmp_path / "prefix"
     compat.mkdir()
     runner = write_runner(Runtime(root), compat)

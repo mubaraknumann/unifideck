@@ -86,9 +86,15 @@ def _reference_haystack() -> str:
             if suffixes and path.suffix not in suffixes:
                 continue
             try:
-                chunks.append(path.read_text(encoding="utf-8", errors="ignore"))
+                data = path.read_bytes()
             except OSError:
                 continue
+            # bin/ holds downloaded executables (butler, the store CLIs) that a
+            # CI checkout never has. Their strings matched key leaves such as
+            # ``saveError`` locally only, so the gate passed here and failed in CI.
+            if b"\0" in data:
+                continue
+            chunks.append(data.decode("utf-8", errors="ignore"))
     return "\n".join(chunks)
 
 

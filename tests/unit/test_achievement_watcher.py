@@ -41,8 +41,12 @@ class _Store:
 
 
 @pytest.fixture
-def make(tmp_path, monkeypatch):
-    """A watcher on a fake registry, state in tmp_path, toasts captured."""
+async def make(tmp_path, monkeypatch):
+    """A watcher on a fake registry, state in tmp_path, toasts captured.
+
+    Async so the teardown below runs inside the test's event loop: a sync
+    fixture tears down after pytest-asyncio < 1.0 has closed it.
+    """
     monkeypatch.setattr(w, "_RECONCILE_RETRY_DELAY_SECONDS", 0.0)
     made: list[w.AchievementWatcher] = []
 
@@ -57,9 +61,11 @@ def make(tmp_path, monkeypatch):
         return watcher, toasts
 
     yield build
+    pending = [task for watcher in made for task in watcher._poll_tasks.values()]
     for watcher in made:
         for key in list(watcher._poll_tasks):
             watcher._cancel(key)
+    await asyncio.gather(*pending, return_exceptions=True)
 
 
 async def _drain() -> None:

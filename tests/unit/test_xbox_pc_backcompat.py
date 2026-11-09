@@ -101,7 +101,7 @@ def _arg_recording_runtime(root: Path, calls: Path) -> Runtime:
     """A runtime whose wine writes each argument on its own line."""
     bin_dir = root / "files/bin"
     bin_dir.mkdir(parents=True)
-    (bin_dir / "wine").write_text(f'#!/bin/sh\nfor a in "$@"; do echo "$a" >> {calls}; done\n')
+    (bin_dir / "wine").write_text(f'#!/bin/sh\nfor a in "$@"; do printf \'%s\\n\' "$a" >> {calls}; done\n')
     (bin_dir / "wineserver").write_text("#!/bin/sh\nexit 0\n")
     for name in ("wine", "wineserver"):
         (bin_dir / name).chmod(0o755)

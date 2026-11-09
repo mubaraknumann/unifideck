@@ -6,6 +6,7 @@
     "how_to_drain": "Pick a namespace, decide per key: wire the delivery (a backend i18n_key counts as a reference) or delete the key from all 16 locale files. Then remove it here."
   },
   "keys": [
+    "_comment",
     "accountSwitch.freshStartDescription",
     "accountSwitch.migrateDescription",
     "accountSwitch.toastClearBody",
@@ -23,6 +24,7 @@
     "cloudSave.toastUsingLocalTitle",
     "cloudSave.unknownDate",
     "cloudSave.uploadBlockedEmpty",
+    "cloudSyncBehavior.saveError",
     "common.thisGame",
     "confirmModals.amazonUpdateDescription",
     "confirmModals.amazonUpdateTitle",
@@ -96,6 +98,7 @@
     "launchLogs.copyFailed",
     "launchLogs.exportFailed",
     "launchLogs.exportedTo",
+    "launchLogs.fileInfo",
     "launchLogs.filterError",
     "launchLogs.filterInfo",
     "launchLogs.filterLabel",
@@ -173,6 +176,7 @@
     "storageSettings.toastUpdatedTitle",
     "storageSettings.validationErrors.homeRoot",
     "storageSettings.validationErrors.notAbsolute",
+    "storageSettings.validationErrors.notFound",
     "storageSettings.validationErrors.systemDir",
     "storeConnections.amazonGames",
     "storeConnections.epicGames",
