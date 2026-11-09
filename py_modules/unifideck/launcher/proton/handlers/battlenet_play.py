@@ -50,6 +50,11 @@ CLICK_TIMEOUT = 30.0
 LAUNCH_TIMEOUT = 60.0
 _POLL = 1.0
 
+#: The client UI is up when its top navigation (GAMES / SHOP) renders. The
+#: Play button is no readiness signal: it exists only on a game's page, and
+#: the client can open on its All Games grid, where only selecting a game
+#: brings it up.
+UI_READY_JS = "!!document.querySelector('.main-nav-item')"
 PLAY_BUTTON_JS = "!!document.querySelector('.play-btn.play-action')"
 # The button exists before its label renders: innerText reads "" while the
 # client window is not drawn (measured behind Big Picture), so the label is
@@ -146,12 +151,15 @@ async def press_play(
     except cdp.CdpError as exc:
         raise fail(plan, "battlenetLaunchNotObserved", f"Battle.net UI unreachable: {exc}",
                    uid=uid) from exc
-    if not await _poll(lambda: cdp.evaluate(port, PLAY_BUTTON_JS), UI_READY_TIMEOUT):
+    if not await _poll(lambda: cdp.evaluate(port, UI_READY_JS), UI_READY_TIMEOUT):
         raise fail(plan, "battlenetLaunchNotObserved",
-                   "Battle.net never showed its Play button", uid=uid)
+                   "Battle.net's UI never finished loading", uid=uid)
     if not await _select(plan, client_exe, uid):
         raise fail(plan, "battlenetLaunchNotObserved",
                    f"Battle.net did not select {uid}", uid=uid)
+    if not await _poll(lambda: cdp.evaluate(port, PLAY_BUTTON_JS), CLICK_TIMEOUT):
+        raise fail(plan, "battlenetLaunchNotObserved",
+                   f"Battle.net selected {uid} but never showed its Play button", uid=uid)
     with contextlib.suppress(cdp.CdpError):
         shown = await asyncio.to_thread(cdp.evaluate, port, SHOWN_JS)
         logger.info("[battlenet] client selected %s (shows: %s)", uid, shown)

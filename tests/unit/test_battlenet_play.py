@@ -173,7 +173,13 @@ def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> dict[str, Any]:
             if state.get("launches", True):
                 state["logs"].append("LaunchBinary: uid=wow_classic_era selectedRegion=US")
             return True
-        return expression == play.PLAY_BUTTON_JS or "World of Warcraft Classic"
+        if expression == play.UI_READY_JS:
+            return state.get("ui", True)
+        if expression == play.PLAY_BUTTON_JS:
+            # The client can open on its All Games grid: Play exists only on a
+            # game's page, which selecting the version brings up.
+            return any(line.startswith("Selecting game by uid") for line in state["logs"])
+        return "World of Warcraft Classic"
 
     async def fake_exec(plan: Any, exe: Path, command: str) -> None:
         state["exec"].append(command)
@@ -228,6 +234,13 @@ def test_a_client_without_devtools_is_restarted_once(client: dict[str, Any]) -> 
 
     pid, _ = _press(client, restart)
     assert (pid, restarted) == ("4242", [True])
+
+
+def test_a_client_ui_that_never_loads_fails_before_selecting(client: dict[str, Any]) -> None:
+    client["ui"] = False
+    with pytest.raises(_FailedError, match="never finished loading"):
+        _press(client)
+    assert client["exec"] == []
 
 
 def test_a_selection_the_client_never_logs_fails_loudly(client: dict[str, Any]) -> None:
