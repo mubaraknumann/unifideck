@@ -326,6 +326,7 @@ async def test_a_daemon_that_never_listens_is_killed_and_retried(
     from unifideck.stores.itch import butlerd
 
     exe, _ = fake_butler
+    real_timeout = butlerd._LISTEN_TIMEOUT_S
     monkeypatch.setattr(butlerd, "_LISTEN_TIMEOUT_S", 0.5)
     monkeypatch.setenv("FAKE_BUTLER_SILENT", "1")
     daemon = ButlerDaemon(str(exe), str(tmp_path / "butler.db"))
@@ -343,6 +344,9 @@ async def test_a_daemon_that_never_listens_is_killed_and_retried(
         assert spawned[0].returncode is not None  # the silent daemon was killed
 
         monkeypatch.delenv("FAKE_BUTLER_SILENT")
+        # The short timeout is only for the silent daemon. A real start of the
+        # fake butler can take longer than 0.5 s on a loaded CI runner.
+        monkeypatch.setattr(butlerd, "_LISTEN_TIMEOUT_S", real_timeout)
         assert (await daemon.call("Profile.List"))["profiles"] == [{"id": 7}]
         assert len(spawned) == 2
     finally:

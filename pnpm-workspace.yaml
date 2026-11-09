@@ -1,0 +1,12 @@
+# The Decky CLI builds the frontend in ghcr.io/steamdeckhomebrew/builder,
+# whose pnpm (12.x) stops the install on any dependency build script that is
+# not approved here, and no longer reads the "pnpm" field in package.json.
+# esbuild (pulled in by vitest) needs its postinstall to fetch its binary.
+#
+# pnpm 9 (CI's own frontend steps) refuses this file without `packages`;
+# "." is the root project only, exactly what pnpm-lock.yaml already describes.
+packages:
+  - "."
+
+allowBuilds:
+  esbuild: true
