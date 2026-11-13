@@ -22,6 +22,11 @@ from pathlib import Path
 
 from .config import UbisoftConfig
 
+# UPC >= 2026-11 writes ``cache/configuration/configurations.vdat`` while
+# older builds write ``configurations`` without an extension. Both are
+# attempted; the legacy name wins when present (issue #524).
+_CONFIGURATIONS_SUFFIX_FALLBACKS: tuple[str, ...] = (".vdat",)
+
 
 class UbisoftPrefixPaths:
     """Ubisoft prefix paths."""
@@ -64,11 +69,23 @@ class UbisoftPrefixPaths:
         self,
         prefix_path: str,
     ) -> str | None:
-        """Find configurations."""
-        return self._find_in_prefix(
-            prefix_path,
-            self._config.configurations_relative_path,
-        )
+        """Find configurations.
+
+        Newer Ubisoft Connect builds write the catalog as
+        ``configurations.vdat`` instead of the extension-less
+        ``configurations`` (see issue #524). The extension-less name is
+        still preferred so existing prefixes keep resolving exactly as
+        before; the ``.vdat`` variant is only a fallback.
+        """
+        relative = self._config.configurations_relative_path
+        found = self._find_in_prefix(prefix_path, relative)
+        if found is not None:
+            return found
+        for suffix in _CONFIGURATIONS_SUFFIX_FALLBACKS:
+            found = self._find_in_prefix(prefix_path, relative + suffix)
+            if found is not None:
+                return found
+        return None
 
     def iter_user_homes(
         self,

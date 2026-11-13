@@ -68,9 +68,18 @@ class _DataLoader:
             cfg_path,
         )
         if not configs:
-            logger.warning(
-                "[UbisoftLibrary] configurations binary parsed but empty",
-            )
+            if cfg_path.endswith(".vdat"):
+                logger.warning(
+                    "[UbisoftLibrary] %s found, but the catalog yielded no "
+                    "game configs — newer UPC builds write an opaque "
+                    "(encrypted) cache that this parser does not decode yet "
+                    "(see issue #524). The library stays empty for this store.",
+                    Path(cfg_path).name,
+                )
+            else:
+                logger.warning(
+                    "[UbisoftLibrary] configurations binary parsed but empty",
+                )
             return None
         return configs
 
