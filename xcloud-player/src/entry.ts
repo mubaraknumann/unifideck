@@ -88,8 +88,15 @@ async function run() {
     void fetch('/api/log', { method: 'POST', body: 'streaming' })
 
     // One line per change of what the Gamepad API reports, for the launch log.
+    // Chromium exposes a pad only after its first button press, which is
+    // usually after attach() above; when its `gamepadconnected` does not
+    // reach the handler the pad is never bound and the stream ignores all
+    // input, so bind any pad that is visible but not yet in use.
     let last = ''
     setInterval(() => {
+        if (pad.getPhysicalGamepadId() < 0 && [...navigator.getGamepads()].some(Boolean)) {
+            pad.detectActiveGamepad()
+        }
         const pads = [...navigator.getGamepads()].filter(Boolean).map((p) => `${p!.id} (${p!.mapping || 'no mapping'})`)
         const now = pads.join(', ') || 'none'
         if (now !== last) { last = now; void fetch('/api/log', { method: 'POST', body: 'gamepads: ' + now }) }
