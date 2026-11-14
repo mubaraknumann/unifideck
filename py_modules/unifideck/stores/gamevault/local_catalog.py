@@ -27,6 +27,7 @@ from pathlib import Path
 
 from unifideck.core.types import Game
 
+from . import variants
 from .filename import (
     ParsedName,
     extract_tags,
@@ -36,7 +37,6 @@ from .filename import (
 )
 from .library import GameVaultFetchError
 from .sources import AcquiredArchive, safe_dir_name
-from .variants import variant_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -198,7 +198,9 @@ class LocalVaultCatalog:
                     "game_type": entry.parsed.game_type or "",
                     "is_installer": entry.parsed.is_installer,
                     "versions": list(entry.all_versions),
-                    **variant_metadata(entry.parsed, extract_tags(entry.path.name)),
+                    **variants.variant_metadata(
+                        entry.parsed, extract_tags(entry.path.name),
+                    ),
                 },
             )
             for entry in entries.values()
