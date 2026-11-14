@@ -122,17 +122,7 @@ class UbisoftPrefixManager:
         as well as any other user data that exists only in the target
         prefix — ``rsync -a`` without ``--delete`` never removes files.
         """
-        # 1. Realign template with auth if they've diverged
-        #    (migration for already-broken installs).
-        await self._template_builder.regenerate_template_from_auth_if_diverged()
-        # 2. Ensure the template exists (derived from auth if possible).
-        if not self._template_builder.template_exists():
-            await self._template_builder.ensure_template_prefix()
-        # 2b. Bring the template up to the newest Ubisoft Connect build on
-        #     disk, so the clone does not patch itself (and sign out) on first
-        #     launch, and the identity repair below cannot downgrade a prefix
-        #     whose UPC already updated itself.
-        await self.refresh_template_upc_build()
+        await self._prepare_template_for_clone()
 
         auth_dir = self._config.auth_prefix_dir_expanded
         prefix_path = self._paths.get_prefix_path(space_id)
@@ -161,6 +151,20 @@ class UbisoftPrefixManager:
             space_id,
             prefix_path,
         )
+
+    async def _prepare_template_for_clone(self) -> None:
+        """Make the ``.template`` the right ancestor for a game prefix."""
+        # 1. Realign template with auth if they've diverged
+        #    (migration for already-broken installs).
+        await self._template_builder.regenerate_template_from_auth_if_diverged()
+        # 2. Ensure the template exists (derived from auth if possible).
+        if not self._template_builder.template_exists():
+            await self._template_builder.ensure_template_prefix()
+        # 2b. Bring the template up to the newest Ubisoft Connect build on
+        #     disk, so the clone does not patch itself (and sign out) on first
+        #     launch, and the identity repair below cannot downgrade a prefix
+        #     whose UPC already updated itself.
+        await self.refresh_template_upc_build()
 
     async def refresh_template_upc_build(self) -> bool:
         """Copy the newest UPC build in auth or any game prefix into the template."""

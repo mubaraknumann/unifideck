@@ -378,18 +378,7 @@ class _Watch:
                 if stable >= STABILITY_THRESHOLD:
                     return True
             prev_size = size
-            # The explained wait wins over the byte count here, not just in
-            # the appear loop. A vendor client creates the install directory
-            # when it *accepts* the job, not when it starts writing, so a game
-            # queued behind the client's own self-update sits at a few KB for
-            # as long as that takes, and "Installing… (0.0 GB)" is a worse
-            # answer than silence, let alone than naming what is in front of
-            # it. Measured: 28 minutes of exactly this.
-            explained = self._explained_wait()
-            if explained:
-                await self._emit(explained)
-            elif size > 0:
-                await self._emit(f"Installing… ({size / (1024**3):.1f} GB)")
+            await self._emit_install_progress(size)
         logger.warning(
             "[%s] %s never reported this install complete after %d polls "
             "(~%.1fh). The files are on disk but part-written, so this is "
@@ -400,6 +389,21 @@ class _Watch:
             self._completion_polls * self._poll / 3600,
         )
         return False
+
+    async def _emit_install_progress(self, size: int) -> None:
+        """Report one completion poll: the explained wait, else the size."""
+        # The explained wait wins over the byte count here, not just in
+        # the appear loop. A vendor client creates the install directory
+        # when it *accepts* the job, not when it starts writing, so a game
+        # queued behind the client's own self-update sits at a few KB for
+        # as long as that takes, and "Installing… (0.0 GB)" is a worse
+        # answer than silence, let alone than naming what is in front of
+        # it. Measured: 28 minutes of exactly this.
+        explained = self._explained_wait()
+        if explained:
+            await self._emit(explained)
+        elif size > 0:
+            await self._emit(f"Installing… ({size / (1024**3):.1f} GB)")
 
 
 async def watch_manual_install(
