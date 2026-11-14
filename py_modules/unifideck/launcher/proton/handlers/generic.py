@@ -5,8 +5,8 @@ from pathlib import Path
 
 from unifideck.launcher.frontend_bridge import launcher_toast
 from unifideck.launcher.proton.infrastructure.core import ProtonLaunchPlan
+from unifideck.launcher.proton.infrastructure.game_exit import finish_game_run
 from unifideck.launcher.proton.infrastructure.umu_runtime import run_umu_with_retry
-from unifideck.launcher.types.errors import GameFailedError, UmuRuntimeError
 
 logger = logging.getLogger(__name__)
 def _read_amazon_fuel_args(work_dir: Path) -> list[str]:
@@ -115,16 +115,4 @@ async def generic_launch(plan: ProtonLaunchPlan) -> int:
         rc = await _amazon_launch(plan)
     else:
         rc = await _raw_exe_launch(plan)
-    plan.state.game_exit_code = rc
-    if rc == 0:
-        return 0
-    if rc in {2, 74}:
-        raise UmuRuntimeError(
-            f"umu-run failed with unrecoverable code {rc}",
-            context={"subprocess_rc": rc, "store": store},
-        )
-    raise GameFailedError(
-        f"{store} game exited with code {rc}",
-        subprocess_rc=rc,
-        context={"store": store, "game_id": plan.context.game_id},
-    )
+    return finish_game_run(plan, rc)

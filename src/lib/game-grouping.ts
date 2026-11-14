@@ -28,6 +28,7 @@ export const STORE_PRIORITY: StoreId[] = [
   "microsoft",
   "gamevault",
   "itch",
+  "ea",
 ];
 
 /** `STORE_PRIORITY`'s rank for `store`, or `+Infinity` when it's missing

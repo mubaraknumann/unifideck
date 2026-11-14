@@ -31,6 +31,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 from unifideck.core.safe_delete import safe_rmtree
+from unifideck.launcher.ea.records import all_records as all_ea_records
 from unifideck.launcher.xbox_pc.install_records import list_install_records
 
 logger = logging.getLogger(__name__)
@@ -59,8 +60,8 @@ def collect_install_roots() -> set[Path]:
     """Library roots where Unifideck has recorded installs.
 
     Union of the parent directories of every install path in nile's and
-    legendary's ``installed.json``, our ``games.map`` and the Xbox PC install
-    records (``installRoot`` is ``<base>/Xbox/<PID>``, so the root is
+    legendary's ``installed.json``, our ``games.map``, the EA install records
+    (``<base>/EA/<slug>``) and the Xbox PC install records (``installRoot`` is ``<base>/Xbox/<PID>``, so the root is
     ``<base>/Xbox``; ``partial`` records count too). These records
     survive the cleanup's auth wipe (the CLI configs are Heroic-shared and
     left intact), but ``games.map`` is deleted by the data-dir wipe — so
@@ -71,6 +72,7 @@ def collect_install_roots() -> set[Path]:
     _add_paths(roots, _legendary_install_paths())
     _add_paths(roots, _games_map_work_dirs())
     _add_paths(roots, _xbox_pc_install_roots())
+    _add_paths(roots, (r.install_path for r in all_ea_records().values()))
     return {
         r for r in roots
         if len(r.parts) >= _MIN_ROOT_DEPTH

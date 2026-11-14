@@ -75,6 +75,7 @@ _AUTH_SHORTCUT_META: dict[str, dict[str, str]] = {
     "amazon":    {"title": "Amazon Games Sign-In", "env": "UNIFIDECK_AMAZON_ACTION"},
     "microsoft": {"title": "Microsoft Sign-In",    "env": "UNIFIDECK_MICROSOFT_ACTION"},
     "itch":      {"title": "itch.io Sign-In",      "env": "UNIFIDECK_ITCH_ACTION"},
+    "ea":        {"title": "EA Sign-In",           "env": "UNIFIDECK_EA_ACTION"},
 }
 
 class AuthShortcutsRPCMixin:
@@ -102,10 +103,14 @@ class AuthShortcutsRPCMixin:
         """Auth-shortcut context for the itch.io sign-in window."""
         return _build_and_log("itch")
 
+    async def get_ea_auth_shortcut_context(self) -> Any:
+        """Auth-shortcut context for the EA sign-in window."""
+        return _build_and_log("ea")
+
     async def _wrapper_auth_shortcut_context(self, store_id: str) -> Any:
         """Auth-shortcut context for any wrapper store.
 
-        Wrapper stores (Ubisoft Connect, Battle.net, EA App next) sign in
+        Wrapper stores (Ubisoft Connect, Battle.net) sign in
         through a vendor client launched from a Steam shortcut, and each
         store owns its own VDF scan + repair. This resolves the store and
         delegates; it is shared because the delegation is identical and a

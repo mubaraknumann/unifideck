@@ -34,6 +34,30 @@ class ContentCapture:
     expression: str = INNER_TEXT_EXPRESSION
 
 
+SIGNED_IN_PAGE = (
+    "<html><body style='font-family:sans-serif;background:#1b2838;color:#fff;"
+    "text-align:center;padding-top:20vh'><h2>Signed in</h2></body></html>"
+)
+
+
+@dataclass(frozen=True)
+class RedirectIntercept:
+    """Read the auth redirect off a response the browser would not follow.
+
+    For sign-ins that end in a redirect to a scheme only a vendor app opens
+    (EA's ``qrc:``). Response headers of documents matching ``url_pattern``
+    (a CDP ``Fetch`` pattern) are inspected on the page whose URL contains
+    ``page_host``; a ``Location`` starting with ``location_prefix`` is the
+    capture, and the browser is shown ``done_page`` instead.
+    See ``auth/redirect_intercept.py``.
+    """
+
+    page_host: str
+    url_pattern: str
+    location_prefix: str
+    done_page: str = SIGNED_IN_PAGE
+
+
 @dataclass
 class AuthCaptureResult:
     """Outcome of an OAuth redirect capture attempt."""

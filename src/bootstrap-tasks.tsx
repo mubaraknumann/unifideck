@@ -222,6 +222,7 @@ export function purgeLeftoverAuthShortcuts(): void {
       "amazon:amazon-auth",
       "microsoft:ms-auth",
       "itch:itch-auth",
+      "ea:ea-auth",
     ];
     // No ownership gate is possible here: `m_mapApps` entries carry no
     // Exe/target field, so unlike every backend sweep this one cannot

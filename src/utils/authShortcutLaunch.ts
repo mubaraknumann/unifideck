@@ -10,6 +10,7 @@
  *     Amazon  : UNIFIDECK_AMAZON_ACTION=auth    → Nile
  *     Microsoft: UNIFIDECK_MICROSOFT_ACTION=auth → Chromium + OAuth URL
  *     itch.io : UNIFIDECK_ITCH_ACTION=auth      → Edge + itch.io login
+ *     EA      : UNIFIDECK_EA_ACTION=auth        → Edge + EA login
  *
  * The frontend behaviour is identical for all four : the
  * differences (CLI invocation, browser launch with OAuth URL)
@@ -182,6 +183,19 @@ const ITCH_AUTH_CONFIG: AuthShortcutConfig = {
   storefrontStoreIdPrefix: "itch:itch-store",
 };
 
+/** EA signs in on EA's own login page in Edge; the backend reads the code
+ *  off EA's final redirect and maxima-cli keeps the tokens. */
+const EA_AUTH_CONFIG: AuthShortcutConfig = {
+  store: "ea",
+  storeId: "ea:ea-auth",
+  tempStoreIdPrefix: "ea:ea-auth-temp",
+  appName: "EA Sign-In",
+  actionEnvVar: "UNIFIDECK_EA_ACTION",
+  contextRpcMethod: rpcRoutes.getEaAuthShortcutContext,
+  storeAppName: "EA",
+  storefrontStoreIdPrefix: "ea:ea-store",
+};
+
 /** Log tag. */
 function logTag(config: AuthShortcutConfig): string {
   return `[AuthShortcutLaunch:${config.store}]`;
@@ -345,6 +359,13 @@ export const launchMicrosoftAuthViaShortcut =
 export const launchItchAuthViaShortcut =
   (): Promise<AuthShortcutLaunchResult> =>
     launchAuthViaShortcut(ITCH_AUTH_CONFIG);
+
+/**
+ * EA specialisation of {@link launchAuthViaShortcut}: opens EA's login
+ * page in Edge; the backend captures the code from EA's last redirect.
+ */
+export const launchEaAuthViaShortcut = (): Promise<AuthShortcutLaunchResult> =>
+  launchAuthViaShortcut(EA_AUTH_CONFIG);
 
 // ─── Storefront launchers ────────────────────────────────────
 /**

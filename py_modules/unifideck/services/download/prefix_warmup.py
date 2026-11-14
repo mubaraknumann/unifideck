@@ -212,6 +212,7 @@ async def warmup_install_prefix(
 ) -> None:
     """Run the full first-run prefix setup (+ cloud pull) at install time."""
     from unifideck.launcher.frontend_bridge import suppress_launcher_toasts
+    from unifideck.launcher.proton.store_setup import run_store_prefix_setup
 
     key = f"{store}:{game_id}"
     logger.info("[prefix_warmup] starting install-time prefix setup for %s", key)
@@ -232,6 +233,10 @@ async def warmup_install_prefix(
     # "Setting up game…"), so suppress them for the whole setup block.
     with suppress_launcher_toasts():
         await _setup_prefix_with_ge_retry(ctx, state, key)
+        # Store-specific finishing (EA's Touchup). A failure here is retried
+        # before the first launch, which also reports it.
+        if not await run_store_prefix_setup(ctx, state, _user_session_env()):
+            logger.warning("[prefix_warmup] store prefix step failed for %s; the launch retries it", key)
 
     # 3: pull cloud saves now that drive_c exists. The user opted into pulling
     # at install (in addition to the on-launch pull). Never fatal — a missing

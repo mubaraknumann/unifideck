@@ -51,6 +51,11 @@ _SECRETS: tuple[SourceSpec, ...] = (
         expect="optional", writer="stores/amazon/amazon_auth.py",
     ),
     SourceSpec(
+        key="ea_auth_url", what="EA OAuth sign-in URL",
+        root="data", pattern="ea_auth_url.txt", policy="presence_only",
+        expect="optional", writer="stores/ea/auth.py",
+    ),
+    SourceSpec(
         key="gog_token", what="GOG access/refresh token",
         root="config", pattern="gog_token.json", policy="presence_only",
         expect="gog", writer="accounts/account_manager.py",
@@ -81,6 +86,12 @@ _SECRETS: tuple[SourceSpec, ...] = (
         root="data", pattern="butler/butler.db",
         policy="presence_only", expect="itch", writer="butler",
         note="Holds the itch.io API key: statted, never opened.",
+    ),
+    SourceSpec(
+        key="maxima_auth", what="maxima-cli's EA tokens",
+        root="data", pattern="ea/maxima/auth.toml",
+        policy="presence_only", expect="ea", writer="maxima-cli",
+        note="Holds EA access and refresh tokens: statted, never opened.",
     ),
     SourceSpec(
         key="ubisoft_upc_session", what="Ubisoft Connect session token",

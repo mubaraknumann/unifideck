@@ -44,6 +44,7 @@ export const rpcRoutes = {
   getUbisoftAuthShortcutContext: "get_ubisoft_auth_shortcut_context",
   getBattlenetAuthShortcutContext: "get_battlenet_auth_shortcut_context",
   getItchAuthShortcutContext: "get_itch_auth_shortcut_context",
+  getEaAuthShortcutContext: "get_ea_auth_shortcut_context",
   getCompatToolForGame: "get_compat_tool_for_game",
   // Library sync (SyncRPCMixin)
   syncLibraries: "sync_libraries",

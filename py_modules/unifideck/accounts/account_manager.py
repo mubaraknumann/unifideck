@@ -55,6 +55,7 @@ _AUTH_TOKEN_FRAGMENTS: dict[str, str] = {
     "ubisoft": ".local/share/unifideck/ubisoft_token.json",
     "ubisoft_session": ".local/share/unifideck/ubisoft_upc_session.txt",
     "microsoft": ".config/unifideck/microsoft_tokens.json",
+    "ea": ".local/share/unifideck/ea/maxima/auth.toml",
     # Battle.net keeps no token file of ours — its credential lives inside
     # the auth prefix, which is also where installed games live, so the
     # prefix is deliberately NOT listed here (clearing it would delete the

@@ -65,6 +65,11 @@ _STORE_INJECTIONS: dict[str, tuple[tuple[str, str], ...]] = {
         ("_browser_monitor", "browser_monitor"),
         ("_edge", "edge_browser"),
     ),
+    # EA signs in through the standard Edge window; maxima-cli owns the tokens.
+    "ea": (
+        ("_browser_monitor", "browser_monitor"),
+        ("_edge", "edge_browser"),
+    ),
     "ubisoft": (
         ("_shortcut_service", "shortcut"),
     ),

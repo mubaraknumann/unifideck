@@ -20,8 +20,11 @@ import re
 # ``not-epic:foo`` doesn't match. Amazon's IDs use dots, so we
 # include ``.`` in the id character class but require the first
 # character to be alphanumeric (skips e.g. ``epic:.hidden`` noise).
+# The store list must equal ``bootstrap/cache_registry._STORE_CACHES``
+# (pinned by ``test_launch_options_store_pattern``): a store missing here
+# has every one of its shortcuts swept as an orphan right after its sync.
 STORE_ID_PATTERN = re.compile(
-    r"\b(epic|gog|amazon|ubisoft|battlenet|microsoft|gamevault|itch):"
+    r"\b(epic|gog|amazon|ubisoft|battlenet|microsoft|gamevault|itch|ea):"
     r"([a-zA-Z0-9][a-zA-Z0-9._-]*)",
 )
 

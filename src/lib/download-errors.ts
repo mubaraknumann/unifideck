@@ -162,6 +162,12 @@ const CODE_KEYS: ReadonlyArray<readonly [RegExp, string]> = [
   // page on this code (`services/store/claim-flow.tsx`); the key is what
   // the user reads if it is reached any other way.
   [/^itch_claim_required$/, "errors.download.claimRequired"],
+  // EA (maxima-cli): the download or its checksum check failed, or the
+  // build's own exe path was not found among the files.
+  [/^ea_install_failed$/, "errors.download.processFailed"],
+  [/^ea_exe_not_found$/, "errors.download.directoryNotFound"],
+  [/^ea_uninstall_failed$/, "errors.download.uninstallIncomplete"],
+  [/^ea_game_not_in_library$|^ea_not_installed$/, "errors.download.generic"],
   // Uninstall refusals of a store that deletes the folder itself.
   [/^uninstall_refused_unsafe_path$/, "errors.download.uninstallRefused"],
   [

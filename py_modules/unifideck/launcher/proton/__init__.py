@@ -14,6 +14,7 @@ from collections.abc import Awaitable, Callable
 from unifideck.launcher.proton.handlers.battlenet import battlenet_launch
 from unifideck.launcher.types.errors import UmuRuntimeError
 
+from .handlers.ea import ea_launch
 from .handlers.epic import epic_launch
 from .handlers.generic import generic_launch
 from .handlers.ubisoft import ubisoft_launch
@@ -75,6 +76,7 @@ _STORE_LAUNCHERS: dict[str, Callable[[ProtonLaunchPlan], Awaitable[int]]] = {
     "battlenet": battlenet_launch,
     "ubisoft": ubisoft_launch,
     "epic": epic_launch,
+    "ea": ea_launch,
 }
 
 

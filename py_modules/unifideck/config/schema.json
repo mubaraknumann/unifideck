@@ -159,6 +159,9 @@
         },
         "itch": {
           "$ref": "#/$defs/itchStore"
+        },
+        "ea": {
+          "$ref": "#/$defs/eaStore"
         }
       }
     },
@@ -1006,6 +1009,15 @@
         "stall_timeout_seconds": {
           "type": "integer",
           "minimum": 60
+        }
+      }
+    },
+    "eaStore": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cli_path": {
+          "type": "string"
         }
       }
     },

@@ -41,6 +41,10 @@ _AUTH_DATA_CANDIDATES = (
     "~/.local/share/unifideck/epic_auth_url.txt",
     "~/.local/share/unifideck/amazon_auth_url.txt",
     "~/.local/share/unifideck/ubisoft_upc_session.txt",
+    "~/.local/share/unifideck/ea_auth_url.txt",
+    # maxima-cli's EA tokens and a sign-in's waiting PKCE verifier.
+    "~/.local/share/unifideck/ea/maxima/auth.toml",
+    "~/.local/share/unifideck/ea/maxima/pkce_verifier",
 )
 
 # Folders whose every file is a credential. Emptied, never removed: the

@@ -141,6 +141,7 @@ A connector sub-package for each store (the set is `bootstrap/cache_registry._ST
 | `stores/microsoft/` | Xbox Cloud Gaming + owned Xbox purchases + Xbox PC games (opt-in) | xbox.com device-code sign-in in the Edge window; Collections for ownership (`ownership/`). Xbox PC titles come from our own `xodus-cli` build (`xodus/` runs it, `pc_library/` turns its library into rows) |
 | `stores/gamevault/` | GameVault (self-hosted) | The user's own server over HTTP, or a local folder of archives |
 | `stores/itch/`      | itch.io                 | `bin/butler/butler`, run as the butlerd JSON-RPC daemon |
+| `stores/ea/`        | EA                      | `maxima-cli`, our build of Maxima (`unifideck-maxima` repo); `cli.py` is its only spawn site. Sign-in captures EA's `qrc:` redirect over CDP (`auth/redirect_intercept.py`) |
 
 ### Layer 5 — `services/`
 

@@ -8,8 +8,8 @@ from pathlib import Path
 from unifideck.launcher.frontend_bridge import launcher_toast
 from unifideck.launcher.proton.compat.epic_cleanup import cleanup_epic_artifacts
 from unifideck.launcher.proton.infrastructure.core import ProtonLaunchPlan
+from unifideck.launcher.proton.infrastructure.game_exit import finish_game_run
 from unifideck.launcher.proton.infrastructure.umu_runtime import run_umu_with_retry
-from unifideck.launcher.types.errors import GameFailedError, UmuRuntimeError
 
 logger = logging.getLogger(__name__)
 
@@ -320,16 +320,4 @@ def _finish_epic_launch(plan: ProtonLaunchPlan, rc: int) -> int:
     manager in Gaming Mode and hung the launcher forever. No process
     matching is involved here; we hold the pid.
     """
-    plan.state.game_exit_code = rc
-    if rc == 0:
-        return 0
-    if rc in {2, 74}:
-        raise UmuRuntimeError(
-            f"umu-run failed with unrecoverable code {rc}",
-            context={"subprocess_rc": rc, "store": "epic"},
-        )
-    raise GameFailedError(
-        f"Epic game exited with code {rc}",
-        subprocess_rc=rc,
-        context={"store": "epic", "game_id": plan.context.game_id},
-    )
+    return finish_game_run(plan, rc)

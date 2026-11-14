@@ -509,6 +509,8 @@ SHARED_HELPERS: dict[str, str] = {
     "rsync_clone": "stores/shared/prefix_clone.py",
     "write_marker": "stores/shared/prefix_clone.py",
     "read_cli_user_json": "stores/shared/cli_credentials.py",
+    "last_json_object": "stores/shared/cli_json.py",
+    "finish_game_run": "launcher/proton/infrastructure/game_exit.py",
     # Launch-target scorer for stores with no launch manifest. Promoted from
     # stores/gamevault/exe_finder.py when itch.io became its second consumer.
     "find_executable": "stores/shared/launch_target.py",

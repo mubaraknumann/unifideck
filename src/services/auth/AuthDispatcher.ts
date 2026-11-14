@@ -35,6 +35,7 @@ import {
 import { Events } from "../../types/events";
 import {
   launchAmazonAuthViaShortcut,
+  launchEaAuthViaShortcut,
   launchEpicAuthViaShortcut,
   launchGogAuthViaShortcut,
   launchItchAuthViaShortcut,
@@ -486,6 +487,8 @@ class AuthDispatcherImpl {
         return launchBattlenetAuthViaShortcut();
       case "itch":
         return launchItchAuthViaShortcut();
+      case "ea":
+        return launchEaAuthViaShortcut();
       default:
         return { success: false, error: `no launcher wired for ${store}` };
     }

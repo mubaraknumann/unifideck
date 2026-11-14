@@ -17,6 +17,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from unifideck.stores.shared.cli_json import last_json_object
+
 #: Marks a progress record on a ``streaming --progress-json`` stdout line.
 PROGRESS_MARK = "NEXUS_PROGRESS {"
 PROGRESS_SCHEMA = 1
@@ -76,24 +78,6 @@ def redact(text: str) -> str:
     """``text`` with tokens and email addresses removed."""
     text = _LONG_TOKEN_RE.sub("[redacted]", text)
     return _EMAIL_RE.sub("[email]", text)
-
-
-def last_json_object(stdout: str) -> dict[str, Any] | None:
-    """The last stdout line that parses as a JSON object, or None.
-
-    Commands print one JSON line, but a warning can come before it.
-    """
-    for line in reversed(stdout.splitlines()):
-        text = line.strip()
-        if not text.startswith("{"):
-            continue
-        try:
-            data = json.loads(text)
-        except ValueError:
-            continue
-        if isinstance(data, dict):
-            return data
-    return None
 
 
 def _require_object(stdout: str) -> dict[str, Any]:

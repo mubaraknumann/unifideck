@@ -35,7 +35,7 @@ from .browser_content import (
     try_content_fallback,
     try_epic_content_capture,
 )
-from .browser_types import AuthCaptureResult, ContentCapture
+from .browser_types import AuthCaptureResult, ContentCapture, RedirectIntercept
 from .browser_url_parsing import (
     build_network_unreachable_result,
     build_redirect_capture,
@@ -46,6 +46,7 @@ from .browser_url_parsing import (
     is_oauth_relevant_url,
     match_redirect,
 )
+from .redirect_intercept import capture_redirect, intercepted_capture
 
 if TYPE_CHECKING:
     from unifideck.cdp.cdp_client import CDPClient
@@ -205,6 +206,7 @@ class OAuthBrowserMonitor:
         timeout: float | None = None,  # noqa: ASYNC109 — timeout is API value passed to underlying lib (urllib/aiohttp/subprocess), not an asyncio.timeout() wrapper
         *,
         content: ContentCapture | None = None,
+        intercept: RedirectIntercept | None = None,
     ) -> AuthCaptureResult:
         """Block until a browser tab navigates to an allowed URI.
 
@@ -219,6 +221,7 @@ class OAuthBrowserMonitor:
         applies ``content.regex``.
         Used for stores (e.g. Epic) that embed the code in a
         JSON blob inside the page rather than a query parameter.
+        ``intercept``: see ``redirect_intercept``.
         """
         deadline = time.monotonic() + (
             timeout if timeout is not None
@@ -226,7 +229,23 @@ class OAuthBrowserMonitor:
         )
         start = time.monotonic()
         state = _init_polling_state()
+        interceptor = None if intercept is None else asyncio.create_task(
+            capture_redirect(self._edge_cdp_port, intercept), name="auth-redirect-intercept",
+        )
+        try:
+            return await self._poll_until(deadline, start, state, allowed_uris, content, interceptor)
+        finally:
+            if interceptor is not None:
+                interceptor.cancel()
+
+    async def _poll_until(
+        self, deadline: float, start: float, state: dict[str, Any], allowed_uris: list[str],
+        content: ContentCapture | None, interceptor: asyncio.Task[str | None] | None,
+    ) -> AuthCaptureResult:
         while time.monotonic() < deadline:
+            intercepted = intercepted_capture(interceptor, start)
+            if intercepted is not None:
+                return intercepted
             cef_targets, edge_targets = await self._poll_both_endpoints()
             all_targets = cef_targets + edge_targets
             self._log_heartbeat_if_due(

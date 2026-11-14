@@ -376,6 +376,7 @@ def _detect_special_action() -> tuple[str | None, str | None, bool]:
         "ubisoft":   os.environ.get("UNIFIDECK_UBISOFT_ACTION"),
         "battlenet": os.environ.get("UNIFIDECK_BATTLENET_ACTION"),
         "itch":      os.environ.get("UNIFIDECK_ITCH_ACTION"),
+        "ea":        os.environ.get("UNIFIDECK_EA_ACTION"),
     }
     for candidate_store, action in action_env.items():
         if action == "auth":

@@ -11,6 +11,7 @@ import {
   SiEpicgames,
   SiGogdotcom,
   SiBattledotnet,
+  SiEa,
   SiItchdotio,
   SiUbisoft,
 } from "react-icons/si";
@@ -36,6 +37,7 @@ const STORE_ICONS: Record<StoreId, StoreGlyph> = {
   battlenet: SiBattledotnet,
   gamevault: GameVaultIcon,
   itch: SiItchdotio,
+  ea: SiEa,
 };
 
 /**

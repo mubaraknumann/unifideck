@@ -25,6 +25,7 @@ const ALL_STORE_IDS: StoreId[] = [
   "battlenet",
   "gamevault",
   "itch",
+  "ea",
 ];
 
 describe("STORE_PRIORITY", () => {

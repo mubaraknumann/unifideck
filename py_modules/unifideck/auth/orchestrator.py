@@ -43,7 +43,7 @@ if TYPE_CHECKING:
     from unifideck.event_bus.event_bus import EventBus
 
     from .browser import OAuthBrowserMonitor
-    from .browser_types import ContentCapture
+    from .browser_types import ContentCapture, RedirectIntercept
     # Type aliases for the store-specific callbacks. Keeping them
     # explicit makes the contract between the orchestrator and its
     # callers obvious at the type level.
@@ -115,6 +115,7 @@ class AuthOrchestrator:
         write_url_file: str | None = None,
         background: bool = False,
         content: ContentCapture | None = None,
+        intercept: RedirectIntercept | None = None,
     ) -> AuthResult:
         """Execute the CDP OAuth flow (blocking or background).
 
@@ -161,6 +162,7 @@ class AuthOrchestrator:
                 exchange_code=exchange_code,
                 deadline=deadline,
                 content=content,
+                intercept=intercept,
             )
         return await self._await_redirect_and_exchange(
             url=url,
@@ -168,6 +170,7 @@ class AuthOrchestrator:
             exchange_code=exchange_code,
             deadline=deadline,
             content=content,
+            intercept=intercept,
         )
 
     async def _acquire_auth_url(
@@ -252,6 +255,7 @@ class AuthOrchestrator:
         deadline: float,
         *,
         content: ContentCapture | None = None,
+        intercept: RedirectIntercept | None = None,
     ) -> AuthResult:
         """Wait for the CDP redirect and exchange the code.
 
@@ -275,6 +279,7 @@ class AuthOrchestrator:
                 allowed_uris=allowed_uris,
                 timeout=deadline,
                 content=content,
+                intercept=intercept,
             )
         except asyncio.CancelledError:
             logger.info(
@@ -373,6 +378,7 @@ class AuthOrchestrator:
         deadline: float,
         *,
         content: ContentCapture | None = None,
+        intercept: RedirectIntercept | None = None,
     ) -> AuthResult:
         """Create the asyncio task for background mode and return.
 
@@ -393,6 +399,7 @@ class AuthOrchestrator:
                     exchange_code=exchange_code,
                     deadline=deadline,
                     content=content,
+                    intercept=intercept,
                 )
             except asyncio.CancelledError:
                 # task cancelled mid-flight; swallow to let shutdown proceed

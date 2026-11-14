@@ -25,6 +25,8 @@ STORE_TO_UMU = {
     "microsoft": "microsoft",
     # protonfixes ships ``gamefixes-itchio`` (checked in GE-Proton11-1/11-3).
     "itch": "itchio",
+    # protonfixes ships ``gamefixes-ea`` (checked in GE-Proton11-12).
+    "ea": "ea",
 }
 
 

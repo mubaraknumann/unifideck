@@ -19,6 +19,7 @@ _AUTH_URL_FILES = {
     "amazon": "amazon_auth_url.txt",
     "microsoft": "ms_auth_url.txt",
     "itch": "itch_auth_url.txt",
+    "ea": "ea_auth_url.txt",
 }
 _AUTH_STORE_LABELS = {
     "epic": "Epic Games",
@@ -26,6 +27,7 @@ _AUTH_STORE_LABELS = {
     "amazon": "Amazon Games",
     "microsoft": "Microsoft",
     "itch": "itch.io",
+    "ea": "EA",
 }
 # Longer than a Microsoft device code lives (900 s), so the backend, which
 # closes the window when the code is approved or expires, always acts first.

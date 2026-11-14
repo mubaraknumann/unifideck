@@ -43,13 +43,13 @@ from unifideck.stores.shared.cli_install_helpers import (
     TailRingBuffer,
     terminate_process_tree,
 )
+from unifideck.stores.shared.cli_json import last_json_object
 
 from .backend_first import read_record
 from .cli_models import (
     AccountStatus,
     ParseError,
     Profile,
-    last_json_object,
     parse_account,
     parse_profile,
     redact,

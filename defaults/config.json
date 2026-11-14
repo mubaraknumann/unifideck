@@ -145,6 +145,9 @@
       "butler_db": "~/.local/share/unifideck/butler/butler.db",
       "default_install_root": "~/Games/itch",
       "stall_timeout_seconds": 900
+    },
+    "ea": {
+      "cli_path": ""
     }
   },
   "metadata": {

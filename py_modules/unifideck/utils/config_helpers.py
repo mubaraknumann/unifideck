@@ -95,11 +95,6 @@ def get_cfg(
         return default
 
 
-# Cold-start config path — used before ConfigManager is ready.
-# Must stay constant and not depend on any DI.
-_COLD_START_CONFIG_PATH = "~/.local/share/unifideck/config.json"
-
-
 def _read_cold_start_json() -> dict[str, Any] | None:
     """Read the cold-start config.json file, returning ``None`` on
     any error (missing file, malformed JSON, OS error).
@@ -118,7 +113,12 @@ def _read_cold_start_json() -> dict[str, Any] | None:
     import json
     from pathlib import Path
 
-    config_path = Path(_COLD_START_CONFIG_PATH).expanduser()
+    from unifideck.config.user_config_path import resolve_user_config_path
+
+    # The user overrides file ConfigManager reads. This used to name
+    # ``~/.local/share/unifideck/config.json``, a file nothing writes, so every
+    # cold-start read silently fell back to its default.
+    config_path = Path(resolve_user_config_path())
     if not config_path.is_file():
         return None
     try:
@@ -154,16 +154,29 @@ def read_config_int_cold_start(key: str, default: int) -> int:
     "did we fail to load?" decision collapsed into a single
     ``is None`` check.
     """
-    data = _read_cold_start_json()
-    if data is None:
-        return default
-    node: object = data
-    for part in key.split("."):
-        if not isinstance(node, dict) or part not in node:
-            return default
-        node = node[part]
+    node = _cold_start_value(key)
     if not isinstance(node, int) or node <= 0:
         return default
+    return node
+
+
+def read_config_str_cold_start(key: str, default: str = "") -> str:
+    """Read a non-empty string from config.json without ConfigManager.
+
+    The string sibling of :func:`read_config_int_cold_start`, with the same
+    cold-start-only rule and the same "``default`` on any error" contract.
+    """
+    node = _cold_start_value(key)
+    return node if isinstance(node, str) and node else default
+
+
+def _cold_start_value(key: str) -> object | None:
+    """The value at dotted ``key`` in config.json, or None when absent."""
+    node: object = _read_cold_start_json()
+    for part in key.split("."):
+        if not isinstance(node, dict) or part not in node:
+            return None
+        node = node[part]
     return node
 
 

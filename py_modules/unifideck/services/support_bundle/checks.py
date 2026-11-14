@@ -48,6 +48,7 @@ _STORE_TOKEN_KEYS = {
     "epic": "legendary_user",
     "amazon": "nile_user",
     "itch": "butler_db",
+    "ea": "maxima_auth",
 }
 
 

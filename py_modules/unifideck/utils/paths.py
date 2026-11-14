@@ -53,6 +53,7 @@ DEFAULT_INSTALL_DIRS = {
     "microsoft": "~/Games/Microsoft",
     "battlenet": "~/Games/Battlenet",
     "ubisoft": "~/Games/Ubisoft",
+    "ea": "~/Games/EA",
 }
 
 # Root game directory — always checked so internal storage
