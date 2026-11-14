@@ -352,9 +352,9 @@ def needs_native_icu(
 # ── Bundled DirectDraw / DirectInput wrappers ──────────────────────
 # GOG ships classic DX5-7 games with its own ddraw.dll/dinput.dll beside
 # the exe. Wine prefers its builtin ones, so the wrapper is skipped and
-# e.g. Resident Evil 2 (GOG 1534123252) fails with "Failed to initialize
-# DIRECTX(R)". Proton only forces ddraw=n,b for the Steam ids of these
-# titles, so detect the DLL on disk instead. d3d8/d3d9/dxgi are already
+# the game fails to initialise DirectX (#486). Proton only forces
+# ddraw=n,b for the Steam ids of these titles, so detect the DLL on disk
+# instead. d3d8/d3d9/dxgi are already
 # native under Proton (DXVK); mod-loader DLLs are left to the user.
 BUNDLED_WRAPPER_DLLS: tuple[str, ...] = ("ddraw", "dinput")
 

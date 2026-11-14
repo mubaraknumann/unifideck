@@ -259,7 +259,7 @@ def test_user_env_override_still_wins(tmp_path, monkeypatch):
     assert plan.env["WINEDLLOVERRIDES"] == "icuuc=b"
 
 
-# ── Bundled ddraw/dinput wrappers (GOG classics, e.g. Resident Evil 2) ──
+# ── Bundled ddraw/dinput wrappers (GOG DX5-7 classics, #486) ──
 
 def _prepare_in_install_dir(tmp_path, monkeypatch, files, env_overrides=None):
     install = tmp_path / "game"
