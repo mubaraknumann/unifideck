@@ -483,6 +483,7 @@
       "xboxPcOnly": "Solo juegos PC",
       "xboxPcSignInNeeded": "Vuelve a entrar"
     },
+    "ubisoftLibraryUnreadableMessage": "Juegos ilegibles",
     "ubisoftSignInExpiredMessage": "Vuelve a entrar",
     "uninstallDone": "Desinstalado",
     "updateQueued": "En cola",

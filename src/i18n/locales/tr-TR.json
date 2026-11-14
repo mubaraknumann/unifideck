@@ -483,6 +483,7 @@
       "xboxPcOnly": "Sadece PC oyunu",
       "xboxPcSignInNeeded": "Tekrar giriş yap"
     },
+    "ubisoftLibraryUnreadableMessage": "Okuma hatası",
     "ubisoftSignInExpiredMessage": "Tekrar giriş yap",
     "uninstallDone": "Kaldırıldı",
     "updateQueued": "Sıraya eklendi",

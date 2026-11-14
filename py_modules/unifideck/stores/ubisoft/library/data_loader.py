@@ -26,6 +26,8 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from unifideck.stores.ubisoft.vdat import VDAT_SUFFIX
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -200,10 +202,14 @@ class _DataLoader:
         if not ownership_dir.is_dir():
             return None
         try:
-            entries = [e for e in ownership_dir.iterdir() if e.is_file()]
+            entries = sorted(e for e in ownership_dir.iterdir() if e.is_file())
         except OSError:
             return None
         if not entries:
             return None
-        entry = entries[0]
-        return str(entry), entry.name
+        # UPC 175 writes ``<uid>.vdat`` and may leave the pre-175 plain
+        # ``<uid>`` beside it, frozen at the migration: the encrypted one
+        # is the live copy.
+        encrypted = [e for e in entries if e.suffix == VDAT_SUFFIX]
+        entry = (encrypted or entries)[0]
+        return str(entry), entry.name.removesuffix(VDAT_SUFFIX)

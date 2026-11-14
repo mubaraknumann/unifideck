@@ -90,6 +90,12 @@ _DEFAULT_LOCALSTORAGE_RELATIVE_PATH = (
     "drive_c/users/steamuser/AppData/Local/"
     "Ubisoft Game Launcher/cache/http2/Default/Local Storage"
 )
+_DEFAULT_UPC_CREDENTIAL_FILES: tuple[str, ...] = (
+    "ConnectSecureStorage.dat",
+    "user.dat",
+    "user.vdat",
+    "store",
+)
 _UBI_CONFIG_PREFIX = "stores.ubisoft"
 
 @dataclass(frozen=True)
@@ -121,10 +127,10 @@ class UbisoftConfig:
     configurations_relative_path: str = _DEFAULT_CONFIGURATIONS_RELATIVE_PATH
     ownership_relative_path: str = _DEFAULT_OWNERSHIP_RELATIVE_PATH
     localstorage_relative_path: str = _DEFAULT_LOCALSTORAGE_RELATIVE_PATH
-    upc_credential_files: tuple[str, ...] = (
-        "ConnectSecureStorage.dat",
-        "user.dat",
-    )
+    # One session between them. UPC 175 replaced ``user.dat`` with
+    # ``user.vdat`` plus the ``store/`` key dir that decrypts it and every
+    # ``*.vdat`` cache; the key is per prefix, so they must travel together.
+    upc_credential_files: tuple[str, ...] = _DEFAULT_UPC_CREDENTIAL_FILES
     upc_local_subdir: str = str(Path("AppData") / "Local" / "Ubisoft Game Launcher")
     upc_auth_cache_artifacts: tuple[str, ...] = (
         "settings.yaml",
@@ -440,7 +446,7 @@ UbisoftConfig._FIELD_SPECS = (
         "upc_credential_files",
         "upc_credential_files",
         UbisoftConfig._parse_tuple,
-        ("ConnectSecureStorage.dat", "user.dat"),
+        _DEFAULT_UPC_CREDENTIAL_FILES,
     ),
     (
         "wine_system_users",

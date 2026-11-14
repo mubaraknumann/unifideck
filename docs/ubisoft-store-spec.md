@@ -124,6 +124,8 @@ deliberate anti-phantom-shortcut safeguard) and builds the library from local da
    - `configuration/configurations` → `GameConfig` records (`install_id`, `launch_id`,
      `space_id`, `name`, `executable`, …) via `parser.parse_configurations`.
    - `ownership/{userId}` → the set of owned `install_id`s via `parser.parse_ownership`.
+   - Since UPC 175 both files are encrypted `.vdat` and are preferred when present
+     (see §9, "UPC 175 and later").
 3. **Resolve Connect IDs** — read `space_id → ubisoftConnectGameId` pairs from UPC's
    localStorage leveldb (`leveldb_ids`); these are the most reliable `uplay://` IDs.
    The scan is object-scoped: only values inside the same JSON record pair, and an ID
@@ -258,6 +260,36 @@ So a force sync cannot overwrite the registry ID of an installed game, and a han
 UPC paths inside a prefix (under `drive_c/users/steamuser/AppData/Local/Ubisoft Game Launcher/`):
 `cache/configuration/configurations`, `cache/ownership/{userId}`, and the credential files
 `ConnectSecureStorage.dat` / `user.dat`.
+
+### UPC 175 and later: encrypted `.vdat` files
+
+Ubisoft Connect 175.1.13416 (October 2026) changed the layout:
+
+- The caches are written as `configurations.vdat`, `ownership/{userId}.vdat` and
+  `settings/{userId}.vdat`. On migration UPC deletes the plain `configurations`. It can
+  leave the old plain ownership file behind, frozen at that point, so the `.vdat` file
+  always wins (`vdat.prefer_vdat`).
+- `user.dat` becomes `user.vdat`, plus a `store/{key_id}.bin` key file. The session is
+  `ConnectSecureStorage.dat` + `user.vdat` + `store/`, and they are copied together. The
+  key is per prefix and the key id is not unique, so caches never travel apart from their
+  session. When a `user.vdat` session is injected, a stale `user.dat` in the target is
+  removed.
+
+A `.vdat` file is AES-256-GCM. The 32-byte key is in `store/{key_id}.bin`, wrapped by
+**Wine's** `CryptProtectData`, which is not tied to the machine. Wine derives the 3DES key
+from SHA1 of the Windows user name with its NUL, Wine's fixed secret, and the blob's salt.
+`stores/ubisoft/vdat.py` reads it on Linux.
+
+The decrypted bytes use the old record formats, except that ownership records start at
+offset 0 (the plain file had a 0x108 header).
+
+Before this support existed, a fresh sign-in, which always installs the newest UPC, synced
+zero games with no error. Now an unreadable cache returns `None` ("unreadable"): Ubisoft
+shortcuts are kept and a "Can't read games" toast is shown once.
+
+`.template` follows the newest UPC build found in `.upc-auth` or any game prefix
+(`prefix/upc_build.py`, run before every clone). A clone of an older build patches itself
+on first launch, and in 175 that patch signed out the injected session.
 
 ---
 

@@ -483,6 +483,7 @@
       "xboxPcOnly": "ألعاب PC فقط",
       "xboxPcSignInNeeded": "سجّل الدخول مجددًا"
     },
+    "ubisoftLibraryUnreadableMessage": "تعذّرت القراءة",
     "ubisoftSignInExpiredMessage": "سجّل الدخول مجددًا",
     "uninstallDone": "تمت الإزالة",
     "updateQueued": "أُضيف للانتظار",

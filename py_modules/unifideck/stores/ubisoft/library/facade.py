@@ -69,8 +69,14 @@ class UbisoftLibrary:
         )
         self._free_to_play = _FreeToPlayFeed(config=config)
 
-    async def get_library(self, *, force: bool = False) -> list[Game]:
-        """Get library (``force`` re-pulls the unifiDB lookups, bypassing TTL)."""
+    async def get_library(self, *, force: bool = False) -> list[Game] | None:
+        """Get library (``force`` re-pulls the unifiDB lookups, bypassing TTL).
+
+        ``None`` means "signed in, but UPC's library cache could not be
+        read": not an empty library. Returning ``[]`` there used to let the
+        sync delete every Ubisoft shortcut, which is what users saw when
+        UPC 175 renamed its caches to ``*.vdat``.
+        """
         try:
             installed = await self._detector.get_installed()
             local_games = await self._fetcher.fetch_local_binaries(
@@ -78,10 +84,15 @@ class UbisoftLibrary:
                 force=force,
             )
             if local_games is None:
-                logger.info(
-                    "[UbisoftLibrary] no local binary data available yet",
+                logger.warning(
+                    "[UbisoftLibrary] signed in but UPC's library cache is "
+                    "unreadable (looked for %s[.vdat] in %s and %s) — keeping "
+                    "existing Ubisoft shortcuts",
+                    self._config.configurations_relative_path,
+                    self._config.auth_prefix_dir_expanded,
+                    self._config.template_dir_expanded,
                 )
-                return []
+                return None
             logger.info(
                 "[UbisoftLibrary] library: %d games from local binaries",
                 len(local_games),
@@ -110,7 +121,7 @@ class UbisoftLibrary:
             return local_games
         except Exception:
             logger.exception("[UbisoftLibrary] error fetching library")
-            return []
+            return None
 
     async def get_installed(self) -> dict[str, Any]:
         """Get installed."""

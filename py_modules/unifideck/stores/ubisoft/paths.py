@@ -21,6 +21,7 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 
 from .config import UbisoftConfig
+from .vdat import prefer_vdat
 
 
 class UbisoftPrefixPaths:
@@ -64,11 +65,14 @@ class UbisoftPrefixPaths:
         self,
         prefix_path: str,
     ) -> str | None:
-        """Find configurations."""
-        return self._find_in_prefix(
-            prefix_path,
-            self._config.configurations_relative_path,
-        )
+        """Find the UPC configurations cache, preferring UPC 175's ``.vdat``."""
+        prefix = Path(prefix_path)
+        relative = self._config.configurations_relative_path
+        for root in (prefix, prefix / "pfx"):
+            found = prefer_vdat(root / relative)
+            if found is not None:
+                return str(found)
+        return None
 
     def iter_user_homes(
         self,

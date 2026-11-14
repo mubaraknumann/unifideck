@@ -483,6 +483,7 @@
       "xboxPcOnly": "Только игры ПК",
       "xboxPcSignInNeeded": "Войдите снова"
     },
+    "ubisoftLibraryUnreadableMessage": "Ошибка чтения",
     "ubisoftSignInExpiredMessage": "Войдите снова",
     "uninstallDone": "Удалено",
     "updateQueued": "В очереди",

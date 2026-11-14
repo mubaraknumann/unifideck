@@ -45,9 +45,12 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 _CSS_MIN_SOURCE_SIZE = 10
 _HASH_CHUNK_SIZE = 1024 * 1024
-#: The session vault, and the account file whose presence means "signed in".
+#: The session vault, and the account files whose presence means "signed in":
+#: ``user.dat`` before UPC 175, ``user.vdat`` from 175 on.
 _CSS_NAME = "ConnectSecureStorage.dat"
 _ACCOUNT_NAME = "user.dat"
+_ACCOUNT_NAME_VDAT = "user.vdat"
+_ACCOUNT_NAMES = (_ACCOUNT_NAME, _ACCOUNT_NAME_VDAT)
 
 class _PayloadSync:
     """Payload sync."""
@@ -66,8 +69,14 @@ class _PayloadSync:
         handle_directories: bool,
         log_label: str,
         keep_newer_target: bool = False,
+        src_vault: str | None = None,
     ) -> int:
-        """Sync payload to prefix."""
+        """Sync payload to prefix.
+
+        ``src_vault`` is the source session's vault, for the newer-session
+        check; it defaults to the vault inside ``payload_sources``, so the
+        auth-cache sync (whose payload has no vault) passes it explicitly.
+        """
         if self.should_skip_payload_sync(
             source_prefix,
             target_prefix,
@@ -75,16 +84,19 @@ class _PayloadSync:
             apply_dpapi_guard,
         ):
             return 0
+        vault = src_vault or payload_sources.get(_CSS_NAME)
         synced = 0
         for _root, user_home in self._parent._paths.iter_user_homes(target_prefix):
             target_root = str(Path(user_home) / self._parent._config.upc_local_subdir)
             # Decided once per target, from the vault, and applied to the whole
-            # payload. ``ConnectSecureStorage.dat`` and ``user.dat`` are one
-            # session between them: copying the vault while declining the
-            # account file would leave the prefix holding a token from one
-            # sign-in and an account from another.
+            # payload. The vault, the account file and (UPC 175+) the
+            # ``store/`` key are one session between them: copying the vault
+            # while declining the account file would leave the prefix holding a
+            # token from one sign-in and an account from another. The auth
+            # caches follow the same decision, because UPC 175 encrypts them
+            # with the session's ``store/`` key.
             if keep_newer_target and self._would_clobber_newer(
-                payload_sources, target_root, log_label,
+                vault, target_root, log_label,
             ):
                 continue
             for rel_path, src_path in payload_sources.items():
@@ -97,7 +109,27 @@ class _PayloadSync:
                     rel_path=rel_path,
                 ):
                     synced += 1
+            if _ACCOUNT_NAME_VDAT in payload_sources:
+                self._drop_superseded_account(target_root)
         return synced
+
+    @staticmethod
+    def _drop_superseded_account(target_root: str) -> None:
+        """Remove a pre-175 ``user.dat`` once a ``user.vdat`` session landed.
+
+        UPC 175 migrates ``user.dat`` into ``user.vdat`` when it finds one,
+        so a stale ``user.dat`` left beside the injected ``user.vdat`` could
+        replace the session we just copied.
+        """
+        stale = Path(target_root) / _ACCOUNT_NAME
+        if not stale.is_file():
+            return
+        try:
+            stale.unlink()
+        except OSError as e:
+            logger.warning(
+                "[UbisoftSession] could not remove superseded %s: %s", stale, e,
+            )
 
     def should_skip_payload_sync(
         self,
@@ -131,7 +163,7 @@ class _PayloadSync:
 
     @staticmethod
     def _would_clobber_newer(
-        payload_sources: dict[str, str],
+        src_vault: str | None,
         target_root: str,
         log_label: str,
     ) -> bool:
@@ -155,9 +187,9 @@ class _PayloadSync:
         block a fresh session from reaching a signed-out prefix.
 
         Judged on the vault alone, and the answer covers the whole payload —
-        the vault and ``user.dat`` are one session between them.
+        the vault and the account file (``user.dat``, or ``user.vdat`` plus
+        ``store/`` from UPC 175) are one session between them.
         """
-        src_vault = payload_sources.get(_CSS_NAME)
         if not src_vault:
             return False
         dst_vault = Path(target_root) / _CSS_NAME
@@ -170,7 +202,7 @@ class _PayloadSync:
             return False
         if dst_mtime <= src_mtime:
             return False
-        if not (Path(target_root) / _ACCOUNT_NAME).is_file():
+        if not any((Path(target_root) / n).is_file() for n in _ACCOUNT_NAMES):
             return False
         logger.info(
             "[UbisoftSession] %s: keeping %s — it holds a NEWER signed-in "
@@ -284,7 +316,7 @@ class _PayloadSync:
                 source_prefix,
             ),
             apply_dpapi_guard=True,
-            handle_directories=False,
+            handle_directories=True,  # UPC 175's ``store/`` key dir
             log_label="credential",
             keep_newer_target=True,
         )
@@ -303,12 +335,19 @@ class _PayloadSync:
                 if fname in source_files:
                     continue
                 src = str(Path(user_home) / self._parent._config.upc_local_subdir / fname)
-                if self._parent._is_valid_css(
-                    src,
-                    _CSS_MIN_SOURCE_SIZE,
-                ):
+                if self._is_usable_credential(src):
                     source_files[fname] = src
         return source_files
+
+    def _is_usable_credential(self, src: str) -> bool:
+        """A non-trivial credential file, or a non-empty credential dir."""
+        path = Path(src)
+        if path.is_dir():
+            try:
+                return any(p.is_file() for p in path.iterdir())
+            except OSError:
+                return False
+        return self._parent._is_valid_css(src, _CSS_MIN_SOURCE_SIZE)
 
     def sync_auth_artifacts_to_prefix(
         self,
@@ -325,6 +364,11 @@ class _PayloadSync:
             apply_dpapi_guard=False,
             handle_directories=True,
             log_label="auth cache artifact",
+            # Same newer-session rule as the credentials: UPC 175 encrypts
+            # these caches with the session's own ``store/`` key, so caches
+            # from an older session would be unreadable beside a newer one.
+            keep_newer_target=True,
+            src_vault=self.collect_credential_sources(source_prefix).get(_CSS_NAME),
         )
 
     def collect_artifact_sources(

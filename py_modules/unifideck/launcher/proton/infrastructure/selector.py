@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,7 @@ logger = logging.getLogger(__name__)
 # build time: keep ACCEPTED_VERSIONS in sync with LAUNCHER_PYTHON_VERSIONS in
 # build-plugin.sh so a backend is shipped for every host Python we accept.
 PYTHON_CANDIDATES: list[str] = [
+    "/usr/bin/python3.15",
     "/usr/bin/python3.14",
     "/usr/bin/python3.13",
     "/usr/bin/python3.12",
@@ -30,9 +32,42 @@ PYTHON_CANDIDATES: list[str] = [
     "/usr/bin/python3.10",
     "/usr/bin/python3",
 ]
-ACCEPTED_VERSIONS = {"3.10", "3.11", "3.12", "3.13", "3.14"}
+ACCEPTED_VERSIONS = {"3.10", "3.11", "3.12", "3.13", "3.14", "3.15"}
+#: umu-run needs at least this; newer is fine (it ships its own deps).
+_MIN_UMU_PYTHON = (3, 10)
+
+
+def _accepted(version: str) -> bool:
+    """3.10 or newer. A closed list here once broke every Proton launch on a
+    host that moved to 3.15 (Bazzite 45) while umu ran fine on it."""
+    if version in ACCEPTED_VERSIONS:
+        return True
+    major, _, minor = version.partition(".")
+    return major.isdigit() and minor.isdigit() and (int(major), int(minor)) >= _MIN_UMU_PYTHON
+
+
+def _running_interpreter() -> Path | None:
+    """The interpreter running this launcher, when it is a system one.
+
+    ``bin/unifideck-launcher`` already chose and vetted it, so it is the
+    best answer on any host, whatever its version is called.
+    """
+    exe = sys.executable
+    if not exe or not exe.startswith("/usr/") or sys.version_info < _MIN_UMU_PYTHON:
+        return None
+    path = Path(exe)
+    return path if path.is_file() else None
+
+
 def find_python_3_10_plus() -> Path:
-    """Find python 3 10 plus."""
+    """The system Python that runs the umu zipapp (3.10 or newer)."""
+    running = _running_interpreter()
+    if running is not None:
+        logger.info(
+            "[launcher.proton] python selected: %s (%d.%d, running interpreter)",
+            running, sys.version_info.major, sys.version_info.minor,
+        )
+        return running
     for candidate in PYTHON_CANDIDATES:
         path = Path(candidate)
         if not path.is_file():
@@ -50,7 +85,7 @@ def find_python_3_10_plus() -> Path:
         except (subprocess.SubprocessError, OSError):
             continue
         ver = out.decode().strip()
-        if ver in ACCEPTED_VERSIONS:
+        if _accepted(ver):
             logger.info("[launcher.proton] python selected: %s (%s)", candidate, ver)
             return path
     raise DependencyMissingError(

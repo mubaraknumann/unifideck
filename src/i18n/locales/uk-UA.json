@@ -483,6 +483,7 @@
       "xboxPcOnly": "Лише ігри для ПК",
       "xboxPcSignInNeeded": "Увійдіть знову"
     },
+    "ubisoftLibraryUnreadableMessage": "Помилка читання",
     "ubisoftSignInExpiredMessage": "Увійдіть знову",
     "uninstallDone": "Видалено",
     "updateQueued": "Додано в чергу",

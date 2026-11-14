@@ -29,8 +29,12 @@ from pathlib import Path
 from typing import Any
 
 from .parser_binary import parse_ownership_record
+from .vdat import VDAT_SUFFIX, VdatError, decrypt_vdat
 
 logger = logging.getLogger(__name__)
+# The plain (pre-175) ownership file opens with a header and signature;
+# the records start here. Decrypted ``.vdat`` ownership starts at 0.
+_OWNERSHIP_PLAIN_HEADER = 0x108
 # Records smaller than this are markers / fragments, not real game
 # entries (a genuine game config's YAML blob is several KB).
 _MIN_RECORD_SIZE = 500
@@ -87,10 +91,22 @@ def _read_varint_at(buf: bytes, offset: int) -> tuple[int, int]:
     return raw, consumed
 
 def _read_binary_file(filepath: str, label: str) -> bytes | None:
-    """Read a binary file, returning ``None`` (logged) on any failure."""
+    """Read a UPC cache file, returning ``None`` (logged) on any failure.
+
+    A ``.vdat`` file (UPC 175 and later) is decrypted in memory; the
+    plaintext has the same record format as the pre-175 plain file.
+    """
     if not Path(filepath).is_file():
         logger.warning("[UbiParser] %s file not found: %s", label, filepath)
         return None
+    if filepath.endswith(VDAT_SUFFIX):
+        try:
+            return decrypt_vdat(filepath)
+        except VdatError as e:
+            logger.warning(
+                "[UbiParser] cannot decrypt %s %s: %s", label, filepath, e,
+            )
+            return None
     try:
         with Path(filepath).open("rb") as f:
             return f.read()
@@ -235,7 +251,7 @@ def parse_ownership(filepath: str) -> list[int]:
     if data is None:
         return []
     owned: list[int] = []
-    offset = 0x108
+    offset = 0 if filepath.endswith(VDAT_SUFFIX) else _OWNERSHIP_PLAIN_HEADER
     while offset < len(data):
         chunk = data[offset:]
         if chunk[0] != 0x0A:

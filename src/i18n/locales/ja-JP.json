@@ -483,6 +483,7 @@
       "xboxPcOnly": "PCゲームのみ",
       "xboxPcSignInNeeded": "再ログインが必要です"
     },
+    "ubisoftLibraryUnreadableMessage": "ゲームを読み込めません",
     "ubisoftSignInExpiredMessage": "再ログインしてください",
     "uninstallDone": "アンインストールしました",
     "updateQueued": "待機列に追加しました",

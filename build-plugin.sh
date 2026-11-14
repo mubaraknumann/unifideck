@@ -431,6 +431,11 @@ check_requirements() {
 # alone (--upgrade-strategy only-if-needed). Disk-cheap and fast
 # (~2s when fully cached, ~10s on first run).
 DECK_PYTHON_VERSION="3.11"
+# Decky Loader bundles its own Python and changed it: up to v3.2 it is 3.11,
+# from v3.3 it is 3.14. vendor_deps installs for DECK_PYTHON_VERSION; these
+# get the same packages' native modules too (vendor_backend_abis). Retire
+# 3.11 by making 3.14 the primary once no supported Decky ships 3.11.
+DECKY_EXTRA_PYTHON_VERSIONS=(3.14)
 # The launcher runs under the HOST system Python, whose minor version differs
 # across distros (SteamOS/Bazzite/CachyOS are 3.13 today, but CachyOS is rolling
 # and Arch will bump to 3.14; an older Fedora rebase could still be on 3.12).
@@ -439,8 +444,22 @@ DECK_PYTHON_VERSION="3.11"
 # published cffi wheel are skipped gracefully. See vendor_launcher_cffi().
 # Keep this range in sync with ACCEPTED_VERSIONS in
 # py_modules/unifideck/launcher/proton/infrastructure/selector.py.
-LAUNCHER_PYTHON_VERSIONS=(3.10 3.11 3.12 3.13 3.14)
+LAUNCHER_PYTHON_VERSIONS=(3.10 3.11 3.12 3.13 3.14 3.15)
 DECK_PLATFORM_TAG="manylinux2014_x86_64"
+
+# A Python that has pip, for the vendoring steps. pip only downloads wheels
+# for other Pythons here (--python-version), so any 3.x with pip will do.
+# SteamOS's /usr/bin/python3 ships without pip; fall back to the repo venv.
+pip_python() {
+    local py
+    for py in python3 "$SCRIPT_DIR/.venv/bin/python"; do
+        if "$py" -m pip --version >/dev/null 2>&1; then
+            echo "$py"
+            return 0
+        fi
+    done
+    return 1
+}
 
 vendor_deps() {
     [ -f "$SCRIPT_DIR/requirements.txt" ] || {
@@ -457,16 +476,25 @@ vendor_deps() {
     # --platform + --python-version + --only-binary force the
     # SteamOS-compatible wheel set regardless of host interpreter.
     # --upgrade-strategy only-if-needed avoids churning unchanged deps.
-    if python3 -m pip install \
-            --quiet \
-            --target "$SCRIPT_DIR/py_modules" \
-            --platform "$DECK_PLATFORM_TAG" \
-            --python-version "$DECK_PYTHON_VERSION" \
-            --only-binary ":all:" \
-            --upgrade \
-            --upgrade-strategy only-if-needed \
-            --cache-dir "$cache_dir" \
-            -r "$SCRIPT_DIR/requirements.txt" 2>&1 | tail -20; then
+    # pip's own exit code decides success: piping straight into ``tail`` used
+    # to report tail's, so a host without pip printed "Python deps vendored".
+    local pip_py pip_out pip_rc=1
+    if pip_py=$(pip_python); then
+        pip_out=$("$pip_py" -m pip install \
+                --quiet \
+                --target "$SCRIPT_DIR/py_modules" \
+                --platform "$DECK_PLATFORM_TAG" \
+                --python-version "$DECK_PYTHON_VERSION" \
+                --only-binary ":all:" \
+                --upgrade \
+                --upgrade-strategy only-if-needed \
+                --cache-dir "$cache_dir" \
+                -r "$SCRIPT_DIR/requirements.txt" 2>&1) && pip_rc=0
+        [ -n "$pip_out" ] && echo "$pip_out" | tail -20
+    else
+        log_warn "no Python with pip found (tried python3 and .venv/bin/python)"
+    fi
+    if [ "$pip_rc" -eq 0 ]; then
         log_success "Python deps vendored"
     else
         log_warn "vendor_deps failed - the zip may be missing required Python deps"
@@ -533,6 +561,29 @@ prune_stale_dist_info() {
     fi
 }
 
+# Native backend modules for every Decky Python (DECKY_EXTRA_PYTHON_VERSIONS).
+#
+# vendor_deps installs cp311 wheels only, and Decky v3.3 runs the backend on
+# 3.14: every compiled module failed to import there, rpds hardest (it took
+# jsonschema and config validation down on every boot). The script installs
+# the SAME package versions for each extra Python and copies just their .so
+# files beside the cp311 ones, then fails the build if any is missing.
+vendor_backend_abis() {
+    local extras=()
+    local ver
+    for ver in "${DECKY_EXTRA_PYTHON_VERSIONS[@]}"; do
+        extras+=(--extra "$ver")
+    done
+    # The script itself is stdlib-only; pip runs under a Python that has it.
+    local pip_py
+    pip_py=$(pip_python) || pip_py=""
+    python3 -I "$SCRIPT_DIR/scripts/vendor_backend_abis.py" "$SCRIPT_DIR/py_modules" \
+        --primary "$DECK_PYTHON_VERSION" "${extras[@]}" \
+        --platform "$DECK_PLATFORM_TAG" \
+        --cache-dir "$SCRIPT_DIR/.cache/pip-vendor" \
+        ${pip_py:+--pip-python "$pip_py"}
+}
+
 # Vendor cffi's ABI-specific _cffi_backend for the LAUNCHER's Python too.
 #
 # vendor_deps() above targets Decky's Python ($DECK_PYTHON_VERSION) and so
@@ -583,7 +634,8 @@ vendor_launcher_cffi() {
     fi
 
     local vendored=() skipped=()
-    local ver abitag tmp
+    local ver abitag tmp pip_py
+    pip_py=$(pip_python) || pip_py=python3
     for ver in "${LAUNCHER_PYTHON_VERSIONS[@]}"; do
         abitag="cpython-3${ver#3.}"
         # Already present AND known to match cffi_ver (stamp verified above).
@@ -593,7 +645,7 @@ vendor_launcher_cffi() {
             continue
         fi
         tmp=$(mktemp -d)
-        if python3 -m pip install \
+        if "$pip_py" -m pip install \
                 --quiet \
                 --target "$tmp" \
                 --platform "$DECK_PLATFORM_TAG" \
@@ -767,8 +819,11 @@ _stage_plugin_files() {
     done
     cp -r "$SCRIPT_DIR/assets" "$dest/" 2>/dev/null || true
 
-    for f in main.py plugin.json package.json pnpm-lock.yaml tsconfig.json \
-              rollup.config.mjs requirements.txt LICENSE README.md; do
+    # pnpm-workspace.yaml carries the builder's build-script approvals
+    # (allowBuilds: esbuild); without it the CLI's pnpm 12 install aborts with
+    # ERR_PNPM_IGNORED_BUILDS.
+    for f in main.py plugin.json package.json pnpm-lock.yaml pnpm-workspace.yaml \
+              tsconfig.json rollup.config.mjs requirements.txt LICENSE README.md; do
         [ -f "$SCRIPT_DIR/$f" ] && cp "$SCRIPT_DIR/$f" "$dest/"
     done
 
@@ -1748,6 +1803,7 @@ main() {
     _phase "binaries" prebuild_binaries
     check_requirements
     _phase "vendor python deps" vendor_deps
+    _phase "vendor backend ABIs" vendor_backend_abis
     _phase "vendor launcher cffi" vendor_launcher_cffi
     _phase "locales" gen_locales
     sync_version

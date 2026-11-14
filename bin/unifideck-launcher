@@ -36,6 +36,7 @@ from pathlib import Path
 # sync manually; that module cannot be imported yet at this point in the
 # bootstrap, see ``_reexec_on_modern_python``'s docstring for why).
 _MODERN_PYTHON_CANDIDATES: tuple[str, ...] = (
+    "/usr/bin/python3.15",
     "/usr/bin/python3.14",
     "/usr/bin/python3.13",
     "/usr/bin/python3.12",

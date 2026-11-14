@@ -483,6 +483,7 @@
       "xboxPcOnly": "PC 게임만",
       "xboxPcSignInNeeded": "다시 로그인하세요"
     },
+    "ubisoftLibraryUnreadableMessage": "게임을 읽을 수 없음",
     "ubisoftSignInExpiredMessage": "다시 로그인하세요",
     "uninstallDone": "제거됨",
     "updateQueued": "대기열에 추가됨",

@@ -203,7 +203,32 @@ class UbisoftStore(PostPlayCaptureMixin, StoreBase):
                 "[UbisoftStore] not authenticated — returning empty library",
             )
             return []
-        return await self._library.get_library(force=force)
+        games = await self._library.get_library(force=force)
+        await self._report_unreadable_library(games is None)
+        return games
+
+    async def _report_unreadable_library(self, unreadable: bool) -> None:
+        """Toast once per streak when signed in but the library can't be read.
+
+        Signed in with no readable UPC cache costs the user the whole Ubisoft
+        library, and before UPC 175 was understood it did so silently: the
+        QAM said "connected" and sync showed nothing. The log line names the
+        paths; the toast only says it happened.
+        """
+        if not unreadable:
+            self._warned_unreadable_library = False
+            return
+        if getattr(self, "_warned_unreadable_library", False):
+            return
+        self._warned_unreadable_library = True
+        await self._emit(
+            Events.LAUNCHER_STAGE,
+            severity="warning",
+            i18n_title_key="toasts.header.ubisoft",
+            i18n_key="toasts.ubisoftLibraryUnreadableMessage",
+            duration_ms=12000,
+            store="ubisoft",
+        )
 
     async def install_game(
         self,

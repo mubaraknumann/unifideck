@@ -33,6 +33,7 @@ from unifideck.stores.ubisoft.paths import UbisoftPrefixPaths
 from .auth_builder import _AuthPrefixBuilder
 from .helpers import _PrefixHelpers
 from .template_builder import _TemplatePrefixBuilder
+from .upc_build import refresh_template_build
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +128,11 @@ class UbisoftPrefixManager:
         # 2. Ensure the template exists (derived from auth if possible).
         if not self._template_builder.template_exists():
             await self._template_builder.ensure_template_prefix()
+        # 2b. Bring the template up to the newest Ubisoft Connect build on
+        #     disk, so the clone does not patch itself (and sign out) on first
+        #     launch, and the identity repair below cannot downgrade a prefix
+        #     whose UPC already updated itself.
+        await self.refresh_template_upc_build()
 
         auth_dir = self._config.auth_prefix_dir_expanded
         prefix_path = self._paths.get_prefix_path(space_id)
@@ -154,6 +160,18 @@ class UbisoftPrefixManager:
         return await self._helpers.create_prefix_from_fresh_install(
             space_id,
             prefix_path,
+        )
+
+    async def refresh_template_upc_build(self) -> bool:
+        """Copy the newest UPC build in auth or any game prefix into the template."""
+        if not self._template_builder.template_exists():
+            return False
+        sources = [
+            self._config.auth_prefix_dir_expanded,
+            *await asyncio.to_thread(self._paths.iter_all_game_prefix_paths),
+        ]
+        return await refresh_template_build(
+            self._config.template_dir_expanded, sources,
         )
 
     async def _reuse_existing_game_prefix(

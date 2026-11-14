@@ -483,6 +483,7 @@
       "xboxPcOnly": "仅限 PC 游戏",
       "xboxPcSignInNeeded": "请重新登录"
     },
+    "ubisoftLibraryUnreadableMessage": "无法读取游戏",
     "ubisoftSignInExpiredMessage": "请重新登录",
     "uninstallDone": "已卸载",
     "updateQueued": "已加入队列",

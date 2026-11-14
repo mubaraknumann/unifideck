@@ -483,6 +483,7 @@
       "xboxPcOnly": "PC games only",
       "xboxPcSignInNeeded": "Sign in again"
     },
+    "ubisoftLibraryUnreadableMessage": "Can't read games",
     "ubisoftSignInExpiredMessage": "Sign in again",
     "uninstallDone": "Uninstalled",
     "updateQueued": "Added to queue",
