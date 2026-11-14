@@ -97,23 +97,30 @@ export default class InputChannel extends Channel {
     }
 
     gamepadStateLoop(){
-        const gamepadHandlers = this.getPlayer()._channels.control.getGamepadHandlers()
-        // console.log('[InputChannel] gamepadStateLoop() called', gamepadHandlers)
-        const gamepadFrames:Array<GamepadFrame> = []
-        for(const gamepad in gamepadHandlers){
-            if(gamepadHandlers[gamepad] instanceof Gamepad){
-                const frame = (gamepadHandlers[gamepad] as Gamepad).getGamepadState()
-                if(frame !== undefined){
-                    gamepadFrames.push(frame)
+        // The loop reschedules itself, so an exception in one pass must not
+        // end it: a single throw used to stop all gamepad input for the rest
+        // of the stream while the page still showed the controller.
+        try {
+            const gamepadHandlers = this.getPlayer()._channels.control.getGamepadHandlers()
+            // console.log('[InputChannel] gamepadStateLoop() called', gamepadHandlers)
+            const gamepadFrames:Array<GamepadFrame> = []
+            for(const gamepad in gamepadHandlers){
+                if(gamepadHandlers[gamepad] instanceof Gamepad){
+                    const frame = (gamepadHandlers[gamepad] as Gamepad).getGamepadState()
+                    if(frame !== undefined){
+                        gamepadFrames.push(frame)
+                    }
                 }
             }
-        }
 
-        if(gamepadFrames.length > 0){
-            this.queueGamepadFrames(gamepadFrames)
+            if(gamepadFrames.length > 0){
+                this.queueGamepadFrames(gamepadFrames)
+            }
+        } catch(e){
+            console.log('[InputChannel] gamepadStateLoop() error:', e)
+        } finally {
+            setTimeout(this.gamepadStateLoop.bind(this), 16)
         }
-
-        setTimeout(this.gamepadStateLoop.bind(this), 16)
     }
 
     queueMetadataFrame(data:MetadataFrame){

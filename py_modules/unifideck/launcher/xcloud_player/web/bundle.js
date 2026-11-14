@@ -349,10 +349,10 @@
       frame.GamepadIndex = this._index;
       if (gamepad !== void 0) {
         for (const button in this._options.gamepad_mapping) {
-          frame[button] = gamepad.buttons[this._options.gamepad_mapping[button]].value;
+          frame[button] = gamepad.buttons[this._options.gamepad_mapping[button]]?.value ?? 0;
         }
         for (const axis in this._options.gamepad_axes_mapping) {
-          frame[axis] = this.normaliseAxis(gamepad.axes[this._options.gamepad_axes_mapping[axis]]);
+          frame[axis] = this.normaliseAxis(gamepad.axes[this._options.gamepad_axes_mapping[axis]] ?? 0);
         }
       }
       for (const button in this._gamepadOverride.buttons) {
@@ -1002,20 +1002,25 @@
       }
     }
     gamepadStateLoop() {
-      const gamepadHandlers = this.getPlayer()._channels.control.getGamepadHandlers();
-      const gamepadFrames = [];
-      for (const gamepad in gamepadHandlers) {
-        if (gamepadHandlers[gamepad] instanceof Gamepad) {
-          const frame = gamepadHandlers[gamepad].getGamepadState();
-          if (frame !== void 0) {
-            gamepadFrames.push(frame);
+      try {
+        const gamepadHandlers = this.getPlayer()._channels.control.getGamepadHandlers();
+        const gamepadFrames = [];
+        for (const gamepad in gamepadHandlers) {
+          if (gamepadHandlers[gamepad] instanceof Gamepad) {
+            const frame = gamepadHandlers[gamepad].getGamepadState();
+            if (frame !== void 0) {
+              gamepadFrames.push(frame);
+            }
           }
         }
+        if (gamepadFrames.length > 0) {
+          this.queueGamepadFrames(gamepadFrames);
+        }
+      } catch (e) {
+        console.log("[InputChannel] gamepadStateLoop() error:", e);
+      } finally {
+        setTimeout(this.gamepadStateLoop.bind(this), 16);
       }
-      if (gamepadFrames.length > 0) {
-        this.queueGamepadFrames(gamepadFrames);
-      }
-      setTimeout(this.gamepadStateLoop.bind(this), 16);
     }
     queueMetadataFrame(data) {
       return this._inputQueue.queueMetadataFrame(data);
@@ -2148,6 +2153,9 @@
     void fetch("/api/log", { method: "POST", body: "streaming" });
     let last = "";
     setInterval(() => {
+      if (pad.getPhysicalGamepadId() < 0 && [...navigator.getGamepads()].some(Boolean)) {
+        pad.detectActiveGamepad();
+      }
       const pads = [...navigator.getGamepads()].filter(Boolean).map((p) => `${p.id} (${p.mapping || "no mapping"})`);
       const now = pads.join(", ") || "none";
       if (now !== last) {

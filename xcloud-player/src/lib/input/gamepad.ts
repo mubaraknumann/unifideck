@@ -295,13 +295,16 @@ export default class Gamepad {
 
         // Set buttons
         if(gamepad !== undefined){
+            // A pad can report fewer buttons/axes than the mapping expects
+            // (e.g. before Chromium applies the standard mapping); treat the
+            // missing ones as released instead of throwing.
             for(const button in this._options.gamepad_mapping){
-                frame[button] = gamepad.buttons[this._options.gamepad_mapping[button]].value
+                frame[button] = gamepad.buttons[this._options.gamepad_mapping[button]]?.value ?? 0
             }
 
             // Set axis
             for(const axis in this._options.gamepad_axes_mapping){
-                frame[axis] = this.normaliseAxis(gamepad.axes[this._options.gamepad_axes_mapping[axis]])
+                frame[axis] = this.normaliseAxis(gamepad.axes[this._options.gamepad_axes_mapping[axis]] ?? 0)
             }
         }
 
