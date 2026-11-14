@@ -63,6 +63,7 @@ async def test_same_rom_id_on_two_servers_has_distinct_install_and_shortcut_iden
     auth, _, _, reader = connection
     script(romm_server)
     alpha = (await reader.get_library())[0]
+    (tmp_path / "alpha").mkdir()
     InstallRecords("romm").save(alpha.store_game_id, title="Alpha", install_path=str(tmp_path / "alpha"), exe_path="Alpha.exe")
     await connect(auth, "b", "https://b.test")
     beta = (await reader.get_library())[0]

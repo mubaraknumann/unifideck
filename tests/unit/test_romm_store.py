@@ -64,17 +64,19 @@ async def test_unexpected_exception_returns_none(store, monkeypatch):
     assert await store.get_library() is None
 
 
-async def test_complete_library_overlays_install_state(store, romm_server):
+async def test_complete_library_overlays_install_state(store, romm_server, tmp_path):
     romm_server.on("GET", "/api/platforms", Reply(json=[{"id": 1, "slug": "win", "fs_slug": "win"}]))
     romm_server.on("GET", "/api/roms", Reply(json={"items": [
         {"id": 5, "platform_slug": "win", "platform_fs_slug": "win", "name": "G", "fs_name": "G.zip"},
     ], "total": 1}))
     game_id = "1ad0c8ff8989849d4235d070383964a906b3ddaa73b0cf69d37dc9d00066eda5_5"
-    store._installer._records.save(game_id, title="G", install_path="/games/G", exe_path="/games/G/G.exe")
+    target = tmp_path / "games" / "G"
+    target.mkdir(parents=True)
+    store._installer._records.save(game_id, title="G", install_path=str(target), exe_path=str(target / "G.exe"))
     games = await store.get_library()
-    assert games is not None and games[0].installed and games[0].install_path == "/games/G"
+    assert games is not None and games[0].installed and games[0].install_path == str(target)
     assert not games[0].exe_path
-    assert await store.get_installed_path(game_id) == "/games/G"
+    assert await store.get_installed_path(game_id) == str(target)
 
 
 async def test_uninstall_emits_game_uninstalled_once(store, tmp_path):
