@@ -8,9 +8,10 @@ prefix. Adding EA App is a probe, not another copy of the loop.
 """
 
 from .probe import InstallFacts, InstallProbe
-from .watch import install_alive, watch_manual_install
+from .watch import CLIENT_CLOSED, install_alive, watch_manual_install
 
 __all__ = [
+    "CLIENT_CLOSED",
     "InstallFacts",
     "InstallProbe",
     "install_alive",

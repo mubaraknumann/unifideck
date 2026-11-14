@@ -51,7 +51,7 @@ from unifideck.stores.shared.prefix_placement import (
     reset_for_fresh_install,
     resolve_prefix_target,
 )
-from unifideck.stores.shared.wrapper_install import watch_manual_install
+from unifideck.stores.shared.wrapper_install import CLIENT_CLOSED, watch_manual_install
 from unifideck.stores.shared.wrapper_install.watch import install_alive
 
 from . import agent_status, paths
@@ -221,12 +221,14 @@ class BattlenetInstaller:
     ) -> InstallResult:
         """Wait for the client to finish, then record what it produced."""
         probe = BattlenetInstallProbe(game_id, prepared.prefix)
+        closed: list[bool] = []
         try:
             install_dir = await watch_manual_install(
                 probe=probe,
                 prefix=prepared.prefix,
                 progress_cb=progress_cb,
                 on_ready=on_ready,
+                on_client_closed=lambda: closed.append(True),
             )
         except asyncio.CancelledError:
             # An explicit cancel is the only path that closes the client;
@@ -240,6 +242,10 @@ class BattlenetInstaller:
             raise
         if not install_dir:
             await self._abandon(game_id, prepared, probe.started_at)
+            if closed:
+                return _failed(
+                    game_id, "Battle.net was closed before the install", CLIENT_CLOSED,
+                )
             return _failed(
                 game_id,
                 "The install was never finished in Battle.net",

@@ -320,11 +320,8 @@ async def ubisoft_install_launch(plan: ProtonLaunchPlan) -> int:
         "[launcher.proton.ubisoft] install launch — opening UPC in %s",
         plan.prefix_path,
     )
-    launcher_toast(
-        "toasts.launcher.installingUbisoftMessage",
-        i18n_title_key="toasts.header.ubisoft",
-        game_title="Ubisoft Connect",
-    )
+    # No "Install from app" toast here: the game page already says "Follow the
+    # Ubisoft Connect window", and the window itself is the cue.
     # _resolve_or_recover_upc_exe returns a verified-existing path or None
     # (every recovery branch gates on is_file), so a None means the resolved
     # prefix was empty and both recovery routes failed.

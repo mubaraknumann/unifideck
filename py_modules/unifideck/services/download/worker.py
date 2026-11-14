@@ -25,6 +25,7 @@ from unifideck.launcher.wrapper_stores import (
     is_wrapper_store,
     uses_manual_download_phase,
 )
+from unifideck.stores.shared.wrapper_install import CLIENT_CLOSED
 
 from .installed_game import build_installed_game
 from .models import MAX_FINISHED_HISTORY, DownloadItem, classify_download_error
@@ -196,6 +197,10 @@ class _WorkerMixin:
         result = await self._dispatch_install(item, store, progress_cb, key)
         if result.success:
             await self._on_install_success(item, result, store, key)
+        elif CLIENT_CLOSED in (result.error, getattr(result, "error_code", None)):
+            # The user closed the vendor client (Ubisoft Connect, Battle.net)
+            # before installing: their choice, so a cancel with no error toast.
+            await self._mark_cancelled(item, key)
         else:
             logger.error(
                 "[DownloadWorker] failed install for %s: %s",

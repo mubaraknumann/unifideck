@@ -156,6 +156,24 @@ def scan_prefix(prefix: str | Path) -> list[tuple[str, str, str]]:
     return found
 
 
+def prefix_in_use(prefix: str | Path) -> bool:
+    """True while ANY process, Windows or Linux, runs in ``prefix``.
+
+    The deliberate opposite of :func:`scan_prefix`'s ``.exe`` filter. The
+    umu chain (``umu-run``, ``srt-bwrap``, ``pv-adverb``, Proton's
+    ``python3``, ``wineserver``) inherits ``WINEPREFIX`` and, under
+    ``waitforexitandrun``, lives until the LAST Wine process exits, so it
+    stays up across a client restarting itself. "Nothing left in the
+    prefix" therefore means the client was really closed, not that it is
+    between two processes. An unreadable ``/proc`` reports in use.
+    """
+    target = normalise_prefix(prefix)
+    all_pids = pids()
+    if not all_pids:
+        return True
+    return any(wineprefix_of(pid) == target for pid in all_pids)
+
+
 def client_running_in(store: str, prefix: str | Path) -> bool:
     """True while any of ``store``'s client processes is alive in ``prefix``.
 

@@ -442,3 +442,65 @@ def test_a_short_timeout_never_shrinks_the_download_budget(
     watch = mod._Watch(probe, "/pfx", None)
 
     assert watch._completion_polls == mod.STABILITY_MAX_POLLS
+
+
+# ── closing the client ends the install at once ─────────────────
+
+
+def _in_use(monkeypatch: pytest.MonkeyPatch, *answers: bool) -> None:
+    """Script ``prefix_in_use``; the last answer repeats forever."""
+    seq = list(answers)
+
+    def _probe(_prefix: Any) -> bool:
+        return seq.pop(0) if len(seq) > 1 else seq[0]
+
+    monkeypatch.setattr(mod, "prefix_in_use", _probe)
+    monkeypatch.setattr(mod, "CLOSE_CHECK_S", 0.0)  # check on every poll
+
+
+def test_closing_the_client_ends_the_wait_without_the_grace_period(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The user closed UPC: "Follow the window" must not hang on for minutes.
+
+    The liveness probe still says alive (another client somewhere, or the
+    grace period) but the prefix the client ran in is empty, which only
+    happens once its whole umu chain has exited.
+    """
+    _alive(monkeypatch, True)
+    _in_use(monkeypatch, True, True, False)
+    probe = _Probe(detect_after=10_000)
+
+    assert _run(probe) is None
+    assert probe.detect_calls <= 2
+
+
+def test_an_empty_prefix_before_the_client_ever_ran_is_not_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Nothing has started yet: only the never-started watchdog may end it."""
+    _alive(monkeypatch, True)
+    _in_use(monkeypatch, False)
+
+    assert _run(_Probe(detect_after=3, complete_after=1)) == "/install/dir"
+
+
+def test_closing_mid_download_fails_unless_the_store_says_complete(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _alive(monkeypatch, True)
+    # In use through detection, then gone during the download wait.
+    _in_use(monkeypatch, True, True, False)
+    assert _run(_Probe(detect_after=1, verdict=False)) is None
+
+    _in_use(monkeypatch, True, True, False)
+    assert _run(_Probe(detect_after=1, complete_after=1)) == "/install/dir"
+
+
+def test_an_unreadable_proc_counts_as_in_use(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from unifideck.launcher.proton.handlers import wrapper_clients as wc
+
+    monkeypatch.setattr(wc, "pids", list)
+    assert wc.prefix_in_use("/pfx") is True

@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
@@ -53,6 +54,7 @@ from typing import Any
 from unifideck.launcher.proton.handlers.wrapper_clients import (
     install_active_in,
     live_client_prefixes,
+    prefix_in_use,
 )
 
 from .probe import InstallProbe
@@ -88,6 +90,16 @@ STABILITY_THRESHOLD = 3
 # first-run installer to the main launcher, and Battle.net restarts to apply
 # its own updates.
 CLIENT_GONE_GRACE_S = 180.0
+
+#: ``InstallResult.error`` when the user closed the client before the game was
+#: installed. Not a failure: the download worker reports it as a cancel, with
+#: no error toast.
+CLIENT_CLOSED = "client_closed"
+
+# How often, inside each poll's sleep, to ask whether the client was closed.
+# That check is cheap (one /proc walk) and is what lets "I closed the client"
+# end the install in seconds instead of after CLIENT_GONE_GRACE_S.
+CLOSE_CHECK_S = 2.0
 
 # Seconds at the START with no client at all before we conclude it will never
 # come up. Comfortably longer than a cold client start under Proton, short
@@ -151,6 +163,11 @@ class _Watch:
         self._seen = False
         self._gone_for = 0.0
         self._absent_for = 0.0
+        # Set once any process has run in the prefix; see ``_client_closed``.
+        self._prefix_seen = False
+        self._last_close_check = float("-inf")
+        #: True once :meth:`_client_closed` ended the watch.
+        self.closed_by_user = False
 
     async def _emit(self, message: str) -> None:
         """Push an indeterminate manual-phase progress update."""
@@ -206,6 +223,53 @@ class _Watch:
         )
         return True
 
+    def _client_closed(self) -> bool:
+        """True once the client's whole process tree has left the prefix.
+
+        A faster and stricter signal than :meth:`_abandoned`'s grace period.
+        The umu chain that launched the client lives until its LAST Wine
+        process exits, so it survives the client restarting itself to patch;
+        an empty prefix after one that was in use means the user closed it.
+        Only counts after the prefix was seen in use, so a client that has not
+        started yet (or runs under a prefix we cannot match) is never "closed".
+        """
+        try:
+            in_use = prefix_in_use(self._prefix)
+        except Exception:
+            logger.debug("[%s] prefix probe failed", self._probe.store, exc_info=True)
+            return False
+        if in_use:
+            self._prefix_seen = True
+            return False
+        if self._prefix_seen:
+            self.closed_by_user = True
+            logger.info(
+                "[%s] %s was closed — ending the install now",
+                self._probe.store, self._probe.client_label,
+            )
+            return True
+        return False
+
+    async def _sleep_unless_closed(self) -> bool:
+        """Sleep one poll interval; True as soon as the client is closed.
+
+        The prefix is checked at most every ``CLOSE_CHECK_S`` of wall time,
+        not once per poll, so a short poll interval never turns into a
+        ``/proc`` walk per iteration.
+        """
+        remaining = self._poll
+        while remaining > 0:
+            step = min(CLOSE_CHECK_S, remaining) if CLOSE_CHECK_S > 0 else remaining
+            await asyncio.sleep(step)
+            remaining -= step
+            now = time.monotonic()
+            if now - self._last_close_check < CLOSE_CHECK_S:
+                continue
+            self._last_close_check = now
+            if self._client_closed():
+                return True
+        return False
+
     def _never_started(self) -> bool:
         """Count early time with no client at all; True once we give up."""
         self._absent_for += self._poll
@@ -249,7 +313,8 @@ class _Watch:
         """Poll until the game appears and finishes, or the attempt is over."""
         max_polls = int(self._timeout / self._poll)
         for iteration in range(max_polls):
-            await asyncio.sleep(self._poll)
+            if await self._sleep_unless_closed():
+                return None
             install_dir = self._probe.detect(baseline)
             if install_dir:
                 logger.info(
@@ -295,7 +360,10 @@ class _Watch:
         prev_size = 0
         stable = 0
         for _ in range(self._completion_polls):
-            await asyncio.sleep(self._poll)
+            if await self._sleep_unless_closed():
+                # The client is gone, so nothing more will land. Take a
+                # finished install as finished; anything else is abandoned.
+                return self._probe.is_complete(install_dir) is True
             verdict = self._probe.is_complete(install_dir)
             if verdict is True:
                 logger.info(
@@ -340,12 +408,19 @@ async def watch_manual_install(
     prefix: str | Path,
     progress_cb: ProgressCb = None,
     on_ready: Callable[[], Awaitable[None]] | None = None,
+    on_client_closed: Callable[[], None] | None = None,
 ) -> str | None:
     """Watch a vendor-client install through to completion.
 
     Returns the host-side install directory, or ``None`` when the attempt was
-    abandoned or timed out. Cancellation propagates untouched — closing the
+    abandoned or timed out. ``on_client_closed`` is called when ``None`` is
+    because the user closed the client, so the caller can report
+    :data:`CLIENT_CLOSED` instead of a failure. Cancellation propagates untouched — closing the
     client and capturing its rotated session are the caller's business, because
     only the caller knows whether its prefix is about to be destroyed.
     """
-    return await _Watch(probe, prefix, progress_cb).start(on_ready)
+    watch = _Watch(probe, prefix, progress_cb)
+    install_dir = await watch.start(on_ready)
+    if install_dir is None and watch.closed_by_user and on_client_closed:
+        on_client_closed()
+    return install_dir

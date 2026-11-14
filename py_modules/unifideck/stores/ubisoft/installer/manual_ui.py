@@ -26,7 +26,7 @@ from typing import Any
 
 from unifideck.core.types import InstallResult
 from unifideck.launcher.proton.handlers.wrapper_clients import kill_client
-from unifideck.stores.shared.wrapper_install import watch_manual_install
+from unifideck.stores.shared.wrapper_install import CLIENT_CLOSED, watch_manual_install
 from unifideck.stores.ubisoft.config import UbisoftConfig
 from unifideck.stores.ubisoft.id_map import UbisoftIdMap
 from unifideck.stores.ubisoft.library import UbisoftLibrary
@@ -84,12 +84,14 @@ class _ManualUiInstaller:
         probe = UbisoftInstallProbe(
             self._prepared_install_base(install_path), prefix_path,
         )
+        closed: list[bool] = []
         try:
             install_dir = await watch_manual_install(
                 probe=probe,
                 prefix=prefix_path,
                 progress_cb=progress_cb,
                 on_ready=on_ready,
+                on_client_closed=lambda: closed.append(True),
             )
         except asyncio.CancelledError:
             # Explicit cancel from the download queue is the ONLY path that
@@ -116,7 +118,8 @@ class _ManualUiInstaller:
                 success=False,
                 store=STORE_ID,
                 game_id=game_id,
-                error="no_install_detected",
+                # The user closing UPC is a cancel, not a failure.
+                error=CLIENT_CLOSED if closed else "no_install_detected",
             )
         return await self._finalize_manual_install(
             game_id=game_id,
