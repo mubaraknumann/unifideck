@@ -839,3 +839,208 @@ describe("several owned Steam versions of one game", () => {
     }
   });
 });
+
+describe("store-supplied variant metadata reaches group siblings", () => {
+  const variantRow = (
+    appId: number,
+    metadata: Record<string, unknown> | undefined,
+    group: string | null = "variants",
+  ) => ({
+    app_id: appId,
+    store: "gamevault",
+    installed: false,
+    store_game_id: String(appId),
+    dedupe_group_id: group,
+    metadata,
+  });
+
+  beforeEach(async () => {
+    mockCall.mockReset();
+    mockCall.mockResolvedValueOnce([]);
+    await loadUnifideckCache();
+    unifideckGameCache.clear();
+    mockCall.mockReset();
+  });
+
+  it("carries disambiguators and default_rank from each row's metadata", async () => {
+    mockCall.mockResolvedValueOnce([
+      variantRow(601, { disambiguators: ["Linux", "Ghostship"], default_rank: 0 }),
+      variantRow(602, { disambiguators: ["Linux", "sm64coopdx"], default_rank: 1 }),
+    ]);
+    await loadUnifideckCache();
+    const siblings = getGroupSiblings(601);
+    expect(siblings.find((s) => s.appId === 601)).toMatchObject({
+      disambiguators: ["Linux", "Ghostship"],
+      defaultRank: 0,
+    });
+    expect(siblings.find((s) => s.appId === 602)).toMatchObject({
+      disambiguators: ["Linux", "sm64coopdx"],
+      defaultRank: 1,
+    });
+  });
+
+  it("leaves both fields undefined for rows without the metadata keys", async () => {
+    mockCall.mockResolvedValueOnce([variantRow(601, undefined), variantRow(602, {})]);
+    await loadUnifideckCache();
+    expect(getGroupSiblings(601)).toHaveLength(2);
+    for (const s of getGroupSiblings(601)) {
+      expect(s.disambiguators).toBeUndefined();
+      expect(s.defaultRank).toBeUndefined();
+    }
+  });
+
+  it("treats malformed metadata as absent", async () => {
+    mockCall.mockResolvedValueOnce([
+      variantRow(601, { disambiguators: "Linux", default_rank: "0" }),
+      variantRow(602, { disambiguators: [1, null], default_rank: Number.NaN }),
+    ]);
+    await loadUnifideckCache();
+    expect(getGroupSiblings(601)).toHaveLength(2);
+    for (const s of getGroupSiblings(601)) {
+      expect(s.disambiguators).toBeUndefined();
+      expect(s.defaultRank).toBeUndefined();
+    }
+  });
+
+  it("bumps the detail-page version when disambiguators change, not on an identical reload", async () => {
+    const rows = (entry: string) => [
+      variantRow(601, { disambiguators: [entry] }),
+      variantRow(602, { disambiguators: ["other"] }),
+    ];
+    mockCall.mockResolvedValueOnce(rows("Linux"));
+    await loadUnifideckCache();
+    const before = getGameStateVersion(601);
+
+    mockCall.mockResolvedValueOnce(rows("Linux"));
+    await loadUnifideckCache();
+    expect(getGameStateVersion(601)).toBe(before);
+
+    mockCall.mockResolvedValueOnce(rows("Windows"));
+    await loadUnifideckCache();
+    expect(getGameStateVersion(601)).toBeGreaterThan(before);
+  });
+
+  it("bumps every sibling's version when only one member's variant data changes", async () => {
+    const rows = (entry: string) => [
+      variantRow(601, { disambiguators: ["Linux"] }),
+      variantRow(602, { disambiguators: [entry] }),
+    ];
+    mockCall.mockResolvedValueOnce(rows("Windows"));
+    await loadUnifideckCache();
+    const before601 = getGameStateVersion(601);
+
+    mockCall.mockResolvedValueOnce(rows("Ghostship"));
+    await loadUnifideckCache();
+    expect(getGameStateVersion(601)).toBeGreaterThan(before601);
+  });
+
+  it("bumps the Steam-owned page when a group member's variant data changes", async () => {
+    const rows = (entry: string) => [
+      { ...variantRow(701, { disambiguators: [entry] }), steam_owned_app_id: 4242 },
+      variantRow(702, { disambiguators: ["Linux"] }),
+    ];
+    mockCall.mockResolvedValueOnce(rows("Windows"));
+    await loadUnifideckCache();
+    const before = getGameStateVersion(4242);
+
+    mockCall.mockResolvedValueOnce(rows("Ghostship"));
+    await loadUnifideckCache();
+    expect(getGameStateVersion(4242)).toBeGreaterThan(before);
+  });
+
+  it("carries the fields on the own-copy fallback beside a Steam-owned copy", async () => {
+    mockCall.mockResolvedValueOnce([
+      {
+        ...variantRow(701, { disambiguators: ["Linux"], default_rank: 0 }, null),
+        steam_owned_app_id: 4242,
+      },
+    ]);
+    await loadUnifideckCache();
+    const own = getGroupSiblings(701).find((s) => s.appId === 701);
+    expect(own).toMatchObject({ disambiguators: ["Linux"], defaultRank: 0 });
+  });
+});
+
+describe("rank decides among same-store group members", () => {
+  beforeEach(() => {
+    unifideckGameCache.clear();
+    validThirdPartyCache.clear();
+    setGroupDuplicatesEnabled(true);
+  });
+
+  const member = (appId: number, extra: Partial<UnifideckGameInput> = {}): UnifideckGameInput => ({
+    appId,
+    store: "epic",
+    isInstalled: false,
+    dedupeGroupId: "g",
+    ...extra,
+  });
+
+  it("makes the better-ranked uninstalled member the primary", () => {
+    updateUnifideckCache([member(1, { defaultRank: 1 }), member(2, { defaultRank: 0 })]);
+    expect(isHiddenDuplicate(2)).toBe(false);
+    expect(isHiddenDuplicate(1)).toBe(true);
+  });
+
+  it("makes the better-ranked installed member the primary", () => {
+    updateUnifideckCache([
+      member(1, { isInstalled: true, defaultRank: 1 }),
+      member(2, { isInstalled: true, defaultRank: 0 }),
+    ]);
+    expect(isHiddenDuplicate(2)).toBe(false);
+    expect(isHiddenDuplicate(1)).toBe(true);
+  });
+
+  it("lets an installed member with a worse rank beat an uninstalled better one", () => {
+    updateUnifideckCache([
+      member(1, { defaultRank: 0 }),
+      member(2, { isInstalled: true, defaultRank: 9 }),
+    ]);
+    expect(isHiddenDuplicate(2)).toBe(false);
+    expect(isHiddenDuplicate(1)).toBe(true);
+  });
+
+  it("still prefers the untagged member over a better-ranked Xbox One one", () => {
+    updateUnifideckCache([
+      member(1, { title: "Enlisted Xbox One", defaultRank: 0 }),
+      member(2, { title: "Enlisted", defaultRank: 5 }),
+    ]);
+    expect(isHiddenDuplicate(2)).toBe(false);
+    expect(isHiddenDuplicate(1)).toBe(true);
+  });
+
+  it("keeps the first installed copy across stores, whatever their ranks", () => {
+    updateUnifideckCache([
+      member(1, { store: "epic", isInstalled: true, defaultRank: 9 }),
+      member(2, { store: "gamevault", isInstalled: true, defaultRank: 0 }),
+    ]);
+    expect(isHiddenDuplicate(1)).toBe(false);
+    expect(isHiddenDuplicate(2)).toBe(true);
+  });
+
+  it("ranks among installed copies of the same store as the first installed one", () => {
+    updateUnifideckCache([
+      member(1, { store: "epic", isInstalled: true, defaultRank: 5 }),
+      member(2, { store: "gamevault", isInstalled: true, defaultRank: 0 }),
+      member(3, { store: "epic", isInstalled: true, defaultRank: 1 }),
+    ]);
+    expect(isHiddenDuplicate(3)).toBe(false);
+    expect(isHiddenDuplicate(1)).toBe(true);
+    expect(isHiddenDuplicate(2)).toBe(true);
+  });
+
+  it("keeps catalog order when nothing is ranked", () => {
+    updateUnifideckCache([member(1), member(2)]);
+    expect(isHiddenDuplicate(1)).toBe(false);
+    expect(isHiddenDuplicate(2)).toBe(true);
+  });
+
+  it("decides by store priority before rank across stores", () => {
+    updateUnifideckCache([
+      member(1, { store: "amazon", defaultRank: 0 }),
+      member(2, { store: "epic", defaultRank: 9 }),
+    ]);
+    expect(isHiddenDuplicate(2)).toBe(false);
+    expect(isHiddenDuplicate(1)).toBe(true);
+  });
+});

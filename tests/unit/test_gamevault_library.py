@@ -254,6 +254,31 @@ def test_map_to_game_builds_expected_record():
     assert game.metadata["early_access"] is True
 
 
+def test_map_to_game_publishes_variant_metadata():
+    game = _reader()._map_to_game(
+        {"id": "1", "file_path": "Super Mario 64 [Ghostship] (L_P).zip"},
+    )
+    assert game is not None
+    assert game.metadata["disambiguators"] == ["Linux", "Ghostship"]
+    assert game.metadata["default_rank"] == 0
+
+
+def test_map_to_game_without_file_path_ranks_after_linux_and_has_no_labels():
+    game = _reader()._map_to_game({"id": "1", "metadata": {"title": "X"}})
+    assert game is not None
+    assert game.metadata["default_rank"] == 1
+    assert "disambiguators" not in game.metadata
+
+
+def test_map_to_game_reads_variant_facts_from_a_windows_path():
+    game = _reader()._map_to_game(
+        {"id": "1", "file_path": r"C:\Vault\files\Game [Tag] (W_P).zip"},
+    )
+    assert game is not None
+    assert game.metadata["disambiguators"] == ["Windows", "Tag"]
+    assert game.metadata["default_rank"] == 1
+
+
 def test_map_to_game_missing_id_returns_none():
     reader = _reader()
     assert reader._map_to_game({"metadata": {"title": "No ID"}}) is None

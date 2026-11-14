@@ -201,6 +201,35 @@ def parse_archive_name(file_path: str) -> ParsedName:
     )
 
 
+def extract_tags(file_path: str) -> list[str]:
+    """The trailing ``[...]`` tags in a filename, apart from known tokens.
+
+    ``parse_archive_name`` drops unrecognised trailing bracket groups
+    (``[Ghostship]``, ``[FitGirl]``) so they never change a game's identity.
+    They are still what tells two same-title builds apart, so this returns
+    them in order, trimmed and de-duplicated. It reads the same trailing
+    groups the parser does: a bracket that stays in the title is not a tag.
+    ``EA`` and ``NC`` are not tags either.
+    """
+    stem = strip_extension(leaf_name(file_path))
+    tags: list[str] = []
+    while (match := _TRAILING_TOKEN_RE.search(stem)) is not None:
+        token = match.group(1).strip()
+        classified = _classify_token(token, match.group(0))
+        if classified is None:
+            break
+        is_bracketed = match.group(0).lstrip().startswith("[")
+        if (
+            classified[0] == _IGNORED
+            and is_bracketed
+            and token
+            and token.upper() != "NC"
+        ):
+            tags.append(token)
+        stem = stem[: match.start()]
+    return list(dict.fromkeys(reversed(tags)))
+
+
 def _classify_token(token: str, raw: str) -> tuple[str, Any] | None:
     """``(field, value)`` for one trailing token, or None to stop the scan.
 

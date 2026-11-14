@@ -300,3 +300,15 @@ async def test_resolve_rereads_the_folder(tmp_path):
 
     assert acquired is not None
     assert acquired.path.name == "Stardew Valley (v1.6) (2016).zip"
+
+
+async def test_fetch_publishes_variant_metadata(tmp_path):
+    name = "Super Mario 64 [Ghostship] (v1.5) (L_P).zip"
+    catalog = LocalVaultCatalog(str(_vault(tmp_path, name)))
+
+    (game,) = await catalog.fetch()
+
+    assert game.metadata["default_rank"] == 0
+    assert game.metadata["disambiguators"] == ["Linux", "Ghostship", "v1.5"]
+    assert game.metadata["game_type"] == "L_P"
+    assert game.metadata["file_path"].endswith(name)

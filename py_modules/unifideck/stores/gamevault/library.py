@@ -19,7 +19,8 @@ from typing import TYPE_CHECKING, Any
 from unifideck.core.types import Game
 from unifideck.stores.shared.install_status import merge_install_status
 
-from .filename import leaf_name, parse_archive_name, strip_source_tags
+from .filename import extract_tags, leaf_name, parse_archive_name, strip_source_tags
+from .variants import variant_metadata
 
 if TYPE_CHECKING:
     from .auth import GameVaultAuth
@@ -191,6 +192,7 @@ class RemoteCatalog:
 
             title = self._extract_title(item)
             icon_url = self._extract_cover_url(item)
+            file_path = item.get("file_path") or ""
 
             return Game(
                 app_id=0,               # filled later by sync service
@@ -203,6 +205,9 @@ class RemoteCatalog:
                     "file_path": item.get("file_path", ""),
                     "release_date": item.get("release_date", ""),
                     "early_access": item.get("early_access", False),
+                    **variant_metadata(
+                        parse_archive_name(file_path), extract_tags(file_path)
+                    ),
                 },
             )
         except Exception as exc:

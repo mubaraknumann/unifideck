@@ -12,6 +12,7 @@ import pytest
 
 from unifideck.stores.gamevault.filename import (
     ARCHIVE_EXTENSIONS,
+    extract_tags,
     is_indexable,
     parse_archive_name,
     strip_extension,
@@ -288,3 +289,25 @@ def test_display_title_drops_tags_but_identity_keeps_them():
     assert tagged.display_title == "Alan Wake 2"
     assert tagged.identity != plain.identity
 
+
+
+# ── Bracket tags ─────────────────────────────────────────────────────
+@pytest.mark.parametrize(
+    ("path", "expected"),
+    [
+        ("Super Mario 64 [Ghostship] (L_P).zip", ["Ghostship"]),
+        ("Game [2020].zip", []),
+        ("Game [v1.2] [FitGirl].zip", ["FitGirl"]),
+        ("Game [A] [A].zip", ["A"]),
+        ("Game [A] [B] (L_P).zip", ["A", "B"]),
+        ("Game [ A ] [B] [A] (L_P).zip", ["A", "B"]),
+        ("[Tag] Game (L_P).zip", []),
+        ("Game [Tag] Extra (L_P).zip", []),
+        ("Game [EA] [NC] [W_P].zip", []),
+        (r"C:\Users\x\Vault\files\Game [Tag] (L_P).zip", ["Tag"]),
+        ("Game.zip", []),
+        ("", []),
+    ],
+)
+def test_extract_tags(path, expected):
+    assert extract_tags(path) == expected
