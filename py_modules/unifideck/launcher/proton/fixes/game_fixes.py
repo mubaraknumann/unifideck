@@ -349,6 +349,33 @@ def needs_native_icu(
     return bool(umu_id and umu_id in ICU_NATIVE_UMU_IDS)
 
 
+# ── Bundled DirectDraw / DirectInput wrappers ──────────────────────
+# GOG ships classic DX5-7 games with its own ddraw.dll/dinput.dll beside
+# the exe. Wine prefers its builtin ones, so the wrapper is skipped and
+# e.g. Resident Evil 2 (GOG 1534123252) fails with "Failed to initialize
+# DIRECTX(R)". Proton only forces ddraw=n,b for the Steam ids of these
+# titles, so detect the DLL on disk instead. d3d8/d3d9/dxgi are already
+# native under Proton (DXVK); mod-loader DLLs are left to the user.
+BUNDLED_WRAPPER_DLLS: tuple[str, ...] = ("ddraw", "dinput")
+
+
+def bundled_wrapper_dlls(*dirs: Any) -> tuple[str, ...]:
+    """The :data:`BUNDLED_WRAPPER_DLLS` present in any of ``dirs``."""
+    from pathlib import Path
+    found: set[str] = set()
+    for d in dirs:
+        if not d:
+            continue
+        try:
+            names = {p.name.lower() for p in Path(d).iterdir() if p.is_file()}
+        except OSError:
+            continue
+        found.update(
+            dll for dll in BUNDLED_WRAPPER_DLLS if f"{dll}.dll" in names
+        )
+    return tuple(dll for dll in BUNDLED_WRAPPER_DLLS if dll in found)
+
+
 _UMU_DATABASE_URL_FORMATS = [
     ("https://raw.githubusercontent.com/Open-Wine-Components/"
      "umu-database/main/umu-egs-{game_id}.json"),
