@@ -1,4 +1,4 @@
-"""GameVault archive handling — detect the format, unpack it.
+"""Archive handling — detect the format, unpack it.
 
 The archive is whatever its owner put in the library, so the format is
 discovered from magic bytes rather than the filename, and unpacking anything

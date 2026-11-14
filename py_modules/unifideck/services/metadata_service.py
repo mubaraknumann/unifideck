@@ -505,7 +505,7 @@ class MetadataService(_SteamMetadataMixin):
         if not force:
             served = await self._from_cache(game, cache_key)
             if served is not None:
-                return served
+                return metadata_sources.with_catalog_release_date(game, served)
 
         # Cache miss — fetch
         logger.debug("[MetadataService] Fetching metadata for %s", game.title)
@@ -534,5 +534,5 @@ class MetadataService(_SteamMetadataMixin):
         except Exception as e:
             logger.warning("[MetadataService] Failed to cache metadata for %s: %s", cache_key, e)
 
-        return merged
+        return metadata_sources.with_catalog_release_date(game, merged)
 

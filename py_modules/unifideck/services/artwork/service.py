@@ -24,6 +24,7 @@ from .fetcher import download_and_save, get_missing_kinds
 from .store_metadata import (
     fetch_store_fallback_urls,
     fetch_store_urls,
+    romm_cover_urls,
     steam_cdn_urls,
     steam_search_appid,
 )
@@ -223,6 +224,8 @@ class ArtworkService(_EventHandlersMixin):
             # record written before phase 4 existed would otherwise hide the
             # cover forever; once the kind is filled the set changes anyway.
             set(fetch_store_fallback_urls(store, extras)) & target
+            # User-selected covers can appear after a title-based lookup failed.
+            or (store == "romm" and set(romm_cover_urls(extras or {})) & target)
         ):
             logger.debug(
                 "[ArtworkService] skipping %s: missing set unchanged (%s)",

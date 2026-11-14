@@ -140,6 +140,7 @@ A connector sub-package for each store (the set is `bootstrap/cache_registry._ST
 | `stores/battlenet/` | Battle.net              | Battle.net client in a Wine prefix   |
 | `stores/microsoft/` | Xbox Cloud Gaming + owned Xbox purchases + Xbox PC games (opt-in) | xbox.com device-code sign-in in the Edge window; Collections for ownership (`ownership/`). Xbox PC titles come from our own `xodus-cli` build (`xodus/` runs it, `pc_library/` turns its library into rows) |
 | `stores/gamevault/` | GameVault (self-hosted) | The user's own server over HTTP, or a local folder of archives |
+| `stores/romm/`      | RomM (self-hosted)      | Linux and Windows game archives from the user's own RomM server over HTTP |
 | `stores/itch/`      | itch.io                 | `bin/butler/butler`, run as the butlerd JSON-RPC daemon |
 
 ### Layer 5 — `services/`
@@ -175,7 +176,7 @@ The `Plugin` class in `main.py` is composed from the RPC mixin classes enumerate
 
 | Mixin                      | Surface (representative)                                                        |
 | -------------------------- | ------------------------------------------------------------------------------- |
-| `StoreRPCMixin`            | `check_store_status`, `get_store_infos`, `store_auth`, `connect_gamevault`, `connect_gamevault_local`, `clear_store_auths` |
+| `StoreRPCMixin`            | `check_store_status`, `get_store_infos`, `store_auth`, `connect_gamevault`, `connect_gamevault_local`, `connect_romm`, `poll_romm_pairing`, `complete_romm_connection`, `cancel_romm_connection`, `clear_store_auths` |
 | `SyncRPCMixin`             | `sync_libraries`, `force_sync_libraries`, `get_game_info`, `get_sync_progress`   |
 | `DownloadRPCMixin`         | `install_game`, `uninstall_game`, `update_game`, `cancel_download`, `get_download_queue`, `get_available_updates` |
 | `StorageRPCMixin`          | `get_storage_locations`, `get_browseable_devices`, `set_custom_install_path`    |

@@ -1,30 +1,16 @@
-"""GameVault library reading — the shared overlay, plus the remote catalog.
-
-:class:`GameVaultLibraryReader` is mode-agnostic: it asks a
-:class:`~.sources.CatalogSource` what games exist and overlays what is
-installed on this device. The dangerous rule — a failed read must raise, not
-return a short list — lives here so both modes obey it by construction rather
-than by each remembering to.
-
-:class:`RemoteCatalog` is the source for a self-hosted server. The local one
-is :class:`~.local_catalog.LocalVaultCatalog`.
-"""
+"""GameVault remote catalog reader."""
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
 from unifideck.core.types import Game
-from unifideck.stores.shared.install_status import merge_install_status
 
 from .filename import leaf_name, parse_archive_name, strip_source_tags
 
 if TYPE_CHECKING:
     from .auth import GameVaultAuth
-    from .install import GameVaultInstaller
-    from .sources import CatalogSource
 
 logger = logging.getLogger(__name__)
 
@@ -41,73 +27,6 @@ class GameVaultFetchError(RuntimeError):
     the reconcile acts on, and acting on a failed fetch is what removes a
     user's shortcuts.
     """
-
-
-class GameVaultLibraryReader:
-    """Turns a catalog into a library, with install state overlaid."""
-
-    def __init__(
-        self, installer: GameVaultInstaller, catalog: CatalogSource,
-    ) -> None:
-        self._installer = installer
-        self._catalog = catalog
-
-    async def get_library(self, *, force: bool = False) -> list[Game]:
-        """Every owned game, or raise if the catalog could not be read.
-
-        **Never returns a short list on failure.** A store that answers a
-        sync with fewer games than the user has is indistinguishable from
-        one whose library shrank, and the shortcut reconcile believes it:
-        the missing games' shortcuts get swept. A catalog that cannot answer
-        therefore raises :class:`GameVaultFetchError`, which
-        ``GameVaultStore.get_library`` turns into ``None`` — the documented
-        "could not answer" signal that leaves the existing shortcuts alone.
-
-        This matters for both modes and for the same reason. Remote talks to
-        a home server that is offline routinely; local reads a folder that
-        may be on an SD card that has not mounted yet.
-        """
-        del force  # neither catalog caches; accepted for interface parity
-        games = await self._catalog.fetch()
-        # Off the event loop: the marker read and the per-install ``is_dir``
-        # can both land on a sleeping SD card.
-        installed = await asyncio.to_thread(self._installer.get_installed)
-        # A marker can outlive its directory (a manual ``rm``, a wiped SD
-        # card), so the shared overlay re-checks every path against disk.
-        # Without that a game with no files reads as installed: Steam shows
-        # PLAY and the QAM Installed list shows a row with no size.
-        #
-        # ``exe_key`` is deliberately left unset, so no exe is carried. The
-        # launch target is written once, at install time, and after that it
-        # belongs to the user: a GameVault archive is whatever its owner
-        # uploaded, so the auto-detected executable is a guess more often
-        # than for any other store, and Change Executable is the fix.
-        # Reconcile only overwrites a games.map row when the synced game
-        # carries an exe, so by carrying none a sync can never revert that
-        # choice. (Epic and Amazon behave the same way; GOG carries one
-        # because it must discover installs it did not perform.)
-        games = await asyncio.to_thread(merge_install_status, games, installed)
-        _log_missing_installs(games, installed)
-        logger.info("[GameVaultLibrary] %d game(s) resolved", len(games))
-        return games
-
-
-def _log_missing_installs(
-    games: list[Game], installed: dict[str, dict[str, Any]],
-) -> None:
-    """Say which install markers were ignored because their folder is gone.
-
-    The marker is kept, never deleted: if the folder comes back (the SD
-    card is re-inserted), the next sync reads the game as installed again.
-    """
-    for game in games:
-        marker = installed.get(game.store_game_id)
-        if marker and marker.get("install_path") and not game.installed:
-            logger.info(
-                "[GameVaultLibrary] %s (%s) has an install marker but its "
-                "folder %s is missing; showing it as not installed",
-                game.title, game.store_game_id, marker.get("install_path"),
-            )
 
 
 class RemoteCatalog:

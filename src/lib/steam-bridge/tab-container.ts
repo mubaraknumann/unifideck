@@ -102,9 +102,15 @@ export function getUnifideckTabs(): UnifideckTab[] {
       filters: [{ type: "store", params: { store: "gamevault" } }],
     },
     {
+      id: "unifideck-romm",
+      title: t("deckTabs.romm"),
+      position: 11,
+      filters: [{ type: "store", params: { store: "romm" } }],
+    },
+    {
       id: "unifideck-itch",
       title: t("deckTabs.itch"),
-      position: 11,
+      position: 12,
       filters: [{ type: "store", params: { store: "itch" } }],
     },
     {
@@ -112,7 +118,7 @@ export function getUnifideckTabs(): UnifideckTab[] {
       // before it takes its number and this one moves down.
       id: "unifideck-nonsteam",
       title: t("deckTabs.nonSteam"),
-      position: 12,
+      position: 13,
       filters: [{ type: "nonSteam", params: {} }],
     },
   ];
@@ -393,6 +399,7 @@ type ConnectableStore =
   | "battlenet"
   | "microsoft"
   | "gamevault"
+  | "romm"
   | "itch";
 
 class TabManager {
@@ -406,6 +413,7 @@ class TabManager {
     battlenet: 0,
     microsoft: 0,
     gamevault: 0,
+    romm: 0,
     itch: 0,
   };
   private signedOut = new Set<string>();
@@ -475,6 +483,7 @@ class TabManager {
       "unifideck-battlenet": "battlenet",
       "unifideck-microsoft": "microsoft",
       "unifideck-gamevault": "gamevault",
+      "unifideck-romm": "romm",
       "unifideck-itch": "itch",
     };
     const store = m[id];
