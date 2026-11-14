@@ -147,7 +147,7 @@ export const GameVaultCredentialsModal: FC<Props> = ({
           label={t("gamevault.password")}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          bIsPassword
+          {...{ type: "password" }}
         />
 
         {/* ── TLS toggle ───────────────────────────────────────── */}
