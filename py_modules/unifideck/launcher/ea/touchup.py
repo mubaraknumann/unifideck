@@ -27,6 +27,7 @@ from unifideck.utils.config_helpers import read_config_str_cold_start
 
 from . import maxima
 from .records import InstallRecord, read_record
+from .touchup_restore import restore_moved_files
 
 if TYPE_CHECKING:
     from unifideck.launcher.types.context import LaunchContext, RuntimeState
@@ -67,6 +68,8 @@ async def run_touchup(
     for key, value in (session_env or {}).items():
         env.setdefault(key, value)
     env.update({**maxima.base_env(), **maxima.prefix_env(prefix, proton_script, umu_run)})
+    # A new prefix for a build Touchup already ran on: its moves must be undone first.
+    await asyncio.to_thread(restore_moved_files, Path(record.install_path))
     rc, output = await _run_cli(cli, ["touchup", "--path", record.install_path], env)
     if rc != 0:
         logger.error("[EA] Touchup failed for %s (exit %s): %s", record.game_id, rc, output[-_TAIL_CHARS:].strip())

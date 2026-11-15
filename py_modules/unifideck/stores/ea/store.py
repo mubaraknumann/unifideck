@@ -151,5 +151,5 @@ class EAStore(BrowserAuthRebuildMixin, StoreBase):
         return record.install_path if record else None
 
     async def get_game_size(self, game_id: str) -> int | None:
-        """Unknown before download: EA reports sizes only for a build being fetched."""
-        return None
+        """Installed size of the live build, from its archive index (no download)."""
+        return await self._installer.size(game_id)

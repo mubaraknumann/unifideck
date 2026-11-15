@@ -53,7 +53,7 @@ async def test_sidecar_hands_over_its_env_and_stops_on_stdin_close(home: Path) -
     assert running.env == {"EALsxPort": "3216", "MXLaunchId": "abc"}
     await running.stop()
     assert running._proc.returncode == 0
-    assert "licence requested" in (home / ".local/share/unifideck/ea/maxima/launch-prepare.log").read_text()
+    assert "licence requested" in (home / ".local/share/unifideck/ea/maxima/launch-prepare-OFB-EAST_59474.log").read_text()
 
 
 async def test_sidecar_that_exits_early_reports_its_log(home: Path) -> None:
@@ -62,6 +62,22 @@ async def test_sidecar_that_exits_early_reports_its_log(home: Path) -> None:
         await sidecar_mod.start_sidecar(cli, "OFB-EAST:59474", home / "Game.exe", {"PATH": "/usr/bin:/bin"})
     assert err.value.returncode == 1
     assert "Not signed in" in err.value.detail
+    assert err.value.licence_refusal is None
+
+
+_RAW_REFUSAL = (
+    'ERROR - license request failed: `<?xml version="1.0"?><error code="CG_LIMIT_EXCEEDED">'
+    '<eadmToken value="SECRET-TOKEN"/></error>`'
+)
+
+
+@pytest.mark.parametrize("line", [_RAW_REFUSAL, "ERROR - license request refused: CG_LIMIT_EXCEEDED"])
+async def test_a_refused_licence_names_its_code_and_never_the_token(home: Path, line: str) -> None:
+    cli = _script(home, _FAKE_FAILS.replace("ERROR - Not signed in", line))
+    with pytest.raises(sidecar_mod.SidecarError) as err:
+        await sidecar_mod.start_sidecar(cli, "OFB-EAST:59474", home / "Game.exe", {"PATH": "/usr/bin:/bin"})
+    assert err.value.licence_refusal == "CG_LIMIT_EXCEEDED"
+    assert "SECRET-TOKEN" not in str(err.value)
 
 
 def _plan(home: Path) -> MagicMock:
@@ -88,7 +104,7 @@ async def test_the_game_runs_with_the_sidecar_env_and_the_sidecar_always_stops(
     home: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _install(home)
-    running = MagicMock(env={"EALsxPort": "3216"}, stop=AsyncMock())
+    running = MagicMock(env={"EALsxPort": "3216"}, stop=AsyncMock(), origin_standin=None)
     seen: dict[str, Any] = {}
 
     async def fake_umu(argv: list[str], **kw: Any) -> int:
@@ -113,3 +129,67 @@ async def test_the_game_runs_with_the_sidecar_env_and_the_sidecar_always_stops(
 async def test_launch_without_an_install_record_is_refused(home: Path) -> None:
     with pytest.raises(GameNotFoundError):
         await handler.ea_launch(_plan(home))
+
+
+_VC90 = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+    <noInheritable></noInheritable>
+    <assemblyIdentity type="win32" name="Microsoft.VC90.CRT" version="9.0.21022.8" processorArchitecture="x86" publicKeyToken="1fc8b3b9a1e18e3b"></assemblyIdentity>
+    <file name="msvcr90.dll"></file>
+</assembly>
+"""
+
+
+def test_bundled_vc90_without_an_exe_manifest_gets_one(tmp_path: Path) -> None:
+    from unifideck.launcher.proton.compat.app_local_crt import ensure_crt_activation_manifest
+
+    exe = tmp_path / "Game.exe"
+    exe.write_bytes(b"MZ\x00no manifest here")
+    (tmp_path / "Microsoft.VC90.CRT.manifest").write_text(_VC90)
+
+    assert ensure_crt_activation_manifest(exe)
+    written = (tmp_path / "Game.exe.manifest").read_text()
+    assert 'name="Microsoft.VC90.CRT" version="9.0.21022.8"' in written
+    assert 'publicKeyToken="1fc8b3b9a1e18e3b"' in written
+    assert not ensure_crt_activation_manifest(exe)  # already there: untouched
+
+
+def test_working_games_are_left_alone(tmp_path: Path) -> None:
+    from unifideck.launcher.proton.compat.app_local_crt import ensure_crt_activation_manifest
+
+    exe = tmp_path / "Game.exe"
+    exe.write_bytes(b"MZ\x00no manifest here")
+    assert not ensure_crt_activation_manifest(exe)  # no bundled runtime
+    (tmp_path / "Microsoft.VC90.CRT.manifest").write_text(_VC90)
+    exe.write_bytes(b"MZ\x00<assembly xmlns='urn:schemas-microsoft-com:asm.v1'>")
+    assert not ensure_crt_activation_manifest(exe)  # the exe embeds its own manifest
+    assert not (tmp_path / "Game.exe.manifest").exists()
+
+
+async def test_standin_runs_while_the_game_plays_and_stops_with_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import asyncio
+    import os
+
+    from unifideck.launcher.ea import standin
+
+    pid_file = tmp_path / "standin.pid"
+    script = tmp_path / "standin.sh"
+    script.write_text(f"#!/bin/sh\necho $$ > {pid_file}\nexec sleep 60\n")
+    script.chmod(0o755)
+    monkeypatch.setattr(standin, "START_DELAY_S", 0)
+    monkeypatch.setattr(standin, "POLL_S", 0.05)
+
+    game_done = asyncio.Event()
+    task = asyncio.create_task(standin.run_standin([str(script)], dict(os.environ), "Game.exe", tmp_path, game_done))
+    for _ in range(100):
+        if pid_file.exists() and pid_file.read_text().strip():
+            break
+        await asyncio.sleep(0.05)
+    pid = int(pid_file.read_text())
+    os.kill(pid, 0)  # running while the game plays
+    game_done.set()
+    await asyncio.wait_for(task, 15)
+    with pytest.raises(ProcessLookupError):
+        os.kill(pid, 0)

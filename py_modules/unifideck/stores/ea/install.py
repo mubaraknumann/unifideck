@@ -182,6 +182,17 @@ class EAInstaller:
             logger.warning("%s could not read the live build of %s: %s", _LOG, game_id, e)
             return None
 
+    async def size(self, game_id: str) -> int | None:
+        """Space the live build takes once installed, before downloading it."""
+        entry = await self._entry(game_id)
+        if entry is None:
+            return None
+        try:
+            return await self._cli.build_size(str(entry["offer_id"]))
+        except MaximaCliError as e:
+            logger.warning("%s could not read the size of %s: %s", _LOG, game_id, e)
+            return None
+
     async def uninstall(self, game_id: str) -> Result:
         """Delete the game folder and its record. The prefix is the RPC's job."""
         record = await asyncio.to_thread(read_record, game_id)

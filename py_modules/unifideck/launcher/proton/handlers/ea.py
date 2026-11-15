@@ -15,13 +15,16 @@ Before it, two EA-only steps:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from pathlib import Path
 
 from unifideck.launcher.ea import maxima
 from unifideck.launcher.ea.records import InstallRecord, read_record
 from unifideck.launcher.ea.sidecar import Sidecar, SidecarError, start_sidecar
+from unifideck.launcher.ea.standin import run_standin
 from unifideck.launcher.ea.touchup import prepare_prefix
+from unifideck.launcher.proton.compat.app_local_crt import ensure_crt_activation_manifest
 from unifideck.launcher.proton.infrastructure.core import ProtonLaunchPlan
 from unifideck.launcher.proton.infrastructure.game_exit import finish_game_run
 from unifideck.launcher.proton.infrastructure.umu_runtime import run_umu_with_retry
@@ -39,9 +42,11 @@ logger = logging.getLogger(__name__)
 async def ea_launch(plan: ProtonLaunchPlan) -> int:
     """Prepare the prefix, start the sidecar, run the game, stop the sidecar."""
     record, cli = await _resolve(plan)
+    # Games that bundle a VC++ 2005/2008 runtime but declare no manifest die with R6034.
+    await asyncio.to_thread(ensure_crt_activation_manifest, plan.context.exe_path)
     sidecar = await _start_sidecar(plan, record, cli)
     try:
-        rc = await _run_game(plan, sidecar.env)
+        rc = await _run_game(plan, sidecar)
     finally:
         await sidecar.stop()
     return finish_game_run(plan, rc)
@@ -69,16 +74,35 @@ async def _start_sidecar(plan: ProtonLaunchPlan, record: InstallRecord, cli: Pat
     try:
         return await start_sidecar(cli, record.offer_id, ctx.exe_path, env)
     except SidecarError as e:
+        refusal = e.licence_refusal
+        if refusal:
+            # CG_LIMIT_EXCEEDED: too many activations of this game lately; EA lifts it with time.
+            logger.warning("[EA] EA's licence service refused %s: %s", record.offer_id, refusal)
         raise GameFailedError(
-            "EA licence or LSX unavailable", subprocess_rc=e.returncode or -1,
+            f"EA refused the game licence ({refusal})" if refusal else "EA licence or LSX unavailable",
+            subprocess_rc=e.returncode or -1,
             context={"store": "ea", "game_id": ctx.game_id, "detail": e.detail[-300:]},
         ) from e
 
 
-async def _run_game(plan: ProtonLaunchPlan, launch_env: dict[str, str]) -> int:
+async def _run_game(plan: ProtonLaunchPlan, sidecar: Sidecar) -> int:
+    """The game under umu, with the Origin client stand-in beside it when there is one."""
     exe = plan.context.exe_path
     argv = [str(plan.python_bin), str(plan.umu_wrapper), str(exe), *plan.state.game_args]
     cwd = exe.parent if exe.parent.is_dir() else None
-    return await run_umu_with_retry(
-        argv, env={**plan.env, **launch_env}, cwd=cwd, on_start=plan.on_process_start,
-    )
+    env = {**plan.env, **sidecar.env}
+    game_done = asyncio.Event()
+    standin = None
+    if sidecar.origin_standin and plan.state.prefix_path:
+        standin = asyncio.create_task(run_standin(
+            [str(plan.python_bin), str(plan.umu_wrapper), sidecar.origin_standin],
+            env, exe.name, plan.state.prefix_path, game_done,
+        ))
+    try:
+        return await run_umu_with_retry(argv, env=env, cwd=cwd, on_start=plan.on_process_start)
+    finally:
+        game_done.set()
+        if standin is not None:
+            standin.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await standin

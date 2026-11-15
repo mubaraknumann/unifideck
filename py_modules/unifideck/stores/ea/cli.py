@@ -148,3 +148,9 @@ class MaximaCli:
         live = value.get("live")
         build = live.get("buildId") if isinstance(live, dict) else None
         return str(build) if build else None
+
+    async def build_size(self, offer_id: str) -> int | None:
+        """Installed bytes of EA's live build, read from its archive index."""
+        value = await self._json(["build-size", "--offer-id", offer_id], LIBRARY_TIMEOUT_S)
+        size = value.get("install_bytes")
+        return int(size) if isinstance(size, int) and size > 0 else None

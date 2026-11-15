@@ -97,3 +97,10 @@ async def test_missing_binary_is_reported_not_raised_as_oserror(tmp_path: Path) 
     with pytest.raises(MaximaCliError) as err:
         await MaximaCli(None, data_dir=tmp_path / "data").signed_in()
     assert err.value.code == "cli_missing"
+
+
+async def test_build_size_reads_installed_bytes(tmp_path: Path) -> None:
+    cli_path, record = _fake_cli(tmp_path, stdout='{"build_id":"/b.zip","download_bytes":7203881970,"install_bytes":7500000000}\n')
+    cli = MaximaCli(cli_path, data_dir=tmp_path / "data")
+    assert await cli.build_size("OFB-EAST:59474") == 7500000000
+    assert json.loads(record.read_text())["argv"] == ["build-size", "--offer-id", "OFB-EAST:59474"]
