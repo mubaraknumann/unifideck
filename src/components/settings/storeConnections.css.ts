@@ -1,18 +1,16 @@
 /**
- * Scoped CSS for the STORE CONNECTIONS rows.
+ * Scoped CSS for the STORE CONNECTIONS rows and their options modal.
  *
  * Rendered ONCE by `StoreConnections`, not per row: the QAM is its own
  * CEF document, so the styles have to travel with the component, but
  * they only need to arrive once (same reason `play.css.ts` exists).
  *
- * Each store is one row — icon, name, one line of status, chevron — that
- * expands to full-width action buttons. The status and chevron columns
- * are fixed-width so every row lines up, and long status text is cut off
- * with an ellipsis before it can push the chevron.
+ * Each store is one row — icon, name, one line of status, options button.
+ * The button opens `StoreOptionsModal`, which holds the full-width actions.
+ * The status and button columns are fixed-width so every row lines up, and
+ * long status text is cut off with an ellipsis before it can push the button.
  *
- * The header's focus treatment is load-bearing: the whole row is one
- * gamepad target, and the user has to see at arm's length which row the
- * D-pad is on.
+ * Only the options button takes focus; the rest of the row is a label.
  */
 
 export const STORE_ROW_CSS = `
@@ -25,12 +23,6 @@ export const STORE_ROW_CSS = `
   padding-block: 2px;
   padding-inline: 6px;
   border-radius: 4px;
-  cursor: pointer;
-}
-.unifideck-store-row-header:hover,
-.unifideck-store-row-header:focus,
-.unifideck-store-row-header.gpfocus {
-  background: rgba(255, 255, 255, 0.12);
 }
 .unifideck-store-row-name {
   flex: 1 1 auto;
@@ -54,22 +46,25 @@ export const STORE_ROW_CSS = `
   opacity: 1;
 }
 
-/* One down-pointing icon, rotated to point at the row's end while
-   collapsed. It never moves, only turns. The rotation flips under RTL so
-   the collapsed chevron always points away from the text. */
-.unifideck-store-row-chevron {
-  flex: 0 0 16px;
+/* The row's only focus target besides its own text: the options button. */
+.unifideck-store-row-options {
+  flex: 0 0 auto;
   display: inline-flex;
+  align-items: center;
   justify-content: center;
-  transform: rotate(-90deg);
-  transition: transform 0.15s ease;
+  min-width: 0 !important;
+  width: 32px;
+  height: 28px;
+  padding: 0 !important;
 }
-[dir="rtl"] .unifideck-store-row-chevron,
-.unifideck-store-row-chevron:dir(rtl) {
-  transform: rotate(90deg);
-}
-.unifideck-store-row.expanded .unifideck-store-row-chevron {
-  transform: rotate(0deg);
+
+.unifideck-store-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 4px;
 }
 
 /* Actions sit under the row with the same side margins as the row itself,

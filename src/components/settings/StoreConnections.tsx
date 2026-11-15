@@ -3,25 +3,39 @@
  *
  * Each row shows the store's icon (white when signed in, grey when not —
  * the only signed-out cue, the status text stays blank), its localised
- * name and one line of status text, and expands to
- * full-width actions: Sync games, Sync images, Open store, Sign in/out.
- * "All stores" expands to Sync all games, Sync all images and Cancel.
+ * name, one line of status text and a three-dot button. The button opens
+ * `StoreOptionsModal` with the actions: Sync games, Sync images, Open
+ * store, Sign in/out. "All stores" offers Sync all games, Sync all images
+ * and Cancel. Every action closes the modal, so its result shows in the
+ * row's status line.
  *
  * A sign-in waiting on the user (the Microsoft device-code flow) shows
- * its code beneath the store's row whether or not the row is open.
+ * its code beneath the store's row, without opening the modal.
  *
  * Status comes from the per-store rows the backend reports on
  * `get_sync_progress` (`SyncProgress.stores`, `store_summary`,
- * `queued`) and is worded by `storeStatus.ts`. Only one row is open at
- * a time; which one is remembered across QAM close/reopen.
+ * `queued`) and is worded by `storeStatus.ts`.
  *
  * Driver hooks (`useStores`, `useStoreAuth`, `useSync`) come from the
  * current architecture so the data plane is unchanged.
  */
-import { FC, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { PanelSection, Focusable, DialogButton } from "@decky/ui";
+import {
+  ComponentProps,
+  FC,
+  ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { PanelSection, Focusable, DialogButton, showModal } from "@decky/ui";
 import { useTranslation } from "react-i18next";
-import { FaImage, FaLayerGroup, FaSync, FaTimes } from "react-icons/fa";
+import {
+  FaEllipsisV,
+  FaImage,
+  FaLayerGroup,
+  FaSync,
+  FaTimes,
+} from "react-icons/fa";
 import { useStores } from "../../contexts/StoreContext";
 import { useSync } from "../../contexts/SyncContext";
 import { useStoreAuth } from "../../hooks/useStoreAuth";
@@ -31,11 +45,12 @@ import { syncStore } from "../../stores/sync-store";
 import { AuthDispatcher } from "../../services/auth/AuthDispatcher";
 import { usePendingSignIn } from "../../stores/pending-signin-store";
 import { StoreIcon } from "../shared/StoreIcon";
-import { ExpandableRow } from "./ExpandableRow";
+import { StoreOptionsModal } from "../modals/StoreOptionsModal";
 import { StoreAuthButton } from "./StoreAuthButton";
 import { StoreStorefrontButton } from "./StoreStorefrontButton";
 import { STORE_ROW_CSS } from "./storeConnections.css";
 import {
+  type StoreStatusLine,
   formatAllStoresStatus,
   formatStoreStatus,
   isQueued,
@@ -117,9 +132,6 @@ const PendingSignInRow: FC<{ storeId: StoreId }> = ({ storeId }) => {
  */
 const LISTED_LAST: readonly StoreId[] = ["gamevault"];
 
-/** Key of the "All stores" row in the open-row state. */
-const ALL_STORES_ROW = "__all__";
-
 /** How long "Done" / "Cancelled" shows before the row goes back to idle. */
 const FINISHED_VISIBLE_MS = 4000;
 
@@ -129,26 +141,6 @@ const IN_RUN_STATES: readonly StoreSyncState[] = [
   "active",
   "waiting",
 ];
-
-/**
- * The nearest ancestor that actually scrolls — the Quick Access panel's
- * scroll container, which belongs to Steam rather than to us.
- */
-function scrollParent(el: HTMLElement | null): HTMLElement | null {
-  for (let node = el?.parentElement; node; node = node.parentElement) {
-    const { overflowY } = window.getComputedStyle(node);
-    if (
-      (overflowY === "auto" || overflowY === "scroll") &&
-      node.scrollHeight > node.clientHeight
-    ) {
-      return node;
-    }
-  }
-  return null;
-}
-
-/** The open row, kept across QAM mount/unmount like the active tab. */
-let persistentExpanded: string | null = null;
 
 /**
  * True for a few seconds after `state` turns `done` / `cancelled`.
@@ -175,17 +167,61 @@ function useRecentlyFinished(state: StoreSyncState | undefined): boolean {
 }
 
 interface RowProps {
-  expanded: boolean;
-  onToggle: (row: HTMLElement | null) => void;
   /** Cooldown after a run ends, shared by every sync button. */
   canSync: boolean;
+}
+
+/**
+ * One row: icon, name, status line and the options button. Not focusable
+ * itself; the button is the row's single gamepad target.
+ */
+const OptionsRow: FC<{
+  icon: ReactNode;
+  label: string;
+  status: StoreStatusLine;
+  onOptions: () => void;
+}> = ({ icon, label, status, onOptions }) => (
+  <div className="unifideck-store-row-header">
+    {icon}
+    <span className="unifideck-store-row-name">{label}</span>
+    <span
+      className={`unifideck-store-row-status${
+        status.tone === "error" ? " error" : ""
+      }`}
+    >
+      {status.text}
+    </span>
+    <DialogButton
+      className="unifideck-store-row-options"
+      aria-label={label}
+      onClick={onOptions}
+    >
+      <FaEllipsisV size={12} />
+    </DialogButton>
+  </div>
+);
+
+/**
+ * Opens the options modal. Each action is wrapped to close it first, so a
+ * sign-in's own modal never stacks on this one.
+ */
+function openOptions(
+  props: Omit<
+    ComponentProps<typeof StoreOptionsModal>,
+    "onCancel" | "children"
+  >,
+  actions: (close: () => void) => ReactNode,
+): void {
+  const handle = showModal(
+    <StoreOptionsModal {...props} onCancel={() => handle.Close()}>
+      {actions(() => handle.Close())}
+    </StoreOptionsModal>,
+  );
 }
 
 const StoreRow: FC<RowProps & { storeId: StoreId; displayName: string }> = ({
   storeId,
   displayName,
-  expanded,
-  onToggle,
   canSync,
 }) => {
   const { t } = useTranslation();
@@ -206,28 +242,26 @@ const StoreRow: FC<RowProps & { storeId: StoreId; displayName: string }> = ({
   const inRun =
     sync.isSyncing && row !== undefined && IN_RUN_STATES.includes(row.state);
   const syncDisabled = inRun || queued || !canSync;
+  const icon = (
+    <StoreIcon
+      store={storeId}
+      size="18px"
+      color={isConnected ? "#fff" : "#8b929a"}
+    />
+  );
 
-  return (
-    <>
-      <ExpandableRow
-        icon={
-          <StoreIcon
-            store={storeId}
-            size="18px"
-            color={isConnected ? "#fff" : "#8b929a"}
-          />
-        }
-        label={displayName}
-        status={line}
-        expanded={expanded}
-        onToggle={onToggle}
-      >
+  const onOptions = (): void =>
+    openOptions({ icon, title: displayName, status: line }, (close) => (
+      <>
         {isConnected && (
           <>
             <DialogButton
               className="unifideck-store-action"
               disabled={syncDisabled}
-              onClick={() => void sync.syncGames([storeId])}
+              onClick={() => {
+                close();
+                void sync.syncGames([storeId]);
+              }}
             >
               <FaSync />
               {t("storeConnections.syncGames")}
@@ -235,7 +269,10 @@ const StoreRow: FC<RowProps & { storeId: StoreId; displayName: string }> = ({
             <DialogButton
               className="unifideck-store-action"
               disabled={syncDisabled}
-              onClick={() => void sync.syncImages([storeId])}
+              onClick={() => {
+                close();
+                void sync.syncImages([storeId]);
+              }}
             >
               <FaImage />
               {t("storeConnections.syncImages")}
@@ -247,22 +284,39 @@ const StoreRow: FC<RowProps & { storeId: StoreId; displayName: string }> = ({
             store={storeId}
             isConnected={isConnected}
             busy={busy}
+            onPress={close}
           />
         )}
         <StoreAuthButton
           store={storeId}
           status={status ?? "disconnected"}
           busy={busy}
-          onConnect={() => void connect()}
-          onDisconnect={() => void disconnect()}
+          onConnect={() => {
+            close();
+            void connect();
+          }}
+          onDisconnect={() => {
+            close();
+            void disconnect();
+          }}
         />
-      </ExpandableRow>
+      </>
+    ));
+
+  return (
+    <>
+      <OptionsRow
+        icon={icon}
+        label={displayName}
+        status={line}
+        onOptions={onOptions}
+      />
       <PendingSignInRow storeId={storeId} />
     </>
   );
 };
 
-const AllStoresRow: FC<RowProps> = ({ expanded, onToggle, canSync }) => {
+const AllStoresRow: FC<RowProps> = ({ canSync }) => {
   const { t } = useTranslation();
   const sync = useSync();
   const progress = sync.progress;
@@ -275,44 +329,54 @@ const AllStoresRow: FC<RowProps> = ({ expanded, onToggle, canSync }) => {
   );
   // Everything is already queued; another press would add nothing.
   const disabled = !canSync || progress?.queued?.stores === null;
+  const label = t("storeConnections.allStores");
+  const icon = <FaLayerGroup size={18} />;
 
-  return (
-    <ExpandableRow
-      icon={<FaLayerGroup size={18} />}
-      label={t("storeConnections.allStores")}
-      status={line}
-      expanded={expanded}
-      onToggle={onToggle}
-    >
-      <DialogButton
-        className="unifideck-store-action"
-        disabled={disabled}
-        onClick={() => void sync.syncGames()}
-      >
-        <FaSync />
-        {t("storeConnections.syncAllGames")}
-      </DialogButton>
-      <DialogButton
-        className="unifideck-store-action"
-        disabled={disabled}
-        onClick={() => void sync.syncImages()}
-      >
-        <FaImage />
-        {t("storeConnections.syncAllImages")}
-      </DialogButton>
-      {sync.isSyncing && (
+  const onOptions = (): void =>
+    openOptions({ icon, title: label, status: line }, (close) => (
+      <>
         <DialogButton
           className="unifideck-store-action"
-          disabled={sync.isCancelling}
-          onClick={() => void sync.cancelSync()}
+          disabled={disabled}
+          onClick={() => {
+            close();
+            void sync.syncGames();
+          }}
         >
-          <FaTimes />
-          {sync.isCancelling
-            ? t("storeConnections.cancelling")
-            : t("storeConnections.cancelSync")}
+          <FaSync />
+          {t("storeConnections.syncAllGames")}
         </DialogButton>
-      )}
-    </ExpandableRow>
+        <DialogButton
+          className="unifideck-store-action"
+          disabled={disabled}
+          onClick={() => {
+            close();
+            void sync.syncImages();
+          }}
+        >
+          <FaImage />
+          {t("storeConnections.syncAllImages")}
+        </DialogButton>
+        {sync.isSyncing && (
+          <DialogButton
+            className="unifideck-store-action"
+            disabled={sync.isCancelling}
+            onClick={() => {
+              close();
+              void sync.cancelSync();
+            }}
+          >
+            <FaTimes />
+            {sync.isCancelling
+              ? t("storeConnections.cancelling")
+              : t("storeConnections.cancelSync")}
+          </DialogButton>
+        )}
+      </>
+    ));
+
+  return (
+    <OptionsRow icon={icon} label={label} status={line} onOptions={onOptions} />
   );
 };
 
@@ -320,38 +384,12 @@ export const StoreConnections: FC = () => {
   const { t } = useTranslation();
   const { stores, loading } = useStores();
   const cooldown = useSyncCooldown();
-  const [expanded, setExpanded] = useState<string | null>(persistentExpanded);
 
   // The status poll only runs while a sync does, so read the idle game
   // counts and sync times once when the panel opens.
   useEffect(() => {
     void syncStore.refresh();
   }, []);
-
-  // The tapped row and where its header sat on screen just before the
-  // toggle. Only one row is open at a time, so opening one can close
-  // another above it and pull the tapped header upward; the layout effect
-  // below scrolls by however far it moved, so what was tapped stays under
-  // the finger. Nothing else ever scrolls the panel on open — the content
-  // grows downward, and Steam brings a button into view when the D-pad
-  // reaches it.
-  const anchor = useRef<{ row: HTMLElement; top: number } | null>(null);
-
-  useLayoutEffect(() => {
-    const held = anchor.current;
-    anchor.current = null;
-    if (!held || !held.row.isConnected) return;
-    const moved = held.row.getBoundingClientRect().top - held.top;
-    const scroller = scrollParent(held.row);
-    if (moved !== 0 && scroller) scroller.scrollTop += moved;
-  }, [expanded]);
-
-  const toggle = (id: string, row: HTMLElement | null): void => {
-    anchor.current = row ? { row, top: row.getBoundingClientRect().top } : null;
-    const next = expanded === id ? null : id;
-    persistentExpanded = next;
-    setExpanded(next);
-  };
 
   if (loading) return null;
   // Stable sort: the backend's order holds within each group.
@@ -364,8 +402,7 @@ export const StoreConnections: FC = () => {
     <PanelSection title={t("storeConnections.title")}>
       {/* Rendered once for the whole section, not per row. */}
       <style>{STORE_ROW_CSS}</style>
-      {/* One column: each row is a single focus target, and an open row's
-          actions sit directly beneath it, so D-pad down walks into them. */}
+      {/* One column; each row's options button is its single focus target. */}
       <Focusable
         flow-children="column"
         style={{ display: "flex", flexDirection: "column", gap: 2 }}
@@ -375,16 +412,10 @@ export const StoreConnections: FC = () => {
             key={s.name}
             storeId={s.name}
             displayName={s.display_name}
-            expanded={expanded === s.name}
-            onToggle={(row) => toggle(s.name, row)}
             canSync={cooldown.canSync}
           />
         ))}
-        <AllStoresRow
-          expanded={expanded === ALL_STORES_ROW}
-          onToggle={(row) => toggle(ALL_STORES_ROW, row)}
-          canSync={cooldown.canSync}
-        />
+        <AllStoresRow canSync={cooldown.canSync} />
       </Focusable>
     </PanelSection>
   );

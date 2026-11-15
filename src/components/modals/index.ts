@@ -9,6 +9,7 @@
  *  - LanguageSelectModal      (multi-language installs: GOG, Epic)
  *  - GameVaultConnectModal    (remote server vs local vault chooser)
  *  - GameVaultLocalVaultModal (local vault folder setup)
+ *  - StoreOptionsModal        (per-store actions from the Stores rows)
  *  - XboxPcNoticeModal        (unofficial notice before Xbox PC games)
  *  - StorageBrowserModal      (full-screen path picker)
  *  - ToastEventListener       (event-driven toast / modal host)
@@ -26,6 +27,7 @@ export { GameVaultConnectModal } from "./GameVaultConnectModal";
 export { GameVaultCredentialsModal } from "./GameVaultCredentialsModal";
 export { GameVaultLocalVaultModal } from "./GameVaultLocalVaultModal";
 export { ChromiumInstallModal } from "./ChromiumInstallModal";
+export { StoreOptionsModal } from "./StoreOptionsModal";
 export { XboxPcNoticeModal } from "./XboxPcNoticeModal";
 export { PickStorageModal, pickStorageForInstall } from "./PickStorageModal";
 export { StoragePathPicker } from "./StoragePathPicker";
