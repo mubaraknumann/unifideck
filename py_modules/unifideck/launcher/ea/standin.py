@@ -10,7 +10,8 @@ connection without it, connected 10 s after launch with it.
 It is started inside the game's running session (``PROTON_VERB=runinprefix``)
 once the game is up: started first, it would hold the Wine server and the
 game's ``waitforexitandrun`` would wait for it. It is stopped as soon as the
-game's own exe has exited, so it never keeps the session alive.
+game's own exe has exited, its Wine process included, so it never keeps the
+session alive (it did once: the game had crashed, Steam still showed it running).
 
 Standard library only: the launcher runs on the system Python.
 """
@@ -28,12 +29,15 @@ logger = logging.getLogger(__name__)
 
 START_DELAY_S = 3.0
 POLL_S = 2.0
+#: The stand-in's file name, as ``unifideck-origin-standin`` installs it.
+STANDIN_EXE = "Origin.exe"
 
 
-def game_exe_running(exe_name: str, prefix: Path) -> bool:
-    """Whether a process of this prefix runs ``exe_name`` (Wine shows a Windows path)."""
+def prefix_pids(exe_name: str, prefix: Path) -> list[int]:
+    """Processes of this prefix running ``exe_name`` (Wine shows a Windows path)."""
     wanted = exe_name.lower()
     exact = f"WINEPREFIX={prefix}".encode()
+    found = []
     for entry in os.listdir("/proc"):
         if not entry.isdigit():
             continue
@@ -43,10 +47,27 @@ def game_exe_running(exe_name: str, prefix: Path) -> bool:
                 continue
             env = Path(f"/proc/{entry}/environ").read_bytes().split(b"\0")
             if any(item == exact or item.startswith(exact + b"/") for item in env):
-                return True
+                found.append(int(entry))
         except OSError:
             continue
-    return False
+    return found
+
+
+def game_exe_running(exe_name: str, prefix: Path) -> bool:
+    """Whether a process of this prefix runs ``exe_name``."""
+    return bool(prefix_pids(exe_name, prefix))
+
+
+def _end_standin_processes(prefix: Path) -> None:
+    """End the stand-in's Wine process itself.
+
+    Killing umu's process group does not reach it: Wine starts it under the
+    prefix's wineserver, outside that group. Left running, it holds the Wine
+    session open, so Proton waits forever and Steam shows the game running.
+    """
+    for pid in prefix_pids(STANDIN_EXE, prefix):
+        with contextlib.suppress(ProcessLookupError, PermissionError):
+            os.kill(pid, signal.SIGKILL)
 
 
 async def run_standin(
@@ -81,6 +102,7 @@ async def run_standin(
     finally:
         with contextlib.suppress(ProcessLookupError):
             os.killpg(proc.pid, signal.SIGTERM)
+        await asyncio.to_thread(_end_standin_processes, prefix)
         with contextlib.suppress(Exception):
             await asyncio.wait_for(proc.wait(), 10)
         logger.info("[EA] Origin client stand-in stopped")

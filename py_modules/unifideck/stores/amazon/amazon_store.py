@@ -25,7 +25,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from unifideck.auth.browser import OAuthBrowserMonitor
 from unifideck.auth.orchestrator import AuthOrchestrator
@@ -212,33 +212,8 @@ class AmazonStore(BrowserAuthRebuildMixin, StoreBase):
         return Result(success=written > 0, store="amazon")
 
     async def start_auth(self, **kwargs: Any) -> AuthResult:
-        """Start auth."""
-        # Late-bind auth in case injection happened after __init__
-        # without the rebuild hook (defensive).
-        self._rebuild_auth_after_injection()
-        if self._auth is None:
-            return AuthResult(
-                success=False,
-                error="auth_not_configured",
-                store="amazon",
-            )
-        # Edge prerequisite : the launcher subprocess opens
-        # the nile OAuth URL inside Microsoft Edge. Returning
-        # a structured `edge_not_installed` here lets the
-        # frontend spawn the install modal instead of letting
-        # the launcher subprocess crash later.
-        edge = getattr(self, "_edge", None)
-        if edge is None or not edge.is_installed:
-            logger.info(
-                "[AmazonStore] Edge not installed — prompting user",
-            )
-            return AuthResult(
-                success=False,
-                error="edge_not_installed",
-                store="amazon",
-            )
-        edge.clear_store_cookies("amazon.com")
-        return cast("AuthResult", await self._auth.start_auth())
+        """Open the Amazon sign-in window (``_start_browser_sign_in``)."""
+        return await self._start_browser_sign_in()
 
     async def complete_auth(self, code: str = "", **kwargs: Any) -> AuthResult:
         """Complete auth."""

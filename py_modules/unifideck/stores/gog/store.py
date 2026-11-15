@@ -25,7 +25,7 @@ import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from unifideck.auth.browser import OAuthBrowserMonitor
 from unifideck.auth.edge_browser import EdgeBrowser
@@ -215,24 +215,8 @@ class GOGStore(BrowserAuthRebuildMixin, StoreBase):
         return available
 
     async def start_auth(self, **kwargs: Any) -> AuthResult:
-        """Start auth."""
-        if self._auth is None:
-            return AuthResult(
-                success=False,
-                error="auth_not_configured",
-                store="gog",
-            )
-        if self._edge is None or not self._edge.is_installed:
-            logger.info(
-                "[GOGStore] Edge not installed — prompting user",
-            )
-            return AuthResult(
-                success=False,
-                error="edge_not_installed",
-                store="gog",
-            )
-        self._edge.clear_store_cookies("gog.com")
-        return cast("AuthResult", await self._auth.start_auth())
+        """Open the GOG sign-in window (``_start_browser_sign_in``)."""
+        return await self._start_browser_sign_in()
 
     async def complete_auth(self, code: str = "", **kwargs: Any) -> AuthResult:
         """Complete auth."""

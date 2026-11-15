@@ -193,3 +193,46 @@ async def test_standin_runs_while_the_game_plays_and_stops_with_it(
     await asyncio.wait_for(task, 15)
     with pytest.raises(ProcessLookupError):
         os.kill(pid, 0)
+
+
+async def test_a_standin_that_left_the_process_group_is_still_ended(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Wine runs the stand-in outside umu's group; left alive it held the session open (2026-11-15)."""
+    import asyncio
+    import os
+
+    from unifideck.launcher.ea import standin
+
+    pid_file = tmp_path / "wine-standin.pid"
+    script = tmp_path / "standin.sh"
+    script.write_text(
+        "#!/bin/bash\n"
+        f"setsid bash -c 'exec -a \"C:/Program Files (x86)/Origin/Origin.exe\" sleep 60' &\n"
+        f"echo $! > {pid_file}\n"
+        "exec sleep 60\n"
+    )
+    script.chmod(0o755)
+    monkeypatch.setattr(standin, "START_DELAY_S", 0)
+    monkeypatch.setattr(standin, "POLL_S", 0.05)
+    env = {**os.environ, "WINEPREFIX": str(tmp_path)}
+
+    game_done = asyncio.Event()
+    task = asyncio.create_task(standin.run_standin([str(script)], env, "Game.exe", tmp_path, game_done))
+    for _ in range(100):
+        if pid_file.exists() and pid_file.read_text().strip() and standin.prefix_pids("Origin.exe", tmp_path):
+            break
+        await asyncio.sleep(0.05)
+    pid = int(pid_file.read_text())
+    assert standin.prefix_pids("Origin.exe", tmp_path) == [pid]
+    game_done.set()
+    await asyncio.wait_for(task, 15)
+    for _ in range(50):
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            break
+        await asyncio.sleep(0.05)
+    else:
+        os.kill(pid, 9)
+        pytest.fail("the stand-in's own process outlived the game")

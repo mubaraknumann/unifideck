@@ -16,7 +16,13 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from unifideck.launcher.ea import touchup
-from unifideck.launcher.ea.records import InstallRecord, all_records, delete_record, read_record, write_record
+from unifideck.launcher.ea.records import (
+    InstallRecord,
+    all_records,
+    delete_record,
+    read_record,
+    write_record,
+)
 from unifideck.launcher.proton import store_setup
 from unifideck.stores.ea.cli import MaximaCli
 from unifideck.stores.ea.install import EAInstaller, exe_relative_path, resolve_case_insensitive
@@ -109,6 +115,8 @@ async def test_install_records_the_build_and_reports_progress(home: Path) -> Non
     record = read_record(_GAME_ID)
     assert record is not None
     assert record.exe == str(folder / "bin_ship" / "DragonAge2.exe")
+    # What the download worker writes to games.map; without it the worker guessed a trial exe.
+    assert result.metadata["exe_path"] == record.exe
     assert (record.build_id, record.version) == ("/b.zip", "1.04.8524.0")
     assert (folder / ".unifideck_manifest.json").is_file()
     first = progress.await_args_list[0].args[0]
@@ -202,3 +210,21 @@ async def test_touchup_borrows_the_session_display_without_overriding(home: Path
     env = json.loads(calls.read_text().splitlines()[0])["env"]
     assert env["DISPLAY"] == ":0"
     assert env["XAUTHORITY"] == "/own/xauth"
+
+
+async def test_the_store_names_the_recorded_exe_never_a_guess(home: Path) -> None:
+    """A build shipping a trial exe next to the game must launch the game (Burnout, 2026-11-15)."""
+    from unifideck.stores.ea.store import EAStore
+
+    folder = home / "Games" / "EA" / "game"
+    folder.mkdir(parents=True)
+    (folder / "Game.exe").write_bytes(b"MZ")
+    (folder / "Game_trial.exe").write_bytes(b"MZ" * 100)
+    write_record(InstallRecord(
+        game_id=_GAME_ID, offer_id="OFB-EAST:59474", content_id="1", install_path=str(folder),
+        exe=str(folder / "Game.exe"), build_id="/b.zip", version="1",
+    ))
+    store = object.__new__(EAStore)
+
+    assert await store.find_installed_exe(str(folder), _GAME_ID) == str(folder / "Game.exe")
+    assert await store.find_installed_exe(str(folder), "Origin.OFR.50.0000001") is None

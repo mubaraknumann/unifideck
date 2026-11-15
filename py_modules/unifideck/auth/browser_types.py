@@ -46,13 +46,12 @@ class RedirectIntercept:
 
     For sign-ins that end in a redirect to a scheme only a vendor app opens
     (EA's ``qrc:``). Response headers of documents matching ``url_pattern``
-    (a CDP ``Fetch`` pattern) are inspected on the page whose URL contains
-    ``page_host``; a ``Location`` starting with ``location_prefix`` is the
+    (a CDP ``Fetch`` pattern), in any page of the sign-in browser, are
+    inspected; a ``Location`` starting with ``location_prefix`` is the
     capture, and the browser is shown ``done_page`` instead.
     See ``auth/redirect_intercept.py``.
     """
 
-    page_host: str
     url_pattern: str
     location_prefix: str
     done_page: str = SIGNED_IN_PAGE
@@ -67,6 +66,9 @@ class AuthCaptureResult:
     params: dict[str, str] = field(default_factory=dict)
     elapsed_seconds: float = 0.0
     error: str | None = None
+    #: The page the capture came from, when the tab never shows ``redirect_url``
+    #: (an intercepted ``qrc:`` redirect). The sign-in window is closed by it.
+    page_url: str | None = None
 
     @property
     def code(self) -> str | None:

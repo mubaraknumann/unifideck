@@ -337,3 +337,17 @@ def _never_clear_a_real_sign_in(monkeypatch: pytest.MonkeyPatch) -> None:
         return real(store)  # type: ignore[arg-type]
 
     monkeypatch.setattr(credential_reset, "clear_plain_files", guarded)
+
+
+@pytest.fixture(autouse=True)
+def _never_clear_real_sign_in_cookies(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every ``run_flow`` clears its store's cookies (``auth/sign_in_cookies``).
+
+    ``edge.PROFILE_DIR`` is resolved when the module is imported, before
+    ``HOME`` is redirected, so a test's sign-in flow would delete cookies from
+    the developer's real sign-in browser. Tests that check the clearing patch
+    ``clear_sign_in_cookies`` themselves.
+    """
+    from unifideck.auth.edge_browser.edge import EdgeBrowser
+
+    monkeypatch.setattr(EdgeBrowser, "clear_site_cookies", staticmethod(lambda site: None))

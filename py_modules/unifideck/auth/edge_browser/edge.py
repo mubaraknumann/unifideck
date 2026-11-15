@@ -394,6 +394,11 @@ class EdgeBrowser:
         """Delegate to EdgeProfileManager (one-shot instance)."""
         _make_profile_manager().clear_profile_data()
 
+    @staticmethod
+    def clear_site_cookies(site: str) -> None:
+        """Delete one site's cookies (``auth/sign_in_cookies``, before each sign-in)."""
+        _make_profile_manager().clear_cookies_for_domain(site)
+
     def clear_store_cookies(self, domain: str) -> None:
         """Clear cookies for `domain` from the shared Edge profile.
 

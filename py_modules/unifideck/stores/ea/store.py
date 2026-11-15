@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from unifideck.auth.browser import OAuthBrowserMonitor
 from unifideck.auth.orchestrator import AuthOrchestrator
@@ -85,13 +85,7 @@ class EAStore(BrowserAuthRebuildMixin, StoreBase):
 
     async def start_auth(self, **kwargs: Any) -> AuthResult:
         """Open the EA sign-in window, unless a stored sign-in still works."""
-        self._rebuild_auth_after_injection()
-        if self._auth is None:
-            return AuthResult(success=False, error="auth_not_configured", store=STORE)
-        edge = getattr(self, "_edge", None)
-        if edge is None or not edge.is_installed:
-            return AuthResult(success=False, error="edge_not_installed", store=STORE)
-        return cast("AuthResult", await self._auth.start_auth())
+        return await self._start_browser_sign_in()
 
     async def complete_auth(self, **kwargs: Any) -> AuthResult:
         """Report whether the sign-in finished."""
@@ -149,6 +143,15 @@ class EAStore(BrowserAuthRebuildMixin, StoreBase):
         """The game folder from its install record."""
         record = await asyncio.to_thread(read_record, game_id)
         return record.install_path if record else None
+
+    async def find_installed_exe(self, install_path: str, game_id: str) -> str | None:
+        """The exe EA's offer names, from the install record.
+
+        Asked by the download worker and the change-exe default; without it they
+        guess, and a build that ships a trial exe launched the trial.
+        """
+        record = await asyncio.to_thread(read_record, game_id)
+        return record.exe if record and record.exe else None
 
     async def get_game_size(self, game_id: str) -> int | None:
         """Installed size of the live build, from its archive index (no download)."""

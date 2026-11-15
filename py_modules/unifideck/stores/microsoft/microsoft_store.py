@@ -328,8 +328,8 @@ class MicrosoftStore(MicrosoftAchievementsMixin, MicrosoftSaveStatusMixin, Brows
                 error="auth_not_configured",
                 store="microsoft",
             )
+        # live.com is cleared by the orchestrator (it is in the sign-in URL); microsoft.com is not.
         self._edge.clear_store_cookies("microsoft.com")
-        self._edge.clear_store_cookies("live.com")
         return cast("AuthResult", await self._auth.start_auth())
 
     async def cancel_auth(self) -> Result:

@@ -256,15 +256,16 @@ class EdgeProfileManager:
     def clear_cookies_for_domain(self, domain: str) -> None:
         """Delete cookies for a single domain from the shared profile.
 
-        Opens the Edge profile's ``Default/Cookies`` SQLite DB
-        and runs ``DELETE FROM cookies WHERE host_key LIKE
-        '%<domain>%'``. Called before each OAuth flow so the
-        user always sees a fresh login form (no stale session).
+        Opens the Edge profile's ``Default/Cookies`` SQLite DB and
+        deletes the cookies of ``domain`` and its subdomains (host
+        ``ea.com``, ``.ea.com``, ``signin.ea.com``; never ``idea.com``).
+        Called before each OAuth flow so the user always sees a fresh
+        login form (no stale session).
 
         Args:
-            domain: domain substring to match, e.g.
-                ``"epicgames.com"`` or ``"gog.com"``.
+            domain: the site, e.g. ``"epicgames.com"`` or ``"gog.com"``.
         """
+        domain = domain.lstrip(".")
         cookie_db = Path(self.profile_dir) / "Default" / "Cookies"
         if not cookie_db.exists():
             logger.debug(
@@ -275,10 +276,10 @@ class EdgeProfileManager:
         try:
             conn = sqlite3.connect(str(cookie_db), timeout=5)
             try:
-                pattern = f"%{domain}%"
                 cursor = conn.execute(
-                    "DELETE FROM cookies WHERE host_key LIKE ?",
-                    (pattern,),
+                    "DELETE FROM cookies WHERE host_key = ? OR host_key = ?"
+                    " OR host_key LIKE ? ESCAPE '\\'",
+                    (domain, f".{domain}", "%." + domain.replace("_", "\\_").replace("%", "\\%")),
                 )
                 conn.commit()
                 deleted = cursor.rowcount

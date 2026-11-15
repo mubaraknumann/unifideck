@@ -29,8 +29,8 @@ logger = logging.getLogger(__name__)
 AUTH_URL_FILE = "~/.local/share/unifideck/ea_auth_url.txt"
 
 EA_REDIRECT = RedirectIntercept(
-    page_host="ea.com",
-    url_pattern="https://accounts.ea.com/connect/auth*",
+    # The whole host: only a Location to qrc: is acted on, and the last hop's path may vary.
+    url_pattern="https://accounts.ea.com/*",
     location_prefix="qrc:",
 )
 

@@ -246,7 +246,12 @@ class EAInstaller:
             executable_relative=exe_relative, platform="windows",
         )
         logger.info("%s %s installed at %s (%s)", _LOG, game_id, folder, record.version)
-        return InstallResult(success=True, store=STORE, game_id=game_id, install_path=str(folder))
+        # ``exe_path`` is what the download worker writes to games.map; without it the
+        # worker guesses, and picked a build's trial exe (which demands Origin).
+        return InstallResult(
+            success=True, store=STORE, game_id=game_id, install_path=str(folder),
+            metadata={"exe_path": str(exe)},
+        )
 
 
 def _failed(game_id: str, error: str) -> InstallResult:

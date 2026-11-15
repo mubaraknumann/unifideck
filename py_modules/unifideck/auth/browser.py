@@ -240,7 +240,7 @@ class OAuthBrowserMonitor:
 
     async def _poll_until(
         self, deadline: float, start: float, state: dict[str, Any], allowed_uris: list[str],
-        content: ContentCapture | None, interceptor: asyncio.Task[str | None] | None,
+        content: ContentCapture | None, interceptor: asyncio.Task[tuple[str, str] | None] | None,
     ) -> AuthCaptureResult:
         while time.monotonic() < deadline:
             intercepted = intercepted_capture(interceptor, start)

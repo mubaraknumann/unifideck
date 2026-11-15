@@ -15,9 +15,7 @@ from unifideck.auth import redirect_intercept
 from unifideck.auth.browser_types import RedirectIntercept
 from unifideck.auth.edge_browser.cdp_session import CLOSED_EVENT
 
-_INTERCEPT = RedirectIntercept(
-    page_host="ea.com", url_pattern="https://accounts.ea.com/connect/auth*", location_prefix="qrc:",
-)
+_INTERCEPT = RedirectIntercept(url_pattern="https://accounts.ea.com/*", location_prefix="qrc:")
 
 
 def _paused(request_id: str, status: int, location: str = "") -> dict[str, Any]:
@@ -54,7 +52,7 @@ class _Session:
 def session(monkeypatch: pytest.MonkeyPatch) -> list[_Session]:
     made: list[_Session] = []
 
-    async def attach(port: int, intercept: RedirectIntercept) -> _Session:
+    async def attach(port: int) -> _Session:
         return made[0]
 
     monkeypatch.setattr(redirect_intercept, "_attach", attach)
@@ -68,7 +66,9 @@ async def test_the_qrc_redirect_is_captured_and_answered_locally(session: list[_
         _paused("2", 200),
         _paused("3", 302, location),
     ]))
-    assert await redirect_intercept.capture_redirect(9222, _INTERCEPT) == location
+    assert await redirect_intercept.capture_redirect(9222, _INTERCEPT) == (
+        location, "https://accounts.ea.com/connect/auth?client_id=JUNO_PC_CLIENT",
+    )
 
     s = session[0]
     pattern = s.calls[0][1]["patterns"][0]
@@ -84,3 +84,38 @@ async def test_a_closed_window_ends_without_a_capture(session: list[_Session]) -
     session.append(_Session([_paused("1", 200), {"method": CLOSED_EVENT}]))
     assert await redirect_intercept.capture_redirect(9222, _INTERCEPT) is None
     assert session[0].closed
+
+
+async def test_it_attaches_to_the_browser_not_a_page(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A sign-in that ends in another page target must still be seen (2026-11-15)."""
+    seen: list[list[dict[str, Any]]] = []
+
+    class _Client:
+        def __init__(self, cdp_port: int) -> None:
+            pass
+
+        def get_browser_ws_url(self) -> str:
+            return "ws://127.0.0.1:9222/devtools/browser/abc"
+
+    class _Probe:
+        def __init__(self, *, list_targets: Any) -> None:
+            seen.append(list_targets(9222))
+
+        async def attach(self, port: int, wait_s: float = 0) -> bool:
+            return True
+
+    monkeypatch.setattr(redirect_intercept, "EdgeCDPClient", _Client)
+    monkeypatch.setattr(redirect_intercept, "CdpPageSession", _Probe)
+    await redirect_intercept._attach(9222)
+    assert seen == [[{"type": "page", "webSocketDebuggerUrl": "ws://127.0.0.1:9222/devtools/browser/abc"}]]
+
+
+async def test_the_capture_names_the_page_to_close() -> None:
+    """The window is closed by the page, not by ``qrc:`` (which no tab shows)."""
+    done: asyncio.Future[tuple[str, str] | None] = asyncio.get_running_loop().create_future()
+    done.set_result(("qrc:/html/login_successful.html?code=QUOx", "https://accounts.ea.com/connect/auth?x=1"))
+    task = asyncio.ensure_future(done)
+    await task
+    capture = redirect_intercept.intercepted_capture(task, 0.0)  # type: ignore[arg-type]
+    assert capture is not None and capture.code == "QUOx"
+    assert capture.page_url == "https://accounts.ea.com/connect/auth?x=1"

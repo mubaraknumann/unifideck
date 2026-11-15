@@ -28,7 +28,7 @@ import asyncio
 import logging
 import socket
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from unifideck.auth.browser import OAuthBrowserMonitor
 from unifideck.auth.orchestrator import AuthOrchestrator
@@ -238,35 +238,8 @@ class EpicStore(BrowserAuthRebuildMixin, StoreBase):
         return await self._sessions.get_total_secs(game_id)
 
     async def start_auth(self, **kwargs: Any) -> AuthResult:
-        """Start auth."""
-        if self._auth is None:
-            return AuthResult(
-                success=False,
-                error="auth_not_configured",
-                store="epic",
-            )
-        # Edge prerequisite : the launcher subprocess opens
-        # the legendary OAuth URL inside Microsoft Edge.
-        # Returning a structured `edge_not_installed` here
-        # lets the frontend spawn the install modal instead
-        # of letting the launcher subprocess crash with a
-        # generic DependencyMissingError.
-        edge = getattr(self, "_edge", None)
-        if edge is None or not edge.is_installed:
-            logger.info(
-                "[EpicStore] Edge not installed — prompting user",
-            )
-            return AuthResult(
-                success=False,
-                error="edge_not_installed",
-                store="epic",
-            )
-        # Clear Epic session cookies so the user always sees a
-        # fresh login form. Stale browser sessions from a prior
-        # auth attempt would otherwise auto-login and bypass the
-        # OAuth redirect entirely.
-        edge.clear_store_cookies("epicgames.com")
-        return cast("AuthResult", await self._auth.start_auth())
+        """Open the Epic sign-in window (``_start_browser_sign_in``)."""
+        return await self._start_browser_sign_in()
 
     async def complete_auth(self, code: str = "", **kwargs: Any) -> AuthResult:
         """Complete auth."""

@@ -21,7 +21,13 @@ it signs in through the vendor client in its own prefix — and uses the hook
 to propagate the just-injected shortcut service into its auth facade. The
 audit counted it as a fifth copy of this method; it is not one.
 
-**Applied to the four stores, never to** :class:`StoreBase`. The injector's
+It also owns the sign-in start those stores shared (Epic, GOG, Amazon, itch,
+EA): :meth:`_start_browser_sign_in` checks the sign-in browser and opens the
+window. A store declares nothing for it; the clean session each sign-in needs is
+the orchestrator's job (``auth/sign_in_cookies``). Microsoft keeps its own
+start (three sign-in flows).
+
+**Applied to the browser-auth stores, never to** :class:`StoreBase`. The injector's
 only test for "does this store need an auth rebuild" is whether the attribute
 exists, so putting it on the base class would start calling it for Battle.net
 and Ubisoft too.
@@ -30,9 +36,10 @@ and Ubisoft too.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from unifideck.auth.orchestrator import AuthOrchestrator
+from unifideck.core.types import AuthResult
 
 if TYPE_CHECKING:
     from unifideck.core.types import StoreInfo
@@ -54,6 +61,22 @@ class BrowserAuthRebuildMixin:
     _bus: EventBus
     _auth: Any
     store_info: StoreInfo
+
+    async def _start_browser_sign_in(self) -> AuthResult:
+        """Open this store's sign-in window.
+
+        ``edge_not_installed`` lets the frontend offer the browser install
+        instead of the launcher failing later.
+        """
+        store = self.store_info.name
+        self._rebuild_auth_after_injection()
+        if self._auth is None:
+            return AuthResult(success=False, error="auth_not_configured", store=store)
+        edge = getattr(self, "_edge", None)
+        if edge is None or not edge.is_installed:
+            logger.info("[%s] sign-in browser not installed; prompting the user", type(self).__name__)
+            return AuthResult(success=False, error="edge_not_installed", store=store)
+        return cast("AuthResult", await self._auth.start_auth())
 
     def _rebuild_auth_after_injection(self) -> None:
         """(Re-)build this store's auth flow once a browser monitor is set.

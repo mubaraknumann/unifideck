@@ -86,3 +86,4 @@ async def test_exchange_failure_is_a_failed_auth_result() -> None:
     failed = await exchange("CODE")
     assert not failed.success
     assert failed.error == "ea_exchange_failed: command_failed"
+

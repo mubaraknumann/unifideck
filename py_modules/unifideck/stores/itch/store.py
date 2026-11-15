@@ -16,7 +16,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from unifideck.auth.browser import OAuthBrowserMonitor
 from unifideck.auth.orchestrator import AuthOrchestrator
@@ -114,14 +114,8 @@ class ItchStore(BrowserAuthRebuildMixin, StoreBase):
         return ok
 
     async def start_auth(self, **kwargs: Any) -> AuthResult:
-        """Open the Edge sign-in window (or reuse a still-valid saved login)."""
-        self._rebuild_auth_after_injection()
-        if self._auth is None:
-            return AuthResult(success=False, error="auth_not_configured", store="itch")
-        edge = getattr(self, "_edge", None)
-        if edge is None or not edge.is_installed:
-            return AuthResult(success=False, error="edge_not_installed", store="itch")
-        return cast("AuthResult", await self._auth.start_auth())
+        """Open the itch.io sign-in window, or reuse a still-valid saved login."""
+        return await self._start_browser_sign_in()
 
     async def complete_auth(self, **kwargs: Any) -> AuthResult:
         """Nothing to complete: the Edge flow finishes on its own."""

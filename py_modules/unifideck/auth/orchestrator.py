@@ -36,6 +36,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from unifideck.auth.sign_in_cookies import clear_sign_in_cookies, sign_in_sites
 from unifideck.auth.url_file import write_url_file_atomically
 from unifideck.core.types import AuthResult, Events
 
@@ -145,6 +146,9 @@ class AuthOrchestrator:
         if isinstance(url_or_failure, AuthResult):
             return url_or_failure
         url = url_or_failure
+
+        # A fresh login form, whatever the store: its sites come from the flow itself.
+        await clear_sign_in_cookies(sign_in_sites(url, allowed_uris, content, intercept))
 
         # Step 2: optionally persist the URL for the shell launcher.
         if write_url_file:
@@ -320,7 +324,7 @@ class AuthOrchestrator:
             )
         # Close the OAuth tab before the exchange so the user
         # sees the browser disappear quickly on success.
-        await self._close_tab_safely(capture.redirect_url)
+        await self._close_tab_safely(capture.page_url or capture.redirect_url)
         return await self._finalize_auth_exchange(
             code, url, exchange_code,
         )

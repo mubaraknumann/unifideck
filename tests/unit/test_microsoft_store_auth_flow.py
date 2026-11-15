@@ -55,7 +55,7 @@ async def test_browser_redirect_clears_them_as_before() -> None:
     await store.start_auth()
     store._auth.start_auth.assert_awaited_once()
     store._device_auth.start_auth.assert_not_awaited()
-    assert {c.args[0] for c in edge.clear_store_cookies.call_args_list} == {"microsoft.com", "live.com"}
+    assert {c.args[0] for c in edge.clear_store_cookies.call_args_list} == {"microsoft.com"}
 
 
 async def test_no_edge_means_install_edge_first() -> None:
