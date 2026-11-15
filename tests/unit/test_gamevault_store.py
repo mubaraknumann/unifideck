@@ -253,10 +253,11 @@ def test_store_info_declares_no_derived_capability():
 
     from unifideck.core.store_capabilities import capability_flags
 
-    # GameVault is in none of the capability sets.
+    # GameVault is in none of the capability sets but the exe override (it launches the games.map exe).
     assert capability_flags("gamevault") == {
         "supports_achievements": False,
         "supports_cloud_saves": False,
         "has_language_picker": False,
         "has_browser_storefront": False,
+        "supports_exe_override": True,
     }

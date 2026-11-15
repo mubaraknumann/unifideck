@@ -22,7 +22,7 @@ from pathlib import Path
 from unifideck.launcher.ea import maxima
 from unifideck.launcher.ea.records import InstallRecord, read_record
 from unifideck.launcher.ea.sidecar import Sidecar, SidecarError, start_sidecar
-from unifideck.launcher.ea.standin import run_standin
+from unifideck.launcher.ea.standin import run_standin, wants_standin
 from unifideck.launcher.ea.touchup import prepare_prefix
 from unifideck.launcher.proton.compat.app_local_crt import ensure_crt_activation_manifest
 from unifideck.launcher.proton.infrastructure.core import ProtonLaunchPlan
@@ -93,7 +93,10 @@ async def _run_game(plan: ProtonLaunchPlan, sidecar: Sidecar) -> int:
     env = {**plan.env, **sidecar.env}
     game_done = asyncio.Event()
     standin = None
-    if sidecar.origin_standin and plan.state.prefix_path:
+    wanted = bool(sidecar.origin_standin and plan.state.prefix_path)
+    if wanted:
+        wanted = await asyncio.to_thread(wants_standin, plan.context.game_id, exe)
+    if wanted and sidecar.origin_standin and plan.state.prefix_path:
         standin = asyncio.create_task(run_standin(
             [str(plan.python_bin), str(plan.umu_wrapper), sidecar.origin_standin],
             env, exe.name, plan.state.prefix_path, game_done,

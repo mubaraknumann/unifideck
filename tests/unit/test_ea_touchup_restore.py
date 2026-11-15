@@ -60,3 +60,26 @@ def test_a_second_restore_and_a_never_touched_build_change_nothing(tmp_path: Pat
     fresh = tmp_path / "fresh"
     fresh.mkdir()
     assert restore_moved_files(fresh) == 0
+
+
+def test_files_touchup_lower_cased_get_their_ledger_names_back(tmp_path: Path) -> None:
+    """Touchup recreated ``syberia2.exe`` where the record launches ``Syberia2.exe`` (2026-11-15)."""
+    import json
+
+    from unifideck.launcher.ea.touchup_restore import LEDGER, match_ledger_case
+
+    install = tmp_path / "game"
+    (install / "Cmo").mkdir(parents=True)
+    (install / "syberia2.exe").write_bytes(b"exe")
+    (install / "Cmo" / "a1_cabaret.cmo").write_bytes(b"cmo")
+    (install / "Data.bin").write_bytes(b"right already")
+    (install / LEDGER).write_text(json.dumps({"files": {
+        "Syberia2.exe": {"size": 3}, "Cmo/A1_Cabaret.cmo": {"size": 3}, "Data.bin": {"size": 13},
+        "Video/Gone.bik": {"size": 1},
+    }}))
+
+    assert match_ledger_case(install) == 2
+    assert (install / "Syberia2.exe").read_bytes() == b"exe"
+    assert (install / "Cmo" / "A1_Cabaret.cmo").is_file()
+    assert sorted(p.name for p in install.iterdir()) == [LEDGER, "Cmo", "Data.bin", "Syberia2.exe"]
+    assert match_ledger_case(install) == 0

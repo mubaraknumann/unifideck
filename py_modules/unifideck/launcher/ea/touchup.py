@@ -27,7 +27,7 @@ from unifideck.utils.config_helpers import read_config_str_cold_start
 
 from . import maxima
 from .records import InstallRecord, read_record
-from .touchup_restore import restore_moved_files
+from .touchup_restore import match_ledger_case, restore_moved_files
 
 if TYPE_CHECKING:
     from unifideck.launcher.types.context import LaunchContext, RuntimeState
@@ -74,6 +74,7 @@ async def run_touchup(
     if rc != 0:
         logger.error("[EA] Touchup failed for %s (exit %s): %s", record.game_id, rc, output[-_TAIL_CHARS:].strip())
         return False
+    await asyncio.to_thread(match_ledger_case, Path(record.install_path))
     await asyncio.to_thread((prefix / MARKER).write_text, json.dumps(_stamp(record)))
     logger.info("[EA] Touchup done for %s (build %s)", record.game_id, record.version)
     return True

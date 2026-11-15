@@ -135,6 +135,7 @@ def test_capability_flags_covers_every_set() -> None:
         "supports_cloud_saves": True,
         "has_language_picker": True,
         "has_browser_storefront": True,
+        "supports_exe_override": True,
     }
 
 
@@ -180,3 +181,15 @@ def _store_class(store: str):
             ):
                 return attr
     return None
+
+
+def test_exe_override_has_one_list_shared_by_the_rpc_and_the_menu() -> None:
+    """The menu reads ``supports_exe_override``; the RPC routes by the same direct-launch set."""
+    from unifideck.core import store_capabilities as caps
+    from unifideck.rpc.mixins import executable
+
+    assert executable._DIRECT_LAUNCH_STORES is caps.EXE_OVERRIDE_DIRECT_STORES
+    assert "ea" in caps.EXE_OVERRIDE_DIRECT_STORES  # launches the games.map exe through umu
+    for store in ("gog", "amazon", "gamevault", "itch", "ea", "epic"):
+        assert caps.capability_flags(store)["supports_exe_override"]
+    assert not caps.capability_flags("ubisoft")["supports_exe_override"]

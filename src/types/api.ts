@@ -336,6 +336,8 @@ export interface StoreInfo {
   supports_cloud_saves: boolean;
   has_language_picker: boolean;
   has_browser_storefront: boolean;
+  /** The game menu offers "Change executable…" (backend `EXE_OVERRIDE_STORES`). */
+  supports_exe_override: boolean;
 }
 
 /** Capability keys carried by {@link StoreInfo}. */
@@ -345,6 +347,7 @@ export type StoreCapability =
   | "supports_cloud_saves"
   | "has_language_picker"
   | "has_browser_storefront"
+  | "supports_exe_override"
   | "client_runs_in_prefix";
 
 /**

@@ -30,17 +30,9 @@ import {
 import { createElement } from "react";
 import i18n from "i18next";
 import { getUnifideckGame } from "../library-filters";
+import { storeHasCapability } from "../../hooks/useStoreCapability";
 import { ChangeExecutableModal } from "../../components/modals/ChangeExecutableModal";
 import { UninstallFlowModal } from "../../components/modals/UninstallFlowModal";
-
-/** Stores whose launch target the user can override (see ExecutableRPCMixin). */
-const SUPPORTED_STORES = new Set([
-  "gog",
-  "amazon",
-  "epic",
-  "gamevault",
-  "itch",
-]);
 
 /** Stable keys so re-renders can dedupe our injected items. */
 const MENU_ITEM_KEY = "unifideck-change-exe";
@@ -61,7 +53,8 @@ function eligible(appId: number): {
     !game ||
     !game.storeGameId ||
     !game.isInstalled ||
-    !SUPPORTED_STORES.has(game.store)
+    // The backend's list (`supports_exe_override`), not a copy kept here.
+    !storeHasCapability(game.store, "supports_exe_override")
   ) {
     return null;
   }

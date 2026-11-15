@@ -7,6 +7,12 @@ prefix and points ``ClientPath`` at it (``unifideck-origin-standin``); the
 sidecar's ``ready`` event names it. Measured on an EA title (2026-11-15): no LSX
 connection without it, connected 10 s after launch with it.
 
+Only games built with the Origin SDK get it: the SDK embeds the string
+``OriginSDK`` in the exe. A game without it gains nothing and can be hurt: the
+EA build of Crysis quits during start-up while an Origin process runs, and
+reaches its menu without one (2026-11-15). The answer is kept in the game's
+install record per exe, so a large exe is read once.
+
 It is started inside the game's running session (``PROTON_VERB=runinprefix``)
 once the game is up: started first, it would hold the Wine server and the
 game's ``waitforexitandrun`` would wait for it. It is stopped as soon as the
@@ -20,10 +26,14 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import dataclasses
 import logging
+import mmap
 import os
 import signal
 from pathlib import Path
+
+from .records import read_record, write_record
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +41,34 @@ START_DELAY_S = 3.0
 POLL_S = 2.0
 #: The stand-in's file name, as ``unifideck-origin-standin`` installs it.
 STANDIN_EXE = "Origin.exe"
+#: How long the stand-in's umu run gets to return once its Wine process is gone.
+STOP_WAIT_S = 15.0
+
+
+_SDK_MARKERS = (b"OriginSDK", b"originsdk")
+
+
+def embeds_origin_sdk(exe: Path) -> bool:
+    """Whether ``exe`` was built with the Origin SDK (it carries the SDK's name)."""
+    try:
+        with exe.open("rb") as handle, mmap.mmap(handle.fileno(), 0, access=mmap.ACCESS_READ) as data:
+            return any(data.find(marker) >= 0 for marker in _SDK_MARKERS)
+    except (OSError, ValueError):
+        return False
+
+
+def wants_standin(game_id: str, exe: Path) -> bool:
+    """Whether this game's exe needs the stand-in; measured once per exe, kept in its record."""
+    record = read_record(game_id)
+    if record is not None and record.sdk_exe == str(exe) and record.origin_sdk in ("yes", "no"):
+        return record.origin_sdk == "yes"
+    wanted = embeds_origin_sdk(exe)
+    if record is not None:
+        with contextlib.suppress(OSError):
+            write_record(dataclasses.replace(record, sdk_exe=str(exe), origin_sdk="yes" if wanted else "no"))
+    logger.info("[EA] %s %s the Origin SDK: stand-in %s", exe.name, "embeds" if wanted else "does not embed",
+                "on" if wanted else "off")
+    return wanted
 
 
 def prefix_pids(exe_name: str, prefix: Path) -> list[int]:
@@ -100,9 +138,26 @@ async def run_standin(
                 break
             await asyncio.sleep(POLL_S)
     finally:
+        await _stop(proc, prefix)
+
+
+async def _stop(proc: asyncio.subprocess.Process, prefix: Path) -> None:
+    """End the stand-in's Wine process; its umu run then returns on its own.
+
+    Never SIGTERM the stand-in's umu while anything else runs in the prefix:
+    umu answers a SIGTERM by tearing down the whole Wine session, and the game
+    goes with it (exit 143). The stand-in also stops when its game exe has
+    disappeared, which a game handing over to another exe looks like, so the
+    session must survive this. The group kill stays as the last resort for a
+    umu that has not returned.
+    """
+    await asyncio.to_thread(_end_standin_processes, prefix)
+    try:
+        await asyncio.wait_for(proc.wait(), STOP_WAIT_S)
+    except TimeoutError:
+        logger.warning("[EA] stand-in's umu run did not return; ending its group")
         with contextlib.suppress(ProcessLookupError):
             os.killpg(proc.pid, signal.SIGTERM)
-        await asyncio.to_thread(_end_standin_processes, prefix)
         with contextlib.suppress(Exception):
             await asyncio.wait_for(proc.wait(), 10)
-        logger.info("[EA] Origin client stand-in stopped")
+    logger.info("[EA] Origin client stand-in stopped")

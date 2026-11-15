@@ -58,6 +58,15 @@ LANGUAGE_PICKER_STORES = frozenset({"gog", "epic"})
 #: store" are not the same claim and a future store could be neither.
 BROWSER_STOREFRONT_STORES = frozenset({"epic", "gog", "amazon", "microsoft", "itch"})
 
+#: Stores whose launcher runs the games.map ``exe`` itself (through umu), so an
+#: exe override is that column (``rpc/mixins/executable.py``).
+EXE_OVERRIDE_DIRECT_STORES = frozenset({"gog", "amazon", "gamevault", "itch", "ea"})
+
+#: Stores where the user can pick another launch exe ("Change executable…" on
+#: the game's menu): the direct-launch stores, plus Epic, whose override is the
+#: ``games.<id>.executable`` config key that legendary's ``--override-exe`` reads.
+EXE_OVERRIDE_STORES = EXE_OVERRIDE_DIRECT_STORES | {"epic"}
+
 #: Stores whose library lists titles the user can *play* rather than titles
 #: the user *bought*. Microsoft's catalog returns every entitled title, Game
 #: Pass and owned Play Anywhere alike (``MicrosoftStore.get_library``), and
@@ -82,4 +91,5 @@ def capability_flags(store: str) -> dict[str, bool]:
         "supports_cloud_saves": store in CLOUD_SAVE_STORES,
         "has_language_picker": store in LANGUAGE_PICKER_STORES,
         "has_browser_storefront": store in BROWSER_STOREFRONT_STORES,
+        "supports_exe_override": store in EXE_OVERRIDE_STORES,
     }

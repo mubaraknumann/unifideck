@@ -32,6 +32,14 @@ class InstallRecord:
     exe: str
     build_id: str
     version: str
+    #: The exe last checked for the Origin SDK, and whether it embeds it
+    #: ("yes"/"no"): only those games get the Origin client stand-in
+    #: (``launcher/ea/standin.py``). Empty until the first launch.
+    sdk_exe: str = ""
+    origin_sdk: str = ""
+
+
+_REQUIRED = ("game_id", "offer_id", "content_id", "install_path", "exe", "build_id", "version")
 
 
 def _path(game_id: str) -> Path:
@@ -42,7 +50,9 @@ def read_record(game_id: str) -> InstallRecord | None:
     """The record for ``game_id``, or None when absent or unreadable."""
     try:
         data = json.loads(_path(game_id).read_text())
-        return InstallRecord(**{k: str(data[k]) for k in InstallRecord.__dataclass_fields__})
+        fields = {k: str(data[k]) for k in _REQUIRED}
+        fields.update({k: str(data[k]) for k in InstallRecord.__dataclass_fields__ if k not in fields and k in data})
+        return InstallRecord(**fields)
     except (OSError, ValueError, KeyError, TypeError):
         return None
 

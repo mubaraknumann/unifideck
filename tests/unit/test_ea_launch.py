@@ -166,73 +166,136 @@ def test_working_games_are_left_alone(tmp_path: Path) -> None:
     assert not (tmp_path / "Game.exe.manifest").exists()
 
 
-async def test_standin_runs_while_the_game_plays_and_stops_with_it(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import asyncio
-    import os
-
-    from unifideck.launcher.ea import standin
-
-    pid_file = tmp_path / "standin.pid"
-    script = tmp_path / "standin.sh"
-    script.write_text(f"#!/bin/sh\necho $$ > {pid_file}\nexec sleep 60\n")
-    script.chmod(0o755)
-    monkeypatch.setattr(standin, "START_DELAY_S", 0)
-    monkeypatch.setattr(standin, "POLL_S", 0.05)
-
-    game_done = asyncio.Event()
-    task = asyncio.create_task(standin.run_standin([str(script)], dict(os.environ), "Game.exe", tmp_path, game_done))
-    for _ in range(100):
-        if pid_file.exists() and pid_file.read_text().strip():
-            break
-        await asyncio.sleep(0.05)
-    pid = int(pid_file.read_text())
-    os.kill(pid, 0)  # running while the game plays
-    game_done.set()
-    await asyncio.wait_for(task, 15)
-    with pytest.raises(ProcessLookupError):
-        os.kill(pid, 0)
+_ORIGIN = "C:/Program Files (x86)/Origin/Origin.exe"
 
 
-async def test_a_standin_that_left_the_process_group_is_still_ended(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Wine runs the stand-in outside umu's group; left alive it held the session open (2026-11-15)."""
-    import asyncio
-    import os
+def _umu_like(tmp_path: Path, *, waits_for_child: bool) -> tuple[Path, Path, Path]:
+    """A fake umu run: starts ``Origin.exe`` (own session, as Wine does), notes a SIGTERM.
 
-    from unifideck.launcher.ea import standin
-
-    pid_file = tmp_path / "wine-standin.pid"
-    script = tmp_path / "standin.sh"
+    ``waits_for_child``: returns when the Wine process ends, like ``runinprefix``.
+    """
+    pid_file, term_file = tmp_path / "origin.pid", tmp_path / "umu-got-sigterm"
+    script = tmp_path / "umu.sh"
+    tail = "wait $child\n" if waits_for_child else "while true; do sleep 1; done\n"
     script.write_text(
         "#!/bin/bash\n"
-        f"setsid bash -c 'exec -a \"C:/Program Files (x86)/Origin/Origin.exe\" sleep 60' &\n"
-        f"echo $! > {pid_file}\n"
-        "exec sleep 60\n"
+        f"trap 'touch {term_file}; exit 143' TERM\n"
+        f"setsid bash -c 'exec -a \"{_ORIGIN}\" sleep 60' & child=$!\n"
+        f"echo $child > {pid_file}\n"
+        + tail
     )
     script.chmod(0o755)
+    return script, pid_file, term_file
+
+
+async def _run_until_started(standin: Any, script: Path, tmp_path: Path, game_done: Any) -> Any:
+    import asyncio
+    import os
+
+    env = {**os.environ, "WINEPREFIX": str(tmp_path)}
+    task = asyncio.create_task(standin.run_standin([str(script)], env, "Game.exe", tmp_path, game_done))
+    for _ in range(200):
+        if standin.prefix_pids("Origin.exe", tmp_path):
+            break
+        await asyncio.sleep(0.05)
+    return task
+
+
+def _gone(pid: int) -> bool:
+    import os
+
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return True
+    return False
+
+
+async def test_standin_runs_while_the_game_plays_and_stops_without_a_session_teardown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Stopping it must never SIGTERM umu: umu then tears down the game's Wine session (exit 143)."""
+    import asyncio
+
+    from unifideck.launcher.ea import standin
+
     monkeypatch.setattr(standin, "START_DELAY_S", 0)
     monkeypatch.setattr(standin, "POLL_S", 0.05)
-    env = {**os.environ, "WINEPREFIX": str(tmp_path)}
-
+    script, pid_file, term_file = _umu_like(tmp_path, waits_for_child=True)
     game_done = asyncio.Event()
-    task = asyncio.create_task(standin.run_standin([str(script)], env, "Game.exe", tmp_path, game_done))
-    for _ in range(100):
-        if pid_file.exists() and pid_file.read_text().strip() and standin.prefix_pids("Origin.exe", tmp_path):
-            break
-        await asyncio.sleep(0.05)
+
+    task = await _run_until_started(standin, script, tmp_path, game_done)
     pid = int(pid_file.read_text())
-    assert standin.prefix_pids("Origin.exe", tmp_path) == [pid]
+    assert not _gone(pid)  # running while the game plays
     game_done.set()
     await asyncio.wait_for(task, 15)
+
     for _ in range(50):
-        try:
-            os.kill(pid, 0)
-        except ProcessLookupError:
+        if _gone(pid):
             break
         await asyncio.sleep(0.05)
-    else:
-        os.kill(pid, 9)
-        pytest.fail("the stand-in's own process outlived the game")
+    assert _gone(pid)
+    assert not term_file.exists(), "the stand-in's umu was sent SIGTERM"
+
+
+async def test_a_umu_run_that_never_returns_is_ended_as_a_last_resort(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import asyncio
+
+    from unifideck.launcher.ea import standin
+
+    monkeypatch.setattr(standin, "START_DELAY_S", 0)
+    monkeypatch.setattr(standin, "POLL_S", 0.05)
+    monkeypatch.setattr(standin, "STOP_WAIT_S", 0.5)
+    script, pid_file, term_file = _umu_like(tmp_path, waits_for_child=False)
+    game_done = asyncio.Event()
+
+    task = await _run_until_started(standin, script, tmp_path, game_done)
+    pid = int(pid_file.read_text())
+    game_done.set()
+    await asyncio.wait_for(task, 15)
+
+    for _ in range(50):
+        if _gone(pid) and term_file.exists():
+            break
+        await asyncio.sleep(0.05)
+    assert _gone(pid), "the stand-in's own process outlived the game"
+    assert term_file.exists()
+
+
+def test_only_exes_built_with_the_origin_sdk_get_the_standin(home: Path) -> None:
+    """Most Wanted waits for an Origin process; Crysis quits while one runs (2026-11-15)."""
+    import json
+
+    from unifideck.launcher.ea import standin
+    from unifideck.launcher.ea.records import read_record, records_dir
+
+    sdk_game, plain_game = home / "NFS13.exe", home / "Crysis64.exe"
+    sdk_game.write_bytes(b"MZ" + b"\0" * 4096 + b"OriginSDK/9.10" + b"\0" * 64)
+    plain_game.write_bytes(b"MZ" + b"\0" * 8192)
+    for gid, exe in (("OFB-EAST__46851", sdk_game), ("OFB-EAST__57289", plain_game)):
+        write_record(InstallRecord(
+            game_id=gid, offer_id=gid.replace("__", ":"), content_id="1", install_path=str(home),
+            exe=str(exe), build_id="/b.zip", version="1",
+        ))
+
+    assert standin.wants_standin("OFB-EAST__46851", sdk_game) is True
+    assert standin.wants_standin("OFB-EAST__57289", plain_game) is False
+    kept = read_record("OFB-EAST__57289")
+    assert kept is not None and (kept.sdk_exe, kept.origin_sdk) == (str(plain_game), "no")
+
+    # Measured once per exe: the record answers without reading the file again ...
+    plain_game.write_bytes(b"MZ OriginSDK")
+    assert standin.wants_standin("OFB-EAST__57289", plain_game) is False
+    # ... and a different exe is measured afresh.
+    other = home / "Crysis.exe"
+    other.write_bytes(b"MZ originsdk")
+    assert standin.wants_standin("OFB-EAST__57289", other) is True
+
+    # A record written before these fields existed still loads.
+    old = records_dir() / "Origin.OFR.50.1.json"
+    old.write_text(json.dumps({"game_id": "Origin.OFR.50.1", "offer_id": "Origin.OFR.50.1", "content_id": "1",
+                               "install_path": "/g", "exe": "/g/G.exe", "build_id": "/b", "version": "1"}))
+    loaded = read_record("Origin.OFR.50.1")
+    assert loaded is not None and loaded.origin_sdk == ""

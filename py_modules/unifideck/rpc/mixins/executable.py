@@ -18,7 +18,7 @@ unaffected.
 
 Storage is per store's launch mechanism:
 
-* **Direct-launch (gog / amazon)** — the launcher runs the games.map ``exe``
+* **Direct-launch (``EXE_OVERRIDE_DIRECT_STORES``: gog, amazon, gamevault, itch, ea)** — the launcher runs the games.map ``exe``
   directly via umu, so the override IS the games.map exe column (``work_dir`` /
   ``app_id`` carried over verbatim). This is also the source of truth, so a
   reinstall (which rewrites the row to the auto-detected exe via
@@ -33,6 +33,7 @@ import logging
 import os
 from typing import Any
 
+from unifideck.core.store_capabilities import EXE_OVERRIDE_DIRECT_STORES
 from unifideck.rpc import RpcError
 
 logger = logging.getLogger(__name__)
@@ -40,8 +41,9 @@ logger = logging.getLogger(__name__)
 # Stores whose launcher runs the games.map ``exe`` directly via umu — the
 # override lives in (and is read back from) the games.map row for these. Other
 # stores (Epic → legendary ``--override-exe`` from the config key) use the
-# config-override path instead.
-_DIRECT_LAUNCH_STORES = frozenset({"gog", "amazon", "gamevault", "itch"})
+# config-override path instead. One list, shared with the frontend's menu
+# through the ``supports_exe_override`` capability.
+_DIRECT_LAUNCH_STORES = EXE_OVERRIDE_DIRECT_STORES
 
 # How deep to scan the install dir for candidate executables. Config tools and
 # shipping binaries live a level or two down (``Binaries/Win64/…``); deeper than
