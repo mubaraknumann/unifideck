@@ -82,6 +82,9 @@ class DownloadItem:
     # ``store.install_game``, and (c) the cancel guardrail (an
     # update must not delete the pre-existing install).
     is_update: bool = False
+    #: The Proton a fresh install was set up on (latest GE); the frontend makes
+    #: it the game's Steam compatibility tool. None: leave Steam's setting alone.
+    proton_tool: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise to a JSON-friendly dict.
@@ -125,6 +128,7 @@ class DownloadItem:
             "download_phase": self.download_phase,
             "phase_message": self.phase_message,
             "is_update": self.is_update,
+            "proton_tool": self.proton_tool,
         }
 
     @classmethod

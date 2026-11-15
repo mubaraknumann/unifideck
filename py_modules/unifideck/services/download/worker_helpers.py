@@ -11,7 +11,7 @@ from typing import Any
 
 from unifideck.core.native_entry import gog_linux_start_script
 from unifideck.launcher.types.context import is_windows_executable
-from unifideck.launcher.wrapper_stores import uses_manual_download_phase
+from unifideck.launcher.wrapper_stores import is_wrapper_store, uses_manual_download_phase
 
 from .models import DownloadItem
 
@@ -104,3 +104,28 @@ def apply_dict_progress(item: DownloadItem, progress: dict[str, Any]) -> None:
     for pkey, attr, conv in _PROGRESS_FIELDS:
         if pkey in progress:
             setattr(item, attr, conv(progress[pkey]))
+
+
+async def pick_new_install_proton(item: DownloadItem, gets_prefix_setup: bool) -> None:
+    """Set ``item.proton_tool`` to the latest GE for a fresh install.
+
+    The install-time prefix setup builds the prefix on it, and the frontend
+    makes it the game's Steam compatibility tool (Properties > Compatibility),
+    which every launch then reads first. Steam's global default on a Deck is
+    Valve's Proton, which ships no FFmpeg (32-bit H.264 video crashes). Never
+    for an update or an existing game (they keep their Proton), never for a
+    wrapper store (client and games share one prefix), and only for a game
+    that gets a prefix setup, i.e. one that runs through Proton.
+    """
+    if item.is_update or not gets_prefix_setup or is_wrapper_store(item.store):
+        return
+    from unifideck.launcher.proton import select_managed_ge_proton
+
+    try:
+        _path, tool = await asyncio.to_thread(select_managed_ge_proton)
+    except Exception as e:
+        logger.warning("[DownloadWorker] no GE-Proton for %s:%s, Steam's default stays: %s", item.store, item.game_id, e)
+        return
+    flat = "".join(ch for ch in tool.lower() if ch.isalnum())
+    if "geproton" in flat or "protonge" in flat:  # not the Proton Experimental fallback
+        item.proton_tool = tool

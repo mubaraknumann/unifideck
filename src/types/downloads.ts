@@ -92,6 +92,9 @@ export interface DownloadItem {
    *  game (enqueued via `update_game`), false for a fresh install.
    *  Drives the "Downloading Update" / "Update Queued" label. */
   is_update?: boolean;
+  /** Set on a fresh install: the Proton its prefix was set up on (latest
+   *  GE). Made the game's Steam compatibility tool when the install ends. */
+  proton_tool?: string | null;
 }
 
 /**

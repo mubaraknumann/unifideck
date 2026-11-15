@@ -31,6 +31,7 @@ from .installed_game import build_installed_game
 from .models import MAX_FINISHED_HISTORY, DownloadItem, classify_download_error
 from .worker_helpers import (
     apply_dict_progress,
+    pick_new_install_proton,
     prefix_warmup_supported,
     track_task,
 )
@@ -340,6 +341,7 @@ class _WorkerMixin:
         result_install_path = getattr(result, "install_path", None)
         if result_install_path:
             item.install_path = result_install_path
+        await pick_new_install_proton(item, self._warmup_applies(item, result))
         if not self._warmup_applies(item, result):
             self._mark_item_complete(item)
             await self._finalise_install(item, result, store, key)

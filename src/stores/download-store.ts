@@ -30,6 +30,8 @@ import { headerText } from "../services/toast-text";
 import { showToast } from "../services/show-toast";
 import { launchUbisoftInstallViaShortcut } from "../utils/ubisoftShortcutLaunch";
 import { launchBattlenetInstallViaShortcut } from "../utils/battlenetShortcutLaunch";
+import { specifyNamedCompatTool } from "../lib/steam-bridge/shortcut-types";
+import { toUnsignedAppId } from "../lib/steam-bridge/appid";
 
 /**
  * Wrapper stores whose install flow needs the frontend to open their vendor
@@ -79,6 +81,20 @@ function extractAppId(payload: unknown): number | null {
   if (!game || typeof game !== "object") return null;
   const id = (game as { app_id?: unknown }).app_id;
   return typeof id === "number" ? id : null;
+}
+
+/**
+ * A fresh install names the Proton its prefix was set up on (latest GE).
+ * Make it the game's Steam compatibility tool (Properties > Compatibility),
+ * which every launch reads first, so the user sees it and can change it.
+ * Updates and existing games carry none and keep their setting.
+ */
+function applyInstallProton(payload: unknown): void {
+  const tool = extractItem(payload)?.proton_tool;
+  const appId = extractAppId(payload);
+  if (!tool || appId == null) return;
+  specifyNamedCompatTool(toUnsignedAppId(appId), tool);
+  console.log(`[DownloadStore] compatibility tool for appId=${appId} set to ${tool}`);
 }
 
 /** Pull the failure reason + title out of a `download_failed` payload.
@@ -231,7 +247,10 @@ class DownloadStoreImpl {
     };
 
     this._unsubs.push(
-      EventBusClient.subscribe("download_complete", onTerminal),
+      EventBusClient.subscribe("download_complete", (payload) => {
+        applyInstallProton(payload);
+        onTerminal(payload);
+      }),
     );
     this._unsubs.push(EventBusClient.subscribe("download_failed", onFailed));
     this._unsubs.push(

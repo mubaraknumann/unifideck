@@ -209,8 +209,12 @@ async def warmup_install_prefix(
     install_path: str,
     *,
     cloud_svc: Any = None,
+    proton_tool: str | None = None,
 ) -> None:
-    """Run the full first-run prefix setup (+ cloud pull) at install time."""
+    """Run the full first-run prefix setup (+ cloud pull) at install time.
+
+    ``proton_tool``: the Proton a fresh install is set up on (``pick_new_install_proton``).
+    """
     from unifideck.launcher.frontend_bridge import suppress_launcher_toasts
     from unifideck.launcher.proton.store_setup import run_store_prefix_setup
 
@@ -226,6 +230,7 @@ async def warmup_install_prefix(
     _reap_stale_prefix_wineserver(game_id)
 
     ctx, state = _build_launch_context(store, game_id, Path(install_path))
+    ctx.proton_tool = proton_tool
 
     # Steps 1+2 reuse the launch path's prefix-init / compat / GE-download /
     # umu-runtime helpers, all of which toast launch progress. During a
@@ -264,6 +269,7 @@ def make_prefix_warmup(
     async def _warmup(item: DownloadItem) -> None:
         await warmup_install_prefix(
             item.store, item.game_id, item.install_path, cloud_svc=cloud_svc,
+            proton_tool=item.proton_tool,
         )
 
     return _warmup

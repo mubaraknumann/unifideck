@@ -62,6 +62,9 @@ class LaunchContext:
     action: str | None = None
     bypass_circuit_breaker: bool = False
     steam_app_id: str | None = None
+    # The Proton a fresh install's prefix is set up on (latest GE), ahead of
+    # the selector; the frontend makes it the game's Steam setting.
+    proton_tool: str | None = None
     # Browser games (``launcher/browser_games``): the URL to open, and
     # ``"stream"`` (xCloud) or ``"web"`` (an HTML5 game). Their own fields
     # because ``work_dir`` is a ``Path``, which collapses ``https://``.

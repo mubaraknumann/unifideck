@@ -405,6 +405,20 @@ async def _preempt_incapable_proton(
     return True
 
 
+def _chosen_or_selected(ctx: LaunchContext, select: Any) -> tuple[Path, str]:
+    """``ctx.proton_tool`` when set and installed (a fresh install's GE), else the selector's pick."""
+    chosen = getattr(ctx, "proton_tool", None)
+    if chosen:
+        from unifideck.launcher.proton import resolve_proton_path
+
+        path = resolve_proton_path(chosen)
+        if path is not None:
+            return path, chosen
+        logger.warning("[prefix_setup] %s not found for %s; using the selected Proton", chosen, ctx.game_key)
+    picked: tuple[Path, str] = select(steam_app_id=ctx.steam_app_id, store_game_id=ctx.game_key)
+    return picked
+
+
 async def setup_prefix(
     ctx: LaunchContext,
     state: RuntimeState,
@@ -445,9 +459,7 @@ async def setup_prefix(
     # No per-game Force-Compat choice / steam_app_id is meaningful at install
     # time, and at launch ``ctx.steam_app_id`` is honoured — this resolves the
     # same default the first launch would pick.
-    default_path, default_tool = select_proton_version(
-        steam_app_id=ctx.steam_app_id, store_game_id=ctx.game_key,
-    )
+    default_path, default_tool = _chosen_or_selected(ctx, select_proton_version)
 
     # Bridge FIRST, before any early return: it is a cheap idempotent symlink
     # (``link_prefix`` returns "noop" when already correct) and it is the only

@@ -150,19 +150,22 @@ async def test_warmup_timeout_is_best_effort(tmp_path):
 async def test_make_prefix_warmup_passes_item_fields(monkeypatch):
     captured = {}
 
-    async def _fake(store, game_id, install_path, *, cloud_svc=None):
+    async def _fake(store, game_id, install_path, *, cloud_svc=None, proton_tool=None):
         captured.update(
             store=store, game_id=game_id,
-            install_path=install_path, cloud_svc=cloud_svc,
+            install_path=install_path, cloud_svc=cloud_svc, proton_tool=proton_tool,
         )
 
     monkeypatch.setattr(warmup_mod, "warmup_install_prefix", _fake)
     sentinel_cloud = object()
     hook = warmup_mod.make_prefix_warmup(sentinel_cloud)
 
-    await hook(_item("gog"))
+    item = _item("gog")
+    item.proton_tool = "GE-Proton11-12"
+    await hook(item)
 
     assert captured == {
         "store": "gog", "game_id": "g1",
         "install_path": "/data/install/g1", "cloud_svc": sentinel_cloud,
+        "proton_tool": "GE-Proton11-12",
     }

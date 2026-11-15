@@ -327,8 +327,9 @@ def select_proton_version(
       4. Steam's GLOBAL default compat tool (``CompatToolMapping["0"]``) —
          the distro/system default (e.g. Proton-CachyOS on CachyOS/Bazzite).
          The launcher runs the shortcut natively, so Steam's own global
-         Steam-Play default is never applied unless honored here. Empty on
-         stock SteamOS/Deck, so this tier is a no-op there.
+         Steam-Play default is never applied unless honored here. NOT empty
+         on a Steam Deck (``proton_experimental``); a new install gets tier 1
+         set to the latest GE instead (``worker_helpers.pick_new_install_proton``).
       5. The latest GE-Proton released online (downloaded/installed on
          demand), falling back to Proton Experimental when offline.
 

@@ -53,6 +53,8 @@ def _service(tmp_path, monkeypatch, *, store_name="gog"):
         "unifideck.services.download.worker.build_installed_game",
         AsyncMock(return_value={"id": f"{store_name}:g1"}),
     )
+    # A fresh install picks the latest GE, which may download it; never in a test.
+    monkeypatch.setattr("unifideck.services.download.worker.pick_new_install_proton", AsyncMock())
     return svc, bus
 
 
