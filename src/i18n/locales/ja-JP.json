@@ -165,7 +165,6 @@
     "gameCount": "{{count}} 本のゲーム",
     "gameCount_other": "{{count}} 本のゲーム",
     "queued": "順番待ち",
-    "waiting": "待機中…",
     "done": "完了",
     "failed": "同期に失敗しました",
     "cancelled": "キャンセルしました",

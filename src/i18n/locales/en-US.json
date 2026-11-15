@@ -165,7 +165,6 @@
     "gameCount": "{{count}} game",
     "gameCount_other": "{{count}} games",
     "queued": "Queued",
-    "waiting": "Waiting…",
     "done": "Done",
     "failed": "Sync failed",
     "cancelled": "Cancelled",

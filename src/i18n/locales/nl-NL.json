@@ -165,7 +165,6 @@
     "gameCount": "{{count}} spel",
     "gameCount_other": "{{count}} spellen",
     "queued": "In wachtrij",
-    "waiting": "Wachten…",
     "done": "Klaar",
     "failed": "Synchronisatie mislukt",
     "cancelled": "Geannuleerd",

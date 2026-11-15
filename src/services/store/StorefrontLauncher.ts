@@ -165,7 +165,7 @@ export function hasStorefront(store: StoreId): boolean {
  * connected, because `request_auth_sync` triggers the post-sync
  * reconcile sweep, which REMOVES a logged-out store's shortcuts.
  * Syncing a store we just lost would delete the user's library tiles
- * for it.
+ * for it. The sync covers this store alone; the others are not touched.
  */
 async function settleAfterClose(store: StoreId): Promise<void> {
   await authStore.refetch();
@@ -177,7 +177,9 @@ async function settleAfterClose(store: StoreId): Promise<void> {
   }
   try {
     await prepareForSync();
-    await call<[StoreId], unknown>(rpcRoutes.requestAuthSync, store);
+    // Only the store that was opened: `request_auth_sync` is a full sync of
+    // every store, so closing one shop used to re-sync them all.
+    await call<[StoreId[]], unknown>(rpcRoutes.syncStoreLibraries, [store]);
   } catch (e) {
     console.error(`[StorefrontLauncher:${store}] post-shop sync failed:`, e);
   }

@@ -8,8 +8,11 @@
  *   2. its row in the current run (`SyncProgress.stores[id]`):
  *        queued  → `Queued`
  *        active  → `41/120 games`, or `210/340 images` while artwork
- *                   downloads — number first, like the idle `340 games`
- *        waiting → `Waiting…` (its part is done, the run is not)
+ *                   downloads — number first, like the idle `340 games`.
+ *                   `Queued` until its first game is done, so a store
+ *                   whose turn has not come never reads `0/459`
+ *        waiting → its game count, as idle (its part is done, the run
+ *                   is not)
  *        error   → `Sync failed` (stays until the next run)
  *        done / cancelled → `Done` / `Cancelled` briefly, then idle
  *   3. a queued request that names it → `Queued`
@@ -83,9 +86,18 @@ function runLine(
     case "queued":
       return { text: t("storeConnections.queued"), tone: "normal" };
     case "active":
+      // A phase marks every store with games `active` up front, then walks
+      // them one after another, so a store whose turn has not come reads
+      // 0/459. That is not "synced, found nothing"; it is still queued.
+      if (row.done === 0 && row.total > 0) {
+        return { text: t("storeConnections.queued"), tone: "normal" };
+      }
       return activeLine(t, row);
     case "waiting":
-      return { text: t("storeConnections.waiting"), tone: "normal" };
+      // Its part is done and the run is not: show its game count, the
+      // same line it shows idle, rather than a word that reads like it is
+      // still working.
+      return idleLine(t, input);
     case "error":
       return {
         text: t("storeConnections.failed"),

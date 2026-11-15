@@ -69,13 +69,31 @@ describe("formatStoreStatus", () => {
     expect(line.text).toBe('storeConnections.progressGames{"done":0,"count":0}');
   });
 
-  it("names queued and waiting rows", () => {
+  it("says Queued, not 0/N, for an active store that has not started", () => {
+    const line = formatStoreStatus(
+      t,
+      input({ row: row({ phase: "artwork", done: 0, total: 459 }) }),
+    );
+    expect(line.text).toBe("storeConnections.queued");
+    const started = formatStoreStatus(
+      t,
+      input({ row: row({ phase: "artwork", done: 1, total: 459 }) }),
+    );
+    expect(started.text).toBe('storeConnections.progressImages{"done":1,"count":459}');
+  });
+
+  it("names a queued row", () => {
     expect(formatStoreStatus(t, input({ row: row({ state: "queued" }) })).text).toBe(
       "storeConnections.queued",
     );
-    expect(formatStoreStatus(t, input({ row: row({ state: "waiting" }) })).text).toBe(
-      "storeConnections.waiting",
-    );
+  });
+
+  it("shows the game count for a row that finished its part of the run", () => {
+    const waiting = row({ state: "waiting" });
+    expect(
+      formatStoreStatus(t, input({ row: waiting, summary: { count: 185, synced_at: null } })).text,
+    ).toBe('storeConnections.gameCount{"count":185}');
+    expect(formatStoreStatus(t, input({ row: waiting })).text).toBe("storeConnections.notSynced");
   });
 
   it("keeps a failure red with its message as detail", () => {

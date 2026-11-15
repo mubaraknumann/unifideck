@@ -165,7 +165,6 @@
     "gameCount": "{{count}} لعبة",
     "gameCount_other": "{{count}} ألعاب",
     "queued": "في قائمة الانتظار",
-    "waiting": "جارٍ الانتظار…",
     "done": "تم",
     "failed": "فشلت المزامنة",
     "cancelled": "تم الإلغاء",

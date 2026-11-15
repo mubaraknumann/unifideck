@@ -165,7 +165,6 @@
     "gameCount": "{{count}} oyun",
     "gameCount_other": "{{count}} oyun",
     "queued": "Sırada",
-    "waiting": "Bekleniyor…",
     "done": "Tamamlandı",
     "failed": "Senkronizasyon başarısız",
     "cancelled": "İptal edildi",

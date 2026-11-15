@@ -165,7 +165,6 @@
     "gameCount": "게임 {{count}}개",
     "gameCount_other": "게임 {{count}}개",
     "queued": "대기열에 있음",
-    "waiting": "대기 중…",
     "done": "완료",
     "failed": "동기화 실패",
     "cancelled": "취소됨",

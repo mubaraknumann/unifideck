@@ -165,7 +165,6 @@
     "gameCount": "{{count}} 款游戏",
     "gameCount_other": "{{count}} 款游戏",
     "queued": "排队中",
-    "waiting": "等待中…",
     "done": "完成",
     "failed": "同步失败",
     "cancelled": "已取消",

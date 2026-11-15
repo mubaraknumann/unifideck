@@ -165,7 +165,6 @@
     "gameCount": "{{count}} гра",
     "gameCount_other": "{{count}} ігор",
     "queued": "У черзі",
-    "waiting": "Очікування…",
     "done": "Готово",
     "failed": "Помилка синхронізації",
     "cancelled": "Скасовано",

@@ -7,8 +7,9 @@
  *
  * Each store is one row — icon, name, one line of status, options button.
  * The button opens `StoreOptionsModal`, which holds the full-width actions.
- * The status and button columns are fixed-width so every row lines up, and
- * long status text is cut off with an ellipsis before it can push the button.
+ * The button is a fixed column so every row lines up; the status takes only
+ * the room its text needs (capped), and the name gets the rest. Either is cut
+ * off with an ellipsis before it can push the button.
  *
  * Only the options button takes focus; the rest of the row is a label.
  */
@@ -16,6 +17,8 @@
 export const STORE_ROW_CSS = `
 .unifideck-store-row-header {
   display: flex;
+  width: 100%;
+  box-sizing: border-box;
   align-items: center;
   gap: 8px;
   /* Compact, but still a comfortable touch target. */
@@ -32,14 +35,24 @@ export const STORE_ROW_CSS = `
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.unifideck-store-row-header > :first-child {
+  flex: 0 0 auto;
+}
 .unifideck-store-row-status {
-  flex: 0 0 118px;
+  /* Sizes to its text, up to a cap, so the name gets whatever is left. An
+     empty status takes no room at all. */
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 118px;
   font-size: 12px;
   text-align: end;
   opacity: 0.7;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.unifideck-store-row-status:empty {
+  display: none;
 }
 .unifideck-store-row-status.error {
   color: #ff6b6b;
@@ -48,14 +61,18 @@ export const STORE_ROW_CSS = `
 
 /* The row's only focus target besides its own text: the options button. */
 .unifideck-store-row-options {
-  flex: 0 0 auto;
+  /* Steam's DialogButton is width: 100% with its own min-width; pin it to a
+     fixed column or it takes the whole row and squeezes the name away. */
+  flex: 0 0 32px !important;
+  width: 32px !important;
+  min-width: 32px !important;
+  max-width: 32px !important;
+  height: 28px !important;
+  padding: 0 !important;
+  margin: 0 !important;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 0 !important;
-  width: 32px;
-  height: 28px;
-  padding: 0 !important;
 }
 
 .unifideck-store-modal-title {
