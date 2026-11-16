@@ -459,7 +459,8 @@
       "xboxPcSteamRootMissing": "找不到 Steam 資料夾",
       "xboxPcVcRedistMissing": "缺少 VC++",
       "xboxPcVcRuntimeFailed": "VC++ 安裝失敗",
-      "launchingGame": "啟動中…"
+      "launchingGame": "啟動中…",
+      "lunaEntryMissing": "No launch entry"
     },
     "library": {
       "syncStoreFailed": "失敗：{{store}}",
@@ -702,7 +703,8 @@
     "battlenet": "Battle.net",
     "gamevault": "GameVault",
     "itch": "itch.io",
-    "ea": "EA"
+    "ea": "EA",
+    "luna": "Amazon Luna"
   },
   "unifiedLibrary": {
     "error": "Unifideck 錯誤",
@@ -976,6 +978,12 @@
       "unavailable": "無法讀取此遊戲的資料夾。",
       "changed": "可執行檔已變更",
       "reset": "重設為預設可執行檔"
+    },
+    "luna": {
+      "signIn": "Sign in to Luna",
+      "signInHint": "Connect your Amazon Luna account to stream this game.",
+      "reauthenticate": "Reconnect to Luna",
+      "sessionExpired": "Your Luna session expired. Reconnect to keep playing."
     }
   },
   "playMeta": {
@@ -1145,6 +1153,13 @@
       "startedBody": "所有商店的遊戲庫同步工作都已在背景開始執行。",
       "startedSingle": "{{store}} 商店的資料同步目前正在背景進行中。",
       "failedTitle": "同步指令派發失敗"
+    },
+    "lunaQuality": {
+      "title": "Amazon Luna 串流畫質",
+      "auto": "自動（由 Luna 決定）",
+      "limited": "受限（節省流量）",
+      "standard": "標準",
+      "best": "最佳"
     }
   },
   "saveFolder": {

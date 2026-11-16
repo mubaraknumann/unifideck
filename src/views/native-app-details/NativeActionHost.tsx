@@ -33,6 +33,7 @@ import {
   CLOUD_TARGET_NAME,
   PLAY_FROM_CLASS,
   cloudStreamUrl,
+  cloudTargetName,
   remotePlayTipCss,
   showPlayFromMenu,
   streamInstalled,
@@ -122,6 +123,7 @@ const NativeActionBinding: FC<Props> = ({ element, appId }) => {
   // A game only xCloud carries: Steam's own Stream button, no arrow. Its
   // click is unchanged (the browser intent below).
   const cloudOnly = state.kind === "browser" && state.variant === "stream";
+  const cloudName = cloudTargetName(state);
   const [target, setTarget] = usePlayTarget(appId);
   const cloudSelected = !!cloudUrl && target === "cloud";
 
@@ -143,11 +145,11 @@ const NativeActionBinding: FC<Props> = ({ element, appId }) => {
   const proxied = useMemo(() => {
     if (!overview || action.status == null) return null;
     const base = withDisplayStatus(overview, action.status);
-    if (cloudOnly) return withPlayTargets(base, CLOUD_TARGET_NAME, true, false);
+    if (cloudOnly) return withPlayTargets(base, cloudName, true, false);
     return cloudUrl
       ? withPlayTargets(base, CLOUD_TARGET_NAME, cloudSelected)
       : base;
-  }, [overview, action.status, cloudUrl, cloudSelected, cloudOnly]);
+  }, [overview, action.status, cloudUrl, cloudSelected, cloudOnly, cloudName]);
   if (proxied) {
     bindActionSpec(proxied, spec);
     if (cloudUrl) bindStreamMenu(proxied, menu);

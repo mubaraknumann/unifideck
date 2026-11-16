@@ -114,11 +114,17 @@ export function getUnifideckTabs(): UnifideckTab[] {
       filters: [{ type: "store", params: { store: "ea" } }],
     },
     {
+      id: "unifideck-luna",
+      title: t("deckTabs.luna"),
+      position: 13,
+      filters: [{ type: "store", params: { store: "luna" } }],
+    },
+    {
       // Stays last: "Non-Steam" is the catch-all, so a store tab inserted
       // before it takes its number and this one moves down.
       id: "unifideck-nonsteam",
       title: t("deckTabs.nonSteam"),
-      position: 13,
+      position: 14,
       filters: [{ type: "nonSteam", params: {} }],
     },
   ];
@@ -400,7 +406,8 @@ type ConnectableStore =
   | "microsoft"
   | "gamevault"
   | "itch"
-  | "ea";
+  | "ea"
+  | "luna";
 
 class TabManager {
   private tabs: UnifideckTabContainer[] = [];
@@ -415,6 +422,7 @@ class TabManager {
     gamevault: 0,
     itch: 0,
     ea: 0,
+    luna: 0,
   };
   private signedOut = new Set<string>();
   private version = 0;
@@ -485,6 +493,7 @@ class TabManager {
       "unifideck-gamevault": "gamevault",
       "unifideck-itch": "itch",
       "unifideck-ea": "ea",
+      "unifideck-luna": "luna",
     };
     const store = m[id];
     if (!store) return true;

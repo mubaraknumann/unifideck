@@ -33,6 +33,7 @@ import { AuthDispatcher } from "../services/auth/AuthDispatcher";
 import { ChromiumInstallModal } from "../components/modals/ChromiumInstallModal";
 import { STORE_VISUALS } from "../types/store";
 import { connectGameVault } from "../lib/gamevault-connect";
+import { lunaStatusToStoreStatus } from "../types/api";
 import type { AuthResult, StoreId } from "../types/api";
 
 /**
@@ -192,6 +193,14 @@ export function useStoreAuth(store: StoreId): UseStoreAuthResult {
           />,
         );
         return result;
+      }
+      // A connection-gated store (Luna) returns its rich state in
+      // `metadata.store_status`; reflect it so the panel + Play control
+      // render the matching prompt within 2s (Req 10.4/10.7/10.8). A
+      // non-Luna store never sets this, so the generic paths below run.
+      const lunaStatus = result.metadata?.store_status;
+      if (lunaStatus) {
+        auth.notifyStatus(store, lunaStatusToStoreStatus(lunaStatus));
       }
       if (result.success) {
         auth.notifyConnected(store);

@@ -45,6 +45,7 @@ export const rpcRoutes = {
   getBattlenetAuthShortcutContext: "get_battlenet_auth_shortcut_context",
   getItchAuthShortcutContext: "get_itch_auth_shortcut_context",
   getEaAuthShortcutContext: "get_ea_auth_shortcut_context",
+  getLunaAuthShortcutContext: "get_luna_auth_shortcut_context",
   getCompatToolForGame: "get_compat_tool_for_game",
   // Library sync (SyncRPCMixin)
   syncLibraries: "sync_libraries",
@@ -91,6 +92,8 @@ export const rpcRoutes = {
   // UI helpers (UIRPCMixin)
   setLanguagePreference: "set_language_preference",
   getLanguagePreference: "get_language_preference",
+  getLunaVideoQuality: "get_luna_video_quality",
+  setLunaVideoQuality: "set_luna_video_quality",
   getDeviceType: "get_device_type",
   setDefaultStorageLocation: "set_default_storage_location",
   setCustomInstallPath: "set_custom_install_path",

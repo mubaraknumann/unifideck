@@ -282,6 +282,13 @@ export interface AuthResult extends Result {
   url?: string;
   token?: string;
   store: StoreId;
+  /** Optional backend hint payload. Luna puts its rich connection state here
+   *  under ``store_status`` (one of {@link LunaStatus}) because the coarse
+   *  ``success`` flag can't tell a never-connected store from an
+   *  expired-session one — the panel renders a different prompt for each
+   *  (Req 10.4). Mirrors how Microsoft surfaces ``needs_2fa``. Absent for
+   *  every store that only reports connected/disconnected. */
+  metadata?: { store_status?: string } & Record<string, unknown>;
 }
 
 /** Install completion response. */
@@ -373,7 +380,12 @@ export type StoreId =
   | "battlenet"
   | "gamevault"
   | "itch"
-  | "ea";
+  | "ea"
+  // Amazon Luna cloud-gaming: a browser-session stream, like xCloud. Shares
+  // the browser-games launch path (`browser` tag + `metadata["browser_url"]`),
+  // but its Play control is gated on connection state (Req 10) because a Luna
+  // title cannot stream without a signed-in, non-expired Amazon session.
+  | "luna";
 
 /**
  * Per-store availability + auth state, returned by
@@ -387,6 +399,51 @@ export type StoreId =
  *  - `unavailable`     : store CLI / Wine prefix missing
  */
 export type StoreStatus = "connected" | "disconnected" | "expired" | "error";
+
+/**
+ * The full connection-state vocabulary the Amazon Luna backend
+ * (`stores/luna/luna_store.py` `LunaStatus`) surfaces to the frontend
+ * through `AuthResult.metadata.store_status`. Richer than {@link StoreStatus}
+ * on purpose: the Luna QAM panel and Play control render a *different* prompt
+ * for several of these (a first sign-in for `not_connected`, a
+ * re-authentication for `session_expired`, a browser-install prompt for
+ * `needs_browser`, a retry hint for `sync_error`), which
+ * the four-value `StoreStatus` cannot express (Req 10, 11, 13).
+ *
+ * {@link lunaStatusToStoreStatus} collapses these onto the coarse
+ * {@link StoreStatus} the shared auth-store tracks, so the generic panel row
+ * keeps working while the Luna-aware controls read the precise value.
+ */
+export type LunaStatus =
+  | "connected"
+  | "not_connected"
+  | "session_expired"
+  | "session_unknown"
+  | "needs_browser"
+  | "sync_error"
+  | "region_unavailable"
+  | "platform_spoofing_failure"
+  | "launch_failure"
+  | "recovery_in_progress";
+
+/**
+ * Collapse a Luna `store_status` onto the coarse {@link StoreStatus} the
+ * shared auth-store tracks:
+ *  - `connected`              → `connected`  (Play enabled, Req 10.1)
+ *  - `session_expired`        → `expired`    (re-auth prompt, Req 10.4)
+ *  - everything else          → `disconnected` (first sign-in prompt / Play
+ *                               disabled, Req 10.2/10.3). The browser-missing,
+ *                               sync-error, region and in-flight states all
+ *                               mean "not usably signed in to stream right
+ *                               now", so they share the not-connected
+ *                               affordance; the specific reason is logged
+ *                               backend-side and surfaced by its own flow.
+ */
+export function lunaStatusToStoreStatus(status: string): StoreStatus {
+  if (status === "connected") return "connected";
+  if (status === "session_expired") return "expired";
+  return "disconnected";
+}
 
 /**
  * How the user owns a given title. Discriminates
@@ -414,6 +471,11 @@ export type GameTag =
   // Played in an Edge window at `browser_url`, never installed: xCloud
   // streams and itch.io HTML5 games (backend `launcher/browser_games`).
   | "browser"
+  // Amazon Luna cloud-gaming title: a browser-session stream. Carried
+  // alongside `browser`; drives the connection-gated Luna Play control
+  // (enabled when connected, disabled + sign-in prompt when not, re-auth
+  // prompt when the session expired — Req 10).
+  | "luna"
   // Paid for but not yet claimed on the store's site (an itch.io bundle
   // game). The install flow opens the claim page first.
   | "claim_required"

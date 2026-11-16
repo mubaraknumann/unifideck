@@ -459,7 +459,8 @@
       "xboxPcSteamRootMissing": "Steam 폴더 없음",
       "xboxPcVcRedistMissing": "VC++ 없음",
       "xboxPcVcRuntimeFailed": "VC++ 실패",
-      "launchingGame": "실행 중…"
+      "launchingGame": "실행 중…",
+      "lunaEntryMissing": "No launch entry"
     },
     "library": {
       "syncStoreFailed": "실패: {{store}}",
@@ -702,7 +703,8 @@
     "battlenet": "Battle.net",
     "gamevault": "GameVault",
     "itch": "itch.io",
-    "ea": "EA"
+    "ea": "EA",
+    "luna": "Amazon Luna"
   },
   "unifiedLibrary": {
     "error": "Unifideck 오류",
@@ -936,6 +938,12 @@
       "subtitle": "이 게임이 실행할 파일을 선택하십시오 (예: 런처를 건너뛰고 게임을 직접 실행). 작업 디렉토리와 클라우드 저장 데이터는 영향을 받지 않습니다.",
       "title": "실행 파일 변경. {{game}}",
       "unavailable": "이 게임의 폴더를 읽을 수 없습니다."
+    },
+    "luna": {
+      "signIn": "Sign in to Luna",
+      "signInHint": "Connect your Amazon Luna account to stream this game.",
+      "reauthenticate": "Reconnect to Luna",
+      "sessionExpired": "Your Luna session expired. Reconnect to keep playing."
     }
   },
   "playMeta": {
@@ -1105,6 +1113,13 @@
       "startedBody": "모든 상점의 동기화가 백그라운드에서 진행됩니다.",
       "startedSingle": "{{store}} 라이브러리 동기화가 백그라운드에서 실행 중입니다.",
       "failedTitle": "라이브러리 동기화 시작 실패"
+    },
+    "lunaQuality": {
+      "title": "Amazon Luna 스트리밍 품질",
+      "auto": "자동 (Luna가 결정)",
+      "limited": "제한 (데이터 절약)",
+      "standard": "표준",
+      "best": "최고"
     }
   },
   "saveFolder": {

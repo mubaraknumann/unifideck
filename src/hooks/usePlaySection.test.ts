@@ -27,12 +27,23 @@ const xbox = vi.hoisted(() => ({
   loading: false,
   error: null as string | null,
 }));
+// The hook reads the Luna connection status straight off the boot-time
+// auth-store singleton (NOT the AuthContext — it renders in Steam's injected
+// tree with no <AuthProvider>). Mock the store so these cases run without one;
+// the Luna-specific gating is asserted in its own block.
+const auth = vi.hoisted(() => ({ statuses: {} as Record<string, string> }));
 
 vi.mock("./useGameInfo", () => ({ useGameInfo: () => gameInfo }));
 vi.mock("../contexts/DownloadContext", () => ({
   useDownloads: () => downloads,
 }));
 vi.mock("./useXboxPcStatus", () => ({ useXboxPcStatus: () => xbox }));
+vi.mock("../stores/auth-store", () => ({
+  authStore: {
+    subscribe: () => () => {},
+    getSnapshot: () => ({ statuses: auth.statuses, loading: false }),
+  },
+}));
 
 import { usePlaySection } from "./usePlaySection";
 import { resolvePlaySection } from "./resolvePlaySection";
@@ -122,6 +133,69 @@ describe("usePlaySection — cloud titles never reach the install path", () => {
       variant: "web",
       url: "https://poncle.itch.io/vampire-survivors",
     });
+  });
+});
+
+/**
+ * Luna is a browser-session stream like xCloud, but its Play control is
+ * connection-gated (Req 10). The hook surfaces that by marking the browser
+ * state `gatedStore: "luna"` and attaching the live Luna status, so the Play
+ * component can enable Play (connected), disable it with a sign-in prompt
+ * (not connected), or show a re-auth prompt (session expired).
+ */
+describe("usePlaySection — Luna titles are connection-gated", () => {
+  function lunaGame(over: Record<string, unknown> = {}) {
+    return game({
+      id: "amzn1.adg.product.2b77fdb6",
+      store: "luna",
+      store_tags: ["browser", "luna"],
+      browser_url: "https://luna.amazon.de/game/amzn1.adg.product.2b77fdb6",
+      ...over,
+    });
+  }
+
+  it("resolves a Luna title to a gated stream carrying its status", () => {
+    auth.statuses = { luna: "connected" };
+    expect(useResolved(lunaGame())).toMatchObject({
+      kind: "browser",
+      variant: "stream",
+      gatedStore: "luna",
+      authStatus: "connected",
+      url: "https://luna.amazon.de/game/amzn1.adg.product.2b77fdb6",
+    });
+  });
+
+  it("passes a disconnected status through so Play is gated off", () => {
+    auth.statuses = { luna: "disconnected" };
+    expect(useResolved(lunaGame())).toMatchObject({
+      gatedStore: "luna",
+      authStatus: "disconnected",
+    });
+  });
+
+  it("passes an expired status through for the re-auth prompt", () => {
+    auth.statuses = { luna: "expired" };
+    expect(useResolved(lunaGame())).toMatchObject({
+      gatedStore: "luna",
+      authStatus: "expired",
+    });
+  });
+
+  it("gates even a Luna title cached before the store tag existed", () => {
+    // store === "luna" alone is enough; the `luna` tag may be absent on an
+    // older library-cache entry.
+    auth.statuses = { luna: "connected" };
+    expect(useResolved(lunaGame({ store_tags: ["browser"] }))).toMatchObject({
+      gatedStore: "luna",
+      variant: "stream",
+    });
+  });
+
+  it("never gates an xcloud stream (gatedStore stays undefined)", () => {
+    auth.statuses = {};
+    const state = useResolved(game());
+    expect(state).toMatchObject({ kind: "browser", variant: "stream" });
+    expect((state as { gatedStore?: string }).gatedStore).toBeUndefined();
   });
 });
 

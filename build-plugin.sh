@@ -1091,6 +1091,9 @@ build_local() {
     "py_modules/unifideck/launcher/wrapper_stores.py"
         "py_modules/unifideck/stores/microsoft/__init__.py"
         "py_modules/unifideck/stores/microsoft/microsoft_store.py"
+        "py_modules/unifideck/stores/luna/__init__.py"
+        "py_modules/unifideck/stores/luna/luna_store.py"
+        "py_modules/unifideck/stores/luna/luna_api/client.py"
 
         # Layer 5 - Services (Cross-cutting infrastructure like downloads/art)
         "py_modules/unifideck/services/__init__.py"

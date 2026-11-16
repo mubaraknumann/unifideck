@@ -459,7 +459,8 @@
       "xboxPcSteamRootMissing": "Manca Steam",
       "xboxPcVcRedistMissing": "Manca VC++",
       "xboxPcVcRuntimeFailed": "VC++ fallito",
-      "launchingGame": "Avvio…"
+      "launchingGame": "Avvio…",
+      "lunaEntryMissing": "No launch entry"
     },
     "library": {
       "syncStoreFailed": "Errore {{store}}",
@@ -702,7 +703,8 @@
     "battlenet": "Battle.net",
     "gamevault": "GameVault",
     "itch": "itch.io",
-    "ea": "EA"
+    "ea": "EA",
+    "luna": "Amazon Luna"
   },
   "unifiedLibrary": {
     "error": "Errore Unifideck",
@@ -936,6 +938,12 @@
       "subtitle": "Scegli quale file avvia questo gioco (es. saltare un launcher e avviare direttamente il gioco). La cartella di lavoro e i salvataggi cloud non subiranno variazioni.",
       "title": "Modifica eseguibile. {{game}}",
       "unavailable": "Impossibile leggere la cartella di questo gioco."
+    },
+    "luna": {
+      "signIn": "Sign in to Luna",
+      "signInHint": "Connect your Amazon Luna account to stream this game.",
+      "reauthenticate": "Reconnect to Luna",
+      "sessionExpired": "Your Luna session expired. Reconnect to keep playing."
     }
   },
   "playMeta": {
@@ -1105,6 +1113,13 @@
       "startedBody": "Sincronizzazione di tutti i negozi in background.",
       "startedSingle": "Aggiornamento della libreria {{store}} in background.",
       "failedTitle": "Impossibile avviare l'aggiornamento della libreria"
+    },
+    "lunaQuality": {
+      "title": "Qualità di streaming di Amazon Luna",
+      "auto": "Automatica (decide Luna)",
+      "limited": "Limitata (risparmia dati)",
+      "standard": "Normale",
+      "best": "Massima"
     }
   },
   "saveFolder": {

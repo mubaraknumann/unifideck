@@ -53,6 +53,7 @@ import { useTranslation } from "react-i18next";
 import {
   StoreConnections,
   XboxPcSection,
+  LunaQualitySection,
   LibrarySync,
   LanguageSelector,
   GameDetailsViewModeToggle,
@@ -186,6 +187,7 @@ export const QuickAccessPanel: FC = () => {
               <>
                 <StoreConnections />
                 <XboxPcSection />
+                <LunaQualitySection />
                 <LibrarySync />
                 <LanguageSelector />
                 <GameDetailsViewModeToggle />

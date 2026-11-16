@@ -459,7 +459,8 @@
       "xboxPcSteamRootMissing": "Немає теки Steam",
       "xboxPcVcRedistMissing": "Немає VC++",
       "xboxPcVcRuntimeFailed": "Збій VC++",
-      "launchingGame": "Запуск…"
+      "launchingGame": "Запуск…",
+      "lunaEntryMissing": "No launch entry"
     },
     "library": {
       "syncStoreFailed": "Збій: {{store}}",
@@ -702,7 +703,8 @@
     "battlenet": "Battle.net",
     "gamevault": "GameVault",
     "itch": "itch.io",
-    "ea": "EA"
+    "ea": "EA",
+    "luna": "Amazon Luna"
   },
   "unifiedLibrary": {
     "error": "Помилка Unifideck",
@@ -936,6 +938,12 @@
       "subtitle": "Виберіть, який файл запускає цю гру (наприклад, щоб обійти лаунчер і запустити гру напряму). Робоча папка та хмарні збереження не зміняться.",
       "title": "Змінити виконуваний файл. {{game}}",
       "unavailable": "Не вдалося прочитати папку цієї гри."
+    },
+    "luna": {
+      "signIn": "Sign in to Luna",
+      "signInHint": "Connect your Amazon Luna account to stream this game.",
+      "reauthenticate": "Reconnect to Luna",
+      "sessionExpired": "Your Luna session expired. Reconnect to keep playing."
     }
   },
   "playMeta": {
@@ -1105,6 +1113,13 @@
       "startedBody": "Синхронізація всіх магазинів виконується у фоновому режимі.",
       "startedSingle": "Оновлення бібліотеки {{store}} виконується у фоновому режимі.",
       "failedTitle": "Не вдалося запустити оновлення бібліотеки"
+    },
+    "lunaQuality": {
+      "title": "Якість стримінгу Amazon Luna",
+      "auto": "Авто (вирішує Luna)",
+      "limited": "Обмежена (економить трафік)",
+      "standard": "Стандартна",
+      "best": "Найкраща"
     }
   },
   "saveFolder": {

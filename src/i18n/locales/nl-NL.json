@@ -459,7 +459,8 @@
       "xboxPcSteamRootMissing": "Geen Steam-map",
       "xboxPcVcRedistMissing": "VC++ ontbreekt",
       "xboxPcVcRuntimeFailed": "VC++ mislukt",
-      "launchingGame": "Starten…"
+      "launchingGame": "Starten…",
+      "lunaEntryMissing": "No launch entry"
     },
     "library": {
       "syncStoreFailed": "Mislukt: {{store}}",
@@ -702,7 +703,8 @@
     "battlenet": "Battle.net",
     "gamevault": "GameVault",
     "itch": "itch.io",
-    "ea": "EA"
+    "ea": "EA",
+    "luna": "Amazon Luna"
   },
   "unifiedLibrary": {
     "error": "Unifideck-fout",
@@ -936,6 +938,12 @@
       "subtitle": "Kies welk bestand deze game start (bijv. sla een launcher over en start de game direct). De werkmap en cloudopslag worden niet beïnvloed.",
       "title": "Uitvoerbaar bestand wijzigen. {{game}}",
       "unavailable": "Kon de map van deze game niet lezen."
+    },
+    "luna": {
+      "signIn": "Sign in to Luna",
+      "signInHint": "Connect your Amazon Luna account to stream this game.",
+      "reauthenticate": "Reconnect to Luna",
+      "sessionExpired": "Your Luna session expired. Reconnect to keep playing."
     }
   },
   "playMeta": {
@@ -1105,6 +1113,13 @@
       "startedBody": "Alle winkels worden op de achtergrond gesynchroniseerd.",
       "startedSingle": "De bibliotheek van {{store}} wordt op de achtergrond gesynchroniseerd.",
       "failedTitle": "Kan bibliotheekvernieuwing niet starten"
+    },
+    "lunaQuality": {
+      "title": "Streamingkwaliteit Amazon Luna",
+      "auto": "Automatisch (Luna beslist)",
+      "limited": "Beperkt (bespaart data)",
+      "standard": "Standaard",
+      "best": "Beste"
     }
   },
   "saveFolder": {

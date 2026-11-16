@@ -23,11 +23,16 @@
  * | disabled, installed               | unsupported `disabled` with Uninstall  |
  * | disabled, not installed           | Stream if `xcloud`, else unsupported   |
  *
+ * Amazon Luna rows are browser streams too, but their Play control is
+ * connection-gated: the state carries `gatedStore: "luna"` and the live Luna
+ * connection status, so the Play component can enable Play (connected),
+ * prompt a sign-in (disconnected) or a re-authentication (expired).
+ *
  * There is no Stream on an installed row in v1: Play on an installed row
  * runs the PC game.
  */
 import type { DownloadItem, DownloadQueueInfo } from "../types/downloads";
-import type { Game, XboxPcInfo } from "../types/api";
+import type { Game, StoreStatus, XboxPcInfo } from "../types/api";
 import type { XboxPcSnapshot } from "../stores/xbox-pc-store";
 import {
   asPcUnsupportedReason,
@@ -65,6 +70,15 @@ export type PlaySectionState =
       /** "stream" = xCloud (Play on Cloud); "web" = an HTML5 game. */
       variant: "stream" | "web";
       url: string;
+      /** When set, the browser game is a connection-gated store (Amazon
+       *  Luna): Play is enabled only while `authStatus === "connected"`,
+       *  disabled with a sign-in prompt while `"disconnected"`, and shown with
+       *  a re-authentication prompt while `"expired"`. xCloud and itch.io
+       *  leave this undefined and stay always-playable. */
+      gatedStore?: "luna";
+      /** The gated store's current connection status, read from the shared
+       *  auth-store. Undefined until the first `check_store_status` lands. */
+      authStatus?: StoreStatus;
       /** Why the PC version cannot install, shown under Stream. */
       notice?: PcUnsupportedReason;
     }
@@ -92,6 +106,7 @@ export function resolvePlaySection(
   info: GameInfoView,
   queue: DownloadQueueInfo | null | undefined,
   xbox: XboxPcView,
+  lunaStatus?: StoreStatus,
 ): PlaySectionState {
   if (appId != null && !info.data && info.status === "unavailable") {
     // No answer from the backend. Waiting longer only keeps a blank
@@ -118,6 +133,12 @@ export function resolvePlaySection(
   // Play state regardless of is_installed. The launcher finds the URL in
   // the library cache (backend `launcher/browser_games`). `xcloud` alone
   // still counts, for a library cached before the `browser` tag existed.
+  // A Luna title is a browser-session stream whose Play control is
+  // connection-gated. Detect it by the store id or the `luna` tag so a
+  // library cached before the tag existed still gates.
+  if (game.store === "luna" || tags.includes("luna")) {
+    return lunaState(appId, game, lunaStatus);
+  }
   if (tags.includes("browser") || tags.includes("xcloud")) {
     return browserState(appId, game);
   }
@@ -242,6 +263,23 @@ function browserState(
     appId,
     variant: stream ? "stream" : "web",
     url: stream ? streamUrlOf(game) : game.browser_url ?? "",
+  };
+}
+
+/** A Luna title: always a stream, gated on the live Luna connection status. */
+function lunaState(
+  appId: number,
+  game: Game,
+  authStatus: StoreStatus | undefined,
+): PlaySectionState {
+  return {
+    kind: "browser",
+    shouldOverride: true,
+    appId,
+    variant: "stream",
+    url: game.browser_url ?? "",
+    gatedStore: "luna",
+    authStatus,
   };
 }
 

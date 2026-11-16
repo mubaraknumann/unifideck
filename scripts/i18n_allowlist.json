@@ -276,5 +276,30 @@
   "toasts.launcher.xboxPcAppRuntimeMissing": {
     "locales": ["it-IT"],
     "reason": "'No' + noun reads naturally as a short Italian label, and every fuller phrasing ('Senza App Runtime', 'Manca App Runtime') exceeds the 16-character toast budget."
+  },
+
+  "deckTabs.luna": {
+    "locales": "*",
+    "reason": "Product name of Amazon's cloud-gaming service (Amazon Luna). Amazon ships it under this Latin-script name in every market, so every locale keeps it, the same treatment deckTabs.gamevault and deckTabs.microsoft already get."
+  },
+  "play.luna.signIn": {
+    "locales": "*",
+    "reason": "New Amazon Luna store string. The en-US source is authoritative and the non-English locales carry the English fallback until a translator passes over them; recorded here so the gate reads 'identical on purpose' rather than a silent miss. Translate when the Luna localisation pass lands."
+  },
+  "play.luna.signInHint": {
+    "locales": "*",
+    "reason": "New Amazon Luna store string. The en-US source is authoritative and the non-English locales carry the English fallback until a translator passes over them; recorded here so the gate reads 'identical on purpose' rather than a silent miss. Translate when the Luna localisation pass lands."
+  },
+  "play.luna.reauthenticate": {
+    "locales": "*",
+    "reason": "New Amazon Luna store string. The en-US source is authoritative and the non-English locales carry the English fallback until a translator passes over them; recorded here so the gate reads 'identical on purpose' rather than a silent miss. Translate when the Luna localisation pass lands."
+  },
+  "play.luna.sessionExpired": {
+    "locales": "*",
+    "reason": "New Amazon Luna store string. The en-US source is authoritative and the non-English locales carry the English fallback until a translator passes over them; recorded here so the gate reads 'identical on purpose' rather than a silent miss. Translate when the Luna localisation pass lands."
+  },
+  "toasts.launcher.lunaEntryMissing": {
+    "locales": "*",
+    "reason": "New Amazon Luna store string. The en-US source is authoritative and the non-English locales carry the English fallback until a translator passes over them; recorded here so the gate reads 'identical on purpose' rather than a silent miss. Translate when the Luna localisation pass lands."
   }
 }

@@ -448,7 +448,28 @@ async def fetch_store_urls(
     if store == "microsoft":
         payload = await microsoft_metadata(store_game_id, timeout)
         return cast("dict[str, str]", payload.get("urls", {}))
+    if store == "luna":
+        return luna_urls(extras or {})
     return {}
+
+
+def luna_urls(extras: dict[str, Any]) -> dict[str, str]:
+    """Luna's own box art from the per-game ``metadata`` dict.
+
+    The Luna catalog tile carries a portrait (``imagePortrait``, the Steam
+    grid) and a landscape cover (``imageLandscape``, the wide capsule); the
+    library sync stores them as ``cover_portrait`` / ``cover_landscape``.
+    The landscape cover carries the title text, so hero and logo are left to
+    SGDB / the Steam CDN.
+    """
+    out: dict[str, str] = {}
+    portrait = extras.get("cover_portrait")
+    landscape = extras.get("cover_landscape")
+    if isinstance(portrait, str) and portrait:
+        out["grid"] = portrait
+    if isinstance(landscape, str) and landscape:
+        out["grid_l"] = landscape
+    return out
 
 
 def itch_fallback_urls(extras: dict[str, Any]) -> dict[str, str]:
@@ -487,6 +508,7 @@ __all__ = [
     "fetch_store_fallback_urls",
     "fetch_store_urls",
     "gog_metadata",
+    "luna_urls",
     "microsoft_metadata",
     "steam_cdn_urls",
     "steam_search_appid",

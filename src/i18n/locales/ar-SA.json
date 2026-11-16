@@ -459,7 +459,8 @@
       "xboxPcSteamRootMissing": "لا مجلد Steam",
       "xboxPcVcRedistMissing": "VC++ مفقود",
       "xboxPcVcRuntimeFailed": "فشل VC++",
-      "launchingGame": "جارٍ التشغيل…"
+      "launchingGame": "جارٍ التشغيل…",
+      "lunaEntryMissing": "No launch entry"
     },
     "library": {
       "syncStoreFailed": "فشل {{store}}",
@@ -702,7 +703,8 @@
     "battlenet": "Battle.net",
     "gamevault": "GameVault",
     "itch": "itch.io",
-    "ea": "EA"
+    "ea": "EA",
+    "luna": "Amazon Luna"
   },
   "unifiedLibrary": {
     "error": "خطأ في Unifideck",
@@ -936,6 +938,12 @@
       "subtitle": "اختر الملف الذي يقوم بتشغيل اللعبة (على سبيل المثال: تخطي المشغل وتشغيل اللعبة مباشرة). مجلد العمل والحفظ السحابي لن يتأثرا.",
       "title": "تغيير الملف التنفيذي. {{game}}",
       "unavailable": "تعذر قراءة مجلد هذه اللعبة."
+    },
+    "luna": {
+      "signIn": "Sign in to Luna",
+      "signInHint": "Connect your Amazon Luna account to stream this game.",
+      "reauthenticate": "Reconnect to Luna",
+      "sessionExpired": "Your Luna session expired. Reconnect to keep playing."
     }
   },
   "playMeta": {
@@ -1105,6 +1113,13 @@
       "startedBody": "مزامنة جميع المتاجر المتصلة تجري الآن في الخلفية.",
       "startedSingle": "مزامنة متجر {{store}} تجري الآن في الخلفية.",
       "failedTitle": "فشل إرسال أمر المزامنة"
+    },
+    "lunaQuality": {
+      "title": "جودة البث في Amazon Luna",
+      "auto": "تلقائي (يقرر Luna)",
+      "limited": "محدودة (توفير البيانات)",
+      "standard": "قياسية",
+      "best": "الأفضل"
     }
   },
   "saveFolder": {

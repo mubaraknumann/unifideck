@@ -10,6 +10,11 @@ from typing import Any
 
 from unifideck.rpc.errors import RpcError
 from unifideck.rpc.mixins import _metadata_display as _mdisp
+from unifideck.stores.luna.luna_config import (
+    LUNA_VIDEO_QUALITIES,
+    VIDEO_QUALITY_KEY,
+    normalize_video_quality,
+)
 from unifideck.utils.device import detect_device_type
 
 logger = logging.getLogger(__name__)
@@ -128,6 +133,21 @@ class UIRPCMixin:
         """Persist the UI locale via config."""
         self.config.set("ui.locale", locale)
         return {"success": True, "locale": locale}
+
+    async def get_luna_video_quality(self) -> Any:
+        """Return the Luna streaming quality (``""`` = Auto) and the choices."""
+        quality = normalize_video_quality(self.config.get(VIDEO_QUALITY_KEY, ""))
+        return {
+            "success": True,
+            "quality": quality,
+            "options": list(LUNA_VIDEO_QUALITIES),
+        }
+
+    async def set_luna_video_quality(self, quality: str) -> Any:
+        """Persist the Luna streaming quality; anything unknown means Auto."""
+        normalized = normalize_video_quality(quality)
+        self.config.set(VIDEO_QUALITY_KEY, normalized)
+        return {"success": True, "quality": normalized}
 
     async def get_device_type(self) -> Any:
         """Return the hardware class the UI should label itself after.
