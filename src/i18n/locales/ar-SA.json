@@ -1113,6 +1113,13 @@
       "startedBody": "مزامنة جميع المتاجر المتصلة تجري الآن في الخلفية.",
       "startedSingle": "مزامنة متجر {{store}} تجري الآن في الخلفية.",
       "failedTitle": "فشل إرسال أمر المزامنة"
+    },
+    "lunaQuality": {
+      "title": "جودة البث في Amazon Luna",
+      "auto": "تلقائي (يقرر Luna)",
+      "limited": "محدودة (توفير البيانات)",
+      "standard": "قياسية",
+      "best": "الأفضل"
     }
   },
   "saveFolder": {

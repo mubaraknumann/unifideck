@@ -1153,6 +1153,13 @@
       "startedBody": "Syncing all stores in the background.",
       "startedSingle": "Refreshing {{store}} library in the background.",
       "failedTitle": "Couldn't start library refresh"
+    },
+    "lunaQuality": {
+      "title": "Amazon Luna streaming quality",
+      "auto": "Auto (Luna decides)",
+      "limited": "Limited (saves data)",
+      "standard": "Standard",
+      "best": "Best"
     }
   },
   "saveFolder": {

@@ -1113,6 +1113,13 @@
       "startedBody": "Tüm mağazalar arka planda senkronize ediliyor.",
       "startedSingle": "{{store}} kütüphanesi arka planda yenileniyor.",
       "failedTitle": "Kütüphane yenileme başlatılamadı"
+    },
+    "lunaQuality": {
+      "title": "Amazon Luna yayın kalitesi",
+      "auto": "Otomatik (Luna karar verir)",
+      "limited": "Sınırlı (veri tasarrufu)",
+      "standard": "Standart",
+      "best": "En iyi"
     }
   },
   "saveFolder": {

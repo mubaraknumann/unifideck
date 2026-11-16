@@ -1153,6 +1153,13 @@
       "startedBody": "所有商店的遊戲庫同步工作都已在背景開始執行。",
       "startedSingle": "{{store}} 商店的資料同步目前正在背景進行中。",
       "failedTitle": "同步指令派發失敗"
+    },
+    "lunaQuality": {
+      "title": "Amazon Luna 串流畫質",
+      "auto": "自動（由 Luna 決定）",
+      "limited": "受限（節省流量）",
+      "standard": "標準",
+      "best": "最佳"
     }
   },
   "saveFolder": {

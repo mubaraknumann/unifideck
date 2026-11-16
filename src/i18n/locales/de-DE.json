@@ -1113,6 +1113,13 @@
       "startedBody": "Alle Stores werden im Hintergrund synchronisiert.",
       "startedSingle": "{{store}}-Bibliothek wird im Hintergrund aktualisiert.",
       "failedTitle": "Bibliotheksaktualisierung konnte nicht gestartet werden"
+    },
+    "lunaQuality": {
+      "title": "Amazon Luna Streaming-Qualität",
+      "auto": "Automatisch (Luna entscheidet)",
+      "limited": "Begrenzt (spart Daten)",
+      "standard": "Normal",
+      "best": "Beste"
     }
   },
   "saveFolder": {

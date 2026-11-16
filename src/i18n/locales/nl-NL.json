@@ -1113,6 +1113,13 @@
       "startedBody": "Alle winkels worden op de achtergrond gesynchroniseerd.",
       "startedSingle": "De bibliotheek van {{store}} wordt op de achtergrond gesynchroniseerd.",
       "failedTitle": "Kan bibliotheekvernieuwing niet starten"
+    },
+    "lunaQuality": {
+      "title": "Streamingkwaliteit Amazon Luna",
+      "auto": "Automatisch (Luna beslist)",
+      "limited": "Beperkt (bespaart data)",
+      "standard": "Standaard",
+      "best": "Beste"
     }
   },
   "saveFolder": {

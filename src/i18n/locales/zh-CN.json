@@ -1113,6 +1113,13 @@
       "startedBody": "所有商店的数据同步任务目前均在后台静默执行中。",
       "startedSingle": "{{store}} 商店的数据同步目前正在后台进行中。",
       "failedTitle": "同步指令派发失败"
+    },
+    "lunaQuality": {
+      "title": "Amazon Luna 串流画质",
+      "auto": "自动（由 Luna 决定）",
+      "limited": "受限（节省流量）",
+      "standard": "标准",
+      "best": "最佳"
     }
   },
   "saveFolder": {

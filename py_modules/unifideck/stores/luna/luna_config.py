@@ -28,6 +28,22 @@ logger = logging.getLogger(__name__)
 
 _LUNA_CONFIG_PREFIX = "stores.luna"
 
+#: The streaming-quality levels Luna's web client knows (its own
+#: ``VideoQuality`` enum, read from the site bundle): LIMITED caps the
+#: stream at 6-11 Mbit/s, STANDARD at 6-24 Mbit/s, BEST is uncapped.
+LUNA_VIDEO_QUALITIES = ("LIMITED", "STANDARD", "BEST")
+
+#: Config key of the user's chosen quality. Empty means "Auto": leave
+#: whatever Luna itself has stored.
+VIDEO_QUALITY_KEY = f"{_LUNA_CONFIG_PREFIX}.video_quality"
+
+
+def normalize_video_quality(value: object) -> str:
+    """Return ``value`` as a known quality level, or ``""`` (Auto)."""
+    text = str(value or "").strip().upper()
+    return text if text in LUNA_VIDEO_QUALITIES else ""
+
+
 #: The spoofed User-Agent template must leave the browser version as a
 #: runtime-substituted placeholder (Req 12.6, 14.8); a hardcoded version
 #: lets Luna reject the client as outdated.
@@ -55,6 +71,8 @@ class LunaConfig:
     spoof_uach_platform: str = ""
     spoof_navigator_platform: str = ""
     spoof_webgl_renderer: str = ""
+    #: One of :data:`LUNA_VIDEO_QUALITIES`, or ``""`` for Auto (optional).
+    video_quality: str = ""
 
     @classmethod
     def from_config_manager(cls, config: ConfigManager | None) -> LunaConfig:
@@ -79,6 +97,7 @@ class LunaConfig:
             spoof_uach_platform=cfg.text("spoof_uach_platform"),
             spoof_navigator_platform=cfg.text("spoof_navigator_platform"),
             spoof_webgl_renderer=cfg.text("spoof_webgl_renderer"),
+            video_quality=normalize_video_quality(cfg.text("video_quality")),
         )
 
     def is_valid(self) -> tuple[bool, list[str]]:

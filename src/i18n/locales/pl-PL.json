@@ -1113,6 +1113,13 @@
       "startedBody": "Synchronizacja wszystkich sklepów w tle.",
       "startedSingle": "Odświeżanie biblioteki {{store}} w tle.",
       "failedTitle": "Nie udało się rozpocząć odświeżania biblioteki"
+    },
+    "lunaQuality": {
+      "title": "Jakość streamingu Amazon Luna",
+      "auto": "Automatyczna (decyduje Luna)",
+      "limited": "Ograniczona (oszczędza dane)",
+      "standard": "Standardowa",
+      "best": "Najlepsza"
     }
   },
   "saveFolder": {

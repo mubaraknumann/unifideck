@@ -169,7 +169,8 @@
       "spoof_ua_template": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{version}.0.0.0 Safari/537.36",
       "spoof_uach_platform": "Windows",
       "spoof_navigator_platform": "Win32",
-      "spoof_webgl_renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)"
+      "spoof_webgl_renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "video_quality": ""
     }
   },
   "metadata": {

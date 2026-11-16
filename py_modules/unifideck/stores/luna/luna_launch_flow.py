@@ -61,6 +61,10 @@ from unifideck.stores.luna.luna_play_activator import (
     LunaPlayActivationError,
     LunaPlayActivator,
 )
+from unifideck.stores.luna.luna_video_quality import (
+    LunaVideoQualityError,
+    apply_video_quality,
+)
 
 if TYPE_CHECKING:
     from unifideck.launcher.types.context import LaunchContext
@@ -241,6 +245,9 @@ async def _run_spoofed(
     if spoof_result is not None:
         return spoof_result
 
+    # ── Streaming quality (optional; never blocks the launch) ──
+    await _apply_video_quality(config, cdp)
+
     # ── Play activation (detail → /player + video playing) ──
     play_result = await _activate_play(ctx, config, cdp, url)
     if play_result is not None:
@@ -306,6 +313,14 @@ async def _attach_and_verify(
         )
     logger.info("[Luna] platform spoofing verified: %r", reported)
     return None
+
+
+async def _apply_video_quality(config: LunaConfig, cdp: EdgeCDPClient) -> None:
+    """Apply the configured streaming quality; log and go on if it fails."""
+    try:
+        await apply_video_quality(cdp, config.video_quality)
+    except LunaVideoQualityError as exc:
+        logger.warning("[Luna] streaming quality not applied: %s", exc)
 
 
 async def _activate_play(

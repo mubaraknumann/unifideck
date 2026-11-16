@@ -92,6 +92,8 @@ export const rpcRoutes = {
   // UI helpers (UIRPCMixin)
   setLanguagePreference: "set_language_preference",
   getLanguagePreference: "get_language_preference",
+  getLunaVideoQuality: "get_luna_video_quality",
+  setLunaVideoQuality: "set_luna_video_quality",
   getDeviceType: "get_device_type",
   setDefaultStorageLocation: "set_default_storage_location",
   setCustomInstallPath: "set_custom_install_path",

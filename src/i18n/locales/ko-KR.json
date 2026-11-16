@@ -1113,6 +1113,13 @@
       "startedBody": "모든 상점의 동기화가 백그라운드에서 진행됩니다.",
       "startedSingle": "{{store}} 라이브러리 동기화가 백그라운드에서 실행 중입니다.",
       "failedTitle": "라이브러리 동기화 시작 실패"
+    },
+    "lunaQuality": {
+      "title": "Amazon Luna 스트리밍 품질",
+      "auto": "자동 (Luna가 결정)",
+      "limited": "제한 (데이터 절약)",
+      "standard": "표준",
+      "best": "최고"
     }
   },
   "saveFolder": {

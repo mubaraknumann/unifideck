@@ -1113,6 +1113,13 @@
       "startedBody": "すべてのストアがバックグラウンドで同期されます。",
       "startedSingle": "{{store}} ライブラリをバックグラウンドで更新しています。",
       "failedTitle": "ライブラリの更新を開始できませんでした"
+    },
+    "lunaQuality": {
+      "title": "Amazon Luna のストリーミング画質",
+      "auto": "自動 (Luna が決定)",
+      "limited": "制限 (データ節約)",
+      "standard": "標準",
+      "best": "最高"
     }
   },
   "saveFolder": {

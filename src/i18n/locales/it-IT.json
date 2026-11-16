@@ -1113,6 +1113,13 @@
       "startedBody": "Sincronizzazione di tutti i negozi in background.",
       "startedSingle": "Aggiornamento della libreria {{store}} in background.",
       "failedTitle": "Impossibile avviare l'aggiornamento della libreria"
+    },
+    "lunaQuality": {
+      "title": "Qualità di streaming di Amazon Luna",
+      "auto": "Automatica (decide Luna)",
+      "limited": "Limitata (risparmia dati)",
+      "standard": "Normale",
+      "best": "Massima"
     }
   },
   "saveFolder": {
