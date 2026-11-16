@@ -11,6 +11,8 @@ is kept out of the pure payload builders in
 """
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -81,6 +83,7 @@ class LunaPlatformSpoofer:
         """Build the spoofer bound to a resolved :class:`LunaConfig`."""
         self.config = config
         self._identity: SpoofIdentity | None = None
+        self._keep_alive: asyncio.Task[None] | None = None
 
     @property
     def identity(self) -> SpoofIdentity | None:
@@ -94,6 +97,15 @@ class LunaPlatformSpoofer:
         aborting via :class:`LunaSpoofConfigError` if undeterminable),
         resolves the browser websocket on ``browser_game_cdp_port()``, opens
         a :class:`BrowserCdpSession` over it and drives the auto-attach loop.
+
+        The CDP session stays open after the initial burst: Chrome drops a
+        session's ``Emulation.setUserAgentOverride`` and its pre-document
+        scripts the moment that session detaches, so closing it here made
+        every later read report ``Linux`` (confirmed on device). A background
+        task keeps the session alive, applies the override to targets that
+        open later (they wait for the debugger until resumed), and closes
+        the session when the browser websocket goes away. :meth:`close`
+        ends it early.
 
         Raises :class:`LunaSpoofConfigError` when the browser version cannot
         be determined (the launcher maps this to
@@ -111,8 +123,45 @@ class LunaPlatformSpoofer:
         session = _new_browser_session(ws_url)
         try:
             await self.run_attach(session, identity)
-        finally:
+        except BaseException:
             await session.close()
+            raise
+        self._keep_alive = asyncio.create_task(
+            self._serve_later_targets(session, identity),
+        )
+
+    async def _serve_later_targets(
+        self, session: BrowserCdpSession, identity: SpoofIdentity,
+    ) -> None:
+        """Hold the spoof session open and cover targets opened later.
+
+        Runs until the browser websocket closes (browser exit) or
+        :meth:`close` cancels it; always releases the session.
+        """
+        try:
+            async for session_id, target_info in session.attached_targets(
+                idle_timeout=None,
+            ):
+                await self._apply_override_to_target(
+                    session, session_id, target_info, identity,
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # browser gone mid-command: end quietly
+            logger.info("[Luna] spoof keep-alive ended: %s", exc)
+        finally:
+            close = getattr(session, "close", None)
+            if close is not None:
+                await close()
+
+    async def close(self) -> None:
+        """Stop the keep-alive task and release the spoof session."""
+        task, self._keep_alive = self._keep_alive, None
+        if task is None or task.done():
+            return
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
 
     async def run_attach(
         self, session: BrowserCdpSession, identity: SpoofIdentity,

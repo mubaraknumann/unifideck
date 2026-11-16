@@ -5,7 +5,7 @@ New; no xCloud analogue (Luna has no per-title deep link).
 
 After the detail URL
 has loaded, :meth:`LunaPlayActivator.activate` triggers the title's play
-action over CDP within 15s, then confirms within 30s that the browser
+action over CDP within 15s, then confirms within 180s that the browser
 reached the shared ``/player`` URL and the ``<video>`` element is playing
 (``readyState === 4 && !paused`` — the verified F7 state). Failure to reach
 ``/player`` in time yields an :class:`ActivationResult` whose reason
@@ -25,7 +25,8 @@ Design mirrors :mod:`unifideck.stores.luna.luna_platform_spoofer`:
 * The **play-trigger** (locating and clicking the Luna play control on the
   detail page) is the Q2-swappable part. It is isolated behind the
   :class:`PlayTrigger` protocol and defaults to :class:`ClickPlayTrigger`
-  (a ``Runtime.evaluate`` that finds and clicks the play control). A future
+  (locates the primary play button and clicks it with a trusted pointer
+  event). A future
   per-title deep link can replace it by injecting a different strategy
   without touching the confirmation logic.
 * The timed poll is driven by a module-level ``_monotonic`` clock and
@@ -41,7 +42,7 @@ import logging
 import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from unifideck.stores.luna.luna_cdp import attach_to_page_target
 from unifideck.stores.luna.luna_platform_spoofer import (
@@ -60,8 +61,10 @@ logger = logging.getLogger(__name__)
 _PLAY_TRIGGER_TIMEOUT_S = 15.0
 
 #: After triggering play, the browser must reach ``/player`` and the video
-#: must be playing within 30s (Req 5.4, 5.5).
-_PLAYER_CONFIRM_TIMEOUT_S = 30.0
+#: must be playing within this window (Req 5.4, 5.5). Measured on a Steam
+#: Deck: Luna spends ~30s on ``/provision`` before ``/player`` loads, and the
+#: player itself says loading "may take 1-2 minutes".
+_PLAYER_CONFIRM_TIMEOUT_S = 180.0
 
 #: How often the confirmation loop re-checks the player state. Small enough
 #: to confirm promptly once the stream starts, large enough not to spin.
@@ -78,33 +81,61 @@ PLAY_ACTIVATION_STEP = "play-activation"
 _monotonic = time.monotonic
 
 #: JS evaluated to trigger the title's play action on the loaded detail
-#: page: find the Luna play control and click it. Returns ``true`` when a
-#: control was found and clicked, ``false`` otherwise, so the activator can
-#: retry within the 15s window until the control is present. This is the
-#: Q2-swappable seam (see :class:`ClickPlayTrigger`).
-_PLAY_CLICK_EXPRESSION = r"""
+#: page: find the title's primary play button and return its on-screen
+#: centre ``[x, y]`` (after scrolling it into view), or ``null`` while it is
+#: not rendered yet, so the activator can retry within the 15s window.
+#:
+#: Only the detail page's primary action is accepted. A generic
+#: ``[data-test-id*="play"]`` match hit the site nav's "Remote Play" entry
+#: first (verified on device), and a scripted ``el.click()`` on the real
+#: button is ignored by Luna: it needs a trusted pointer event, which the
+#: trigger dispatches over ``Input.dispatchMouseEvent``.
+_PLAY_LOCATE_EXPRESSION = r"""
 (() => {
-  const byTestId = document.querySelector(
-    '[data-testid*="play" i], [data-test-id*="play" i]'
+  const el = document.querySelector(
+    'button[data-test-id="primary_entitled_button_game_session_async"]'
+  ) || document.querySelector(
+    '[data-test-id="item_primary_game_detail_button_test_id"] button'
   );
-  const candidates = byTestId
-    ? [byTestId]
-    : Array.from(document.querySelectorAll('button, a, [role="button"]'));
-  const control = byTestId
-    ? byTestId
-    : candidates.find((el) => {
-        const label = (
-          (el.getAttribute && (
-            el.getAttribute('aria-label') ||
-            el.getAttribute('title') || '')) + ' ' + (el.textContent || '')
-        ).trim().toLowerCase();
-        return label.includes('play') || label.includes('spielen');
-      });
-  if (!control) {
-    return false;
-  }
-  control.click();
-  return true;
+  if (!el || el.disabled) return null;
+  el.scrollIntoView({ block: 'center' });
+  const r = el.getBoundingClientRect();
+  if (r.width <= 0 || r.height <= 0) return null;
+  return [r.x + r.width / 2, r.y + r.height / 2];
+})()
+""".strip()
+
+#: The launch opens the detail page with ``?autoplay=1`` (the target of the
+#: catalog's ``play.amazon.<tld>/play?asin=…`` deep link), which makes Luna
+#: start the title by itself. Give that this long to show before falling
+#: back to clicking Play.
+_AUTOPLAY_GRACE_S = 6.0
+
+#: JS reporting whether Luna has already started the title on its own: the
+#: page left the detail view for ``/provision`` / the player, or the
+#: pre-launch dialog is up. ``%(player_path)s`` comes from the config.
+_AUTOPLAY_STARTED_EXPRESSION_TEMPLATE = r"""
+(() => {
+  const p = window.location.pathname;
+  if (p.indexOf('/provision') === 0 || p.indexOf(%(player_path)s) !== -1) return true;
+  const labels = ['continue anyway', 'trotzdem fortfahren', 'trotzdem fortsetzen'];
+  return Array.from(document.querySelectorAll('button')).some((b) =>
+    labels.includes((b.textContent || '').trim().toLowerCase()));
+})()
+""".strip()
+
+#: JS locating the confirm button of the dialogs Luna can show between Play
+#: and ``/provision`` (seen on device: "Hardware Acceleration is Off" with
+#: Close / Continue Anyway). Returns the button centre or ``null``.
+_CONTINUE_LOCATE_EXPRESSION = r"""
+(() => {
+  const labels = ['continue anyway', 'trotzdem fortfahren', 'trotzdem fortsetzen'];
+  const el = Array.from(document.querySelectorAll('button')).find((b) =>
+    labels.includes((b.textContent || '').trim().toLowerCase()));
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  if (r.width <= 0 || r.height <= 0) return null;
+  return [r.x + r.width / 2, r.y + r.height / 2];
 })()
 """.strip()
 
@@ -201,13 +232,13 @@ class PlayTrigger(Protocol):
 
 
 class ClickPlayTrigger:
-    """Default :class:`PlayTrigger`: click the play control on the detail page.
+    """Default :class:`PlayTrigger`: click the primary play button.
 
-    Uses a single ``Runtime.evaluate`` (:data:`_PLAY_CLICK_EXPRESSION`) that
-    locates and clicks the Luna play control. Returns the boolean the script
-    reports: ``True`` when a control was found and clicked, ``False`` when
-    the control is not present yet (so the activator keeps retrying within
-    the 15s window).
+    Locates the button with :data:`_PLAY_LOCATE_EXPRESSION` and clicks its
+    centre with a trusted pointer event (:func:`trusted_click`). Returns
+    ``True`` once the click was dispatched, ``False`` while the button is
+    not rendered yet (so the activator keeps retrying within the 15s
+    window).
     """
 
     async def trigger(
@@ -218,33 +249,68 @@ class ClickPlayTrigger:
         detail_url: str,
         player_url: str,
     ) -> bool:
-        """Click the play control; return whether a control was clicked."""
-        result = await session.send(
-            "Runtime.evaluate",
+        """Click the play button; return whether a click was dispatched."""
+        return await click_located(session, session_id, _PLAY_LOCATE_EXPRESSION)
+
+
+async def click_located(
+    session: BrowserCdpSession, session_id: str, locate_expression: str,
+) -> bool:
+    """Locate an element via ``locate_expression`` and trusted-click it.
+
+    Returns ``False`` when the expression yields no point (element absent or
+    the evaluate threw while the page was still loading).
+    """
+    result = await session.send(
+        "Runtime.evaluate",
+        {"expression": locate_expression, "returnByValue": True},
+        session_id=session_id,
+    )
+    point = _extract_point(result)
+    if point is None:
+        return False
+    await trusted_click(session, session_id, *point)
+    return True
+
+
+async def trusted_click(
+    session: BrowserCdpSession, session_id: str, x: float, y: float,
+) -> None:
+    """Move, press and release the left button at ``(x, y)`` over CDP.
+
+    ``Input.dispatchMouseEvent`` produces trusted events with user
+    activation, unlike a scripted ``element.click()``.
+    """
+    for event in ("mouseMoved", "mousePressed", "mouseReleased"):
+        moved = event == "mouseMoved"
+        await session.send(
+            "Input.dispatchMouseEvent",
             {
-                "expression": _PLAY_CLICK_EXPRESSION,
-                "returnByValue": True,
+                "type": event, "x": x, "y": y,
+                "button": "none" if moved else "left",
+                "clickCount": 0 if moved else 1,
             },
             session_id=session_id,
         )
-        return _extract_bool(result)
 
 
-def _extract_bool(result: dict[str, Any]) -> bool:
-    """Extract a boolean value from a ``Runtime.evaluate`` result.
+def _extract_point(result: dict[str, Any]) -> tuple[float, float] | None:
+    """Extract an ``[x, y]`` point from a ``Runtime.evaluate`` result.
 
-    ``result`` has the shape ``{"result": {"type": "boolean", "value":
-    true}}``. A thrown evaluation carries ``exceptionDetails`` instead,
-    treated here as a (recoverable) ``False`` so a transient script error
-    on the still-loading detail page just prompts another retry rather than
-    aborting the launch. Pure and deterministic.
+    A thrown evaluation (``exceptionDetails``), ``null`` or a malformed
+    value yields ``None`` so a transient script error on the still-loading
+    page just prompts another retry. Pure and deterministic.
     """
     if result.get("exceptionDetails"):
-        return False
+        return None
     inner = result.get("result")
-    if not isinstance(inner, dict):
-        return False
-    return bool(inner.get("value"))
+    value = inner.get("value") if isinstance(inner, dict) else None
+    if (
+        isinstance(value, list) and len(value) == 2
+        and all(isinstance(v, (int, float)) for v in value)
+    ):
+        return float(value[0]), float(value[1])
+    return None
 
 
 def build_player_confirm_expression(player_path: str) -> str:
@@ -257,6 +323,25 @@ def build_player_confirm_expression(player_path: str) -> str:
     """
     # repr() yields a safely single-quoted JS string literal for the path.
     return _PLAYER_CONFIRM_EXPRESSION_TEMPLATE % {"player_path": repr(player_path)}
+
+
+def build_autoplay_started_expression(player_path: str) -> str:
+    """Build the autoplay-started probe JS, embedding the player path."""
+    return _AUTOPLAY_STARTED_EXPRESSION_TEMPLATE % {"player_path": repr(player_path)}
+
+
+def with_autoplay(detail_url: str) -> str:
+    """Return ``detail_url`` with ``autoplay=1`` set in its query string.
+
+    Luna's own ``play.amazon.<tld>/play?asin=…`` deep link lands on the
+    detail page with ``?r=web&autoplay=1``, which starts the title without a
+    click. Existing query parameters are kept; an existing ``autoplay`` is
+    overwritten.
+    """
+    parts = urlsplit(detail_url)
+    query = [(k, v) for k, v in parse_qsl(parts.query) if k != "autoplay"]
+    query.append(("autoplay", "1"))
+    return urlunsplit(parts._replace(query=urlencode(query)))
 
 
 def extract_player_state(result: dict[str, Any]) -> PlayerState:
@@ -305,7 +390,7 @@ class LunaPlayActivator:
     :meth:`run_activate` is the testable core: given a mock
     :class:`BrowserCdpSession`, it (1) triggers play via the injected
     :class:`PlayTrigger` within 15s (Req 5.3), then (2) polls until the
-    browser reaches ``/player`` with the ``<video>`` playing within 30s
+    browser reaches ``/player`` with the ``<video>`` playing within 180s
     (Req 5.4). Timeouts return an :class:`ActivationResult` failure naming
     the play-activation step (Req 5.5); a structural CDP failure raises
     :class:`LunaPlayActivationError`.
@@ -361,8 +446,8 @@ class LunaPlayActivator:
         Separated from :meth:`activate` so it can be driven against a mock
         :class:`BrowserCdpSession`. Phase 1 triggers play within 15s
         (Req 5.3) via the injected :class:`PlayTrigger`; phase 2 polls until
-        ``/player`` is reached and the ``<video>`` is playing within 30s
-        (Req 5.4). On the 30s timeout it returns a launch-failure result
+        ``/player`` is reached and the ``<video>`` is playing within 180s
+        (Req 5.4). On timeout it returns a launch-failure result
         naming the play-activation step (Req 5.5).
         """
         if not await self._trigger_play(session, session_id, detail_url, player_url):
@@ -390,6 +475,9 @@ class LunaPlayActivator:
         the DOM the instant the detail page's ``load`` fires. Returns whether
         play was triggered.
         """
+        if await self._await_autoplay(session, session_id, player_url):
+            logger.info("[Luna] title started via autoplay on %s", detail_url)
+            return True
         deadline = _monotonic() + _PLAY_TRIGGER_TIMEOUT_S
         while True:
             if await self._play_trigger.trigger(
@@ -402,14 +490,45 @@ class LunaPlayActivator:
                 return False
             await asyncio.sleep(_CONFIRM_POLL_INTERVAL_S)
 
+    async def _await_autoplay(
+        self, session: BrowserCdpSession, session_id: str, player_url: str,
+    ) -> bool:
+        """Wait up to :data:`_AUTOPLAY_GRACE_S` for Luna's own autoplay.
+
+        Returns ``True`` once the page left the detail view (or raised the
+        pre-launch dialog), so no click is needed; ``False`` when the grace
+        period ends with the detail page still waiting for Play.
+        """
+        expression = build_autoplay_started_expression(
+            _player_path_from_url(player_url or self.config.player_path),
+        )
+        deadline = _monotonic() + _AUTOPLAY_GRACE_S
+        while True:
+            result = await session.send(
+                "Runtime.evaluate",
+                {"expression": expression, "returnByValue": True},
+                session_id=session_id,
+            )
+            inner = result.get("result")
+            if (
+                not result.get("exceptionDetails") and isinstance(inner, dict)
+                and inner.get("value") is True
+            ):
+                return True
+            if _monotonic() >= deadline:
+                return False
+            await asyncio.sleep(_CONFIRM_POLL_INTERVAL_S)
+
     async def _confirm_player(
         self, session: BrowserCdpSession, session_id: str, player_url: str,
     ) -> ActivationResult:
-        """Confirm ``/player`` + video playing within 30s (Req 5.4, 5.5).
+        """Confirm ``/player`` + video playing within 180s (Req 5.4, 5.5).
 
         Polls the player-confirmation probe until the browser is on
         ``/player`` and the ``<video>`` is playing (``readyState === 4 &&
-        !paused``), or the 30s window elapses. On timeout returns a
+        !paused``), or the window elapses. Until ``/player`` is reached it
+        also confirms a pre-launch dialog Luna may raise (e.g. "Hardware
+        Acceleration is Off" → Continue Anyway). On timeout returns a
         launch-failure result naming the play-activation step and whether
         ``/player`` was ever reached (Req 5.5).
         """
@@ -421,6 +540,10 @@ class LunaPlayActivator:
         while True:
             state = await self._probe_player(session, session_id, expression)
             reached_player = reached_player or state.on_player
+            if not state.on_player and await click_located(
+                session, session_id, _CONTINUE_LOCATE_EXPRESSION,
+            ):
+                logger.info("[Luna] confirmed Luna's pre-launch dialog")
             if state.on_player and state.playing:
                 logger.info(
                     "[Luna] play activation confirmed: reached player and "

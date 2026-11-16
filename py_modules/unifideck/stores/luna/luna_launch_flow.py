@@ -60,6 +60,7 @@ from unifideck.stores.luna.luna_platform_spoofer import (
 from unifideck.stores.luna.luna_play_activator import (
     LunaPlayActivationError,
     LunaPlayActivator,
+    with_autoplay,
 )
 
 if TYPE_CHECKING:
@@ -191,6 +192,9 @@ async def _drive_luna_launch(
     url: str,
 ) -> Result:
     """Spawn + spoof + verify + activate + keyboard + block (Req 5/7/14)."""
+    # Luna starts the title by itself on ``?autoplay=1`` (what its own
+    # play deep link redirects to), so the detail page shows only briefly.
+    url = with_autoplay(url)
     # ── Spawn (no supported browser → non-zero + missing-browser log) ──
     launched = await asyncio.to_thread(browser.launch, url)
     if not launched:
@@ -214,7 +218,26 @@ async def _drive_luna_launch(
         )
 
     # ── Attach spoofer BEFORE navigation + verify platform ──
-    spoof_result = await _attach_and_verify(ctx, config, cdp)
+    # The spoofer's CDP session must outlive the whole stream: Chrome drops
+    # its overrides once that session detaches, so it is closed only after
+    # the window is gone.
+    spoofer = LunaPlatformSpoofer(config)
+    try:
+        return await _run_spoofed(svc, ctx, config, cdp, url, spoofer)
+    finally:
+        await spoofer.close()
+
+
+async def _run_spoofed(
+    svc: LauncherService,
+    ctx: LaunchContext,
+    config: LunaConfig,
+    cdp: EdgeCDPClient,
+    url: str,
+    spoofer: LunaPlatformSpoofer,
+) -> Result:
+    """Verify, activate, keyboard and block while ``spoofer`` holds the spoof."""
+    spoof_result = await _attach_and_verify(ctx, config, cdp, spoofer)
     if spoof_result is not None:
         return spoof_result
 
@@ -239,7 +262,10 @@ async def _drive_luna_launch(
 
 
 async def _attach_and_verify(
-    ctx: LaunchContext, config: LunaConfig, cdp: EdgeCDPClient,
+    ctx: LaunchContext,
+    config: LunaConfig,
+    cdp: EdgeCDPClient,
+    spoofer: LunaPlatformSpoofer,
 ) -> Result | None:
     """Attach the spoofer before navigation and verify the platform.
 
@@ -248,7 +274,6 @@ async def _attach_and_verify(
     an unreadable verify probe, or a platform mismatch — else ``None`` to
     continue (Req 5.2, 14.1, 14.8/14.9, 14.11/14.12, 14.13).
     """
-    spoofer = LunaPlatformSpoofer(config)
     try:
         await spoofer.attach(cdp)
     except LunaSpoofConfigError as exc:

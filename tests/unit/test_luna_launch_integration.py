@@ -52,6 +52,15 @@ from unifideck.stores.luna.luna_play_activator import (
     LunaPlayActivator,
 )
 
+
+@pytest.fixture(autouse=True)
+def _no_autoplay_wait(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The harness page never autoplays; exercise the click path promptly."""
+    import unifideck.stores.luna.luna_play_activator as activator_mod
+
+    monkeypatch.setattr(activator_mod, "_AUTOPLAY_GRACE_S", 0)
+
+
 _WINDOWS = "Windows"
 _DETAIL_URL = "https://luna.amazon.de/detail/B0HLN4GG5K"
 _PLAYER_PATH = "/player"
@@ -147,6 +156,9 @@ class FakeLunaSession:
             return {}
         if method == "Runtime.evaluate":
             return self._evaluate(params.get("expression", ""))
+        # A trusted pointer release on the located play button starts play.
+        if method == "Input.dispatchMouseEvent" and params.get("type") == "mouseReleased":
+            self._play_triggered = True
         return {}
 
     def _evaluate(self, expression: str) -> dict[str, Any]:
@@ -163,10 +175,12 @@ class FakeLunaSession:
                     "value": {"onPlayer": on_player, "playing": playing},
                 },
             }
-        # Play-control click (activator trigger): succeeds, arms the player.
-        if ".click()" in expression or "control.click" in expression:
-            self._play_triggered = True
-            return {"result": {"type": "boolean", "value": True}}
+        # Play-button locate (activator trigger): the button's centre.
+        if "primary_entitled_button_game_session_async" in expression:
+            return {"result": {"type": "object", "value": [194, 356]}}
+        # Pre-launch dialog locate: no dialog in this harness.
+        if "continue anyway" in expression:
+            return {"result": {"type": "object", "value": None}}
         # The injected spoof override script (addScriptToEvaluateOnNewDocument
         # re-run against the current document) — no return value needed.
         return {"result": {"type": "undefined"}}
@@ -442,15 +456,15 @@ async def test_end_to_end_video_never_plays_maps_to_launch_failure(wire_end_to_e
 async def test_end_to_end_play_control_absent_maps_to_launch_failure(wire_end_to_end: Any) -> None:
     """Play control never clickable → launch_failure (5.5).
 
-    A session whose click evaluate always reports False never arms the
-    player, so the 15s trigger window times out; it is shrunk to a tick.
+    A session whose play-button locate never finds the button never arms
+    the player, so the 15s trigger window times out; it is shrunk to a tick.
     """
     import unifideck.stores.luna.luna_play_activator as activator_mod
 
     class _NoPlayControl(FakeLunaSession):
         def _evaluate(self, expression: str) -> dict[str, Any]:
-            if ".click()" in expression or "control.click" in expression:
-                return {"result": {"type": "boolean", "value": False}}
+            if "primary_entitled_button_game_session_async" in expression:
+                return {"result": {"type": "object", "value": None}}
             return super()._evaluate(expression)
 
     wire_end_to_end.session = _NoPlayControl()

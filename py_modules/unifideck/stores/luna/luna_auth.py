@@ -143,6 +143,7 @@ class LunaAuth:
         self._browser_auth = browser_auth or LunaBrowserAuth(session, config)
         self._profile = profile or LunaProfile.from_config(config.profile_dir)
         self._spoofer_factory = spoofer_factory or LunaPlatformSpoofer
+        self._active_spoofer: LunaPlatformSpoofer | None = None
         self._cdp_factory = cdp_factory or EdgeCDPClient
         if sleep is None:
             import asyncio
@@ -228,8 +229,12 @@ class LunaAuth:
         if not await self._wait_for_cdp(cdp):
             logger.warning("[LunaAuth] CDP never came up; aborting sign-in")
             return self._not_connected(ERR_SPOOFING_FAILURE)
+        # Keep a reference: the spoofer holds its CDP session open for the
+        # life of the sign-in window (its keep-alive ends on browser exit).
+        spoofer = self._spoofer_factory(self._config)
+        self._active_spoofer = spoofer
         try:
-            await self._spoofer_factory(self._config).attach(cdp)
+            await spoofer.attach(cdp)
         except LunaSpoofConfigError as exc:
             logger.warning(
                 "[LunaAuth] spoofer attach failed (reported=%r): %s",

@@ -74,6 +74,7 @@ def wire(monkeypatch: pytest.MonkeyPatch) -> Any:
         keyboard_raises=None,
         keyboard_returns=True,
         waited=False,
+        spoofer_closed=False,
         config=SimpleNamespace(
             spoof_uach_platform=_WINDOWS, player_path="/player", luna_host="luna.amazon.de",
         ),
@@ -105,6 +106,9 @@ def wire(monkeypatch: pytest.MonkeyPatch) -> Any:
             if knobs.verify_error:
                 raise knobs.verify_error
             return knobs.verify_value
+
+        async def close(self) -> None:
+            knobs.spoofer_closed = True
 
     monkeypatch.setattr(flow, "LunaPlatformSpoofer", _Spoofer)
 
@@ -246,6 +250,20 @@ async def test_keyboard_not_landing_is_non_fatal(wire: Any) -> None:
     wire.keyboard_returns = False
     result = await run_luna_browser_game(_svc(), _ctx())
     assert result.success is True and wire.waited is True
+
+
+async def test_spoofer_held_until_window_closes(wire: Any) -> None:
+    # Chrome drops a CDP session's overrides when it detaches, so the
+    # spoofer is released only after the stream window is gone.
+    result = await run_luna_browser_game(_svc(), _ctx())
+    assert result.success is True and wire.waited is True
+    assert wire.spoofer_closed is True
+
+
+async def test_spoofer_released_on_platform_mismatch(wire: Any) -> None:
+    wire.verify_value = "Linux"
+    result = await run_luna_browser_game(_svc(), _ctx())
+    assert result.success is False and wire.spoofer_closed is True
 
 
 async def test_await_cdp_ready_returns_true_when_endpoint_answers() -> None:

@@ -244,7 +244,7 @@ On Play, the launcher resolves the browser-game entry, opens the kiosk browser a
 2. **Spawn** the Luna kiosk via `LunaBrowser` at the title's URL.
 3. **Attach** `LunaPlatformSpoofer` browser-level on `browser_game_cdp_port()` before navigation.
 4. **Verify** the spoofed platform; a mismatch aborts with `platform_spoofing_failure`.
-5. **Activate** play via `LunaPlayActivator`: trigger the play action within 15 s, then confirm within 30 s that the browser reached `/player` and the `<video>` is playing. Failure maps to `launch_failure`.
+5. **Activate** play via `LunaPlayActivator`: within 15 s, click the detail page's primary Play button (`primary_entitled_button_game_session_async`) with a trusted CDP pointer event (Luna ignores a scripted `click()`), confirm a pre-launch dialog such as "Hardware Acceleration is Off" (Continue Anyway), then wait up to 180 s for `/player` with the `<video>` playing (Luna provisions for ~30 s first). Failure maps to `launch_failure`.
 6. **Inject** the virtual keyboard over the same CDP session.
 7. **Block** on the shared `wait_for_browser_exit(..., log_tag="luna")` until the window closes.
 

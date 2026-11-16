@@ -37,8 +37,14 @@ class BrowserCdpSession(Protocol):
         """Send one CDP command, return its result payload."""
         ...
 
-    def attached_targets(self) -> AsyncIterator[tuple[str, dict[str, Any]]]:
-        """Yield ``(session_id, target_info)`` for each attached target."""
+    def attached_targets(
+        self, idle_timeout: float | None = ...,
+    ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
+        """Yield ``(session_id, target_info)`` for each attached target.
+
+        Ends after ``idle_timeout`` seconds without a new target; ``None``
+        listens until the browser websocket closes.
+        """
         ...
 
 
@@ -138,7 +144,7 @@ class _AiohttpBrowserCdpSession:
             self._pending_events.append((session_id, target_info))
 
     async def attached_targets(
-        self,
+        self, idle_timeout: float | None = _ATTACH_IDLE_TIMEOUT_S,
     ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
         """Yield ``(session_id, target_info)`` as targets attach.
 
@@ -153,15 +159,20 @@ class _AiohttpBrowserCdpSession:
         :data:`_ATTACH_IDLE_TIMEOUT_S` lets the spoofer finish the setup loop
         and the caller proceed, while still covering every target the burst
         delivered.
+
+        ``idle_timeout=None`` keeps listening until the websocket closes (the
+        browser exited): the spoofer's keep-alive loop uses it to service
+        targets that open later in the session. Events buffered by a
+        :meth:`send` issued from the loop body are drained on every pass.
         """
 
         import aiohttp
-        while self._pending_events:
-            yield self._pending_events.pop(0)
         ws = await self._ensure_ws()
         while True:
+            while self._pending_events:
+                yield self._pending_events.pop(0)
             try:
-                raw = await ws.receive(timeout=_ATTACH_IDLE_TIMEOUT_S)
+                raw = await ws.receive(timeout=idle_timeout)
             except TimeoutError:
                 # No further target attached within the idle window — the
                 # auto-attach burst is done. End setup rather than block.
