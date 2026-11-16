@@ -13,7 +13,7 @@ exports[`BrowserGameButtons — Luna panel: connected (Req 10.1) > renders an en
             {
               "key": undefined,
               "props": {},
-              "type": "FaCloud",
+              "type": "LunaIcon",
             },
             " ",
             "play.playOnCloud",

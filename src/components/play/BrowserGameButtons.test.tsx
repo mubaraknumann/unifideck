@@ -53,6 +53,7 @@ vi.mock("react-icons/fa", () => ({
   FaTimes: "FaTimes",
 }));
 vi.mock("../shared", () => ({
+  LunaIcon: "LunaIcon",
   SteamControllerIcon: "SteamControllerIcon",
   SteamGearIcon: "SteamGearIcon",
 }));
@@ -154,8 +155,9 @@ describe("BrowserGameButtons — Luna panel: connected (Req 10.1)", () => {
     expect(play!.props?.disabled).toBeFalsy();
     expect(typeof play!.props?.onClick).toBe("function");
 
-    // The cloud icon marks the stream variant; no sign-in prompt is shown.
-    expect(nodesOfType(tree, "FaCloud")).toHaveLength(1);
+    // Luna's own mark replaces the generic cloud; no sign-in prompt is shown.
+    expect(nodesOfType(tree, "LunaIcon")).toHaveLength(1);
+    expect(nodesOfType(tree, "FaCloud")).toHaveLength(0);
     expect(nodesOfType(tree, "FaSignInAlt")).toHaveLength(0);
     expect(hasText(tree, "play.luna.signInHint")).toBe(false);
     expect(hasText(tree, "play.luna.sessionExpired")).toBe(false);

@@ -30,6 +30,17 @@ export type PlayTarget = "local" | "cloud";
  *  in every language. */
 export const CLOUD_TARGET_NAME = "Xbox Cloud";
 
+/** Brand name of the Amazon Luna stream target, also language-neutral. */
+export const LUNA_TARGET_NAME = "Amazon Luna";
+
+/** The cloud name Steam shows for this row: Luna titles stream from Luna,
+ *  every other cloud row from Xbox Cloud. */
+export function cloudTargetName(state: PlaySectionState): string {
+  return state.kind === "browser" && state.gatedStore === "luna"
+    ? LUNA_TARGET_NAME
+    : CLOUD_TARGET_NAME;
+}
+
 const storageKey = (appId: number): string => `unifideck.playTarget.${appId}`;
 
 /** The stream URL when this row offers the cloud, else null: a merged

@@ -28,7 +28,7 @@ import {
   FaSignInAlt,
   FaTimes,
 } from "react-icons/fa";
-import { SteamControllerIcon, SteamGearIcon } from "../shared";
+import { LunaIcon, SteamControllerIcon, SteamGearIcon } from "../shared";
 import { useAppRunning } from "../../hooks/useAppRunning";
 import { useGameActions } from "../../hooks/useGameActions";
 import { useStoreAuth } from "../../hooks/useStoreAuth";
@@ -180,7 +180,7 @@ export const BrowserGameButtons: FC<Props> = ({
           onClick={onPlay}
           style={actionBtnStyle}
         >
-          {stream ? <FaCloud /> : <FaGlobe />}{" "}
+          {isGated ? <LunaIcon /> : stream ? <FaCloud /> : <FaGlobe />}{" "}
           {stream ? t("play.playOnCloud") : t("play.playInBrowser")}
         </DialogButton>
       )}

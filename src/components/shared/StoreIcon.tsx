@@ -15,13 +15,14 @@ import {
   SiItchdotio,
   SiUbisoft,
 } from "react-icons/si";
-import { FaCloud, FaGamepad, FaSteam, FaXbox } from "react-icons/fa";
+import { FaGamepad, FaSteam, FaXbox } from "react-icons/fa";
 import { GameVaultIcon } from "./GameVaultIcon";
+import { LunaIcon } from "./LunaIcon";
 import type { StoreId } from "../../types/api";
 
 /**
  * The map holds two kinds of component: react-icons glyphs (`IconType`) and
- * our own `GameVaultIcon`. Both accept the only two props StoreIcon passes,
+ * our own `GameVaultIcon` / `LunaIcon`. Both accept the only two props StoreIcon passes,
  * so the map is typed to that narrower shape rather than casting one of them
  * through `unknown` to satisfy `IconType`.
  */
@@ -38,10 +39,9 @@ const STORE_ICONS: Record<StoreId, StoreGlyph> = {
   gamevault: GameVaultIcon,
   itch: SiItchdotio,
   ea: SiEa,
-  // react-icons/si has no Amazon Luna glyph; a cloud marks it as a cloud-
-  // streaming store, matching the "Play on Cloud" icon the stream Play
-  // control uses.
-  luna: FaCloud,
+  // react-icons/si has no Amazon Luna glyph; ours is measured off Luna's
+  // own brand icon.
+  luna: LunaIcon,
 };
 
 /**
