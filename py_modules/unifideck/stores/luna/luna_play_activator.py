@@ -42,7 +42,7 @@ import logging
 import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import urlsplit
 
 from unifideck.stores.luna.luna_cdp import attach_to_page_target
 from unifideck.stores.luna.luna_platform_spoofer import (
@@ -102,25 +102,6 @@ _PLAY_LOCATE_EXPRESSION = r"""
   const r = el.getBoundingClientRect();
   if (r.width <= 0 || r.height <= 0) return null;
   return [r.x + r.width / 2, r.y + r.height / 2];
-})()
-""".strip()
-
-#: The launch opens the detail page with ``?autoplay=1`` (the target of the
-#: catalog's ``play.amazon.<tld>/play?asin=…`` deep link), which makes Luna
-#: start the title by itself. Give that this long to show before falling
-#: back to clicking Play.
-_AUTOPLAY_GRACE_S = 6.0
-
-#: JS reporting whether Luna has already started the title on its own: the
-#: page left the detail view for ``/provision`` / the player, or the
-#: pre-launch dialog is up. ``%(player_path)s`` comes from the config.
-_AUTOPLAY_STARTED_EXPRESSION_TEMPLATE = r"""
-(() => {
-  const p = window.location.pathname;
-  if (p.indexOf('/provision') === 0 || p.indexOf(%(player_path)s) !== -1) return true;
-  const labels = ['continue anyway', 'trotzdem fortfahren', 'trotzdem fortsetzen'];
-  return Array.from(document.querySelectorAll('button')).some((b) =>
-    labels.includes((b.textContent || '').trim().toLowerCase()));
 })()
 """.strip()
 
@@ -325,25 +306,6 @@ def build_player_confirm_expression(player_path: str) -> str:
     return _PLAYER_CONFIRM_EXPRESSION_TEMPLATE % {"player_path": repr(player_path)}
 
 
-def build_autoplay_started_expression(player_path: str) -> str:
-    """Build the autoplay-started probe JS, embedding the player path."""
-    return _AUTOPLAY_STARTED_EXPRESSION_TEMPLATE % {"player_path": repr(player_path)}
-
-
-def with_autoplay(detail_url: str) -> str:
-    """Return ``detail_url`` with ``autoplay=1`` set in its query string.
-
-    Luna's own ``play.amazon.<tld>/play?asin=…`` deep link lands on the
-    detail page with ``?r=web&autoplay=1``, which starts the title without a
-    click. Existing query parameters are kept; an existing ``autoplay`` is
-    overwritten.
-    """
-    parts = urlsplit(detail_url)
-    query = [(k, v) for k, v in parse_qsl(parts.query) if k != "autoplay"]
-    query.append(("autoplay", "1"))
-    return urlunsplit(parts._replace(query=urlencode(query)))
-
-
 def extract_player_state(result: dict[str, Any]) -> PlayerState:
     """Extract the :class:`PlayerState` from a confirmation evaluate result.
 
@@ -475,9 +437,6 @@ class LunaPlayActivator:
         the DOM the instant the detail page's ``load`` fires. Returns whether
         play was triggered.
         """
-        if await self._await_autoplay(session, session_id, player_url):
-            logger.info("[Luna] title started via autoplay on %s", detail_url)
-            return True
         deadline = _monotonic() + _PLAY_TRIGGER_TIMEOUT_S
         while True:
             if await self._play_trigger.trigger(
@@ -485,35 +444,6 @@ class LunaPlayActivator:
                 detail_url=detail_url, player_url=player_url,
             ):
                 logger.info("[Luna] play action triggered on %s", detail_url)
-                return True
-            if _monotonic() >= deadline:
-                return False
-            await asyncio.sleep(_CONFIRM_POLL_INTERVAL_S)
-
-    async def _await_autoplay(
-        self, session: BrowserCdpSession, session_id: str, player_url: str,
-    ) -> bool:
-        """Wait up to :data:`_AUTOPLAY_GRACE_S` for Luna's own autoplay.
-
-        Returns ``True`` once the page left the detail view (or raised the
-        pre-launch dialog), so no click is needed; ``False`` when the grace
-        period ends with the detail page still waiting for Play.
-        """
-        expression = build_autoplay_started_expression(
-            _player_path_from_url(player_url or self.config.player_path),
-        )
-        deadline = _monotonic() + _AUTOPLAY_GRACE_S
-        while True:
-            result = await session.send(
-                "Runtime.evaluate",
-                {"expression": expression, "returnByValue": True},
-                session_id=session_id,
-            )
-            inner = result.get("result")
-            if (
-                not result.get("exceptionDetails") and isinstance(inner, dict)
-                and inner.get("value") is True
-            ):
                 return True
             if _monotonic() >= deadline:
                 return False

@@ -20,7 +20,6 @@ from unifideck.stores.luna.luna_play_activator import (
     _PLAY_LOCATE_EXPRESSION,
     LunaPlayActivator,
     click_located,
-    with_autoplay,
 )
 
 _SID = "page-session"
@@ -79,39 +78,6 @@ class _Session:
 
 def _activator() -> LunaPlayActivator:
     return LunaPlayActivator(SimpleNamespace(player_path="/player"))  # type: ignore[arg-type]
-
-
-@pytest.fixture(autouse=True)
-def _no_autoplay_wait(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The scripted page never autoplays; skip the grace period."""
-    monkeypatch.setattr(activator_mod, "_AUTOPLAY_GRACE_S", 0)
-
-
-def test_with_autoplay_adds_the_flag_and_keeps_the_query() -> None:
-    assert with_autoplay("https://luna.amazon.de/game/x/B0") == (
-        "https://luna.amazon.de/game/x/B0?autoplay=1"
-    )
-    assert with_autoplay("https://luna.amazon.de/game/x/B0?r=web&autoplay=0") == (
-        "https://luna.amazon.de/game/x/B0?r=web&autoplay=1"
-    )
-
-
-async def test_autoplay_start_skips_the_click(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(activator_mod, "_CONFIRM_POLL_INTERVAL_S", 0)
-
-    class _Autoplays(_Session):
-        def _evaluate(self, expr: str) -> dict[str, Any]:
-            if "/provision" in expr:  # autoplay probe: Luna left the detail page
-                self.started = True
-                return {"result": {"value": True}}
-            return super()._evaluate(expr)
-
-    session = _Autoplays()
-    result = await _activator().run_activate(
-        session, _SID, "https://luna.amazon.de/game/x/B0?autoplay=1", "/player",
-    )
-    assert result.success is True
-    assert session.events == [], "no pointer click when Luna autoplayed"
 
 
 def test_locate_targets_only_the_primary_play_button() -> None:

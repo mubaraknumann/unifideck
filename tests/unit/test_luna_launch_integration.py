@@ -52,15 +52,6 @@ from unifideck.stores.luna.luna_play_activator import (
     LunaPlayActivator,
 )
 
-
-@pytest.fixture(autouse=True)
-def _no_autoplay_wait(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The harness page never autoplays; exercise the click path promptly."""
-    import unifideck.stores.luna.luna_play_activator as activator_mod
-
-    monkeypatch.setattr(activator_mod, "_AUTOPLAY_GRACE_S", 0)
-
-
 _WINDOWS = "Windows"
 _DETAIL_URL = "https://luna.amazon.de/detail/B0HLN4GG5K"
 _PLAYER_PATH = "/player"

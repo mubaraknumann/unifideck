@@ -60,7 +60,6 @@ from unifideck.stores.luna.luna_platform_spoofer import (
 from unifideck.stores.luna.luna_play_activator import (
     LunaPlayActivationError,
     LunaPlayActivator,
-    with_autoplay,
 )
 
 if TYPE_CHECKING:
@@ -192,9 +191,10 @@ async def _drive_luna_launch(
     url: str,
 ) -> Result:
     """Spawn + spoof + verify + activate + keyboard + block (Req 5/7/14)."""
-    # Luna starts the title by itself on ``?autoplay=1`` (what its own
-    # play deep link redirects to), so the detail page shows only briefly.
-    url = with_autoplay(url)
+    # No ``?autoplay=1`` (the target of Luna's own play deep link): when Luna
+    # raises its "Hardware Acceleration is Off" dialog after an autoplay
+    # start, Continue Anyway no longer proceeds (verified on device), while
+    # a trusted click on Play followed by Continue does.
     # ── Spawn (no supported browser → non-zero + missing-browser log) ──
     launched = await asyncio.to_thread(browser.launch, url)
     if not launched:
