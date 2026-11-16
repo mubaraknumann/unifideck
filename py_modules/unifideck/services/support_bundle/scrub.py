@@ -74,7 +74,12 @@ _RULES: tuple[tuple[str, re.Pattern[str], _Replacement], ...] = (
         re.compile(
             r"([?&#](?:access_token|refresh_token|id_token|code|client_secret"
             r"|authorization_code|session_state|password|api_key|apikey"
-            r"|exchange_code|signature|sig|device_code|user_code|otc)=)[^&\s\"'<>]+",
+            r"|exchange_code|signature|sig|device_code|user_code|otc"
+            # EA: the licence and account calls of a game's own DRM put
+            # the sign-in in the query, password included (Proton's web
+            # trace of a game's sign-in form recorded it in plain text)
+            r"|ea_eadmtoken|eadmtoken|ea_password|ea_email|ea_persona|requesttoken"
+            r"|dmtoken|validationcode)=)[^&\s\"'<>]+",
             re.I,
         ),
         r"\1" + _REDACTED,
@@ -89,6 +94,20 @@ _RULES: tuple[tuple[str, re.Pattern[str], _Replacement], ...] = (
             re.I,
         ),
         _mask_value,
+    ),
+    (
+        # EA's local client protocol (LSX) and licence XML, as maxima-cli's
+        # debug log prints them: the game's sign-in codes, its licence and
+        # Denuvo tickets, the session's challenge keys, and the account
+        # fields of EA's user record.
+        "ea_lsx",
+        re.compile(
+            r"(\b(?:AuthCode value|License|RequestTicket|response|key|EncryptionKey"
+            r"|AuthToken|Token)=\")[^\"]*"
+            r"|(<(?:AuthToken|CipherKey|GameToken|Password|Email|Dob|Signature)>)[^<]*"
+            r"|(Denuvo Token: )\S+",
+        ),
+        lambda m: (m.group(1) or m.group(2) or m.group(3)) + _REDACTED,
     ),
     (
         "cookie",
@@ -137,7 +156,7 @@ _RULES: tuple[tuple[str, re.Pattern[str], _Replacement], ...] = (
     ),
 )
 
-_STANDARD = ("jwt", "bearer", "qs", "kv", "cookie", "email", "ipv4")
+_STANDARD = ("jwt", "bearer", "qs", "kv", "ea_lsx", "cookie", "email", "ipv4")
 # Rules that match on *shape* rather than on a keyword, so the cheap
 # literal gate below cannot decide whether they apply. They run on
 # every line.
@@ -147,6 +166,9 @@ _AGGRESSIVE = (*_STANDARD, "blob")
 _PROFILE_RULES: dict[str, tuple[str, ...]] = {
     "text": _STANDARD,
     "text_aggressive": _AGGRESSIVE,
+    # EA's client logs: a store debug log can print an opaque token with
+    # no label, so the shape rule runs too, without dropping whole lines.
+    "text_ea": _AGGRESSIVE,
     "json": _STANDARD,
     "jsonl": _STANDARD,
 }
@@ -174,7 +196,9 @@ def profile_rules() -> dict[str, list[str]]:
 _TRIGGER = re.compile(
     r"(?i)token|secret|password|passwd|cookie|bearer|basic |credential"
     r"|api[_-]?key|apikey|auth|session|signature|sig=|eyJ|code=|@|key"
-    r"|device[_-]?code|user[_-]?code|otc=",
+    r"|device[_-]?code|user[_-]?code|otc="
+    r"|value=|license=|ticket|response=|cipherkey|<dob>|denuvo|ea_email|ea_persona"
+    r"|dmtoken|validationcode",
 )
 
 

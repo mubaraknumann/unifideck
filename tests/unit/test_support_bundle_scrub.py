@@ -336,3 +336,31 @@ def test_profile_rules_are_published_for_the_manifest() -> None:
     rules = scrub.profile_rules()
     assert "blob" in rules["text_aggressive"]
     assert "blob" not in rules["text"]
+
+
+# ── EA (maxima-cli sidecar and EA game Proton logs) ──────────────
+
+
+def test_ea_client_messages_lose_every_credential_and_keep_the_diagnosis() -> None:
+    """Line shapes from a real maxima-cli debug log and an EA game's Proton web trace."""
+    from unifideck.services.support_bundle.scrub import scrub_text
+
+    lines = [
+        '<LSX><Response sender="EbisuSDK" id="1"><AuthCode value="QUOxANLtyp4FBkQrUDyGNvB7bDH-ZkK5v"/></Response></LSX>',
+        '<LSX><Request recipient="EbisuSDK" id="5"><RequestLicense UserId="1012" RequestTicket="AAAAbbbbCCCC1234" '
+        'TicketEngine="0" version="3"/></Request></LSX>',
+        '<LSX><Response sender="EbisuSDK" id="5"><RequestLicenseResponse License="BQCJFl4jr9qPCWU7qdz74hm8"/></Response></LSX>',
+        '<LSX><Request recipient="EALS" id="1"><ChallengeResponse response="3e2f9a77c1" key="76bee11cd1b0" version="3">',
+        "DEBUG - [maxima::lsx::request::license] - Got Denuvo Token: BQCJFl4jr9qPCWU7qdz74hm8WDVMjJKFwpu5",
+        "<user><UserId>1012</UserId><Email>someone@example.com</Email><Dob>1990-01-01</Dob><AuthToken>5uBy32IWp4d6I</AuthToken>",
+        'GET /cms/user?ea_email=someone%40example.com&ea_password=hunter2secret&remember_me=true HTTP/1.1',
+        "GET /cms/user/1012/content?ea_eadmtoken=QVQxOjMuMDo HTTP/1.1",
+        "ERROR - Failed to process LSX message: license request refused: CG_LIMIT_EXCEEDED",
+    ]
+    out = scrub_text("\n".join(lines).encode(), "text_ea")[0].decode()
+
+    for secret in ("QUOxANLtyp4", "AAAAbbbbCCCC1234", "BQCJFl4jr9q", "3e2f9a77c1", "76bee11cd1b0",
+                   "someone@", "someone%40", "1990-01-01", "5uBy32IWp4d6I", "hunter2secret", "QVQxOjMuMDo"):
+        assert secret not in out, secret
+    # What the report is for survives
+    assert "CG_LIMIT_EXCEEDED" in out and "RequestLicense UserId" in out and "remember_me=true" in out

@@ -94,6 +94,25 @@ _SECRETS: tuple[SourceSpec, ...] = (
         note="Holds EA access and refresh tokens: statted, never opened.",
     ),
     SourceSpec(
+        key="xbox_pc_license_cache", what="Xodus's offline game licences (Xbox PC)",
+        root="data", pattern="xbox_pc/license-cache/*", policy="presence_only",
+        expect="optional", writer="Xodus backend (run --license-cache)",
+        note="Encrypted licences bound to the account: statted, never opened.",
+    ),
+    SourceSpec(
+        key="ea_fingerprints", what="Each EA game's machine fingerprint, fixed at its first licence",
+        root="data", pattern="ea/maxima/fingerprints.json",
+        policy="presence_only", expect="optional", writer="maxima-cli (unifideck-licence-stability)",
+        note="Hardware-derived hashes that identify the machine: statted, never "
+             "opened. A refused fingerprint is named in the game's sidecar log.",
+    ),
+    SourceSpec(
+        key="ea_debug_switch", what="The EA debug-log switch (an empty marker file)",
+        root="data", pattern="ea/maxima/debug-log",
+        policy="presence_only", expect="optional", writer="the user, for diagnosis",
+        note="Present means the sidecar and Proton logs are verbose.",
+    ),
+    SourceSpec(
         key="ubisoft_upc_session", what="Ubisoft Connect session token",
         root="data", pattern="ubisoft_upc_session.txt",
         policy="presence_only", expect="ubisoft", writer="stores/ubisoft",

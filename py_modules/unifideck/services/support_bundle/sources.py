@@ -145,6 +145,25 @@ _LOGS: tuple[SourceSpec, ...] = (
              "debugging the exact failure being reported.",
     ),
     SourceSpec(
+        key="ea_sidecar_logs",
+        what="maxima-cli launch-prepare log per EA game (licence, LSX, sign-in codes)",
+        root="data", pattern="ea/maxima/launch-prepare-*.log", arch_dir="ea",
+        policy="tail", max_bytes=CAP_GAME_LOG, scrub="text_ea",
+        priority=21, newest_n=MAX_LAUNCH_LOGS, expect="ea",
+        writer="launcher/ea/sidecar.py (maxima-cli stderr)",
+        note="One file per game, overwritten by its next launch. With the "
+             "debug-log switch on it holds every LSX message; maxima-cli "
+             "redacts tokens itself and the EA scrub profile runs again.",
+    ),
+    SourceSpec(
+        key="ea_proton_logs",
+        what="PROTON_LOG output of EA games, written when the debug-log switch is on",
+        root="data", pattern="ea/maxima/steam-*.log", arch_dir="ea/proton",
+        policy="tail", max_bytes=CAP_GAME_LOG, scrub="text_ea",
+        priority=24, newest_n=MAX_PROTON_LOGS, expect="optional",
+        writer="launcher/proton/handlers/ea.py (PROTON_LOG_DIR)",
+    ),
+    SourceSpec(
         key="edge_auth_log",
         what="Chromium/Edge stderr from OAuth sign-in windows",
         root="data", pattern="edge-auth.log", arch_dir="data",
@@ -247,6 +266,20 @@ _STATE_MEDIUM: tuple[SourceSpec, ...] = (
         root="data", pattern="ubisoft_visible_games.json", arch_dir="data",
         max_bytes=CAP_SMALL_JSON, scrub="json", priority=55, expect="ubisoft",
         writer="stores/ubisoft/config.py",
+    ),
+    SourceSpec(
+        key="xbox_pc_install_records",
+        what="Xbox PC install records: product, title id, version, exe, install state",
+        root="data", pattern="xbox_pc/installed/*.json", arch_dir="data/xbox_pc/installed",
+        max_bytes=CAP_SMALL_JSON, scrub="json", priority=55, expect="optional",
+        writer="launcher/xbox_pc (install worker)",
+    ),
+    SourceSpec(
+        key="ea_install_records",
+        what="EA install records: offer, build, exe, Touchup and fingerprint state",
+        root="data", pattern="ea/installed/*.json", arch_dir="ea/installed",
+        max_bytes=CAP_SMALL_JSON, scrub="json", priority=55, expect="ea",
+        writer="launcher/ea/records.py",
     ),
     SourceSpec(
         key="battlenet_id_map",

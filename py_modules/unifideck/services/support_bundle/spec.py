@@ -87,7 +87,7 @@ Root = Literal[
 Policy = Literal["include", "tail", "presence_only", "bulk", "static", "skip"]
 
 # Redaction profile applied to a collected byte stream.
-Scrub = Literal["none", "text", "text_aggressive", "json", "jsonl"]
+Scrub = Literal["none", "text", "text_aggressive", "text_ea", "json", "jsonl"]
 
 # Whether a missing file is suspicious. This is what makes the audit
 # readable: absent Amazon state on a device with no Amazon account is
