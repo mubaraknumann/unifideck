@@ -459,7 +459,8 @@
       "xboxPcSteamRootMissing": "找不到 Steam 文件夹",
       "xboxPcVcRedistMissing": "缺少 VC++",
       "xboxPcVcRuntimeFailed": "VC++ 安装失败",
-      "launchingGame": "正在启动…"
+      "launchingGame": "正在启动…",
+      "lunaEntryMissing": "No launch entry"
     },
     "library": {
       "syncStoreFailed": "失败：{{store}}",
@@ -702,7 +703,8 @@
     "battlenet": "Battle.net",
     "gamevault": "GameVault",
     "itch": "itch.io",
-    "ea": "EA"
+    "ea": "EA",
+    "luna": "Amazon Luna"
   },
   "unifiedLibrary": {
     "error": "Unifideck 错误",
@@ -936,6 +938,12 @@
       "subtitle": "选择此游戏启动的文件（例如：跳过启动器并直接运行游戏）。工作目录和云端存档不受影响。",
       "title": "更改可执行文件。{{game}}",
       "unavailable": "无法读取此游戏的文件夹。"
+    },
+    "luna": {
+      "signIn": "Sign in to Luna",
+      "signInHint": "Connect your Amazon Luna account to stream this game.",
+      "reauthenticate": "Reconnect to Luna",
+      "sessionExpired": "Your Luna session expired. Reconnect to keep playing."
     }
   },
   "playMeta": {

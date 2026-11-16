@@ -459,7 +459,8 @@
       "xboxPcSteamRootMissing": "Steam yolu yok",
       "xboxPcVcRedistMissing": "VC++ eksik",
       "xboxPcVcRuntimeFailed": "VC++ başarısız",
-      "launchingGame": "Başlatılıyor…"
+      "launchingGame": "Başlatılıyor…",
+      "lunaEntryMissing": "No launch entry"
     },
     "library": {
       "syncStoreFailed": "Hata: {{store}}",
@@ -702,7 +703,8 @@
     "battlenet": "Battle.net",
     "gamevault": "GameVault",
     "itch": "itch.io",
-    "ea": "EA"
+    "ea": "EA",
+    "luna": "Amazon Luna"
   },
   "unifiedLibrary": {
     "error": "Unifideck Hatası",
@@ -936,6 +938,12 @@
       "subtitle": "Bu oyunun hangi dosyayı başlatacağını seçin (örn. bir başlatıcıyı atlayıp oyunu doğrudan çalıştırmak için). Çalışma dizini ve bulut kayıtları etkilenmez.",
       "title": "Çalıştırılabilir dosyayı değiştir. {{game}}",
       "unavailable": "Bu oyunun klasörü okunamadı."
+    },
+    "luna": {
+      "signIn": "Sign in to Luna",
+      "signInHint": "Connect your Amazon Luna account to stream this game.",
+      "reauthenticate": "Reconnect to Luna",
+      "sessionExpired": "Your Luna session expired. Reconnect to keep playing."
     }
   },
   "playMeta": {

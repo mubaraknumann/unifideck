@@ -1,0 +1,196 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`BrowserGameButtons — Luna panel: connected (Req 10.1) > renders an enabled Play on Cloud control 1`] = `
+{
+  "key": undefined,
+  "props": {
+    "autoFocus": true,
+    "children": [
+      {
+        "key": undefined,
+        "props": {
+          "children": [
+            {
+              "key": undefined,
+              "props": {},
+              "type": "FaCloud",
+            },
+            " ",
+            "play.playOnCloud",
+          ],
+          "className": "unifideck-play-btn",
+          "onClick": [Function],
+          "style": {},
+        },
+        "type": "DialogButton",
+      },
+      undefined,
+      {
+        "key": undefined,
+        "props": {
+          "appId": 3012345678,
+          "showLastPlayed": true,
+        },
+        "type": [Function],
+      },
+      {
+        "key": undefined,
+        "props": {
+          "children": [
+            {
+              "key": undefined,
+              "props": {
+                "aria-label": "playButton.controllerConfig",
+                "children": {
+                  "key": undefined,
+                  "props": {},
+                  "type": "SteamControllerIcon",
+                },
+                "className": "unifideck-icon-btn",
+                "onClick": [Function],
+                "style": {},
+              },
+              "type": "DialogButton",
+            },
+            {
+              "key": undefined,
+              "props": {
+                "aria-label": "playButton.appSettings",
+                "children": {
+                  "key": undefined,
+                  "props": {},
+                  "type": "SteamGearIcon",
+                },
+                "className": "unifideck-icon-btn",
+                "onClick": [Function],
+                "style": {},
+              },
+              "type": "DialogButton",
+            },
+          ],
+        },
+        "type": [Function],
+      },
+    ],
+  },
+  "type": [Function],
+}
+`;
+
+exports[`BrowserGameButtons — Luna panel: not connected (Req 10.2, 10.3) > disables Play and shows a sign-in prompt 1`] = `
+{
+  "key": undefined,
+  "props": {
+    "autoFocus": true,
+    "children": [
+      {
+        "key": undefined,
+        "props": {
+          "children": [
+            {
+              "key": undefined,
+              "props": {},
+              "type": "FaSignInAlt",
+            },
+            " ",
+            "play.luna.signIn",
+          ],
+          "className": "unifideck-play-btn",
+          "disabled": false,
+          "onClick": [Function],
+          "style": {},
+        },
+        "type": "DialogButton",
+      },
+      {
+        "key": undefined,
+        "props": {
+          "children": [
+            false,
+            "play.luna.signInHint",
+          ],
+          "style": {
+            "alignItems": "center",
+            "color": "#b8bcbf",
+            "display": "inline-flex",
+            "fontSize": 12,
+            "gap": 6,
+          },
+        },
+        "type": "span",
+      },
+      {
+        "key": undefined,
+        "props": {
+          "appId": 3012345678,
+          "showLastPlayed": true,
+        },
+        "type": [Function],
+      },
+    ],
+  },
+  "type": [Function],
+}
+`;
+
+exports[`BrowserGameButtons — Luna panel: session expired (Req 10.4) > renders a re-authentication prompt distinct from first sign-in 1`] = `
+{
+  "key": undefined,
+  "props": {
+    "autoFocus": true,
+    "children": [
+      {
+        "key": undefined,
+        "props": {
+          "children": [
+            {
+              "key": undefined,
+              "props": {},
+              "type": "FaSignInAlt",
+            },
+            " ",
+            "play.luna.reauthenticate",
+          ],
+          "className": "unifideck-play-btn",
+          "disabled": false,
+          "onClick": [Function],
+          "style": {},
+        },
+        "type": "DialogButton",
+      },
+      {
+        "key": undefined,
+        "props": {
+          "children": [
+            {
+              "key": undefined,
+              "props": {
+                "size": 11,
+              },
+              "type": "FaExclamationTriangle",
+            },
+            "play.luna.sessionExpired",
+          ],
+          "style": {
+            "alignItems": "center",
+            "color": "#f0b429",
+            "display": "inline-flex",
+            "fontSize": 12,
+            "gap": 6,
+          },
+        },
+        "type": "span",
+      },
+      {
+        "key": undefined,
+        "props": {
+          "appId": 3012345678,
+          "showLastPlayed": true,
+        },
+        "type": [Function],
+      },
+    ],
+  },
+  "type": [Function],
+}
+`;

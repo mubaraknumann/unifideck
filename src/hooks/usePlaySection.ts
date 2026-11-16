@@ -24,6 +24,7 @@ import { useMemo } from "react";
 import { useGameInfo } from "./useGameInfo";
 import { useXboxPcStatus } from "./useXboxPcStatus";
 import { useDownloads } from "../contexts/DownloadContext";
+import { authStore } from "../stores/auth-store";
 import {
   resolvePlaySection,
   type PlaySectionState,
@@ -45,10 +46,24 @@ export function usePlaySection(appId: number | null): PlaySectionState {
   const info = useGameInfo(appId);
   const downloads = useDownloads();
   const xbox = useXboxPcStatus();
+  // Luna's Play control is gated on its connection state, so the section needs
+  // the live Luna status. Read it straight from the boot-time auth-store
+  // SINGLETON, NOT via useAuth()/AuthContext: this hook renders in Steam's
+  // injected React tree, which is not under <AuthProvider>, so useAuth() would
+  // throw there and crash the Play section for every store. The Play section
+  // re-mounts on store-status changes, so this stays current.
+  const lunaStatus = authStore.getSnapshot().statuses.luna;
 
   const { data, status } = info;
   return useMemo<PlaySectionState>(
-    () => resolvePlaySection(appId, { data, status }, downloads.queue, xbox),
-    [appId, data, status, downloads.queue, xbox],
+    () =>
+      resolvePlaySection(
+        appId,
+        { data, status },
+        downloads.queue,
+        xbox,
+        lunaStatus,
+      ),
+    [appId, data, status, downloads.queue, xbox, lunaStatus],
   );
 }

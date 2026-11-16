@@ -21,7 +21,7 @@ import {
 import { useRPCMutation } from "../api/useRPC";
 import { rpcRoutes } from "../api/rpc-routes";
 import { authStore, type StatusMap } from "../stores/auth-store";
-import type { AuthResult, Result, StoreId } from "../types/api";
+import type { AuthResult, Result, StoreId, StoreStatus } from "../types/api";
 
 /** Auth context value. */
 interface AuthContextValue {
@@ -34,6 +34,10 @@ interface AuthContextValue {
    *  success — bypasses EventBus race by setting status
    *  synchronously. */
   notifyConnected: (store: StoreId) => void;
+  /** Set a store's status to an explicit {@link StoreStatus}. Used by a
+   *  connection-gated store (Luna) to surface `expired` etc. so the panel and
+   *  Play control render the right prompt (Req 10). */
+  notifyStatus: (store: StoreId, status: StoreStatus) => void;
 }
 
 const Ctx = createContext<AuthContextValue | null>(null);
@@ -82,6 +86,10 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
     authStore.notifyConnected(store);
   }, []);
 
+  const notifyStatus = useCallback((store: StoreId, status: StoreStatus) => {
+    authStore.notifyStatus(store, status);
+  }, []);
+
   const value: AuthContextValue = {
     statuses,
     loading,
@@ -89,6 +97,7 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
     logout,
     logoutAll,
     notifyConnected,
+    notifyStatus,
   };
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

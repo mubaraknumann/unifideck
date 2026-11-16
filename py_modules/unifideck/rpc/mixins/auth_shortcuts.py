@@ -108,6 +108,10 @@ class AuthShortcutsRPCMixin:
         """Auth-shortcut context for the EA sign-in window."""
         return _build_and_log("ea")
 
+    async def get_luna_auth_shortcut_context(self) -> Any:
+        """Auth-shortcut context for the Amazon Luna sign-in window."""
+        return _build_and_log("luna")
+
     async def _wrapper_auth_shortcut_context(self, store_id: str) -> Any:
         """Auth-shortcut context for any wrapper store.
 

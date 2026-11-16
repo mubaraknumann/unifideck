@@ -459,7 +459,8 @@
       "xboxPcSteamRootMissing": "Нет папки Steam",
       "xboxPcVcRedistMissing": "Нет VC++",
       "xboxPcVcRuntimeFailed": "Сбой VC++",
-      "launchingGame": "Запуск…"
+      "launchingGame": "Запуск…",
+      "lunaEntryMissing": "No launch entry"
     },
     "library": {
       "syncStoreFailed": "Сбой: {{store}}",
@@ -702,7 +703,8 @@
     "battlenet": "Battle.net",
     "gamevault": "GameVault",
     "itch": "itch.io",
-    "ea": "EA"
+    "ea": "EA",
+    "luna": "Amazon Luna"
   },
   "unifiedLibrary": {
     "error": "Ошибка Unifideck",
@@ -936,6 +938,12 @@
       "subtitle": "Выберите, какой файл запускает эту игру (например, чтобы пропустить лаунчер и запустить игру напрямую). Рабочая папка и облачные сохранения не изменятся.",
       "title": "Изменить исполняемый файл. {{game}}",
       "unavailable": "Не удалось прочитать папку этой игры."
+    },
+    "luna": {
+      "signIn": "Sign in to Luna",
+      "signInHint": "Connect your Amazon Luna account to stream this game.",
+      "reauthenticate": "Reconnect to Luna",
+      "sessionExpired": "Your Luna session expired. Reconnect to keep playing."
     }
   },
   "playMeta": {

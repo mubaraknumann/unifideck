@@ -99,6 +99,16 @@ class AuthStoreImpl {
     this._updateStatus(store, "connected");
   }
 
+  /** Synchronous status update to an arbitrary {@link StoreStatus} — used by
+   *  a connection-gated store (Amazon Luna) to reflect a richer backend
+   *  verdict than connected/failed, in particular `expired` for a
+   *  session-expired re-auth prompt (Req 10.4). Mirrors `notifyConnected`'s
+   *  EventBus-race bypass so the panel and Play control update within 2s of
+   *  the result landing (Req 10.8). */
+  notifyStatus(store: StoreId, status: StoreStatus): void {
+    this._updateStatus(store, status);
+  }
+
   /** Clear all statuses (called by logoutAll). */
   clearAll(): void {
     this._setSnapshot({ statuses: {}, loading: false });

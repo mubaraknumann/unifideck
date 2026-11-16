@@ -82,4 +82,10 @@ export const STORE_VISUALS: Record<StoreId, StoreVisual> = {
     brand_color: "#ff4747",
     icon_path: "/assets/ea.svg",
   },
+  luna: {
+    id: "luna",
+    display_name: "Amazon Luna",
+    brand_color: "#9146ff",
+    icon_path: "/assets/luna.svg",
+  },
 };

@@ -50,7 +50,7 @@ import {
 import { getGameStateVersion } from "../lib/game-state-version";
 import { reinjectMetadataWhenLoaded } from "../lib/steam-bridge/app-store-patcher";
 import { shouldPatchShortcut } from "../lib/steam-bridge/shortcut-ownership";
-import { DownloadProvider } from "../contexts/DownloadContext";
+import { InjectedSubtreeProvider } from "../contexts/InjectedSubtreeProvider";
 import { PlaySectionWrapper } from "../components/play";
 import { HIDE_NATIVE_PLAY_MARKER } from "../components/play/play.css";
 import { GameInfoPanel, GameStoreSwitcher } from "../components/info";
@@ -342,16 +342,19 @@ function injectPlayWrapper(
       // UNSUPPORTED / Details / Synopsis).
       return;
     }
-    // Wrap in DownloadProvider — the only context the
-    // injected components need (useDownloads in
-    // GameInfoCompatRow and usePlaySection). Steam's React
-    // tree is rendered outside our RootProvider.
+    // Wrap in InjectedSubtreeProvider — Steam's React tree is rendered
+    // outside our RootProvider, so the injected components have no context.
+    // DownloadProvider alone covered useDownloads, but the Luna Play control
+    // also needs Auth/Store/Locale (useStoreAuth → useAuth/useStores/
+    // useTranslation), which threw "called outside <AuthProvider>" and
+    // crashed the whole Play section. InjectedSubtreeProvider bundles all of
+    // them for exactly this splice point.
     children.splice(
       idx,
       0,
-      <DownloadProvider key={`${baseKey}-v${version}`}>
+      <InjectedSubtreeProvider key={`${baseKey}-v${version}`}>
         <PlaySectionWrapper appId={appId} />
-      </DownloadProvider>,
+      </InjectedSubtreeProvider>,
     );
     return;
   }
@@ -391,13 +394,14 @@ function injectGameInfoPanel(
       if (anchor < 0) return; // wait for next render — see injectPlayWrapper
       idx = anchor + 1;
     }
-    // DownloadProvider needed by GameInfoCompatRow's useDownloads.
+    // InjectedSubtreeProvider: GameInfoCompatRow's useDownloads plus the
+    // other contexts the injected subtree reads outside RootProvider.
     children.splice(
       idx,
       0,
-      <DownloadProvider key={`${baseKey}-v${version}`}>
+      <InjectedSubtreeProvider key={`${baseKey}-v${version}`}>
         <GameInfoPanel appId={appId} />
-      </DownloadProvider>,
+      </InjectedSubtreeProvider>,
     );
     return;
   }
