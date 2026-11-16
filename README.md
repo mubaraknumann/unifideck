@@ -88,6 +88,7 @@ Installed games are playable immediately after install. The Steam restart is sti
 - **[Proton Compatibility](docs/proton-compatibility.md)** - Choosing a Proton version and troubleshooting/quick fixes.
 - **[Cloud Saves](docs/cloud-saves.md)** - How Epic/GOG cloud sync works, conflict handling, and custom save paths.
 - **[Microsoft / xCloud](docs/microsoft-xcloud.md)** - Xbox Game Pass and cloud-streaming integration.
+- **[Amazon Luna](docs/amazon-luna.md)** - Amazon Luna cloud-streaming integration, including the required platform spoofer.
 - **[GameVault Setup](docs/gamevault-setup.md)** - Connecting your own GameVault server, or a local folder of game archives.
 
 **Developer / reference**
