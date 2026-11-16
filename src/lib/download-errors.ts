@@ -82,6 +82,8 @@ const XBOX_PC_CODE_KEYS: ReadonlyArray<readonly [RegExp, string]> = [
   [/^xbox_filesystem_unsupported$/, "errors.download.xboxPcFilesystem"],
   [/^xbox_install_incomplete$/, "errors.download.xboxPcIncomplete"],
   [/^xbox_resolve_failed$/, "errors.download.xboxPcResolveFailed"],
+  // The backend could not parse the package. A retry fetches the same one.
+  [/^xbox_package_unreadable$/, "errors.download.xboxPcPackageUnreadable"],
   [/^xbox_market_unknown$/, "errors.download.xboxPcMarketUnknown"],
   [/^xbox_already_installed$/, "errors.download.xboxPcAlreadyInstalled"],
   [/^xbox_update_pending$/, "errors.download.xboxPcUpdatePending"],
@@ -306,6 +308,8 @@ const TOAST_KEYS: Readonly<Record<string, ToastKey>> = {
     "toasts.downloadError.xboxPcRepairNoRecord",
   "errors.download.xboxPcResolveFailed":
     "toasts.downloadError.xboxPcResolveFailed",
+  "errors.download.xboxPcPackageUnreadable":
+    "toasts.downloadError.xboxPcPackageUnreadable",
   "errors.download.xboxPcRuntimeDamaged":
     "toasts.downloadError.xboxPcRuntimeDamaged",
   "errors.download.xboxPcRuntimeMissing":

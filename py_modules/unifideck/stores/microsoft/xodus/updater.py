@@ -13,6 +13,11 @@ The record goes to ``updating`` before the download and back to
 ``installed`` only after the same checks an install passes. A failed or
 cancelled update leaves it ``updating``: the launcher refuses to start a
 half-updated game, and the update check keeps offering the update.
+
+One exception: a run that failed before it wrote anything (it never
+reported a writing phase and its journal is unchanged) gets the old record
+back. The game is still the old, complete version, so it stays playable,
+and the update check offers the update again.
 """
 from __future__ import annotations
 
@@ -32,6 +37,18 @@ from .ids import record_for_game
 from .progress import ProgressCallback
 
 logger = logging.getLogger(__name__)
+
+#: The CLI's resume journal in the game folder (``streaming_resume.rs``).
+STREAMING_JOURNAL = ".nexus-streaming-v1.jsonl"
+
+
+def journal_stamp(game_dir: Path) -> tuple[int, int] | None:
+    """``(size, mtime_ns)`` of the streaming journal, or None. Blocking."""
+    try:
+        st = (game_dir / STREAMING_JOURNAL).stat()
+    except OSError:
+        return None
+    return st.st_size, st.st_mtime_ns
 
 
 def located_record(game_id: str) -> tuple[dict[str, Any], Path, Path]:
@@ -99,8 +116,14 @@ class XboxPcUpdater:
         cid = await steps.choose_content(
             self._cli, pid, market, str(record.get("contentId") or "") or None,
         )
+        previous = dict(record)
+        before = await asyncio.to_thread(journal_stamp, game_dir)
         record.update({"state": "updating", "contentId": cid})
         await steps.save_record(record)
         outcome = await steps.stream_into(self._cli, pid, game_dir, market, cid, progress_cb)
+        if not outcome.succeeded and not outcome.reached_writing:
+            if await asyncio.to_thread(journal_stamp, game_dir) == before:
+                await steps.save_record(previous)
+                logger.info("[xbox_install] update of %s failed before writing; the game stays playable", pid)
         facts = await steps.verify(outcome, game_dir)
         return await steps.commit(record, facts, root, stamp="updatedAt")

@@ -11,7 +11,9 @@ The order of :func:`classify_failure` follows how much each signal knows:
    ``content-parsed`` wins, as in Nexus's ``content-license.ts``.
 3. Xbox Live refusing the sign-in (backend 0.1.3+).
 4. The stall watchdog.
-5. Otherwise ``xodus_exit_<rc>: <tail>``. The frontend's text rules then
+5. The package's metadata could not be parsed. Retrying fetches the same
+   package, so this is ``xbox_package_unreadable``, not a retry hint.
+6. Otherwise ``xodus_exit_<rc>: <tail>``. The frontend's text rules then
    read the CLI's own words (disk space, network).
 """
 from __future__ import annotations
@@ -33,6 +35,8 @@ _LICENSE_HTTP = {401: "xbox_signin_required", 403: "xbox_license_denied",
 _LICENSE_NETWORK = frozenset({"content-timeout", "content-request", "content-read"})
 #: Backend 0.1.3 prints Xbox Live's reply. A 4xx other than 429 is a refusal.
 REFUSED_HTTP = re.compile(r"XODUS_XBOX_REFUSED (?:user\.auth|xsts) HTTP 4(?!29)\d\d")
+#: The CLI read the package but could not parse its file layout.
+METADATA_INVALID = re.compile(r"NEXUS_TRANSFER_DIAGNOSTIC_V1 metadata-invalid\b")
 
 
 class InstallError(Exception):
@@ -98,6 +102,8 @@ def classify_failure(outcome: StreamOutcome) -> InstallError:
         # The tail reads ``stalled: no output for 300s while ... | <tail>``.
         _code, _sep, detail = outcome.tail.partition(": ")
         return InstallError("stalled", detail)
+    if METADATA_INVALID.search(outcome.tail):
+        return InstallError("xbox_package_unreadable", outcome.tail)
     return InstallError(f"xodus_exit_{outcome.rc}", outcome.tail)
 
 

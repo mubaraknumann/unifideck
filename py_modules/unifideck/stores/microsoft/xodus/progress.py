@@ -60,6 +60,10 @@ QUEUE_PHASE: dict[str, str | None] = {
 #: the first byte, the package metadata fetch, and the final package write.
 QUIET_PHASES = frozenset({"initializing", "metadata", "finalizing"})
 
+#: Phases in which the CLI may write into the game folder. The CLI prints
+#: the first ``downloading`` record before it writes any byte.
+WRITING_PHASES = frozenset({"downloading", "finalizing", "complete"})
+
 #: Silence tolerated before the first record and while bytes move, in s.
 STALL_S = 300.0
 #: Silence tolerated in a quiet phase, in s. Not measured on a large game yet.
@@ -110,6 +114,12 @@ class ProgressMapper:
         self._sequence = -1
         self._phase: str | None = None
         self._last_sent = float("-inf")
+        self._reached_writing = False
+
+    @property
+    def reached_writing(self) -> bool:
+        """Whether the run reported a phase that may write game files."""
+        return self._reached_writing
 
     @property
     def phase(self) -> str | None:
@@ -141,6 +151,8 @@ class ProgressMapper:
         changed = record.phase != self._phase
         self._sequence = record.sequence
         self._phase = record.phase
+        if record.phase in WRITING_PHASES:
+            self._reached_writing = True
         now = self._clock()
         if not changed and record.phase not in TERMINAL_PHASES:
             if now - self._last_sent < THROTTLE_S:

@@ -117,8 +117,35 @@ async def test_an_update_refuses_while_a_download_writes_the_folder(env: dict[st
 
 async def test_a_failed_update_stays_updating(env: dict[str, Any]) -> None:
     _installed(env["root"])
+    lines = [record_line(0, "metadata"), record_line(1, "downloading", 0, 100),
+             record_line(2, "failed")]
     failing = FakeCli(env["tmp"], on_spawn=lambda _d: None,
-                      make_proc=lambda: FakeProc(FakeStdout([record_line(0, "failed")]), rc=1))
+                      make_proc=lambda: FakeProc(FakeStdout(lines), rc=1))
+    result = await XboxPcUpdater(FakeXboxPc(), failing).update(PID)
+    assert result.error_code == "xodus_exit_1"
+    record = read_install_record(PID)
+    assert record is not None and record["state"] == "updating"
+
+
+async def test_an_update_that_failed_before_writing_keeps_the_game_playable(
+        env: dict[str, Any]) -> None:
+    _installed(env["root"])
+    lines = [record_line(0, "initializing"), record_line(1, "metadata"), record_line(2, "failed")]
+    failing = FakeCli(env["tmp"], on_spawn=lambda _d: None,
+                      make_proc=lambda: FakeProc(FakeStdout(lines), rc=1))
+    result = await XboxPcUpdater(FakeXboxPc(), failing).update(PID)
+    assert result.error_code == "xodus_exit_1"
+    record = read_install_record(PID)
+    assert record is not None and record["state"] == "installed"
+    assert record["contentId"] == CID and record["version"] == "1.0.5.0"
+
+
+async def test_a_changed_journal_keeps_the_update_pending(env: dict[str, Any]) -> None:
+    _installed(env["root"])
+    journal = env["root"] / "game" / ".nexus-streaming-v1.jsonl"
+    lines = [record_line(0, "metadata"), record_line(1, "failed")]
+    failing = FakeCli(env["tmp"], on_spawn=lambda d: (d / journal.name).write_text("{}\n"),
+                      make_proc=lambda: FakeProc(FakeStdout(lines), rc=1))
     result = await XboxPcUpdater(FakeXboxPc(), failing).update(PID)
     assert result.error_code == "xodus_exit_1"
     record = read_install_record(PID)

@@ -92,6 +92,23 @@ async def test_a_failed_exit_is_xodus_exit_with_the_tail(kills: list[int]) -> No
     assert fail.code == "xodus_exit_3" and "disk full" in str(fail)
 
 
+async def test_unparsable_package_metadata_is_its_own_code(kills: list[int]) -> None:
+    stderr = FakeStderr([
+        b"NEXUS_TRANSFER_DIAGNOSTIC_V1 metadata-invalid 0\n",
+        b"Package transfer failed (metadata-invalid). Download checkpoints are preserved.\n",
+    ])
+    lines = [record_line(0, "initializing"), record_line(1, "metadata"), record_line(2, "failed")]
+    outcome, _ = await _run(FakeProc(FakeStdout(lines), stderr, rc=1))
+    assert classify_failure(outcome).code == "xbox_package_unreadable"
+    assert not outcome.reached_writing
+
+
+async def test_a_download_phase_counts_as_writing(kills: list[int]) -> None:
+    lines = [record_line(0, "metadata"), record_line(1, "downloading", 0, 10), record_line(2, "failed")]
+    outcome, _ = await _run(FakeProc(FakeStdout(lines), rc=1))
+    assert outcome.reached_writing
+
+
 async def test_cancel_kills_the_tree_before_reraising(kills: list[int]) -> None:
     proc = FakeProc(FakeStdout([record_line(0, "metadata")], hang_at_end=True))
     task = asyncio.ensure_future(_run(proc))

@@ -39,7 +39,8 @@ class StreamOutcome:
     """How a streaming run ended.
 
     ``terminal`` is ``complete`` or ``failed`` when the CLI reported its end,
-    else None. ``rc`` is -1 after a stall or a hung exit.
+    else None. ``rc`` is -1 after a stall or a hung exit. ``reached_writing``
+    is False only when the run never reported a phase that writes files.
     """
 
     rc: int
@@ -47,6 +48,7 @@ class StreamOutcome:
     tail: str
     diagnostics: Diagnostics
     stalled: bool = False
+    reached_writing: bool = True
 
     @property
     def succeeded(self) -> bool:
@@ -88,4 +90,5 @@ async def run_streaming(
         tail=drained.tail if drained.stalled else tail.tail(),
         diagnostics=diags,
         stalled=drained.stalled,
+        reached_writing=mapper.reached_writing,
     )

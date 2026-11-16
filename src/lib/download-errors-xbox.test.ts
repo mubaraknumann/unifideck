@@ -42,6 +42,10 @@ describe("friendlyDownloadError: Xbox PC codes", () => {
     ["xbox_filesystem_unsupported", "errors.download.xboxPcFilesystem"],
     ["xbox_install_incomplete: container_missing", "errors.download.xboxPcIncomplete"],
     ["xbox_resolve_failed: xodus_timeout", "errors.download.xboxPcResolveFailed"],
+    [
+      "xbox_package_unreadable: NEXUS_TRANSFER_DIAGNOSTIC_V1 metadata-invalid 0",
+      "errors.download.xboxPcPackageUnreadable",
+    ],
     ["xbox_market_unknown", "errors.download.xboxPcMarketUnknown"],
     [
       "xbox_already_installed: /run/media/sd/Xbox/9PK087LNGJC5",
