@@ -89,6 +89,9 @@ def test_build_kiosk_args_well_formed_for_any_browser_cmd(cmd: list[str]) -> Non
     for flag in _GAMEPAD_FLAGS:
         assert flag in args
     assert mod._AUTOPLAY_FLAG in args
+    # WebRTC: without it ungoogled-chromium gathers no ICE candidates and the
+    # stream never connects (verified on device).
+    assert "--webrtc-ip-handling-policy=default" in args
     # Locale and URL last.
     assert "--lang=en" in args
     assert args[-1] == _DETAIL_URL

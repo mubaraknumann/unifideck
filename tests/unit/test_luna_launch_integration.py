@@ -425,11 +425,15 @@ async def test_end_to_end_no_page_target_aborts(wire_end_to_end: Any) -> None:
     assert result.success is False and result.error == ERR_PLATFORM_SPOOFING_FAILURE
 
 
-async def test_end_to_end_video_never_plays_maps_to_launch_failure(wire_end_to_end: Any) -> None:
-    """Reached /player but <video> never plays → launch_failure (5.4, 5.5).
+async def test_end_to_end_video_slow_to_start_keeps_the_window_open(
+    wire_end_to_end: Any,
+) -> None:
+    """Reached /player but <video> not playing yet → keep the window (5.4).
 
-    Shrinks the activator's 30s player-confirm window to a tick so the
-    integration test does not actually wait 30s for the timeout.
+    Luna provisions for a while and can take minutes to start the stream,
+    so once /player is reached the launch does not fail: it blocks on the
+    window like a successful stream, and the spoof is held until it closes.
+    Shrinks the player-confirm window to a tick so the test does not wait.
     """
     import unifideck.stores.luna.luna_play_activator as activator_mod
 
@@ -441,7 +445,8 @@ async def test_end_to_end_video_never_plays_maps_to_launch_failure(wire_end_to_e
         result = await run_luna_browser_game(_svc(), _ctx())
     finally:
         monkeypatch_short.undo()
-    assert result.success is False and result.error == ERR_LAUNCH_FAILURE
+    assert result.success is True
+    assert wire_end_to_end.session.closed is True  # spoof session released on exit
 
 
 async def test_end_to_end_play_control_absent_maps_to_launch_failure(wire_end_to_end: Any) -> None:

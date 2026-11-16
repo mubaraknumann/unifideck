@@ -51,6 +51,13 @@ logger = logging.getLogger(__name__)
 #: click-to-play gesture, mirroring the 0.7.7 browser-game kiosk launch.
 _AUTOPLAY_FLAG = "--autoplay-policy=no-user-gesture-required"
 
+#: Luna streams over WebRTC. The plugin's ungoogled-chromium build gathers no
+#: ICE candidates at all by default (verified on a Steam Deck: zero candidates
+#: without this flag, UDP host + srflx with it), so the stream connects to
+#: nothing and the player sits on "Loading" forever. ``default`` is stock
+#: Chrome's behaviour.
+_WEBRTC_FLAG = "--webrtc-ip-handling-policy=default"
+
 #: xdotool classname for the Luna kiosk window, distinct from auth /
 #: storefront / generic browser-game so focus matching never grabs it.
 _WINDOW_CLASS = "unifideck-luna"
@@ -154,7 +161,8 @@ class LunaBrowser:
         ``--remote-debugging-port`` on :meth:`cdp_port`, the dedicated
         ``--user-data-dir``, the shared base flags, the configured
         ``cloud_browser_flags`` and ``gamepad_flags``, the autoplay
-        relaxation, the display window flags, ``--lang`` and finally the URL.
+        relaxation, the WebRTC ICE policy, the display window flags,
+        ``--lang`` and finally the URL.
 
         Args:
           cmd: The resolved browser command (see :meth:`find_cmd`).
@@ -187,6 +195,7 @@ class LunaBrowser:
             *self.config.cloud_browser_flags,
             *self.config.gamepad_flags,
             _AUTOPLAY_FLAG,
+            _WEBRTC_FLAG,
             *window_flags,
             f"--lang={lang}",
             url,

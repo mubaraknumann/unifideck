@@ -341,6 +341,16 @@ async def _activate_play(
     except LunaPlayActivationError as exc:
         logger.warning("[Luna] play activation machinery failed: %s", exc)
         return Result(success=False, error=ERR_LAUNCH_FAILURE, store=ctx.store)
+    if not result.success and result.reached_player:
+        # The player is up and the window stays open, so the stream may
+        # still start (Luna says it can take minutes). Keep the session
+        # instead of reporting a failure and releasing the spoof under a
+        # window the user is still looking at.
+        logger.warning(
+            "[Luna] %s; keeping the player open until the window closes",
+            result.reason,
+        )
+        return None
     if not result.success:
         logger.warning(
             "[Luna] play activation failed at %s: %s",
