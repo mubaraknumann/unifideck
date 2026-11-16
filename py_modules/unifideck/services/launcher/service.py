@@ -281,6 +281,13 @@ class LauncherService:
         """
         if is_wrapper_store(ctx.auth_store):
             return await self._launch_wrapper_client(ctx)
+        # Luna has no Wine prefix and no browser OAuth: its sign-in is the
+        # spoofed browser-game kiosk, run here so it renders inside the
+        # RunGame-launched gamescope session (Gaming Mode). Must branch
+        # before the Edge-prefix auth/storefront path below.
+        if (ctx.auth_store or ctx.store) == "luna":
+            from unifideck.launcher.flows.luna_auth import handle_luna_auth
+            return await handle_luna_auth(ctx)
         if ctx.action == "storefront":
             from unifideck.launcher.flows.storefront import (
                 handle_store_storefront,

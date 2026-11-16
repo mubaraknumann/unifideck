@@ -68,6 +68,27 @@ class EdgeCDPClient:
         except Exception:
             return None
 
+    def get_browser_version(self) -> str | None:
+        """Return the ``/json/version`` "Browser" field, if the browser is up.
+
+        The field looks like ``"Chrome/150.0.7871.186"`` or
+        ``"Edg/128.0.0.0"`` and is the runtime source for the Luna
+        platform spoofer's UA/UA-CH version tracking (Req 14.8). Returns
+        ``None`` when the browser is down or the field is absent, so the
+        caller can raise its own typed spoofing-configuration error.
+        """
+        import urllib.request as _req
+        try:
+            with _req.urlopen(
+                f"http://127.0.0.1:{self.cdp_port}/json/version",
+                timeout=1,
+            ) as r:
+                data = json.loads(r.read().decode())
+                browser = data.get("Browser")
+                return browser if browser else None
+        except Exception:
+            return None
+
     def probe_cdp(self) -> bool:
         """Blocking probe of /json/version — True if the browser answers."""
         import urllib.request

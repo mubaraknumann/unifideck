@@ -118,6 +118,16 @@ async def run_browser_game(svc: LauncherService, ctx: LaunchContext) -> Result:
     abort = await _edge_missing(svc, ctx)
     if abort is not None:
         return abort
+
+    # Luna is a stream browser game too, but needs CDP platform-spoofing +
+    # play-activation + a dedicated profile/gamepad kiosk the generic path
+    # does not provide. It runs in the same plugin browser, so the missing-
+    # browser check above applies to it as well. Kept as the one luna-gated
+    # line here (the Luna logic lives entirely in the luna package).
+    if ctx.store == "luna":
+        from unifideck.stores.luna.luna_launch_flow import run_luna_browser_game
+        return await run_luna_browser_game(svc, ctx)
+
     url = str(ctx.browser_url)
     if not is_allowed_browser_url(url, ctx.browser_kind):
         # ``browser_target`` already filters; this guards any other builder

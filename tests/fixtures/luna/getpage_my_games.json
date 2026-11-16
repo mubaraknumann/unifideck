@@ -1,0 +1,133 @@
+{
+  "actions": [],
+  "analytics": {
+    "data": "pageId=default&pageType=browse_results_my_games"
+  },
+  "cachePolicy": {
+    "invalidationKeys": ["page_landing_browse"],
+    "ttlMs": 3600000
+  },
+  "pageContext": {
+    "encryptPageId": false,
+    "pageId": "default",
+    "pageType": "browse_results_my_games",
+    "productStage": "Release"
+  },
+  "pageMemberGroups": {
+    "mainContent": {
+      "widgets": [
+        {
+          "__type": "CollectionProxy:http://internal.amazon.com/coral/com.amazon.spiderporkclientproxyservice/",
+          "actions": [],
+          "analytics": {
+            "data": "pageId=default&pageType=browse_results_my_games&widgetId=collection_browse_my_games"
+          },
+          "id": "collection_browse_my_games",
+          "presentationData": "{}",
+          "serviceToken": "dummy-service-token",
+          "type": "GRID",
+          "widgets": [
+            {
+              "__type": "ItemProxy:http://internal.amazon.com/coral/com.amazon.spiderporkclientproxyservice/",
+              "actions": [
+                {
+                  "__type": "ServiceActionProxy:http://internal.amazon.com/coral/com.amazon.spiderporkclientproxyservice/",
+                  "serviceToken": "dummy-service-token",
+                  "target": "/game/fortnite"
+                }
+              ],
+              "analytics": {
+                "data": "pageId=default&pageType=browse_results_my_games"
+              },
+              "id": "game_tile_amzn1.adg.product.090330b3-1fe1-49a8-99e7-8b24f5f55227",
+              "presentationData": "{\"gameId\":\"amzn1.adg.product.090330b3-1fe1-49a8-99e7-8b24f5f55227\",\"title\":\"Fortnite\",\"releaseYear\":\"2017\",\"genreTags\":[\"Action\",\"Shooter\"],\"lastPlayedAt\":0,\"imageLandscape\":\"https://m.media-amazon.com/images/I/91wHoQZd98L.png\",\"imagePortrait\":\"https://m.media-amazon.com/images/I/91zs6JPs8BL.png\",\"hoverDetails\":{\"primaryButtonDefaultText\":\"Play now\",\"productUrl\":\"https://play.amazon.de/play?r=web&transferRequest=false&asin=B0BTRVRN6M&territory=DE\",\"secondaryButtonText\":\"More Info\",\"title\":\"Fortnite\",\"genreTags\":[\"Action\",\"Shooter\"]}}",
+              "type": "GAME_TILE"
+            },
+            {
+              "__type": "ItemProxy:http://internal.amazon.com/coral/com.amazon.spiderporkclientproxyservice/",
+              "actions": [
+                {
+                  "__type": "ServiceActionProxy:http://internal.amazon.com/coral/com.amazon.spiderporkclientproxyservice/",
+                  "serviceToken": "dummy-service-token",
+                  "target": "/game/kingdom-come-deliverance-ii/B0FSTD4YHR"
+                }
+              ],
+              "analytics": {
+                "data": "pageId=default&pageType=browse_results_my_games"
+              },
+              "id": "game_tile_amzn1.adg.product.5a471db7-90c8-4e15-a2b3-a94d5319257c",
+              "presentationData": "{\"gameId\":\"amzn1.adg.product.5a471db7-90c8-4e15-a2b3-a94d5319257c\",\"title\":\"Kingdom Come: Deliverance II\",\"releaseYear\":\"2025\",\"genreTags\":[\"Action\",\"Adventure\",\"RPG\"],\"lastPlayedAt\":0,\"imageLandscape\":\"https://m.media-amazon.com/images/I/A1PTdahigXL.png\",\"imagePortrait\":\"https://m.media-amazon.com/images/I/91Su4o2hJZL.png\",\"hoverDetails\":{\"primaryButtonDefaultText\":\"Play now\",\"productUrl\":\"https://play.amazon.de/play?r=web&transferRequest=false&asin=B0FSTD4YHR&territory=DE\",\"secondaryButtonText\":\"More Info\",\"title\":\"Kingdom Come: Deliverance II\",\"genreTags\":[\"Action\",\"Adventure\",\"RPG\"]}}",
+              "type": "GAME_TILE"
+            },
+            {
+              "__type": "ItemProxy:http://internal.amazon.com/coral/com.amazon.spiderporkclientproxyservice/",
+              "actions": [
+                {
+                  "__type": "ServiceActionProxy:http://internal.amazon.com/coral/com.amazon.spiderporkclientproxyservice/",
+                  "serviceToken": "dummy-service-token",
+                  "target": "/game/ea-sports-madden-nfl-27/B0HQ5JBS3K"
+                }
+              ],
+              "analytics": {
+                "data": "pageId=default&pageType=browse_results_my_games"
+              },
+              "id": "game_tile_amzn1.adg.product.a42fca92-df8d-4fd9-b9ad-66ab85196a6f",
+              "presentationData": "{\"gameId\":\"amzn1.adg.product.a42fca92-df8d-4fd9-b9ad-66ab85196a6f\",\"title\":\"EA SPORTS\\u2122 Madden NFL 27\",\"releaseYear\":\"2026\",\"genreTags\":[\"Sports\"],\"lastPlayedAt\":0,\"imageLandscape\":\"https://m.media-amazon.com/images/I/916naYAXQtL.png\",\"imagePortrait\":\"https://m.media-amazon.com/images/I/914taxJ+asL.png\",\"hoverDetails\":{\"primaryButtonDefaultText\":\"Play now\",\"productUrl\":\"https://play.amazon.de/play?r=web&transferRequest=false&asin=B0HQ5JBS3K&territory=DE\",\"secondaryButtonText\":\"More Info\",\"title\":\"EA SPORTS\\u2122 Madden NFL 27\",\"genreTags\":[\"Sports\"]}}",
+              "type": "GAME_TILE"
+            },
+            {
+              "__type": "ItemProxy:http://internal.amazon.com/coral/com.amazon.spiderporkclientproxyservice/",
+              "actions": [
+                {
+                  "__type": "ServiceActionProxy:http://internal.amazon.com/coral/com.amazon.spiderporkclientproxyservice/",
+                  "serviceToken": "dummy-service-token",
+                  "target": "/game/bowling-mayhem/B0HJKLQ9FR"
+                }
+              ],
+              "analytics": {
+                "data": "pageId=default&pageType=browse_results_my_games"
+              },
+              "id": "game_tile_amzn1.adg.product.c73c4cc3-e1dd-4c5b-a219-24440affa961",
+              "presentationData": "{\"gameId\":\"amzn1.adg.product.c73c4cc3-e1dd-4c5b-a219-24440affa961\",\"title\":\"Bowling Mayhem\",\"releaseYear\":\"2026\",\"genreTags\":[\"Party\",\"Sports\"],\"lastPlayedAt\":0,\"imageLandscape\":\"https://m.media-amazon.com/images/I/91h+biyAwlL._PIGameNightGameLogo,BottomRight,0,0_.png\",\"imagePortrait\":\"https://m.media-amazon.com/images/I/91REKA6plcL._PIGameNightGameLogo,BottomRight,0,0_.png\",\"hoverDetails\":{\"primaryButtonDefaultText\":\"Play now\",\"productUrl\":\"https://play.amazon.de/play?r=web&transferRequest=false&asin=B0HJKLQ9FR&territory=DE\",\"secondaryButtonText\":\"More Info\",\"title\":\"Bowling Mayhem\",\"genreTags\":[\"Party\",\"Sports\"]}}",
+              "type": "GAME_TILE"
+            },
+            {
+              "__type": "ItemProxy:http://internal.amazon.com/coral/com.amazon.spiderporkclientproxyservice/",
+              "actions": [
+                {
+                  "__type": "ServiceActionProxy:http://internal.amazon.com/coral/com.amazon.spiderporkclientproxyservice/",
+                  "serviceToken": "dummy-service-token",
+                  "target": "/game/marbles-on-stream/B0HPX7NT7F"
+                }
+              ],
+              "analytics": {
+                "data": "pageId=default&pageType=browse_results_my_games"
+              },
+              "id": "game_tile_amzn1.luna.product.df7a7c1a-5c9c-467e-9e39-1dc93c2628aa",
+              "presentationData": "{\"gameId\":\"amzn1.luna.product.df7a7c1a-5c9c-467e-9e39-1dc93c2628aa\",\"title\":\"Marbles On Stream\",\"releaseYear\":\"2018\",\"genreTags\":[\"Simulation\"],\"lastPlayedAt\":0,\"imageLandscape\":\"https://m.media-amazon.com/images/I/91IxU+FvDnL.png\",\"imagePortrait\":\"https://m.media-amazon.com/images/I/91UT7DEK9cL.png\",\"hoverDetails\":{\"primaryButtonDefaultText\":\"Play now\",\"productUrl\":\"https://play.amazon.de/play?r=web&transferRequest=false&asin=B0HPX7NT7F&territory=DE\",\"secondaryButtonText\":\"More Info\",\"title\":\"Marbles On Stream\",\"genreTags\":[\"Simulation\"]}}",
+              "type": "GAME_TILE"
+            },
+            {
+              "__type": "ItemProxy:http://internal.amazon.com/coral/com.amazon.spiderporkclientproxyservice/",
+              "actions": [
+                {
+                  "__type": "ServiceActionProxy:http://internal.amazon.com/coral/com.amazon.spiderporkclientproxyservice/",
+                  "serviceToken": "dummy-service-token",
+                  "target": "/game/police-simulator-patrol-officers/B0HPVN613X"
+                }
+              ],
+              "analytics": {
+                "data": "pageId=default&pageType=browse_results_my_games"
+              },
+              "id": "game_tile_amzn1.luna.product.2c9a964d-5270-4285-93fe-8106774e8474",
+              "presentationData": "{\"gameId\":\"amzn1.luna.product.2c9a964d-5270-4285-93fe-8106774e8474\",\"title\":\"Police Simulator: Patrol Officers\",\"releaseYear\":\"2022\",\"genreTags\":[\"Simulation\"],\"lastPlayedAt\":0,\"imageLandscape\":\"https://m.media-amazon.com/images/I/A1-gf3e7oTL.png\",\"imagePortrait\":\"https://m.media-amazon.com/images/I/91zgC6SI9UL.png\",\"hoverDetails\":{\"primaryButtonDefaultText\":\"Play now\",\"productUrl\":\"https://play.amazon.de/play?r=web&transferRequest=false&asin=B0HPVN613X&territory=DE\",\"secondaryButtonText\":\"More Info\",\"title\":\"Police Simulator: Patrol Officers\",\"genreTags\":[\"Simulation\"]}}",
+              "type": "GAME_TILE"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "serviceToken": "dummy-service-token",
+  "templatePreviewApplied": false
+}

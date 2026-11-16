@@ -176,3 +176,55 @@ def write_cookies(
         len(cookies), ", ".join(sorted(str(c["name"]) for c in cookies)),
     )
     return len(cookies)
+
+
+# Clear by host family. ``host_key LIKE '%<domain>%'`` is the same match
+# the profile manager's logout uses; keeping it here lets callers that
+# already lean on this module for cookie mutation (Luna's logout) delete
+# through the one sanctioned place instead of hand-rolling their own
+# sqlite3 writes against the profile DB.
+_DELETE_BY_HOST = "DELETE FROM cookies WHERE host_key LIKE ?"
+
+
+def clear_cookies(
+    profile_dir: str,
+    host_patterns: list[str],
+) -> int:
+    """Delete cookies whose host matches any of ``host_patterns``.
+
+    Each pattern is a SQL ``LIKE`` fragment such as ``"%amazon.%"``.
+    Returns how many rows were removed. Never raises — like
+    :func:`write_cookies`, any failure is logged and reported as ``0``;
+    a logout that silently kept a stale cookie is worse handled by the
+    caller re-checking the session than by an exception bubbling up.
+
+    Never call while the browser is running — it owns the DB and would
+    rewrite the rows on exit.
+    """
+    db = Path(profile_dir) / "Default" / "Cookies"
+    if not db.exists():
+        logger.info("[cookie_writer] no cookie DB at %s", db)
+        return 0
+    if not host_patterns:
+        return 0
+    try:
+        conn = sqlite3.connect(str(db), timeout=5)
+        try:
+            removed = 0
+            for pattern in host_patterns:
+                cursor = conn.execute(_DELETE_BY_HOST, (pattern,))
+                removed += cursor.rowcount
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.warning("[cookie_writer] could not clear cookies: %s", e)
+        return 0
+    logger.info(
+        "[cookie_writer] cleared %d cookie(s) matching %s",
+        removed, ", ".join(host_patterns),
+    )
+    return removed

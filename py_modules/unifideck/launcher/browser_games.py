@@ -46,10 +46,50 @@ XBOX_PC_TAG = "xbox_pc"
 
 #: Where each kind may open. A browser game's URL comes from store data and
 #: the window has no address bar, so anything else is refused rather than
-#: shown: a cloud stream only ever starts on xbox.com, and an HTML5 game only
-#: ever runs on its itch.io page.
-_STREAM_HOSTS = frozenset({"www.xbox.com", "xbox.com"})
+#: shown: a cloud stream only ever starts on a known stream service's host,
+#: and an HTML5 game only ever runs on its itch.io page.
+#:
+#: The stream hosts are kept per stream service rather than as one flat literal
+#: so each service's hosts stay self-documenting and a new service (Luna) adds
+#: its own entry without touching the others. ``is_allowed_browser_url`` is
+#: given only ``kind`` (not the store) by its callers, so a ``"stream"`` check
+#: tests the union of every stream service's hosts; that is correct because a
+#: real stream URL always belongs to exactly one service and the stores never
+#: share a host.
+#:
+#: Luna's hosts are regional (``luna.amazon.de``, ``luna.amazon.co.uk``, ...),
+#: so they are matched structurally rather than enumerated: the ``luna`` host
+#: of the ``amazon.<tld>`` domain. The match is deliberately exact about the
+#: first two labels and the label count so a look-alike like
+#: ``luna.amazon.de.evil.example`` is refused — a prefix check would not be.
+#: These literals mirror ``LunaConfig.allowed_stream_hosts`` from settings.json;
+#: the launcher keeps a stdlib-only constant here (as it does for xbox) because
+#: this module must not import the config layer — the config value is the
+#: catalog/UI side's view of the same allow-list.
+_XBOX_STREAM_HOSTS = frozenset({"www.xbox.com", "xbox.com"})
+_LUNA_HOST_LABELS = ("luna", "amazon")
 _WEB_HOST = "itch.io"
+
+
+def _is_luna_stream_host(host: str) -> bool:
+    """Whether *host* is a regional Luna host (``luna.amazon.<tld>``).
+
+    Accepts ``luna.amazon.de`` and multi-label TLDs like
+    ``luna.amazon.co.uk`` (3-4 labels), but refuses a look-alike that merely
+    starts with ``luna.amazon.`` and nests it under another domain, such as
+    ``luna.amazon.de.evil.example``.
+    """
+    labels = host.split(".")
+    return (
+        tuple(labels[:2]) == _LUNA_HOST_LABELS
+        and 3 <= len(labels) <= 4
+        and all(labels)
+    )
+
+
+def _is_allowed_stream_host(host: str) -> bool:
+    """Whether *host* belongs to a known cloud-stream service (xbox or Luna)."""
+    return host in _XBOX_STREAM_HOSTS or _is_luna_stream_host(host)
 
 
 @dataclass(frozen=True)
@@ -88,7 +128,7 @@ def is_allowed_browser_url(url: str, kind: str) -> bool:
     if parsed.scheme != "https" or not host:
         return False
     if kind == "stream":
-        return host in _STREAM_HOSTS
+        return _is_allowed_stream_host(host)
     return host == _WEB_HOST or host.endswith("." + _WEB_HOST)
 
 
@@ -101,11 +141,23 @@ def browser_target(store: str, game_id: str) -> BrowserTarget | None:
     the cache entirely, still launches as xCloud, as it did before this
     module existed. A PC-only Xbox title (``xbox_pc`` and no ``xcloud``) is
     installed and run by Xodus, never streamed, so it is not a browser game.
+
+    A Luna title is a cloud stream too, but Luna has no derivable launch URL:
+    its player lives at a single shared ``/player`` reached by an in-page
+    play-click, not a per-title URL, so there is no xCloud-style fallback.
+    A Luna title whose cached ``browser_url`` is absent, malformed, or on a
+    disallowed host therefore resolves to ``None`` (the launcher rejects it
+    with a non-zero exit and no browser) rather than to a guessed URL.
     """
     game = cached_game(store, game_id) or {}
     tags = set(game.get("tags") or [])
     url = str((game.get("metadata") or {}).get(BROWSER_URL_KEY) or "")
-    streamed = _XCLOUD_TAG in tags or (store == "microsoft" and XBOX_PC_TAG not in tags)
+    # Only ``xcloud``-tagged and Microsoft titles can synthesise a launch URL
+    # when the cache lacks one; Luna has none.
+    has_fallback = _XCLOUD_TAG in tags or (
+        store == "microsoft" and XBOX_PC_TAG not in tags
+    )
+    streamed = has_fallback or store == "luna"
     kind = "stream" if streamed else "web"
     if url and (BROWSER_TAG in tags or streamed):
         if is_allowed_browser_url(url, kind):
@@ -114,7 +166,7 @@ def browser_target(store: str, game_id: str) -> BrowserTarget | None:
             "[browser_games] refusing %s %s: %r is not an allowed %s URL",
             store, game_id, url[:120], kind,
         )
-    if streamed:
+    if has_fallback:
         return BrowserTarget(url=XCLOUD_PLAY_URL.format(game_id=game_id), kind="stream")
     return None
 

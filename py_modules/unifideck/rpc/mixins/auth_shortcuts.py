@@ -76,6 +76,7 @@ _AUTH_SHORTCUT_META: dict[str, dict[str, str]] = {
     "microsoft": {"title": "Microsoft Sign-In",    "env": "UNIFIDECK_MICROSOFT_ACTION"},
     "itch":      {"title": "itch.io Sign-In",      "env": "UNIFIDECK_ITCH_ACTION"},
     "ea":        {"title": "EA Sign-In",           "env": "UNIFIDECK_EA_ACTION"},
+    "luna":      {"title": "Amazon Luna Sign-In",  "env": "UNIFIDECK_LUNA_ACTION"},
 }
 
 class AuthShortcutsRPCMixin:

@@ -581,6 +581,13 @@ SHARED_HELPERS: dict[str, str] = {
     # exception, then reap it. Promoted ahead of its second user (Xbox PC)
     # so check 13 does not flag a copy of Epic's envelope.
     "run_drained_cli": "stores/shared/cli_install_helpers.py",
+    # Luna's CDP page-target-attach step. The play-trigger and the
+    # platform-probe verify each held a byte-identical copy of the
+    # ``_attach_to_page_target`` body (same ``Target.getTargets`` →
+    # first-``page`` → ``Target.attachToTarget`` sequence), differing only in
+    # the exception each raised. Promoted so there is one definition; callers
+    # pass their own ``raise_no_target`` / ``raise_no_session`` factory.
+    "attach_to_page_target": "stores/luna/luna_cdp.py",
 }
 
 DIVERGENCE_RE = re.compile(r"#\s*intentional-divergence:\s*\S")
