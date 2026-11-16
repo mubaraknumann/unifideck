@@ -61,6 +61,7 @@ class _SyncScopeMixin:
             fetch_artwork: bool = ...,
             resync_artwork: bool = ...,
             source: str = ...,
+            stores: Iterable[str] | None = ...,
         ) -> SyncResult: ...
 
     def _subscribe_store_library_ready(self) -> None:
@@ -77,7 +78,11 @@ class _SyncScopeMixin:
         store = str(kwargs.get("store") or "")
         logger.info("[SyncService] %s library ready — queueing a sync", store)
         task = asyncio.create_task(
-            self.sync_all(source=f"library_ready:{store}"),
+            # That store only: the others had nothing new to fetch.
+            self.sync_all(
+                source=f"library_ready:{store}",
+                stores=[store] if store else None,
+            ),
             name=f"sync-library-ready-{store}",
         )
         self._library_ready_syncs.add(task)

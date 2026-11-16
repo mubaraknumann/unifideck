@@ -125,7 +125,18 @@ class SyncStoreImpl {
 
     this._unsubs.push(
       EventBusClient.subscribe("sync_progress", (payload) => {
-        this._update({ progress: payload as unknown as SyncProgress });
+        // Merge, don't replace. The event carries only the run's headline
+        // fields; the per-store rows, the idle `store_summary` and the
+        // `queued` request arrive only with the `get_sync_progress` poll.
+        // Replacing the block dropped them until the next poll, so every
+        // row flickered to "Not synced yet" / its idle line each time a
+        // store's fetch started.
+        this._update({
+          progress: {
+            ...this._snapshot.progress,
+            ...(payload as unknown as SyncProgress),
+          },
+        });
       }),
     );
 

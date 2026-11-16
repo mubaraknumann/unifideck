@@ -116,3 +116,42 @@ describe("sync-store final post-sync phase", () => {
     expect(snap.isSyncing).toBe(false);
   });
 });
+
+describe("sync-store progress events", () => {
+  beforeEach(async () => {
+    vi.useFakeTimers();
+    callMock.mockReset();
+    callMock.mockResolvedValue(status({ status: "idle", syncing: false }));
+    syncStore.start();
+    await flush();
+  });
+
+  afterEach(() => {
+    syncStore.stop();
+    handlers.clear();
+    vi.useRealTimers();
+  });
+
+  it("keeps the store rows and idle summary when a sync_progress event lands", async () => {
+    callMock.mockResolvedValue(
+      status({
+        status: "syncing",
+        syncing: true,
+        stores: { gog: { state: "active", phase: "games", done: 0, total: 0, error: null } },
+        store_summary: { epic: { count: 456, synced_at: null } },
+        queued: null,
+      }),
+    );
+    emit("sync_started", { registered_phases: [], run_id: 1 });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(syncStore.getSnapshot().progress?.store_summary?.epic?.count).toBe(456);
+
+    // The event's payload has no stores / store_summary / queued.
+    emit("sync_progress", { store: "gog", progress_percent: 10, status: "syncing" });
+
+    const progress = syncStore.getSnapshot().progress;
+    expect(progress?.progress_percent).toBe(10);
+    expect(progress?.store_summary?.epic?.count).toBe(456);
+    expect(progress?.stores?.gog?.state).toBe("active");
+  });
+});

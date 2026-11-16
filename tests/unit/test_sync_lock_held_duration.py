@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from typing import Any
 
 import pytest
 
@@ -92,3 +93,17 @@ async def test_lock_acquired_at_clears_after_release():
     await svc._enqueue(SyncRequest(kind="sync", source="manual"))
     assert svc._lock_acquired_at is None
     assert not svc._lock.locked()
+
+
+async def test_request_auth_sync_covers_only_the_signed_in_store() -> None:
+    """Signing into one store must not re-run every other store's sync."""
+    svc = SyncService.__new__(SyncService)
+    seen: list[dict[str, Any]] = []
+
+    async def fake_sync_all(**kwargs: Any) -> SyncResult:
+        seen.append(kwargs)
+        return SyncResult(success=True, games=[], count=0, duration_ms=0)
+
+    svc.sync_all = fake_sync_all  # type: ignore[method-assign]
+    await svc.request_auth_sync("gog")
+    assert seen == [{"source": "auth:gog", "stores": ["gog"]}]
