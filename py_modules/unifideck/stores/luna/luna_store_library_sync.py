@@ -83,6 +83,7 @@ class _LunaLibrarySyncMixin(_LunaStoreState):
             return None
         client = LunaApiClient(
             region, resolve_profile_dir(self._luna_config.profile_dir),
+            locale=self._luna_config.locale,
         )
         return LunaCatalog(client.fetch_library)
 

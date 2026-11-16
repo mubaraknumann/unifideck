@@ -175,7 +175,7 @@ Headers sent: `Content-Type`, `Accept`, `User-Agent` (Windows Chrome of the pinn
 
 Not sent, because they are bound to a browser session and unavailable outside the browser: `x-amz-tdi`, `x-amz-session-id`, `x-amz-device-serial-number`, `x-amz-profile-token`. Also not sent: `x-amz-react-version`, `x-amz-client-version`, `x-amz-timezone`.
 
-> **The minimal header set was not determined.** The header list above is the set the client sends; it was not reduced one header at a time against a live account, and it was not confirmed live as a whole (see [What was verified](#what-was-verified-and-what-was-not)). The earlier successful replay used the full browser header set including the session-bound values.
+> **The header set above is confirmed live** (the Steam Deck sync stored 88 titles with it). It was not reduced one header at a time, so which of these headers are optional besides the required `x-amz-locale` is not known.
 
 ### Response shape
 
@@ -209,28 +209,36 @@ Every tile in the sample is a "Play now" tile. There is no per-tile field that s
 
 ## Region support
 
-Each Luna country site uses its own marketplace id, locale and a regional "tempo" backend. These live in one frozen table in `luna_api/regions.py`, keyed by the Luna host. A host without a row is reported as `region_unavailable`.
+Each Luna country site uses its own marketplace id, default locale and a regional "tempo" backend. These live in one frozen table in `luna_api/regions.py`, keyed by the Luna host. Every value was read from the site's own page config: `https://<luna host>/?g=s` serves `marketplace: "…"`, `locale: "…"` and names the tempo host it calls (read on 2026-11-16; `?g=s` stops Luna's geo redirect, see below).
 
-| Luna host           | Cookie domain  | Country | Marketplace id   | Tempo host                                          | Verified |
-| ------------------- | -------------- | ------- | ---------------- | --------------------------------------------------- | -------- |
-| `luna.amazon.de`    | `amazon.de`    | DE      | `A1PA6795UKMFR9` | `proxy-prod.eu-west-1.tempo.digital.a2z.com`        | **yes**  |
-| `luna.amazon.com`   | `amazon.com`   | US      | `ATVPDKIKX0DER`  | `proxy-prod.us-east-1.tempo.digital.a2z.com`        | no       |
-| `luna.amazon.co.uk` | `amazon.co.uk` | GB      | `A1F83G8C2ARO7P` | `proxy-prod.eu-west-1.tempo.digital.a2z.com`        | no       |
-| `luna.amazon.fr`    | `amazon.fr`    | FR      | `A13V1IB3VIYZZH` | `proxy-prod.eu-west-1.tempo.digital.a2z.com`        | no       |
-| `luna.amazon.it`    | `amazon.it`    | IT      | `APJ6JRA9NG5V4`  | `proxy-prod.eu-west-1.tempo.digital.a2z.com`        | no       |
-| `luna.amazon.es`    | `amazon.es`    | ES      | `A1RKKUPIHCS9HS` | `proxy-prod.eu-west-1.tempo.digital.a2z.com`        | no       |
-| `luna.amazon.ca`    | `amazon.ca`    | CA      | `A2EUQ1WTGCTBG2` | `proxy-prod.us-east-1.tempo.digital.a2z.com`        | no       |
+| Luna host            | Cookie domain   | Country | Marketplace id   | Default locale | Tempo host                                   | Tested with an account |
+| -------------------- | --------------- | ------- | ---------------- | -------------- | -------------------------------------------- | ---------------------- |
+| `luna.amazon.de`     | `amazon.de`     | DE      | `A1PA6795UKMFR9` | `de_DE`        | `proxy-prod.eu-west-1.tempo.digital.a2z.com` | **yes**                |
+| `luna.amazon.com`    | `amazon.com`    | US      | `ATVPDKIKX0DER`  | `en_US`        | `proxy-prod.us-east-1.tempo.digital.a2z.com` | no                     |
+| `luna.amazon.ca`     | `amazon.ca`     | CA      | `A2EUQ1WTGCTBG2` | `en_CA`        | `proxy-prod.us-east-1.tempo.digital.a2z.com` | no                     |
+| `luna.amazon.co.uk`  | `amazon.co.uk`  | GB      | `A1F83G8C2ARO7P` | `en_GB`        | `proxy-prod.eu-west-1.tempo.digital.a2z.com` | no                     |
+| `luna.amazon.fr`     | `amazon.fr`     | FR      | `A13V1IB3VIYZZH` | `fr_FR`        | `proxy-prod.eu-west-1.tempo.digital.a2z.com` | no                     |
+| `luna.amazon.it`     | `amazon.it`     | IT      | `APJ6JRA9NG5V4`  | `it_IT`        | `proxy-prod.eu-west-1.tempo.digital.a2z.com` | no                     |
+| `luna.amazon.es`     | `amazon.es`     | ES      | `A1RKKUPIHCS9HS` | `es_ES`        | `proxy-prod.eu-west-1.tempo.digital.a2z.com` | no                     |
+| `luna.amazon.pl`     | `amazon.pl`     | PL      | `A1C3SOZRARQ6R3` | `pl_PL`        | `proxy-prod.eu-west-1.tempo.digital.a2z.com` | no                     |
+| `luna.amazon.nl`     | `amazon.nl`     | NL      | `A1805IZSGTT6HS` | `nl_NL`        | `proxy-prod.eu-west-1.tempo.digital.a2z.com` | no                     |
+| `luna.amazon.se`     | `amazon.se`     | SE      | `A2NODRKZP88ZB9` | `sv_SE`        | `proxy-prod.eu-west-1.tempo.digital.a2z.com` | no                     |
+| `luna.amazon.com.be` | `amazon.com.be` | BE      | `AMEN7PMS3EDWL`  | `nl_NL`        | `proxy-prod.eu-west-1.tempo.digital.a2z.com` | no                     |
 
-Only the DE row was exercised with a real account. The other rows use the public Amazon marketplace ids and assume the tempo host of the region's AWS location. Whether that assumption holds for a given country is **not verified**; a wrong value would show up as `sync_error` (HTTP 4xx) for that account.
+Other Amazon domains redirect: `luna.amazon.pt` → ES, `luna.amazon.at` → DE, `luna.amazon.ie` and `luna.amazon.com.mx` → US.
 
-The only evidence obtainable without an account in those regions is DNS. `getent hosts` from the development machine resolved both tempo hosts:
+### Which region is used
 
-```
-getent hosts proxy-prod.eu-west-1.tempo.digital.a2z.com  -> 3 addresses (54.228.218.167, 99.80.40.93, 54.170.14.152)
-getent hosts proxy-prod.us-east-1.tempo.digital.a2z.com  -> 3 addresses (3.219.226.97, 3.215.78.42, 3.218.144.230), CNAME to an elb.us-east-1.amazonaws.com name
-```
+The region is not a setting. Luna picks the country by the visitor's location (from Germany every `luna.amazon.*` host answers `302 → https://luna.amazon.de/?g=s`), and after sign-in the account's Amazon session cookies (`at-*`, `sess-at-*`) sit on that country's domain. So `stores.luna.luna_host` defaults to empty ("auto"):
 
-That shows the hosts exist. It does not show that a given country's accounts are served by them.
+1. Signed in: the region whose cookie domain holds an unexpired sign-in cookie (`detect_region`, which reads cookie names and hosts only, never values).
+2. Not signed in yet: `https://luna.amazon.com`, which Luna geo-redirects to the user's own country. The sign-in check accepts any Luna country host, so a redirected sign-in still completes.
+
+A non-empty `luna_host` overrides the detection.
+
+### Language
+
+Luna offers the same 13 languages on every country site (Settings → Language). The web client stores the choice in `localStorage["locale_override"]` (`de_DE` style) and the catalog API takes the same tag in `x-amz-locale`; `getPage` was verified to answer the full library for `de_DE`, `en_US` and `fr_FR`. unifideck follows its own UI language: an exact match, else the same language in the country's variant (French in Canada → `fr_CA`), else any variant of that language, else the country site's default (`luna_locale.py`). The kiosk value is written before Play together with the streaming quality (see [Launch flow](#launch-flow)).
 
 ---
 
@@ -242,11 +250,12 @@ On Play, the launcher resolves the browser-game entry, opens the kiosk browser a
 
 1. **Check** the browser is installed (the generic browser-game check; a missing browser raises the browser-required toast).
 2. **Spawn** the Luna kiosk via `LunaBrowser` at the title's URL.
-3. **Attach** `LunaPlatformSpoofer` browser-level on `browser_game_cdp_port()` before navigation.
+3. **Attach** `LunaPlatformSpoofer` browser-level on `browser_game_cdp_port()`. Its CDP session stays open until the window closes: Chrome drops a session's `Emulation.setUserAgentOverride` and pre-document scripts as soon as that session detaches.
 4. **Verify** the spoofed platform; a mismatch aborts with `platform_spoofing_failure`.
-5. **Activate** play via `LunaPlayActivator`: within 15 s, click the detail page's primary Play button (`primary_entitled_button_game_session_async`) with a trusted CDP pointer event (Luna ignores a scripted `click()`), confirm a pre-launch dialog such as "Hardware Acceleration is Off" (Continue Anyway), then wait up to 180 s for `/player` with the `<video>` playing (Luna provisions for ~30 s first). Failure maps to `launch_failure`.
-6. **Inject** the virtual keyboard over the same CDP session.
-7. **Block** on the shared `wait_for_browser_exit(..., log_tag="luna")` until the window closes.
+5. **Page settings**: write the streaming quality (`luna_video_quality_setting`: LIMITED / STANDARD / BEST, from the settings panel) and the language (`locale_override`, see [Language](#language)) into the page's `localStorage`, and reload once when one of them changed (`luna_page_settings.py`). Luna reads both once per page load; the values then persist in the profile. A failure is logged and never blocks the launch.
+6. **Activate** play via `LunaPlayActivator`: within 15 s, click the detail page's primary Play button (`primary_entitled_button_game_session_async`) with a trusted CDP pointer event (Luna ignores a scripted `click()`), confirm the pre-launch dialog Luna raises without hardware acceleration ("Hardware Acceleration is Off" / "Hardwarebeschleunigung ist aus"; found language-neutrally by its `chrome://settings` hint, its last button is Continue Anyway), then wait up to 180 s for `/player` with the `<video>` playing (Luna provisions for ~30 s first). Failure maps to `launch_failure`.
+7. **Inject** the virtual keyboard over the same CDP session.
+8. **Block** on the shared `wait_for_browser_exit(..., log_tag="luna")` until the window closes.
 
 The launcher rejects a launch with a non-zero exit when the `browser_url` is empty or malformed, its host is not in `allowed_stream_hosts`, or the SteamOS X11 authority file cannot be found.
 
@@ -337,7 +346,8 @@ Parameters are read from `settings.json` under the `stores.luna` prefix. There a
 
 | Key                        | Usage                                                      |
 | -------------------------- | ---------------------------------------------------------- |
-| `luna_host`                | Regional Luna site URL (default `https://luna.amazon.de`); must have a region row for sync |
+| `luna_host`                | Luna site URL; default empty = auto (signed-in region, see [Which region is used](#which-region-is-used)) |
+| `video_quality`            | Streaming quality LIMITED / STANDARD / BEST; empty = Auto (Luna's own value). Set from the settings panel |
 | `allowed_stream_hosts`     | Host allow-list for launch URLs (stream kind)              |
 | `signin_path`              | Luna sign-in page path                                     |
 | `player_path`              | The shared `/player` path                                  |
@@ -370,20 +380,22 @@ Parameters are read from `settings.json` under the `stores.luna` prefix. There a
 
 - **DE account, 88 titles.** A real replay of the token call and `getPage` against `luna.amazon.de` returned HTTP 200 with 88 tiles (88 distinct ids), one `GRID` widget `collection_browse_my_games`, all `GAME_TILE`, each with one action whose primary button reads "Play now". 87 targets look like `/game/<slug>/<ASIN>`, 1 is `/game/fortnite` without ASIN. That response is the basis of the parser and of the sanitized fixture `tests/fixtures/luna/getpage_my_games.json` (6 tiles).
 - `getPage` answers 400 without `x-amz-locale`.
-- DNS for both tempo hosts (see [Region support](#region-support)).
+- Every region row against its site's own page config (see [Region support](#region-support)).
+- `getPage` returns the full library for `x-amz-locale` `de_DE`, `en_US` and `fr_FR`.
+- On device: the language switch via `locale_override` ("Jetzt spielen"), the language-neutral pre-launch dialog in English and German, and the quality being read back from the profile.
 - Unit tests cover the parser, the client against an injected HTTP session (URL, body, headers, error mapping), the cookie reader (round trip with `cookie_writer`), the region table, and the sync status mapping. They do not talk to Amazon.
 
 ### Not verified / open points
 
 | Point                                   | Status                                                                                           |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Reduced header set                      | **Not determined.** The replay that returned 88 titles used the full browser header set incl. `x-amz-tdi`, `x-amz-session-id`, `x-amz-device-serial-number`. The client sends fewer. That the reduced set is accepted, and which headers are optional, was not confirmed because no live run with the final client was possible (the Steam Deck was not reachable from the development machine). |
-| Live run of the final client            | Not done: token flow and 88-title count were not re-run with `LunaApiClient`.                    |
+| Reduced header set                      | **Accepted.** The library sync on the Steam Deck ran with exactly the headers listed above (no `x-amz-tdi` / session id / device serial / profile token) and stored 88 titles. Which of the sent headers are optional beyond `x-amz-locale` (required) was not narrowed down. |
+| Live run of the final client            | **Done** on the Steam Deck: `LunaApiClient` synced 88 titles into `library_cache.json`.        |
 | Prime versus subscription marker        | Absent. No field in `GAME_TILE` carries it; the library is treated as "playable by the account". |
 | Account without a Luna subscription    | No sample. An empty grid is treated as zero titles (entries removed); an auth error as `session_expired`. |
 | Pagination                              | None observed: no cursor or next-page field; the widget-level `serviceToken` is a page-context token. The client does a single request and logs a WARNING (counts only) if a grid holds non-tile widgets or non-`/game/` actions. |
 | Title count mismatch                    | An earlier DOM probe of the same account counted 90 `game_tile` elements; the API returned 88. The 2 extra are unexplained (possibly non-library tiles in the DOM). |
-| Regions other than DE                   | Marketplace ids and tempo hosts unverified (see table). DNS only.                                |
+| Regions other than DE                   | Values read from each site's page config (see table), not exercised with an account there.     |
 | Widevine                                | The downloaded ungoogled-chromium ships without Widevine. Whether Luna's player needs it is untested. |
 | Sign-in window class                    | Launch is tagged `unifideck-luna` through `wait_for_browser_exit`. The sign-in flow (`luna_auth.py`) does not go through it, so under a Steam Play compat tool that window may stay hidden in Gaming Mode. Not changed here. |
 | Spoofer attach hang                     | A previously seen `attached_targets()` hang affected the old scrape. Sync no longer launches a browser so it cannot occur there; it may still matter in the launch flow. |

@@ -53,6 +53,11 @@ from unifideck.launcher.flows.browser_window import wait_for_browser_exit
 from unifideck.stores.luna.luna_browser import LunaBrowser
 from unifideck.stores.luna.luna_config import LunaConfig
 from unifideck.stores.luna.luna_keyboard import inject_virtual_keyboard
+from unifideck.stores.luna.luna_page_settings import (
+    LunaPageSettingsError,
+    apply_page_settings,
+    page_settings_for,
+)
 from unifideck.stores.luna.luna_platform_spoofer import (
     LunaPlatformSpoofer,
     LunaSpoofConfigError,
@@ -60,10 +65,6 @@ from unifideck.stores.luna.luna_platform_spoofer import (
 from unifideck.stores.luna.luna_play_activator import (
     LunaPlayActivationError,
     LunaPlayActivator,
-)
-from unifideck.stores.luna.luna_video_quality import (
-    LunaVideoQualityError,
-    apply_video_quality,
 )
 
 if TYPE_CHECKING:
@@ -245,8 +246,8 @@ async def _run_spoofed(
     if spoof_result is not None:
         return spoof_result
 
-    # ── Streaming quality (optional; never blocks the launch) ──
-    await _apply_video_quality(config, cdp)
+    # ── Streaming quality + language (never blocks the launch) ──
+    await _apply_page_settings(config, cdp)
 
     # ── Play activation (detail → /player + video playing) ──
     play_result = await _activate_play(ctx, config, cdp, url)
@@ -315,12 +316,12 @@ async def _attach_and_verify(
     return None
 
 
-async def _apply_video_quality(config: LunaConfig, cdp: EdgeCDPClient) -> None:
-    """Apply the configured streaming quality; log and go on if it fails."""
+async def _apply_page_settings(config: LunaConfig, cdp: EdgeCDPClient) -> None:
+    """Apply streaming quality + language; log and go on if it fails."""
     try:
-        await apply_video_quality(cdp, config.video_quality)
-    except LunaVideoQualityError as exc:
-        logger.warning("[Luna] streaming quality not applied: %s", exc)
+        await apply_page_settings(cdp, page_settings_for(config))
+    except LunaPageSettingsError as exc:
+        logger.warning("[Luna] page settings not applied: %s", exc)
 
 
 async def _activate_play(

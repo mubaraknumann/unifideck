@@ -25,3 +25,7 @@ class LunaTitle:
     name: str
     browser_url: str
     asin: str | None = None
+    #: Luna's own box art from the catalog tile (``imagePortrait`` /
+    #: ``imageLandscape``), used for the Steam grid capsules.
+    cover_portrait: str | None = None
+    cover_landscape: str | None = None

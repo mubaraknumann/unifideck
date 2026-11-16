@@ -150,15 +150,19 @@
       "cli_path": ""
     },
     "luna": {
-      "luna_host": "https://luna.amazon.de",
+      "luna_host": "",
       "allowed_stream_hosts": [
         "luna.amazon.de",
         "luna.amazon.com",
+        "luna.amazon.ca",
         "luna.amazon.co.uk",
         "luna.amazon.fr",
         "luna.amazon.it",
         "luna.amazon.es",
-        "luna.amazon.ca"
+        "luna.amazon.pl",
+        "luna.amazon.nl",
+        "luna.amazon.se",
+        "luna.amazon.com.be"
       ],
       "signin_path": "/signin",
       "player_path": "/player",

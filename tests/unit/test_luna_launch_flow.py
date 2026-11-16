@@ -78,6 +78,7 @@ def wire(monkeypatch: pytest.MonkeyPatch) -> Any:
         config=SimpleNamespace(
             spoof_uach_platform=_WINDOWS, player_path="/player", luna_host="luna.amazon.de",
             video_quality="",
+            locale="",
         ),
     )
 

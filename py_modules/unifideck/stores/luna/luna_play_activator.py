@@ -105,15 +105,23 @@ _PLAY_LOCATE_EXPRESSION = r"""
 })()
 """.strip()
 
-#: JS locating the confirm button of the dialogs Luna can show between Play
-#: and ``/provision`` (seen on device: "Hardware Acceleration is Off" with
-#: Close / Continue Anyway). Returns the button centre or ``null``.
+#: JS locating the confirm button of the dialog Luna shows between Play and
+#: ``/provision`` when the browser reports no hardware acceleration ("Hardware
+#: Acceleration is Off" / "Hardwarebeschleunigung ist aus", Close + Continue
+#: Anyway). Language-neutral: the dialog is the smallest element whose text
+#: carries the ``chrome://settings`` hint and that holds two or more buttons,
+#: and its confirm button is the last one (verified on device in English and
+#: German). Returns the button centre or ``null``.
 _CONTINUE_LOCATE_EXPRESSION = r"""
 (() => {
-  const labels = ['continue anyway', 'trotzdem fortfahren', 'trotzdem fortsetzen'];
-  const el = Array.from(document.querySelectorAll('button')).find((b) =>
-    labels.includes((b.textContent || '').trim().toLowerCase()));
-  if (!el) return null;
+  const boxes = Array.from(document.querySelectorAll('div, section, [role="dialog"]'))
+    .filter((e) => (e.textContent || '').includes('chrome://settings')
+      && e.querySelectorAll('button').length >= 2);
+  if (!boxes.length) return null;
+  const box = boxes.reduce((a, b) =>
+    (a.textContent.length <= b.textContent.length ? a : b));
+  const buttons = box.querySelectorAll('button');
+  const el = buttons[buttons.length - 1];
   const r = el.getBoundingClientRect();
   if (r.width <= 0 || r.height <= 0) return null;
   return [r.x + r.width / 2, r.y + r.height / 2];

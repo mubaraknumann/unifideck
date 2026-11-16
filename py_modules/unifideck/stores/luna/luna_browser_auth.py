@@ -36,6 +36,8 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from unifideck.stores.luna.luna_api.regions import is_luna_url
+
 if TYPE_CHECKING:
     from unifideck.auth.edge_browser.cdp_client import EdgeCDPClient
     from unifideck.stores.luna.luna_config import LunaConfig
@@ -152,11 +154,12 @@ class LunaBrowserAuth:
         return any(marker in url for marker in _SIGNIN_URL_MARKERS)
 
     def _is_luna_host_url(self, url: str) -> bool:
-        """Whether *url* is under the configured Luna host (lower-cased input).
+        """Whether *url* is on a Luna site (lower-cased input).
 
         Signals the browser has returned to Luna after the Amazon sign-in.
-        An unset Luna host makes this unmatchable, so the caller keeps
-        polling rather than confirming on a bare cookie read.
+        Any country site counts, not only the configured host: a sign-in
+        started on ``luna.amazon.com`` is geo-redirected to the user's own
+        country (e.g. ``luna.amazon.de``).
         """
         host = (self._config.luna_host or "").lower()
-        return bool(host) and host in url
+        return (bool(host) and host in url) or is_luna_url(url)

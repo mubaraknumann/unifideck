@@ -28,7 +28,9 @@ import shutil
 import sqlite3
 import tempfile
 import time
+from collections.abc import Callable
 from pathlib import Path
+from typing import TypeVar
 
 from unifideck.auth.edge_browser.cookie_writer import (
     _BLOCK,
@@ -46,6 +48,8 @@ _HOST_HASH_LEN = 32
 
 _SIDECARS = ("-journal", "-wal", "-shm")
 
+_T = TypeVar("_T")
+
 _SELECT = (
     "SELECT host_key, name, value, encrypted_value FROM cookies "
     "WHERE host_key LIKE ? AND (has_expires = 0 OR expires_utc > ?) "
@@ -61,10 +65,32 @@ def read_cookies(profile_dir: str, host_suffix: str) -> dict[str, str]:
     when a name occurs more than once. Returns ``{}`` when the profile has
     no cookie database or it cannot be read; never raises, never logs values.
     """
+    suffix = host_suffix.lstrip(".").lower()
+    found = _with_private_copy(profile_dir, lambda copy: _read_copy(copy, suffix))
+    return found if found is not None else {}
+
+
+def cookie_hosts(profile_dir: str, name_prefixes: tuple[str, ...]) -> set[str]:
+    """Hosts holding an unexpired cookie whose name starts with a prefix.
+
+    Reads names and hosts only: nothing is decrypted, so no value can leak.
+    Returns an empty set when the profile has no readable cookie database.
+    """
+    found = _with_private_copy(
+        profile_dir, lambda copy: _hosts_in_copy(copy, name_prefixes),
+    )
+    return found if found is not None else set()
+
+
+def _with_private_copy(profile_dir: str, read: Callable[[Path], _T]) -> _T | None:
+    """Run ``read`` on a private copy of the profile's cookie database.
+
+    ``None`` when the profile has no cookie database or it cannot be read.
+    """
     db = Path(profile_dir) / "Default" / "Cookies"
     if not db.exists():
         logger.info("[cookie_reader] no cookie DB at %s", db)
-        return {}
+        return None
     work = Path(tempfile.mkdtemp(prefix="unifideck-cookies-"))
     try:
         copy = work / "Cookies"
@@ -73,12 +99,31 @@ def read_cookies(profile_dir: str, host_suffix: str) -> dict[str, str]:
             src = Path(str(db) + sidecar)
             if src.exists():
                 shutil.copy2(src, str(copy) + sidecar)
-        return _read_copy(copy, host_suffix.lstrip(".").lower())
+        return read(copy)
     except (OSError, sqlite3.Error) as exc:
         logger.warning("[cookie_reader] could not read cookies: %s", exc)
-        return {}
+        return None
     finally:
         shutil.rmtree(work, ignore_errors=True)
+
+
+def _hosts_in_copy(copy: Path, name_prefixes: tuple[str, ...]) -> set[str]:
+    """Unexpired cookie hosts in the private copy matching ``name_prefixes``."""
+    now_us = int((time.time() + _EPOCH_OFFSET_S) * 1_000_000)
+    conn = sqlite3.connect(str(copy), timeout=5)
+    try:
+        rows = conn.execute(
+            "SELECT host_key, name FROM cookies "
+            "WHERE has_expires = 0 OR expires_utc > ?",
+            (now_us,),
+        ).fetchall()
+    finally:
+        conn.close()
+    return {
+        host.lstrip(".").lower()
+        for host, name in rows
+        if isinstance(name, str) and name.startswith(name_prefixes)
+    }
 
 
 def _read_copy(copy: Path, suffix: str) -> dict[str, str]:

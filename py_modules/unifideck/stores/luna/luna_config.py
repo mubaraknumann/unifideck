@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from unifideck.auth.edge_browser.edge import WEB_GAME_PROFILE_DIR
@@ -36,6 +37,25 @@ LUNA_VIDEO_QUALITIES = ("LIMITED", "STANDARD", "BEST")
 #: Config key of the user's chosen quality. Empty means "Auto": leave
 #: whatever Luna itself has stored.
 VIDEO_QUALITY_KEY = f"{_LUNA_CONFIG_PREFIX}.video_quality"
+
+
+def resolve_luna_host(configured: str, profile_dir: str) -> str:
+    """The Luna site to use: the configured one, else the signed-in region.
+
+    An empty ``stores.luna.luna_host`` (the default) means "auto": the
+    country whose Amazon domain holds the profile's sign-in. Before any
+    sign-in it is :data:`~unifideck.stores.luna.luna_api.regions.SIGN_IN_FALLBACK_HOST`,
+    from which Luna geo-redirects to the user's own country.
+    """
+    if configured:
+        return configured
+    from unifideck.stores.luna.luna_api.regions import (
+        SIGN_IN_FALLBACK_HOST,
+        detect_region,
+    )
+
+    region = detect_region(str(Path(profile_dir).expanduser()))
+    return region.site if region else f"https://{SIGN_IN_FALLBACK_HOST}"
 
 
 def normalize_video_quality(value: object) -> str:
@@ -73,6 +93,9 @@ class LunaConfig:
     spoof_webgl_renderer: str = ""
     #: One of :data:`LUNA_VIDEO_QUALITIES`, or ``""`` for Auto (optional).
     video_quality: str = ""
+    #: Luna language (``de_DE`` style) following the unifideck UI language;
+    #: ``""`` leaves Luna's own choice. Derived, not a config key.
+    locale: str = ""
 
     @classmethod
     def from_config_manager(cls, config: ConfigManager | None) -> LunaConfig:
@@ -82,10 +105,15 @@ class LunaConfig:
         ``profile_dir`` defaults to the shared ``WEB_GAME_PROFILE_DIR`` when
         unset (Req 12.8).
         """
+        from unifideck.stores.luna.luna_api.regions import resolve_region
+        from unifideck.stores.luna.luna_locale import luna_locale_from_config
+
         cfg = StoreConfigReader(config, _LUNA_CONFIG_PREFIX)
         profile_dir = cfg.text("profile_dir") or WEB_GAME_PROFILE_DIR
+        luna_host = resolve_luna_host(cfg.text("luna_host"), profile_dir)
         return cls(
-            luna_host=cfg.text("luna_host"),
+            luna_host=luna_host,
+            locale=luna_locale_from_config(config, resolve_region(luna_host)),
             allowed_stream_hosts=cfg.text_list("allowed_stream_hosts"),
             signin_path=cfg.text("signin_path"),
             player_path=cfg.text("player_path"),

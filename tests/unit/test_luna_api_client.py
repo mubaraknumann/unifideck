@@ -72,14 +72,28 @@ def _client(
     routes: dict[str, Any],
     *,
     cookies: dict[str, str] | None = None,
+    locale: str = "",
 ) -> tuple[LunaApiClient, list[dict[str, Any]]]:
     log: list[dict[str, Any]] = []
     jar = {"at-main": "cookie-a", "ubid-main": "cookie-b"} if cookies is None else cookies
     monkeypatch.setattr(client_mod, "read_cookies", lambda _p, _s: dict(jar))
     region = resolve_region("https://luna.amazon.de")
     assert region is not None
-    client = LunaApiClient(region, "/profile", session_factory=lambda: _Session(routes, log))  # type: ignore[arg-type,return-value]
+    client = LunaApiClient(
+        region, "/profile", locale=locale,
+        session_factory=lambda: _Session(routes, log),  # type: ignore[arg-type,return-value]
+    )
     return client, log
+
+
+async def test_chosen_locale_overrides_the_site_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, log = _client(
+        monkeypatch, _routes(_Response(200, _FIXTURE.read_text())), locale="en_GB",
+    )
+    await client.fetch_library()
+    assert log[1]["headers"]["x-amz-locale"] == "en_GB"
 
 
 def _routes(get_page: Any, token: Any = None) -> dict[str, Any]:
@@ -118,7 +132,8 @@ async def test_get_page_request_is_exact(monkeypatch: pytest.MonkeyPatch) -> Non
     headers = page_req["headers"]
     assert headers["Content-Type"] == "text/plain;charset=UTF-8"
     assert headers["x-amz-access-token"] == _TOKEN
-    assert headers["x-amz-locale"] == "en_US"
+    # No locale passed: the country site's own default (luna.amazon.de → de_DE).
+    assert headers["x-amz-locale"] == "de_DE"
     assert headers["x-amz-marketplace-id"] == "A1PA6795UKMFR9"
     assert headers["x-amz-country-of-residence"] == "DE"
     assert headers["x-amz-device-type"] == "browser"

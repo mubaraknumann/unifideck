@@ -37,6 +37,11 @@ logger = logging.getLogger(__name__)
 #: ``metadata`` key for the title's Amazon ASIN, when the page path has one.
 ASIN_KEY = "asin"
 
+#: ``metadata`` keys for Luna's own box art (read by the artwork service's
+#: ``luna`` branch in ``services/artwork/store_metadata.py``).
+COVER_PORTRAIT_KEY = "cover_portrait"
+COVER_LANDSCAPE_KEY = "cover_landscape"
+
 FetchLibrary = Callable[[], Awaitable["ParsedLibrary"]]
 
 
@@ -137,6 +142,10 @@ class LunaCatalog:
         metadata: dict[str, object] = {BROWSER_URL_KEY: title.browser_url}
         if title.asin:
             metadata[ASIN_KEY] = title.asin
+        if title.cover_portrait:
+            metadata[COVER_PORTRAIT_KEY] = title.cover_portrait
+        if title.cover_landscape:
+            metadata[COVER_LANDSCAPE_KEY] = title.cover_landscape
         return Game(
             app_id=0,
             store="luna",

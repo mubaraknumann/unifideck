@@ -47,8 +47,9 @@ _VALID: dict[str, Any] = {
 }
 
 # Required string keys (every one must be named when missing/empty).
+# ``luna_host`` is not among them: empty means "auto" and resolves to the
+# signed-in region (or the sign-in fallback host), see the auto tests below.
 _REQUIRED_TEXT_KEYS = (
-    "luna_host",
     "signin_path",
     "player_path",
     "browser_game_cdp_flavour",
@@ -77,6 +78,51 @@ class _Cfg:
 
 def _config(section: dict[str, Any]) -> LunaConfig:
     return LunaConfig.from_config_manager(_Cfg(section))
+
+
+@pytest.fixture(autouse=True)
+def _no_signed_in_region(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Hermetic: no real browser profile is read for region detection."""
+    import unifideck.stores.luna.luna_api.regions as regions
+
+    monkeypatch.setattr(regions, "detect_region", lambda _profile: None)
+
+
+# ── auto host + language ────────────────────────────────────────
+def test_empty_host_before_sign_in_uses_the_geo_redirect_fallback() -> None:
+    cfg = _config({**_VALID, "luna_host": ""})
+    assert cfg.luna_host == "https://luna.amazon.com"
+    assert cfg.is_valid()[0]
+
+
+def test_empty_host_uses_the_signed_in_region(monkeypatch: pytest.MonkeyPatch) -> None:
+    import unifideck.stores.luna.luna_api.regions as regions
+
+    fr = regions.resolve_region("luna.amazon.fr")
+    monkeypatch.setattr(regions, "detect_region", lambda _profile: fr)
+    cfg = _config({**_VALID, "luna_host": ""})
+    assert cfg.luna_host == "https://luna.amazon.fr"
+
+
+def test_configured_host_wins_over_detection(monkeypatch: pytest.MonkeyPatch) -> None:
+    import unifideck.stores.luna.luna_api.regions as regions
+
+    monkeypatch.setattr(
+        regions, "detect_region", lambda _p: pytest.fail("no detection when set"),
+    )
+    assert _config(_VALID).luna_host == "luna.amazon.de"
+
+
+def test_language_follows_the_unifideck_ui_locale(monkeypatch: pytest.MonkeyPatch) -> None:
+    import unifideck.utils.locale as ui_locale
+
+    monkeypatch.setattr(ui_locale, "get_unifideck_locale", lambda _c: "de-DE")
+    assert _config(_VALID).locale == "de_DE"
+    monkeypatch.setattr(ui_locale, "get_unifideck_locale", lambda _c: "ja-JP")
+    # Not offered by Luna: the country site's own default.
+    assert _config(_VALID).locale == "de_DE"
+    monkeypatch.setattr(ui_locale, "get_unifideck_locale", lambda _c: "en-US")
+    assert _config(_VALID).locale == "en_US"
 
 
 # ── valid config ────────────────────────────────────────────────
@@ -127,7 +173,8 @@ def test_empty_profile_dir_also_defaults_to_shared_profile() -> None:
 def test_missing_section_yields_empty_strings_and_lists() -> None:
     """A store must construct even with no ``stores.luna`` section at all."""
     cfg = LunaConfig.from_config_manager(None)
-    assert cfg.luna_host == ""
+    # No host configured and nobody signed in: the geo-redirect fallback.
+    assert cfg.luna_host == "https://luna.amazon.com"
     assert cfg.allowed_stream_hosts == []
     assert cfg.gamepad_flags == []
     # The profile still defaults rather than staying unset.
@@ -208,7 +255,7 @@ def test_no_oauth_field_exists_on_the_dataclass() -> None:
 def test_oauth_keys_in_config_are_ignored_and_do_not_make_it_valid() -> None:
     """Req 12.3: supplying OAuth keys neither populates fields nor rescues
     an otherwise-missing required Luna key."""
-    section = {k: v for k, v in _VALID.items() if k != "luna_host"}
+    section = {k: v for k, v in _VALID.items() if k != "signin_path"}
     for key in _OAUTH_KEYS:
         section[key] = "SHOULD-BE-IGNORED"
     cfg = _config(section)
@@ -216,7 +263,7 @@ def test_oauth_keys_in_config_are_ignored_and_do_not_make_it_valid() -> None:
         assert not hasattr(cfg, key)
     ok, invalid = cfg.is_valid()
     assert not ok
-    assert "luna_host" in invalid
+    assert "signin_path" in invalid
 
 
 # ── describe() ──────────────────────────────────────────────────

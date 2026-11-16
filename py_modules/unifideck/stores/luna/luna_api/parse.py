@@ -107,7 +107,14 @@ def _parse_tile(tile: dict[str, Any], base: str) -> LunaTitle | None:
         name=name,
         browser_url=f"{base}{path}",
         asin=_asin(path, data),
+        cover_portrait=_https_url(data.get("imagePortrait")),
+        cover_landscape=_https_url(data.get("imageLandscape")),
     )
+
+
+def _https_url(value: object) -> str | None:
+    """``value`` when it is an https URL, else ``None``."""
+    return value if isinstance(value, str) and value.startswith("https://") else None
 
 
 def _presentation_data(tile: dict[str, Any]) -> dict[str, Any]:

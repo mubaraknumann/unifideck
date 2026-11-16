@@ -98,11 +98,17 @@ class LunaApiClient:
         region: LunaRegion,
         profile_dir: str,
         *,
+        locale: str = "",
         session_factory: SessionFactory | None = None,
     ) -> None:
-        """Bind the client to one region and one browser profile."""
+        """Bind the client to one region and one browser profile.
+
+        ``locale`` (``de_DE`` style) picks the language of the titles; empty
+        uses the country site's default.
+        """
         self._region = region
         self._profile_dir = profile_dir
+        self._locale = locale or region.locale
         self._session_factory = session_factory or _default_session
 
     @property
@@ -159,7 +165,7 @@ class LunaApiClient:
             "Origin": self.site,
             "Referer": f"{self.site}/",
             "x-amz-access-token": token,
-            "x-amz-locale": region.locale,
+            "x-amz-locale": self._locale,
             "x-amz-marketplace-id": region.marketplace_id,
             "x-amz-country-of-residence": region.country,
             "x-amz-device-type": "browser",
