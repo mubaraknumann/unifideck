@@ -166,7 +166,6 @@ class _AiohttpBrowserCdpSession:
         :meth:`send` issued from the loop body are drained on every pass.
         """
 
-        import aiohttp
         ws = await self._ensure_ws()
         while True:
             while self._pending_events:
@@ -177,22 +176,25 @@ class _AiohttpBrowserCdpSession:
                 # No further target attached within the idle window — the
                 # auto-attach burst is done. End setup rather than block.
                 return
-            if raw.type != aiohttp.WSMsgType.TEXT:
-                if raw.type in (
-                    aiohttp.WSMsgType.CLOSED,
-                    aiohttp.WSMsgType.CLOSING,
-                    aiohttp.WSMsgType.ERROR,
-                ):
-                    return
-                continue
-            payload = json.loads(raw.data)
-            if payload.get("method") != "Target.attachedToTarget":
-                continue
-            params = payload.get("params") or {}
-            session_id = params.get("sessionId")
-            target_info = params.get("targetInfo") or {}
-            if session_id:
-                yield session_id, target_info
+            if not self._take_attach_frame(raw):
+                return
+
+    def _take_attach_frame(self, raw: Any) -> bool:
+        """Buffer an ``attachedToTarget`` frame; ``False`` once the ws closed.
+
+        Non-text keep-alives and unrelated events are skipped (``True``).
+        """
+        import aiohttp
+        if raw.type != aiohttp.WSMsgType.TEXT:
+            return raw.type not in (
+                aiohttp.WSMsgType.CLOSED,
+                aiohttp.WSMsgType.CLOSING,
+                aiohttp.WSMsgType.ERROR,
+            )
+        payload = json.loads(raw.data)
+        if payload.get("method") == "Target.attachedToTarget":
+            self._buffer_event(payload)
+        return True
 
     async def close(self) -> None:
         """Close the websocket and its aiohttp session."""
