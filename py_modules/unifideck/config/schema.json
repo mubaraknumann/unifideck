@@ -305,7 +305,7 @@
         },
         "auto_push_on_stop": {
           "type": "boolean",
-          "description": "Automatically upload local saves when a game stops. Default false \u2014 uploads are the destructive direction, so by default they are manual via the cloud-save button. Set true to restore fully-automatic sync."
+          "description": "Automatically upload local saves when a game stops. Default true. An automatic upload never overwrites a cloud copy that changed since this device's last sync; it raises the save-conflict dialog instead."
         },
         "tolerance_seconds": {
           "$ref": "#/$defs/positiveInt"

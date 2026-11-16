@@ -11,15 +11,17 @@ describe("xboxSaveLine", () => {
   });
 
   it.each([
-    ["waiting_upload", "play.cloudSave.xboxWaitingUpload"],
-    ["cloud_newer", "play.cloudSave.xboxWaitingLaunch"],
-    ["cloud_removed", "play.cloudSave.xboxWaitingLaunch"],
-    ["both_changed", "play.cloudSave.xboxWaitingLaunch"],
-    ["running", "play.cloudSave.xboxWaitingLaunch"],
+    ["local_newer", "play.cloudSave.statusWaitingUpload"],
+    ["cloud_newer", "play.cloudSave.statusWaitingLaunch"],
+    ["cloud_removed", "play.cloudSave.statusWaitingLaunch"],
+    ["conflict", "play.cloudSave.statusWaitingLaunch"],
+    ["running", "play.cloudSave.statusWaitingLaunch"],
     ["unknown", "play.cloudSave.checkConnection"],
     ["offline", "play.cloudSave.checkConnection"],
   ] as const)("%s", (state, key) => {
     expect(xboxSaveLine(state)?.key).toBe(key);
+    // Nothing is wrong yet: the runtime settles it at the next launch
+    expect(xboxSaveLine(state)?.problem).toBe(false);
   });
 
   it.each(["no_saves", "not_launched", "", undefined] as const)("says nothing for %s", (state) => {

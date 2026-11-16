@@ -302,8 +302,13 @@ class EpicCloudSaveStrategy(CloudSaveStrategy):
         else:
             logger.info("[EpicSync] sync_down completed for %s", game_id)
 
-    async def _do_sync_up(self, game_id: str, local_dir: str) -> bool:
-        """Push local saves to Epic cloud (base did save-dir+guard+assert)."""
+    async def _do_sync_up(
+        self, game_id: str, local_dir: str, *, force: bool = False,
+    ) -> bool:
+        """Push local saves to Epic cloud (base did save-dir+guard+assert).
+
+        ``force`` changes nothing: legendary has no overwrite switch.
+        """
         cmd = [
             self.legendary_bin, "sync-saves", game_id,
             "--save-path", local_dir,

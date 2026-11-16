@@ -922,8 +922,8 @@
       "changeLocation": "Змінити розташування",
       "resetLocation": "Скинути на автоматичне",
       "statusInSync": "Хмарні збереження актуальні",
-      "xboxWaitingUpload": "Очікує вивантаження",
-      "xboxWaitingLaunch": "Очікує запуску",
+      "statusWaitingUpload": "Очікує вивантаження",
+      "statusWaitingLaunch": "Очікує запуску",
       "checkConnection": "Перевірте з'єднання"
     },
     "exe": {

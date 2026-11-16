@@ -159,7 +159,7 @@ class AchievementWatcher:
                 "running GOG game; the poll will catch it", client_id,
             )
             return
-        self._emit_new_unlocks(
+        await self._emit_new_unlocks(
             "gog", game_id, {"achievements": [normalize_gog_achievement(data)]},
         )
 
@@ -195,7 +195,7 @@ class AchievementWatcher:
                 await asyncio.sleep(interval)
                 payload = await self._fetch(store, game_id)
                 if payload is not None:
-                    self._emit_new_unlocks(store, game_id, payload)
+                    await self._emit_new_unlocks(store, game_id, payload)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -226,7 +226,7 @@ class AchievementWatcher:
         if payload is None:
             return
         # Toast any unlocks the poll cadence missed before the game closed.
-        self._emit_new_unlocks(store, game_id, payload)
+        await self._emit_new_unlocks(store, game_id, payload)
         final_keys = unlocked_keys(payload)
         baseline = self._baseline.get(key, set())
         session_new = final_keys - baseline
@@ -246,17 +246,23 @@ class AchievementWatcher:
             unlocked_keys=final_keys, last_session=last_session,
         )
 
-    def _emit_new_unlocks(
+    async def _emit_new_unlocks(
         self, store: str, game_id: str, payload: dict[str, Any],
     ) -> None:
-        """Emit."""
+        """Toast each new unlock, then tell an open game page to refetch."""
         key = f"{store}:{game_id}"
         seen = self._seen.setdefault(key, set())
+        new = False
         for ach in payload.get("achievements", []):
             ach_key = ach.get("key")
             if ach.get("unlocked") and ach_key and ach_key not in seen:
                 seen.add(ach_key)
+                new = True
                 self._toast(store, game_id, ach)
+        if new:
+            await self._bus.emit(
+                Events.ACHIEVEMENTS_UPDATED, store=store, game_id=game_id,
+            )
 
     def _toast(
         self, store: str, game_id: str, achievement: dict[str, Any],

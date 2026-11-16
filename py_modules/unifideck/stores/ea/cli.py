@@ -33,6 +33,8 @@ _LOG = "[EA/maxima]"
 
 AUTH_TIMEOUT_S = 30.0
 LIBRARY_TIMEOUT_S = 90.0
+#: A cloud sync fetches the library, then every changed save file.
+CLOUD_TIMEOUT_S = 300.0
 #: How much of stderr an error keeps (the end, where the reason is).
 _TAIL_CHARS = 600
 
@@ -60,11 +62,14 @@ class MaximaCli:
         self.cli_path = cli_path
         self.data_dir = data_dir
 
-    async def spawn(self, args: list[str], *, merge_stderr: bool = False) -> asyncio.subprocess.Process:
+    async def spawn(
+        self, args: list[str], *, merge_stderr: bool = False, env: dict[str, str] | None = None,
+    ) -> asyncio.subprocess.Process:
         """Start one command in its own session, in the empty run folder.
 
         ``merge_stderr`` sends the logs into stdout, for streamed commands whose
-        reader keeps the tail. The caller owns the process from here.
+        reader keeps the tail. ``env`` adds variables, such as a game's prefix.
+        The caller owns the process from here.
         """
         if not self.cli_path:
             raise MaximaCliError("cli_missing", "maxima-cli is not installed")
@@ -75,16 +80,18 @@ class MaximaCli:
                 stdin=asyncio.subprocess.DEVNULL,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT if merge_stderr else asyncio.subprocess.PIPE,
-                env=clean_cli_env(maxima.base_env(self.data_dir)),
+                env=clean_cli_env({**maxima.base_env(self.data_dir), **(env or {})}),
                 cwd=str(run_dir),
                 start_new_session=True,
             )
         except OSError as e:
             raise MaximaCliError("spawn_failed", f"{args[0]}: {e.strerror or type(e).__name__}") from None
 
-    async def _run(self, args: list[str], *, timeout_s: float) -> _RunOutput:
+    async def _run(
+        self, args: list[str], *, timeout_s: float, env: dict[str, str] | None = None,
+    ) -> _RunOutput:
         """Run one command to the end, killing its tree on timeout or cancel."""
-        proc = await self.spawn(args)
+        proc = await self.spawn(args, env=env)
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout_s)
         except TimeoutError:
@@ -97,8 +104,10 @@ class MaximaCli:
         rc = proc.returncode if proc.returncode is not None else -1
         return _RunOutput(rc, stdout.decode(errors="replace"), tail)
 
-    async def _json(self, args: list[str], timeout_s: float) -> dict[str, Any]:
-        out = await self._run(args, timeout_s=timeout_s)
+    async def _json(
+        self, args: list[str], timeout_s: float, env: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        out = await self._run(args, timeout_s=timeout_s, env=env)
         if out.returncode != 0:
             code = "not_signed_in" if "Not signed in" in out.tail else "command_failed"
             raise MaximaCliError(code, f"{args[0]} exited {out.returncode}: {out.tail}")
@@ -154,3 +163,58 @@ class MaximaCli:
         value = await self._json(["build-size", "--offer-id", offer_id], LIBRARY_TIMEOUT_S)
         size = value.get("install_bytes")
         return int(size) if isinstance(size, int) and size > 0 else None
+
+    async def cloud_paths(self, offer_id: str, prefix: Path) -> dict[str, Any]:
+        """The game's save rules and what they select in ``prefix`` (``unifideck-cloudsync``).
+
+        Keys: ``has_cloud_save``, ``rules``, ``excludes``, ``folders``, ``files``.
+        Reads only; takes no cloud lock.
+        """
+        return await self._json(
+            ["cloud-paths", "--offer-id", offer_id], LIBRARY_TIMEOUT_S, _prefix_env(prefix),
+        )
+
+    async def cloud_sync(
+        self, offer_id: str, prefix: Path, *, write: bool, force: bool = False,
+    ) -> dict[str, Any]:
+        """Pull (or with ``write`` push) the game's cloud saves in ``prefix``.
+
+        Without ``force`` a file changed on both sides transfers nothing and is
+        counted in ``conflicts``; the result also has ``downloaded``,
+        ``uploaded``, ``unchanged``, ``local_newer`` and ``skipped``.
+        """
+        args = ["--json", "cloud-sync", "--offer-id", offer_id]
+        if write:
+            args.append("--write")
+        if force:
+            args.append("--force")
+        return await self._json(args, CLOUD_TIMEOUT_S, _prefix_env(prefix))
+
+
+    async def achievements(self, offer_id: str) -> list[dict[str, Any]]:
+        """EA's achievements for ``offer_id`` and this account's progress (``unifideck-achievements``).
+
+        Each entry: ``id``, ``name``, ``description``, ``how_to``, ``awarded``,
+        ``awarded_at``, ``hidden``, ``points``, ``icons``. Empty for a game
+        without EA achievements.
+        """
+        value = await self._json(["achievements", "--offer-id", offer_id], AUTH_TIMEOUT_S)
+        items = value.get("achievements")
+        if not isinstance(items, list):
+            raise MaximaCliError("bad_output", "achievements gave no list")
+        return [i for i in items if isinstance(i, dict)]
+
+    async def cloud_status(self, offer_id: str, prefix: Path) -> dict[str, Any]:
+        """How ``prefix``'s saves compare with the cloud, file by file (``unifideck-cloud-status``).
+
+        Moves nothing. Keys: ``has_cloud_save``, ``cloud_files``, ``cloud_bytes``,
+        ``cloud_modified``, ``unchanged``, ``cloud_newer``, ``local_newer``,
+        ``conflicts``, ``cloud_only``, ``local_only``.
+        """
+        return await self._json(
+            ["cloud-status", "--offer-id", offer_id], LIBRARY_TIMEOUT_S, _prefix_env(prefix),
+        )
+
+def _prefix_env(prefix: Path) -> dict[str, str]:
+    """Save paths resolve inside this prefix; no Proton is run."""
+    return {"MAXIMA_WINE_PREFIX": str(prefix)}

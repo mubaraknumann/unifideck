@@ -190,7 +190,7 @@
     "enabled": true,
     "root": "",
     "auto_pull_on_launch": true,
-    "auto_push_on_stop": false,
+    "auto_push_on_stop": true,
     "tolerance_seconds": 2,
     "sync_wait_timeout_seconds": 5,
     "failure_behavior": {

@@ -36,6 +36,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
 
 from unifideck.core.safe_delete import canonical_prefix
+from unifideck.core.save_sync_state import CLOUD_NEWER, CONFLICT, IN_SYNC, LOCAL_NEWER
 from unifideck.launcher.xbox_pc import xml_lite
 from unifideck.launcher.xbox_pc.component_locks import game_lock_path
 from unifideck.launcher.xbox_pc.game_manifest import MANIFEST_NAME, find_ci
@@ -58,11 +59,9 @@ _MANIFEST_WORKERS = 4
 #: An index is a few short lines per blob. Anything far larger is not one.
 _MAX_INDEX_BYTES = 1024 * 1024
 
-IN_SYNC = "in_sync"
-WAITING_UPLOAD = "waiting_upload"
-CLOUD_NEWER = "cloud_newer"
+# The shared words (core/save_sync_state.py), then the states only a
+# runtime-synced store has.
 CLOUD_REMOVED = "cloud_removed"
-BOTH_CHANGED = "both_changed"
 UNKNOWN = "unknown"
 NO_SAVES = "no_saves"
 NOT_LAUNCHED = "not_launched"
@@ -70,7 +69,7 @@ RUNNING = "running"
 OFFLINE = "offline"
 
 #: Worst first. A game shows the worst state of any of its containers.
-_SEVERITY = (BOTH_CHANGED, CLOUD_REMOVED, CLOUD_NEWER, WAITING_UPLOAD, UNKNOWN, IN_SYNC)
+_SEVERITY = (CONFLICT, CLOUD_REMOVED, CLOUD_NEWER, LOCAL_NEWER, UNKNOWN, IN_SYNC)
 
 
 @dataclass(frozen=True)
@@ -300,11 +299,11 @@ def container_state(
     if local is None:
         return CLOUD_NEWER
     if cloud_time is None:
-        return WAITING_UPLOAD if local.not_uploaded else CLOUD_REMOVED
+        return LOCAL_NEWER if local.not_uploaded else CLOUD_REMOVED
     if cloud_time != local.remote:
-        return BOTH_CHANGED if local.dirty else CLOUD_NEWER
+        return CONFLICT if local.dirty else CLOUD_NEWER
     if local.dirty:
-        return WAITING_UPLOAD
+        return LOCAL_NEWER
     return IN_SYNC if atoms is not None and atoms == local.blobs else UNKNOWN
 
 
@@ -341,7 +340,7 @@ def _result(state: str, waiting: int) -> dict[str, Any]:
 
 def _offline(waiting: int) -> dict[str, Any]:
     """Being offline does not change what the index says about this Deck."""
-    return _result(WAITING_UPLOAD if waiting else OFFLINE, waiting)
+    return _result(LOCAL_NEWER if waiting else OFFLINE, waiting)
 
 
 def check_saves(chain: XBLTokenChain | None, pid: str, game_dir: Path) -> dict[str, Any]:
@@ -357,7 +356,7 @@ def check_saves(chain: XBLTokenChain | None, pid: str, game_dir: Path) -> dict[s
     pfn = package_family(game_dir)
     if pfn is None:
         logger.warning("[XboxSaves] no package identity in %s", game_dir)
-        return _result(WAITING_UPLOAD if waiting else UNKNOWN, waiting)
+        return _result(LOCAL_NEWER if waiting else UNKNOWN, waiting)
     states: list[str] = []
     for scid, folder in folders.items():
         cloud, problem = _list_cloud(chain, pfn, scid)

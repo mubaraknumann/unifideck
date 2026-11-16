@@ -18,6 +18,7 @@ import { useRPCQuery, type QueryState } from "../api/useRPC";
 import { useEventBus } from "../api/event-bus-client";
 import { Events } from "../types/events";
 import { useStoreCapability } from "./useStoreCapability";
+import type { SaveSyncVerdict } from "../lib/cloud-save-line";
 
 export interface SaveSnapshot {
   timestamp: number;
@@ -42,6 +43,12 @@ export interface CloudSaveStatus {
   has_cloud_saves: boolean | null;
   /** The store's cloud did not answer, so nothing can be compared. */
   cloud_check_failed: boolean;
+  /**
+   * Which side changed since the last sync (backend `sync_record.py`), or
+   * null before the first recorded sync. Preferred over timestamps, which
+   * compare an upload time with a save time.
+   */
+  sync_verdict: SaveSyncVerdict | null;
   remote_snapshot: SaveSnapshot | null;
   last_sync_ts: number;
   /** Best starting folder for the manual save-location picker. */

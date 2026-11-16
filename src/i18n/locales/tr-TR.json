@@ -922,8 +922,8 @@
       "changeLocation": "Konumu değiştir",
       "resetLocation": "Otomatiğe sıfırla",
       "statusInSync": "Bulut kayıtları güncel",
-      "xboxWaitingUpload": "Yükleme bekliyor",
-      "xboxWaitingLaunch": "Başlatma bekleniyor",
+      "statusWaitingUpload": "Yükleme bekliyor",
+      "statusWaitingLaunch": "Başlatma bekleniyor",
       "checkConnection": "Bağlantıyı kontrol edin"
     },
     "exe": {

@@ -355,7 +355,7 @@ async def cloud_sync_phase(
         if direction == "down":
             await svc._cloud_svc.sync_down(store, game_id)
         elif direction == "up":
-            await svc._cloud_svc.sync_up(store, game_id)
+            await svc._cloud_svc.sync_up(store, game_id, auto=True)
     except Exception as e:
         # Surface it. This used to be a bare ``logger.warning(... ignoring ...)``,
         # so a failed upload was **completely silent**: the user quit the game

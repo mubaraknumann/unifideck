@@ -11,10 +11,12 @@
  *   game-info panel's "last session" row.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useEventBus } from "../api/event-bus-client";
 import { rpcRoutes } from "../api/rpc-routes";
 import { RpcError } from "../api/rpc-errors";
 import { useRPC, useRPCQuery } from "../api/useRPC";
 import type { GameAchievements, LastSessionAchievements } from "../types/api";
+import { Events } from "../types/events";
 
 export interface UseAchievementsResult {
   data: GameAchievements | null;
@@ -61,6 +63,17 @@ export function useAchievements(
       cancelledRef.current = true;
     };
   }, [enabled, load]);
+
+  // An unlock during play: the backend cache already holds the new list
+  const onUpdated = useCallback(
+    (payload: Record<string, unknown>) => {
+      if (enabled && payload.store === store && payload.game_id === gameId) {
+        void load(false);
+      }
+    },
+    [enabled, store, gameId, load],
+  );
+  useEventBus(Events.ACHIEVEMENTS_UPDATED, onUpdated, [store, gameId]);
 
   const refresh = useCallback(() => load(true), [load]);
   return { data, loading, error, refresh };

@@ -23,6 +23,7 @@ which is how they drifted (e.g. one path missing a safety guard the other had).
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import shutil
@@ -30,6 +31,16 @@ import time
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
+
+from .sync_record import (
+    CLOUD_NEWER,
+    CONFLICT,
+    RECORDS_FILE,
+    VERDICTS,
+    SyncRecords,
+    fingerprint,
+    verdict,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +60,10 @@ class CloudSaveStrategy(ABC):
     #: Subclasses MUST set this.
     store_id: str = ""
 
+    #: True when ``_fetch_cloud_info`` returns its own ``verdict`` (a file by
+    #: file compare); the sync record is then not needed.
+    reports_verdict: bool = False
+
     def __init__(
         self, local_save_root: str, config: Any = None, cache: Any = None,
     ) -> None:
@@ -65,6 +80,8 @@ class CloudSaveStrategy(ABC):
         # Real store-cloud save info, memoized with a short TTL; cleared on
         # upload (which changes the cloud copy).
         self._cached_cloud_info: dict[str, tuple[float, dict[str, Any]]] = {}
+        # What each game looked like at its last converged sync (sync_record).
+        self._records = SyncRecords(Path(local_save_root).parent / RECORDS_FILE)
 
     # ── shared save-dir resolution ───────────────────────────────────
     def _configured_save_dir(self, game_id: str) -> str | None:
@@ -157,12 +174,16 @@ class CloudSaveStrategy(ABC):
         # download must always be recoverable from a local backup.
         from unifideck.services.cloud_save import safety
         safety.snapshot_backup(local_dir, self.store_id, game_id)
+        before = await asyncio.to_thread(fingerprint, local_dir)
         ok = await self._do_sync_down(game_id, local_dir, force)
         if ok:
             self._relocate_orphaned_saves(local_dir)
+            # The local copy may have changed — a cached compare is stale.
+            self._cached_cloud_info.pop(game_id, None)
+            await self._record_pull(game_id, local_dir, before, force)
         return ok
 
-    async def sync_up(self, game_id: str) -> bool:
+    async def sync_up(self, game_id: str, auto: bool = False) -> bool:
         """Push local saves to the store cloud (guarded against a wipe).
 
         ``guard_before_upload`` snapshots a local backup and raises
@@ -170,6 +191,11 @@ class CloudSaveStrategy(ABC):
         conflict modal) when the local copy is empty or regressed vs the
         last-sync manifest; ``assert_has_saves`` is the final hard gate. The
         store CLI runs in ``_do_sync_up``.
+
+        ``auto`` is the push after a game exits. It also stops, as a conflict,
+        when the cloud changed since this device's last sync: nobody chose to
+        overwrite it. A manual Upload (and the modal's "Use Local") is that
+        choice, so it pushes with ``force``.
         """
         local_dir = self.get_local_save_dir(game_id)
         if not local_dir:
@@ -185,10 +211,14 @@ class CloudSaveStrategy(ABC):
         # Final hard gate: NEVER push an empty / settings-only dir — uploading
         # nothing wipes the cloud, so that must be impossible.
         safety.assert_has_saves(local_dir, self.store_id, game_id)
-        ok = await self._do_sync_up(game_id, local_dir)
+        if auto:
+            await self._refuse_if_cloud_changed(game_id, local_dir)
+        ok = await self._do_sync_up(game_id, local_dir, force=not auto)
         if ok:
             # The cloud copy just changed — drop the memoized cloud-save info.
             self._cached_cloud_info.pop(game_id, None)
+            # After a push the cloud holds exactly the local saves.
+            await self._record(game_id, local_dir)
         return ok
 
     @abstractmethod
@@ -251,8 +281,14 @@ class CloudSaveStrategy(ABC):
             )
 
     @abstractmethod
-    async def _do_sync_up(self, game_id: str, local_dir: str) -> bool:
-        """Run the store's CLI push from ``local_dir``. Return success."""
+    async def _do_sync_up(
+        self, game_id: str, local_dir: str, *, force: bool = False,
+    ) -> bool:
+        """Run the store's CLI push from ``local_dir``. Return success.
+
+        ``force``: the user chose to upload. A store that refuses to overwrite
+        a newer cloud copy on its own (EA) overwrites it then.
+        """
 
     # ── shared cloud-info memoization ────────────────────────────────
     async def get_cloud_save_info(self, game_id: str) -> dict[str, Any] | None:
@@ -276,3 +312,96 @@ class CloudSaveStrategy(ABC):
     async def _fetch_cloud_info(self, game_id: str) -> dict[str, Any] | None:
         """Store-specific real-cloud query (un-memoized). Default: unsupported."""
         return None
+
+    # ── sync record and verdict (sync_record.py) ─────────────────────
+    def _record_key(self, game_id: str) -> str:
+        return f"{self.store_id}:{game_id}"
+
+    async def _record(self, game_id: str, local_dir: str) -> None:
+        """Record the local fingerprint and the cloud timestamp as in sync."""
+        if self.reports_verdict:
+            return
+        local = await asyncio.to_thread(fingerprint, local_dir)
+        cloud_ts: float | None = None
+        try:
+            info = await self._fetch_cloud_info(game_id)
+        except Exception as e:  # unreachable cloud: record the local side only
+            logger.debug("[%sSync] cloud info after sync failed: %s", self.store_id, e)
+            info = None
+        if info is not None:
+            self._cached_cloud_info[game_id] = (time.time(), info)
+            cloud_ts = float(info.get("timestamp") or 0.0) or None
+        await asyncio.to_thread(self._records.put, self._record_key(game_id), local, cloud_ts)
+
+    async def _record_pull(
+        self, game_id: str, local_dir: str, before: str | None, force: bool,
+    ) -> None:
+        """Record a pull only when it left both sides the same.
+
+        A forced pull takes the cloud's saves. A normal pull counts when it
+        changed the folder (it took the cloud's) or the folder still matches
+        the last record. Otherwise the store skipped the download because
+        the local save is newer, and recording would hide that.
+        """
+        if self.reports_verdict:
+            return
+        after = await asyncio.to_thread(fingerprint, local_dir)
+        record = await asyncio.to_thread(self._records.get, self._record_key(game_id))
+        unchanged_since_record = record is not None and record.get("local") == after
+        if force or after != before or unchanged_since_record:
+            await self._record(game_id, local_dir)
+
+    async def _refuse_if_cloud_changed(self, game_id: str, local_dir: str) -> None:
+        """Raise a soft conflict when the cloud moved since the last recorded sync.
+
+        Only for stores judged by the sync record; a store with its own file
+        compare (EA) refuses inside its CLI. An unreachable cloud is left to
+        the push itself, which then fails as usual.
+        """
+        if self.reports_verdict:
+            return
+        record = await asyncio.to_thread(self._records.get, self._record_key(game_id))
+        if record is None:
+            return
+        try:
+            info = await self._fetch_cloud_info(game_id)
+        except Exception as e:
+            logger.debug("[%sSync] cloud check before push failed: %s", self.store_id, e)
+            return
+        cloud_ts = float((info or {}).get("timestamp") or 0.0) or None
+        local = await asyncio.to_thread(fingerprint, local_dir)
+        if verdict(record, local, cloud_ts) in (CLOUD_NEWER, CONFLICT):
+            from unifideck.services.cloud_save import safety
+            logger.warning(
+                "[%sSync] automatic push for %s stopped: the cloud changed since "
+                "the last sync", self.store_id, game_id,
+            )
+            raise safety.SaveConflictError(
+                "cloud_changed_since_last_sync", safety.snapshot(local_dir),
+                store=self.store_id, game_id=game_id, hard=False,
+            )
+
+    def _local_fingerprint(self, game_id: str) -> str | None:
+        """Blocking: the save folder's fingerprint now (worker thread only)."""
+        local_dir = self.get_local_save_dir(game_id)
+        return fingerprint(local_dir) if local_dir else None
+
+    async def sync_verdict(
+        self, game_id: str, info: dict[str, Any] | None,
+    ) -> str | None:
+        """``in_sync`` / ``local_newer`` / ``cloud_newer`` / ``conflict``, or None.
+
+        The store's own verdict wins; otherwise the three-way compare against
+        the last recorded sync. None before the first recorded sync.
+        """
+        own = (info or {}).get("verdict")
+        if own in VERDICTS:
+            return str(own)
+        if self.reports_verdict:
+            return None
+        record = await asyncio.to_thread(self._records.get, self._record_key(game_id))
+        if record is None:
+            return None
+        local = await asyncio.to_thread(self._local_fingerprint, game_id)
+        cloud_ts = float((info or {}).get("timestamp") or 0.0) or None
+        return verdict(record, local, cloud_ts)

@@ -470,6 +470,10 @@ class Events(StrEnum):
     # Common payload fields: store (str), game_id (str).
     # COMPLETE adds: synced (bool).
     # FAILED adds: error (str).
+    # The achievement watcher saw a new unlock for a game. Payload: store
+    # (str), game_id (str). The store's cache already holds the new list,
+    # so an open game page refetches it cheaply.
+    ACHIEVEMENTS_UPDATED = "achievements_updated"
     CLOUD_SYNC_DOWN_COMPLETE = "cloud_sync_down_complete"
     CLOUD_SYNC_DOWN_FAILED = "cloud_sync_down_failed"
     CLOUD_SYNC_UP_COMPLETE = "cloud_sync_up_complete"

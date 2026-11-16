@@ -922,8 +922,8 @@
       "changeLocation": "場所を変更",
       "resetLocation": "自動に戻す",
       "statusInSync": "クラウドセーブは最新です",
-      "xboxWaitingUpload": "アップロード待ち",
-      "xboxWaitingLaunch": "起動待ち",
+      "statusWaitingUpload": "アップロード待ち",
+      "statusWaitingLaunch": "起動待ち",
       "checkConnection": "接続を確認してください"
     },
     "exe": {

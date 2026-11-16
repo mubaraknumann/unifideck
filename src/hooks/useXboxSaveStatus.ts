@@ -13,13 +13,16 @@ import { useEventBus } from "../api/event-bus-client";
 import { Events } from "../types/events";
 import { isXboxPcRow } from "../lib/xbox-pc-setup";
 import type { Game } from "../types/api";
+import {
+  CLOUD_LINES,
+  verdictLine,
+  type CloudLine,
+  type SaveSyncVerdict,
+} from "../lib/cloud-save-line";
 
 export type XboxSaveState =
-  | "in_sync"
-  | "waiting_upload"
-  | "cloud_newer"
+  | SaveSyncVerdict
   | "cloud_removed"
-  | "both_changed"
   | "unknown"
   | "no_saves"
   | "not_launched"
@@ -34,13 +37,6 @@ export interface XboxSaveStatus {
   checked_at: number;
 }
 
-export interface XboxSaveLine {
-  /** Steam's own word for the state, when it has one. */
-  token?: string;
-  /** Our text, and the fallback for `token`. */
-  key: string;
-}
-
 /**
  * The line for a state, or null when there is nothing to say: no saves yet,
  * or a game that has not run on this account. Everything the next launch
@@ -48,23 +44,19 @@ export interface XboxSaveLine {
  */
 export function xboxSaveLine(
   state: XboxSaveStatus["state"] | undefined,
-): XboxSaveLine | null {
+): CloudLine | null {
   switch (state) {
     case "in_sync":
-      return {
-        key: "play.cloudSave.statusInSync",
-        token: "#AppDetails_CloudStatus_Synchronized",
-      };
-    case "waiting_upload":
-      return { key: "play.cloudSave.xboxWaitingUpload" };
+    case "local_newer":
     case "cloud_newer":
+    case "conflict":
+      return verdictLine(state, "runtime");
     case "cloud_removed":
-    case "both_changed":
     case "running":
-      return { key: "play.cloudSave.xboxWaitingLaunch" };
+      return verdictLine("cloud_newer", "runtime");
     case "unknown":
     case "offline":
-      return { key: "play.cloudSave.checkConnection" };
+      return CLOUD_LINES.checkConnection;
     default:
       return null;
   }

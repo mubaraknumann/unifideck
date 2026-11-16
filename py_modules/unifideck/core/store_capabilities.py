@@ -39,13 +39,13 @@ from __future__ import annotations
 #: overlay, Xbox via the runtime's Xbox Live session). Consumed by
 #: ``rpc/mixins/achievements.py``, the achievement watcher (unlock toasts)
 #: and, through the payload, by the game page's achievements section.
-ACHIEVEMENT_STORES = frozenset({"gog", "epic", "microsoft"})
+ACHIEVEMENT_STORES = frozenset({"gog", "epic", "microsoft", "ea"})
 
 #: Stores with a ``CloudSaveStrategy``. Must equal the keys of
 #: ``CloudSaveService._strategies`` — pinned by
 #: ``tests/unit/test_store_capabilities.py``, because this set describing a
 #: strategy that does not exist is worse than no set at all.
-CLOUD_SAVE_STORES = frozenset({"gog", "epic"})
+CLOUD_SAVE_STORES = frozenset({"gog", "epic", "ea"})
 
 #: Stores that expose a per-game language list at install time, i.e. those
 #: with a ``get_<store>_game_languages`` RPC.

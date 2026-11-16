@@ -922,8 +922,8 @@
       "changeLocation": "Cambia cartella",
       "resetLocation": "Ripristina automatica",
       "statusInSync": "Salvataggi cloud aggiornati",
-      "xboxWaitingUpload": "In attesa di caricamento",
-      "xboxWaitingLaunch": "In attesa dell'avvio",
+      "statusWaitingUpload": "In attesa di caricamento",
+      "statusWaitingLaunch": "In attesa dell'avvio",
       "checkConnection": "Controlla la connessione"
     },
     "exe": {

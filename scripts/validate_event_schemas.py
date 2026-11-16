@@ -102,6 +102,7 @@ CANONICAL_SCHEMA: dict[str, set[str]] = {
     "GAME_LAUNCHED":                {"app_id", "game_id", "store", "title"},
     "GAME_STOPPED":                 {"app_id", "elapsed_seconds", "exit_code", "game_id", "store", "terminated_by_signal"},
     "GAME_UNINSTALLED":             {"game_id", "store"},
+    "ACHIEVEMENTS_UPDATED":         {"game_id", "store"},
     # ``game_ids`` is the store's COMPLETE current set of updatable games,
     # not a delta — a game that drops out of it has had its update applied.
     "GAME_UPDATE_AVAILABLE":        {"game_ids", "store"},

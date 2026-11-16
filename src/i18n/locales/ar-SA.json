@@ -922,8 +922,8 @@
       "changeLocation": "تغيير الموقع",
       "resetLocation": "إعادة التعيين إلى تلقائي",
       "statusInSync": "الحفظ السحابي محدَّث",
-      "xboxWaitingUpload": "في انتظار الرفع",
-      "xboxWaitingLaunch": "في انتظار التشغيل",
+      "statusWaitingUpload": "في انتظار الرفع",
+      "statusWaitingLaunch": "في انتظار التشغيل",
       "checkConnection": "تحقق من الاتصال"
     },
     "exe": {

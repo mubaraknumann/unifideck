@@ -922,8 +922,8 @@
       "changeLocation": "Locatie wijzigen",
       "resetLocation": "Terug naar automatisch",
       "statusInSync": "Cloudopslag up-to-date",
-      "xboxWaitingUpload": "Wacht op upload",
-      "xboxWaitingLaunch": "Wacht op start",
+      "statusWaitingUpload": "Wacht op upload",
+      "statusWaitingLaunch": "Wacht op start",
       "checkConnection": "Controleer de verbinding"
     },
     "exe": {

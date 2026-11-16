@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -53,7 +53,9 @@ async def make(tmp_path, monkeypatch):
     def build(stores: dict[str, _Store]) -> tuple[w.AchievementWatcher, list[str]]:
         registry = MagicMock()
         registry.get_store.side_effect = stores.get
-        watcher = w.AchievementWatcher(MagicMock(), registry)
+        bus = MagicMock()
+        bus.emit = AsyncMock()
+        watcher = w.AchievementWatcher(bus, registry)
         watcher._state = AchievementStateStore(tmp_path / "state.json")
         toasts: list[str] = []
         monkeypatch.setattr(watcher, "_toast", lambda store, gid, ach: toasts.append(f"{store}:{ach['key']}"))
@@ -182,7 +184,7 @@ async def test_comet_push_toasts_once_and_poll_does_not_repeat(make) -> None:
     assert toasts == ["gog:b"]
 
     # The poll / reconcile later sees the same unlock: no second toast.
-    watcher._emit_new_unlocks("gog", "g1", _payload("gog", ["a", "b"], []))
+    await watcher._emit_new_unlocks("gog", "g1", _payload("gog", ["a", "b"], []))
     await watcher._on_comet_unlock("cid", _comet_item("b"))
     assert toasts == ["gog:b"]
 
@@ -232,3 +234,21 @@ async def test_comet_receiver_started_and_stopped_with_watcher(make, tmp_path) -
         await watcher.stop()
     assert watcher._comet is None
     assert not config.exists()
+
+
+async def test_new_unlock_tells_the_game_page_to_refetch() -> None:
+    """A new unlock emits ACHIEVEMENTS_UPDATED once; a repeat emits nothing."""
+    from unifideck.core.types import Events
+
+    bus = MagicMock()
+    bus.emit = AsyncMock()
+    watcher = w.AchievementWatcher(bus, None)
+    watcher._toast = lambda *a: None  # type: ignore[method-assign]
+    payload = {"achievements": [{"key": "a1", "unlocked": True, "name": "n"}]}
+
+    await watcher._emit_new_unlocks("ea", "Origin.OFR.50.0002540", payload)
+    await watcher._emit_new_unlocks("ea", "Origin.OFR.50.0002540", payload)
+
+    bus.emit.assert_awaited_once_with(
+        Events.ACHIEVEMENTS_UPDATED, store="ea", game_id="Origin.OFR.50.0002540",
+    )

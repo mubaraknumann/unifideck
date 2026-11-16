@@ -67,6 +67,7 @@ const WATCHED_EVENTS: EventName[] = [
   "game_update_available",
   "game_launched",
   "game_stopped",
+  "achievements_updated",
   "cloud_sync_down_complete",
   "cloud_sync_down_failed",
   "cloud_sync_up_complete",

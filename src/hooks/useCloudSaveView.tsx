@@ -16,6 +16,12 @@ import { consumeCloudOpPending } from "../api/cloud-save-pending";
 import { Events } from "../types/events";
 import { toastText, headerText, type ToastKey } from "../services/toast-text";
 import { CloudSaveModal } from "../components/modals/CloudSaveModal";
+import {
+  CLOUD_LINES,
+  verdictLine,
+  type CloudLine,
+  type SaveSyncVerdict,
+} from "../lib/cloud-save-line";
 
 /** Local/cloud save-timestamp delta (seconds) treated as "in sync". Absorbs
  *  gogdl truncating the stored cloud mtime to whole seconds vs the local
@@ -44,6 +50,8 @@ export interface CloudSaveView {
   /** False for a store without cloud-save sync: render nothing. */
   visible: boolean;
   state: CloudSaveState;
+  /** The backend's verdict, or null before the game's first recorded sync. */
+  verdict: SaveSyncVerdict | null;
   /** The cloud has saves this device does not. */
   cloudAvailable: boolean;
   /** Opens the Download / Upload dialog (no-op until the status loads). */
@@ -129,6 +137,10 @@ export function useCloudSaveView(
     !!remoteTs &&
     Math.abs(localTs - remoteTs) > TS_SYNC_TOLERANCE_S;
   const oneSided = hasCloud !== hasLocal;
+  const verdict: SaveSyncVerdict | null = data?.sync_verdict ?? null;
+  // The backend's verdict, when it has one, settles it; the timestamp
+  // compare is only the fallback before a game's first recorded sync.
+  const outOfSync = verdict ? verdict !== "in_sync" : diverged || oneSided;
 
   let state: CloudSaveState;
   if (!data) state = "checking";
@@ -136,15 +148,46 @@ export function useCloudSaveView(
   else if (noCloudSupport) state = "no-support";
   else if (unresolved) state = "unresolved";
   else if (data.cloud_check_failed) state = "check-connection";
-  else if (diverged || oneSided) state = "out-of-sync";
-  else if (hasCloud && hasLocal) state = "in-sync";
+  else if (outOfSync) state = "out-of-sync";
+  else if (verdict === "in_sync" || (hasCloud && hasLocal)) state = "in-sync";
   else state = "empty";
 
   return {
     visible,
     state,
+    verdict,
     cloudAvailable,
     open,
     disabled: loading || syncing || noCloudSupport || !data,
   };
+}
+
+/**
+ * The status line for a store we sync, or null for a game without cloud
+ * saves. The same builder as the Xbox PC line (`cloud-save-line.ts`).
+ */
+export function cloudSaveViewLine(
+  view: Pick<CloudSaveView, "state" | "verdict" | "cloudAvailable">,
+): CloudLine | null {
+  switch (view.state) {
+    case "no-support":
+      return null;
+    case "checking":
+      return CLOUD_LINES.checking;
+    case "syncing":
+      return CLOUD_LINES.syncing;
+    case "unresolved":
+      return CLOUD_LINES.unresolved;
+    case "check-connection":
+      return CLOUD_LINES.checkConnection;
+    case "out-of-sync":
+      // Before the first recorded sync there is no verdict: say which side
+      // has saves, as the timestamp compare did.
+      return verdictLine(
+        view.verdict ?? (view.cloudAvailable ? "cloud_newer" : "local_newer"),
+        "manual",
+      );
+    default:
+      return CLOUD_LINES.inSync;
+  }
 }

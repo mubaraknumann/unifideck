@@ -148,7 +148,7 @@ class _StatusMixin:
             "supported": supported,
             "in_progress": self.is_syncing(store, game_id),
             "auto_pull": self._auto_enabled("auto_pull_on_launch", default=True),
-            "auto_push": self._auto_enabled("auto_push_on_stop", default=False),
+            "auto_push": self._auto_enabled("auto_push_on_stop", default=True),
             "cloud_supported": self._cloud_supported(store, game_id),
             "save_path": None,
             "save_path_resolved": False,
@@ -157,6 +157,9 @@ class _StatusMixin:
             "local_snapshot": {},
             "has_cloud_saves": None,
             "cloud_check_failed": False,
+            # in_sync / local_newer / cloud_newer / conflict, or None when
+            # unknown (sync_record.py); the line prefers it to timestamps.
+            "sync_verdict": None,
             "remote_snapshot": None,
             "last_sync_ts": 0.0,
             "browse_start": str(Path.home()),
@@ -246,6 +249,13 @@ class _StatusMixin:
             status["cloud_check_failed"] = True
             cloud_info = None
         self._merge_cloud_info(status, cloud_info, remote)
+        if not status["cloud_check_failed"]:
+            try:
+                status["sync_verdict"] = await self._strategies[store].sync_verdict(
+                    game_id, cloud_info,
+                )
+            except Exception as e:
+                logger.debug("[CloudSave] %s %s: no sync verdict: %s", store, game_id, e)
         return status
 
     def _local_status(

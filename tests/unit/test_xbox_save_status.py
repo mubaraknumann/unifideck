@@ -89,14 +89,14 @@ LOCAL_NEVER_UP = ss.LocalSave(remote="", dirty=False, blobs={})
     ("cloud", "local", "atoms", "expected"),
     [
         (T1, LOCAL_CLEAN, {DATA_KEY: "A"}, ss.IN_SYNC),
-        (T1, LOCAL_DIRTY, None, ss.WAITING_UPLOAD),
+        (T1, LOCAL_DIRTY, None, ss.LOCAL_NEWER),
         (T1, LOCAL_CLEAN, {DATA_KEY: "B"}, ss.UNKNOWN),
         (T1, LOCAL_CLEAN, None, ss.UNKNOWN),
         (T2, LOCAL_CLEAN, None, ss.CLOUD_NEWER),
         (T2, None, None, ss.CLOUD_NEWER),
-        (T2, LOCAL_DIRTY, None, ss.BOTH_CHANGED),
-        (None, LOCAL_DIRTY, None, ss.WAITING_UPLOAD),
-        (None, LOCAL_NEVER_UP, None, ss.WAITING_UPLOAD),
+        (T2, LOCAL_DIRTY, None, ss.CONFLICT),
+        (None, LOCAL_DIRTY, None, ss.LOCAL_NEWER),
+        (None, LOCAL_NEVER_UP, None, ss.LOCAL_NEWER),
         (None, LOCAL_CLEAN, None, ss.CLOUD_REMOVED),
     ],
 )
@@ -105,7 +105,7 @@ def test_container_state_follows_the_runtime(cloud: Any, local: Any, atoms: Any,
 
 
 def test_worst_state_wins() -> None:
-    order = [ss.BOTH_CHANGED, ss.CLOUD_REMOVED, ss.CLOUD_NEWER, ss.WAITING_UPLOAD, ss.UNKNOWN, ss.IN_SYNC]
+    order = [ss.CONFLICT, ss.CLOUD_REMOVED, ss.CLOUD_NEWER, ss.LOCAL_NEWER, ss.UNKNOWN, ss.IN_SYNC]
     for index, state in enumerate(order):
         assert ss.worst_state(order[index:]) == state
     assert ss.worst_state([]) == ss.NO_SAVES
@@ -151,7 +151,7 @@ def test_changed_atom_is_not_called_in_sync(prefix: Path, tmp_path: Path, monkey
 def test_never_uploaded_index_writes_a_dash(prefix: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _write(prefix, "save000", remote="")
     result = _check(monkeypatch, tmp_path, FakeService())
-    assert (result["state"], result["waiting"]) == (ss.WAITING_UPLOAD, 1)
+    assert (result["state"], result["waiting"]) == (ss.LOCAL_NEWER, 1)
 
 
 def test_another_accounts_saves_do_not_count(prefix: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -223,7 +223,7 @@ def test_waiting_upload_survives_being_offline(prefix: Path, tmp_path: Path, mon
     service = FakeService()
     service.listing = HttpReply(None)
     result = _check(monkeypatch, tmp_path, service)
-    assert (result["state"], result["waiting"]) == (ss.WAITING_UPLOAD, 1)
+    assert (result["state"], result["waiting"]) == (ss.LOCAL_NEWER, 1)
 
 
 def test_no_sign_in_is_offline(prefix: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -922,8 +922,8 @@
       "changeLocation": "Изменить папку",
       "resetLocation": "Сбросить на автоматическую",
       "statusInSync": "Облачные сохранения актуальны",
-      "xboxWaitingUpload": "Ожидает загрузки",
-      "xboxWaitingLaunch": "Ожидает запуска",
+      "statusWaitingUpload": "Ожидает загрузки",
+      "statusWaitingLaunch": "Ожидает запуска",
       "checkConnection": "Проверьте подключение"
     },
     "exe": {

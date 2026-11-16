@@ -922,8 +922,8 @@
       "changeLocation": "Cambiar ubicación",
       "resetLocation": "Restablecer a automática",
       "statusInSync": "Guardados en la nube al día",
-      "xboxWaitingUpload": "Pendiente de subir",
-      "xboxWaitingLaunch": "Esperando el inicio",
+      "statusWaitingUpload": "Pendiente de subir",
+      "statusWaitingLaunch": "Esperando el inicio",
       "checkConnection": "Comprueba la conexión"
     },
     "exe": {

@@ -195,10 +195,10 @@ class GOGCloudSaveStrategy(GOGStateMixin, CloudSaveStrategy):
             logger.info("[GOGSync] copied %d downloaded file(s) into drive C", count)
         return ok
 
-    async def sync_up(self, game_id: str) -> bool:
+    async def sync_up(self, game_id: str, auto: bool = False) -> bool:
         """Base sync_up, after refreshing DOSBox staging for native installs."""
         self._stage_native(game_id)
-        return await super().sync_up(game_id)
+        return await super().sync_up(game_id, auto)
 
     def _resolve_by_title(self, game_id: str, drive_c: Path) -> str | None:
         """Heuristic: match an existing prefix subfolder by game title."""
@@ -513,8 +513,8 @@ class GOGCloudSaveStrategy(GOGStateMixin, CloudSaveStrategy):
             logger.info("[GOGSync] sync_down completed successfully for %s", game_id)
         return overall_ok
 
-    async def _do_sync_up(self, game_id: str, local_dir: str) -> bool:
-        """Push local saves to GOG cloud for every location that HAS saves.
+    async def _do_sync_up(self, game_id: str, local_dir: str, *, force: bool = False) -> bool:
+        """Push local saves to GOG cloud for every location that HAS saves (no ``force`` in gogdl).
 
         Upload INTO the namespace the game actually reads — pushing to the
         wrong (default ``__default``) namespace creates a divergent cloud copy

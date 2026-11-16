@@ -24,6 +24,7 @@ from unifideck.launcher.ea.records import all_records, read_record
 from unifideck.stores.shared.browser_auth_rebuild import BrowserAuthRebuildMixin
 from unifideck.stores.shared.store_base import StoreBase
 
+from .achievements import EAAchievements
 from .auth import EAAuthFlow
 from .cli import MaximaCli
 from .ids import STORE
@@ -64,6 +65,7 @@ class EAStore(BrowserAuthRebuildMixin, StoreBase):
         self._cli = MaximaCli(self.cli_path)
         self._library = EALibraryReader(self._cli)
         self._installer = EAInstaller(self._cli, self._library.entry)
+        self._achievements = EAAchievements(self._cli)
         self._browser_monitor = browser_monitor
         self._auth: EAAuthFlow | None = None
         self._rebuild_auth_after_injection()
@@ -95,9 +97,24 @@ class EAStore(BrowserAuthRebuildMixin, StoreBase):
 
     async def logout(self) -> Result:
         """Forget the stored EA sign-in."""
+        self._achievements.clear()
         if self._auth is None:
             return Result(success=True, store=STORE)
         return await self._auth.logout()
+
+    async def get_game_achievements(
+        self, game_id: str, force: bool = False,
+    ) -> dict[str, Any]:
+        """An EA game's achievements and this account's progress (display only).
+
+        Raises ``EAAchievementsError``; a game without EA achievements is an
+        empty payload. ``force`` bypasses the TTL cache.
+        """
+        return await self._achievements.get_game_achievements(game_id, force=force)
+
+    def invalidate_achievements(self, game_id: str) -> None:
+        """Drop a game's cached achievements."""
+        self._achievements.invalidate(game_id)
 
     async def get_library(self, *, force: bool = False) -> list[Game] | None:
         """Owned EA games, or None when they cannot be read."""

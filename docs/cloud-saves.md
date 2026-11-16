@@ -109,18 +109,20 @@ Selecting the icon opens the **Cloud saves** window, which shows:
 
 ---
 
-## Settings: auto‑pull / manual push
+## Settings: auto‑pull / auto‑push
 
 Two settings control automatic syncing (in the plugin config under `cloud`):
 
 | Setting               | Default | Effect                                                   |
 | --------------------- | ------- | -------------------------------------------------------- |
 | `auto_pull_on_launch` | `true`  | Download cloud saves automatically when a game launches. |
-| `auto_push_on_stop`   | `false` | Upload local saves automatically when a game exits.      |
+| `auto_push_on_stop`   | `true`  | Upload local saves automatically when a game exits.      |
 
-- Leaving the defaults gives you **auto‑download + manual upload** — the safest
-  balance, and the recommended setup.
-- Set `auto_push_on_stop` to `true` to restore **fully automatic** two‑way sync.
+- Leaving the defaults gives you **fully automatic** two‑way sync, as in other
+  launchers. An automatic upload never overwrites a cloud copy that changed
+  since this device's last sync: it opens the save‑conflict dialog instead.
+  The manual Upload button, and the dialog's "Use Local", do overwrite.
+- Set `auto_push_on_stop` to `false` for **auto‑download + manual upload**.
 - Set both to `false` to make **everything manual** via the button.
 
 Other keys under `cloud` you normally don't need to touch: `enabled` (master

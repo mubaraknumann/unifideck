@@ -922,8 +922,8 @@
       "changeLocation": "更改位置",
       "resetLocation": "重置为自动",
       "statusInSync": "云存档已是最新",
-      "xboxWaitingUpload": "等待上传",
-      "xboxWaitingLaunch": "等待启动",
+      "statusWaitingUpload": "等待上传",
+      "statusWaitingLaunch": "等待启动",
       "checkConnection": "请检查网络连接"
     },
     "exe": {

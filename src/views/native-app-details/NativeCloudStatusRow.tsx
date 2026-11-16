@@ -18,9 +18,10 @@ import type { IconType } from "react-icons";
 import { FaCloud, FaSyncAlt } from "react-icons/fa";
 import { useGameInfo } from "../../hooks/useGameInfo";
 import {
+  cloudSaveViewLine,
   useCloudSaveView,
-  type CloudSaveState,
 } from "../../hooks/useCloudSaveView";
+import type { CloudLine } from "../../lib/cloud-save-line";
 import {
   cx,
   getNativeClasses,
@@ -32,36 +33,6 @@ import {
   xboxSaveLine,
 } from "../../hooks/useXboxSaveStatus";
 import type { Game } from "../../types/api";
-
-/** Steam's own status word for each of our states, and our fallback key. */
-const STATUS: Record<
-  Exclude<CloudSaveState, "no-support">,
-  [token: string, fallbackKey: string]
-> = {
-  checking: [
-    "#AppDetails_CloudStatus_Checking",
-    "play.cloudSave.statusSyncing",
-  ],
-  syncing: ["#AppDetails_CloudStatus_Checking", "play.cloudSave.statusSyncing"],
-  unresolved: [
-    "#AppDetails_CloudStatus_SyncFailed",
-    "play.cloudSave.statusUnresolved",
-  ],
-  "out-of-sync": [
-    "#AppDetails_CloudStatus_OutOfSync",
-    "play.cloudSave.statusCloudAvailable",
-  ],
-  "in-sync": [
-    "#AppDetails_CloudStatus_Synchronized",
-    "play.cloudSave.statusInSync",
-  ],
-  empty: [
-    "#AppDetails_CloudStatus_Synchronized",
-    "play.cloudSave.statusInSync",
-  ],
-  // Our own words: Steam has none for this.
-  "check-connection": ["", "play.cloudSave.checkConnection"],
-};
 
 /** First class of a CSS-module name, for a selector. */
 function selectorOf(name: string | undefined): string {
@@ -124,18 +95,39 @@ const CloudLineBody: FC<{
   );
 };
 
-const Row: FC<{ game: Game }> = ({ game }) => {
+/**
+ * One line for every store. `open` makes it focusable and selectable (a store
+ * we sync); without it the line only reports (Xbox PC, synced by its runtime).
+ */
+const CloudStatusLine: FC<{
+  line: CloudLine;
+  open?: () => void;
+  disabled?: boolean;
+}> = ({ line, open, disabled }) => {
   const { t } = useTranslation();
-  const view = useCloudSaveView(game.store, game.id, game.title);
   const [el, setEl] = useState<HTMLDivElement | null>(null);
   const c = getNativeClasses().playBar;
   const labelSel = selectorOf(c.CloudStatusLabel);
   const iconSel = selectorOf(c.CloudStatusIcon);
   useRestingColours(el, labelSel, iconSel);
-  if (!view.visible || view.state === "no-support") return null;
-  const [token, fallbackKey] = STATUS[view.state];
-  const failed = view.state === "unresolved" || view.state === "out-of-sync";
-  const Icon = view.state === "syncing" ? FaSyncAlt : FaCloud;
+  const text = line.token ? steamText(line.token, t(line.key)) : t(line.key);
+  const body = (
+    <CloudLineBody
+      Icon={line.busy ? FaSyncAlt : FaCloud}
+      spin={line.busy}
+      label={t("play.cloudSave.label")}
+      text={text}
+    />
+  );
+  if (!open) {
+    return (
+      <div
+        className={cx(c.CloudStatusRow, line.problem && c.CloudStatusSyncFail)}
+      >
+        {body}
+      </div>
+    );
+  }
   const pinned = [
     labelSel &&
       `.${ROW_MARKER}.gpfocus ${labelSel}{color:var(--ud-cloud-label)!important}`,
@@ -151,44 +143,41 @@ const Row: FC<{ game: Game }> = ({ game }) => {
       className={cx(
         ROW_MARKER,
         c.CloudStatusRow,
-        failed && c.CloudStatusSyncFail,
+        line.problem && c.CloudStatusSyncFail,
       )}
-      onActivate={view.disabled ? undefined : view.open}
-      onClick={view.disabled ? undefined : view.open}
+      onActivate={disabled ? undefined : open}
+      onClick={disabled ? undefined : open}
       noFocusRing={false}
     >
       <style>{pinned}</style>
-      <CloudLineBody
-        Icon={Icon}
-        spin={view.state === "syncing"}
-        label={t("play.cloudSave.label")}
-        text={token ? steamText(token, t(fallbackKey)) : t(fallbackKey)}
-      />
+      {body}
     </Focusable>
   );
 };
 
-const XboxRow: FC<{ game: Game }> = ({ game }) => {
-  const { t } = useTranslation();
+/** A store we sync: Epic, GOG, EA. */
+const SyncedRow: FC<{ game: Game }> = ({ game }) => {
+  const view = useCloudSaveView(game.store, game.id, game.title);
+  const line = view.visible ? cloudSaveViewLine(view) : null;
+  if (!line) return null;
+  return (
+    <CloudStatusLine line={line} open={view.open} disabled={view.disabled} />
+  );
+};
+
+/** Xbox PC: its runtime syncs inside the game, so the line only reports. */
+const RuntimeRow: FC<{ game: Game }> = ({ game }) => {
   const status = useXboxSaveStatus(game.id);
   const line = status?.applicable ? xboxSaveLine(status.state) : null;
-  if (!line) return null;
-  const c = getNativeClasses().playBar;
-  const text = line.token ? steamText(line.token, t(line.key)) : t(line.key);
-  return (
-    <div className={c.CloudStatusRow}>
-      <CloudLineBody
-        Icon={FaCloud}
-        spin={false}
-        label={t("play.cloudSave.label")}
-        text={text}
-      />
-    </div>
-  );
+  return line ? <CloudStatusLine line={line} /> : null;
 };
 
 export const NativeCloudStatusRow: FC<{ appId: number }> = ({ appId }) => {
   const { data: game } = useGameInfo(appId);
   if (!game) return null;
-  return usesXboxSaveLine(game) ? <XboxRow game={game} /> : <Row game={game} />;
+  return usesXboxSaveLine(game) ? (
+    <RuntimeRow game={game} />
+  ) : (
+    <SyncedRow game={game} />
+  );
 };

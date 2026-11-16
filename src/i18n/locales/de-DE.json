@@ -922,8 +922,8 @@
       "changeLocation": "Speicherort ändern",
       "resetLocation": "Auf automatisch zurücksetzen",
       "statusInSync": "Cloud-Spielstände aktuell",
-      "xboxWaitingUpload": "Upload ausstehend",
-      "xboxWaitingLaunch": "Wartet auf Start",
+      "statusWaitingUpload": "Upload ausstehend",
+      "statusWaitingLaunch": "Wartet auf Start",
       "checkConnection": "Verbindung prüfen"
     },
     "exe": {

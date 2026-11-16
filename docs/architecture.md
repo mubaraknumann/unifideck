@@ -96,6 +96,7 @@ Infrastructure primitives. No store or service knowledge.
 | `steam_appid_map.py`            | The one read of the shortcut → real-Steam-AppID cache that returns "an AppID or 0" |
 | `cross_store_ownership.py`      | Which non-Steam stores hold a given Steam AppID, any version of it (via `game_identity.py`). The Steam Store ownership ribbon's join, built on demand from the live library plus authenticated purchase indexes (Xbox) |
 | `store_capabilities.py`         | Per-store capability sets — the single source of truth behind the `get_store_infos` flags |
+| `save_sync_state.py`            | The words for how local saves compare with the cloud (`in_sync`, `local_newer`, `cloud_newer`, `conflict`), shared by the cloud-save strategies and the Xbox PC save status |
 | `io/async_file_ops.py`          | Async file read/write/remove              |
 | `io/safe_file_op.py`            | Atomic write with rollback                |
 | `binaries/binary_resolver.py`   | Resolves `bin/` tool paths                |

@@ -922,8 +922,8 @@
       "changeLocation": "위치 변경",
       "resetLocation": "자동으로 재설정",
       "statusInSync": "클라우드 저장 최신 상태",
-      "xboxWaitingUpload": "업로드 대기 중",
-      "xboxWaitingLaunch": "실행 대기 중",
+      "statusWaitingUpload": "업로드 대기 중",
+      "statusWaitingLaunch": "실행 대기 중",
       "checkConnection": "연결을 확인하세요"
     },
     "exe": {

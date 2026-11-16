@@ -199,7 +199,7 @@ async def test_cloud_save_service_orchestration(tmp_path, mock_event_bus, mock_c
         # Test sync_up runs both strategy and fallback
         res_up = await service.sync_up("epic", "game123")
         assert res_up.success is True
-        mock_epic.sync_up.assert_called_once_with("game123")
+        mock_epic.sync_up.assert_called_once_with("game123", False)
 
 def test_amazon_prefix_auto_detect(tmp_path, mock_config, mock_event_bus):
     # Setup mock wine prefix
@@ -414,7 +414,10 @@ async def test_epic_sync_down_force_adds_force_download(tmp_path, mock_config):
         proc.communicate.return_value = (b"", b"Downloading remote savegame...")
         mock_exec.return_value = proc
         assert await strategy.sync_down("epic123", force=True) is True
-        assert "--force-download" in mock_exec.call_args.args
+        sync_calls = [
+            c.args for c in mock_exec.call_args_list if "sync-saves" in c.args
+        ]
+        assert sync_calls and "--force-download" in sync_calls[0]
 
 
 @pytest.mark.asyncio

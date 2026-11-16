@@ -922,8 +922,8 @@
       "changeLocation": "Changer l'emplacement",
       "resetLocation": "Rétablir en automatique",
       "statusInSync": "Sauvegardes cloud à jour",
-      "xboxWaitingUpload": "En attente d'envoi",
-      "xboxWaitingLaunch": "En attente du lancement",
+      "statusWaitingUpload": "En attente d'envoi",
+      "statusWaitingLaunch": "En attente du lancement",
       "checkConnection": "Vérifiez la connexion"
     },
     "exe": {

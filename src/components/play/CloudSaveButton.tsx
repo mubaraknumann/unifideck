@@ -23,7 +23,10 @@ import {
   FaSyncAlt,
 } from "react-icons/fa";
 import { iconBtnStyle, iconBtnClass } from "./PlayMeta";
-import { useCloudSaveView } from "../../hooks/useCloudSaveView";
+import {
+  cloudSaveViewLine,
+  useCloudSaveView,
+} from "../../hooks/useCloudSaveView";
 
 interface Props {
   store: string;
@@ -69,34 +72,25 @@ export const CloudSaveButton: FC<Props> = ({ store, gameId, gameTitle }) => {
   const view = useCloudSaveView(store, gameId, gameTitle);
   if (!view.visible) return null;
 
+  // The words are the status line's (cloud-save-line.ts); only the icon and
+  // the tint are this button's own.
+  const line = cloudSaveViewLine(view);
+  const label = line ? t(line.key) : t("play.cloudSave.noCloudSupport");
   let icon = <FaCloud />;
-  let label = t("play.cloudSave.label");
   let tintRing: string | undefined;
   switch (view.state) {
     case "syncing":
       icon = <FaSyncAlt className="unifideck-cloud-spin" />;
-      label = t("play.cloudSave.statusSyncing");
       tintRing = "rgba(26, 159, 255, 0.55)";
       break;
-    case "no-support":
-      label = t("play.cloudSave.noCloudSupport");
-      break;
     case "unresolved":
-      label = t("play.cloudSave.statusUnresolved");
       tintRing = "rgba(244, 180, 0, 0.55)";
-      break;
-    case "check-connection":
-      label = t("play.cloudSave.checkConnection");
       break;
     case "out-of-sync":
       icon = <FaCloudDownloadAlt />;
-      label = view.cloudAvailable
-        ? t("play.cloudSave.statusCloudAvailable")
-        : t("play.cloudSave.label");
       break;
     case "in-sync":
       icon = <CloudInSyncIcon />;
-      label = t("play.cloudSave.statusInSync");
       tintRing = "rgba(34, 197, 94, 0.55)";
       break;
     default:

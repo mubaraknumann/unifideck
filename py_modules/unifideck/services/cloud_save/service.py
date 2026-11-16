@@ -16,6 +16,7 @@ from unifideck.event_bus.event_bus import EventBus
 from unifideck.event_bus.event_bus_devex import auto_wire, subscribe
 from unifideck.launcher.game_title import registered_title
 
+from .ea_strategy import EACloudSaveStrategy
 from .epic_strategy import EpicCloudSaveStrategy
 from .gog_strategy import GOGCloudSaveStrategy
 from .safety import SaveConflictError
@@ -71,6 +72,7 @@ class CloudSaveService(_SyncMixin, _StatusMixin):
         self._strategies = {
             "epic": EpicCloudSaveStrategy(self._local_root, config, cache),
             "gog": GOGCloudSaveStrategy(self._local_root, config, cache),
+            "ea": EACloudSaveStrategy(self._local_root, config, cache),
         }
 
         auto_wire(self, self._bus)
@@ -134,14 +136,13 @@ class CloudSaveService(_SyncMixin, _StatusMixin):
 
     @subscribe(Events.GAME_STOPPED)
     async def _on_game_stopped(self, **kwargs: Any) -> None:
-        """Upload saves after the game exits — ONLY when auto-push is enabled.
+        """Upload saves after the game exits, unless ``cloud.auto_push_on_stop`` is off.
 
-        Uploads are the destructive direction (they can overwrite cloud saves),
-        so by default this is OFF: the user pushes deliberately via the
-        cloud-save button. Set ``cloud.auto_push_on_stop`` true to restore
-        fully-automatic sync.
+        On by default, as in other launchers. An automatic push never
+        overwrites a cloud copy that changed since this device's last sync:
+        the strategy raises a conflict instead (``sync_up(auto=True)``).
         """
-        if not self._auto_enabled("auto_push_on_stop", default=False):
+        if not self._auto_enabled("auto_push_on_stop", default=True):
             return
         store = kwargs.get("store")
         game_id = kwargs.get("game_id")
@@ -150,20 +151,20 @@ class CloudSaveService(_SyncMixin, _StatusMixin):
             return
 
         # Fire and forget; background task
-        _track(asyncio.create_task(self.sync_up(store, game_id)))
+        _track(asyncio.create_task(self.sync_up(store, game_id, auto=True)))
 
     def auto_sync_enabled(self, direction: str) -> bool:
         """Whether AUTOMATIC sync is enabled for ``direction`` ("down"/"up").
 
         Public so the launcher's auto-sync phase respects the same flags as the
         event subscribers — ``down`` ⇒ ``auto_pull_on_launch`` (default on),
-        ``up`` ⇒ ``auto_push_on_stop`` (default off). Manual button/conflict
+        ``up`` ⇒ ``auto_push_on_stop`` (default on). Manual button/conflict
         syncs call ``sync_down``/``sync_up`` directly and are never gated here.
         """
         if direction == "down":
             return self._auto_enabled("auto_pull_on_launch", default=True)
         if direction == "up":
-            return self._auto_enabled("auto_push_on_stop", default=False)
+            return self._auto_enabled("auto_push_on_stop", default=True)
         return True
 
     async def sync_down(self, store: str, game_id: str, force: bool = False) -> Result:
@@ -214,8 +215,8 @@ class CloudSaveService(_SyncMixin, _StatusMixin):
         finally:
             lock.release()
 
-    async def sync_up(self, store: str, game_id: str) -> Result:
-        """Push saves after a game exits."""
+    async def sync_up(self, store: str, game_id: str, auto: bool = False) -> Result:
+        """Push saves: after a game exits (``auto``) or when the user asks."""
         if self._config and not self._config.get_bool("cloud.enabled", True):
             logger.info("[CloudSaveService] Cloud sync is disabled globally")
             return Result(success=True)
@@ -240,7 +241,7 @@ class CloudSaveService(_SyncMixin, _StatusMixin):
             if store_handled:
                 logger.info("[CloudSaveService] Executing %s sync_up strategy for %s", store, game_id)
                 try:
-                    success = await self._strategies[store].sync_up(game_id)
+                    success = await self._strategies[store].sync_up(game_id, auto)
                 except SaveConflictError as conflict:
                     conflict_handled = True
                     await self._handle_sync_up_conflict(store, game_id, key, conflict)

@@ -962,8 +962,8 @@
       "changeLocation": "Change location",
       "resetLocation": "Reset to automatic",
       "statusInSync": "Cloud saves up to date",
-      "xboxWaitingUpload": "Waiting to upload",
-      "xboxWaitingLaunch": "Waiting for launch",
+      "statusWaitingUpload": "Waiting to upload",
+      "statusWaitingLaunch": "Waiting for launch",
       "checkConnection": "Check Connection"
     },
     "exe": {
