@@ -253,7 +253,7 @@ On Play, the launcher resolves the browser-game entry, opens the kiosk browser a
 3. **Attach** `LunaPlatformSpoofer` browser-level on `browser_game_cdp_port()`. Its CDP session stays open until the window closes: Chrome drops a session's `Emulation.setUserAgentOverride` and pre-document scripts as soon as that session detaches.
 4. **Verify** the spoofed platform; a mismatch aborts with `platform_spoofing_failure`.
 5. **Page settings**: write the streaming quality (`luna_video_quality_setting`: LIMITED / STANDARD / BEST, from the settings panel) and the language (`locale_override`, see [Language](#language)) into the page's `localStorage`, and reload once when one of them changed (`luna_page_settings.py`). Luna reads both once per page load; the values then persist in the profile. A failure is logged and never blocks the launch.
-6. **Activate** play via `LunaPlayActivator`: within 15 s, click the detail page's primary Play button (`primary_entitled_button_game_session_async`) with a trusted CDP pointer event (Luna ignores a scripted `click()`), confirm the pre-launch dialog Luna raises without hardware acceleration ("Hardware Acceleration is Off" / "Hardwarebeschleunigung ist aus"; found language-neutrally by its `chrome://settings` hint, its last button is Continue Anyway), then wait up to 180 s for `/player` with the `<video>` playing (Luna provisions for ~30 s first). Failure maps to `launch_failure`.
+6. **Activate** play via `LunaPlayActivator`: within 15 s, click the detail page's primary Play button (`primary_entitled_button_game_session_async`) with a trusted CDP pointer event (Luna ignores a scripted `click()`), confirm the pre-launch dialog Luna raises without hardware acceleration ("Hardware Acceleration is Off" / "Hardwarebeschleunigung ist aus"; found language-neutrally by its `chrome://settings` hint, its last button is Continue Anyway), then wait up to 180 s for `/player` with the `<video>` playing (Luna provisions for ~30 s first). Not reaching `/player` maps to `launch_failure`; once `/player` is reached a slow stream is not a failure, the window stays open and the spoof is held until it closes.
 7. **Inject** the virtual keyboard over the same CDP session.
 8. **Block** on the shared `wait_for_browser_exit(..., log_tag="luna")` until the window closes.
 
@@ -262,6 +262,8 @@ The launcher rejects a launch with a non-zero exit when the `browser_url` is emp
 ### Browser flags
 
 `LunaBrowser` composes the shared browser process layer with Luna flags: fullscreen kiosk, `--user-data-dir=<Luna profile>`, `--remote-debugging-port=<browser_game_cdp_port()>`, the `gamepad_flags`, `--autoplay-policy=no-user-gesture-required`, and the window class `unifideck-luna`.
+
+`--webrtc-ip-handling-policy=default` is required: Luna streams over WebRTC, and the plugin's ungoogled-chromium gathers no usable ICE candidates without it (only two `host/tcp` candidates, no UDP or STUN). The peer connection then stays at ICE `new`, the video track stays muted and the player shows "Loading" forever. Verified on a Steam Deck with the same account both ways: without the flag nothing connects after 40 s; with it the connection is up about 40 s after Play (800x450 video, track live).
 
 ### Dedicated Luna profile (no SSO)
 
