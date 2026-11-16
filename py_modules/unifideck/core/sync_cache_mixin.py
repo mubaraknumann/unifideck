@@ -42,6 +42,7 @@ class _SyncCacheMixin:
     _last_sync_time: float | None
     _bus: Any
     _grouping_lock: asyncio.Lock | None = None
+    _store_sync_times: dict[str, float]
 
     def _get_library_cache_path(self) -> Path:
         """Resolve the library_cache.json file path."""
@@ -62,6 +63,9 @@ class _SyncCacheMixin:
             last_sync = data.get("last_sync_time")
             if isinstance(last_sync, (int, float)):
                 self._last_sync_time = float(last_sync)
+            self._store_sync_times = _deserialize_sync_times(
+                data.get("store_sync_times"),
+            )
 
             libraries_data = data.get("libraries", {})
             if not isinstance(libraries_data, dict):
@@ -189,6 +193,7 @@ class _SyncCacheMixin:
         """
         self._all_games = {}
         self._last_sync_time = None
+        self._store_sync_times = {}
         with contextlib.suppress(OSError):
             self._get_library_cache_path().unlink(missing_ok=True)
         logger.info("[SyncService] library state reset (in-memory + cache file)")
@@ -205,6 +210,7 @@ class _SyncCacheMixin:
 
             payload = {
                 "last_sync_time": self._last_sync_time,
+                "store_sync_times": dict(self._store_sync_times),
                 "libraries": libraries_data,
             }
 
@@ -246,3 +252,21 @@ def deserialize_libraries(
         ]
         loaded[store_name] = games_list
     return loaded
+
+
+def _deserialize_sync_times(raw: Any) -> dict[str, float]:
+    """Rebuild the per-store sync stamps; anything malformed is dropped.
+
+    A cache written before per-store stamps existed has no key at all,
+    which reads as "no stamps" — the store rows then fall back to the
+    whole-library ``last_sync_time``.
+    """
+    if not isinstance(raw, dict):
+        return {}
+    return {
+        name: float(ts)
+        for name, ts in raw.items()
+        if isinstance(name, str)
+        and isinstance(ts, (int, float))
+        and not isinstance(ts, bool)
+    }

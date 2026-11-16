@@ -8,7 +8,9 @@
  * This context provides:
  *   - Reactive `progress`, `isSyncing`, `isCancelling` via
  *     `useSyncExternalStore`
- *   - User-initiated actions: `startSync`, `forceSync`, `cancelSync`
+ *   - User-initiated actions: `syncGames`, `syncImages`, `cancelSync`.
+ *     The first two take a list of store ids, or nothing for every
+ *     store — the Quick Access store rows sync one store at a time.
  */
 import {
   createContext,
@@ -23,6 +25,7 @@ import { rpcRoutes } from "../api/rpc-routes";
 import { syncStore } from "../stores/sync-store";
 import { prepareForSync } from "../lib/steam-bridge/prepare-sync";
 import { linkXboxPc } from "../services/store/xbox-pc-link";
+import type { StoreId } from "../types/api";
 import type { SyncProgress } from "../types/syncProgress";
 
 /** Sync context value. */
@@ -30,8 +33,10 @@ interface SyncContextValue {
   progress: SyncProgress | null;
   isSyncing: boolean;
   isCancelling: boolean;
-  startSync: () => Promise<void>;
-  forceSync: (resyncArtwork?: boolean) => Promise<void>;
+  /** Re-fetch these stores' libraries (all stores when omitted). */
+  syncGames: (stores?: StoreId[]) => Promise<void>;
+  /** Re-download these stores' artwork (all stores when omitted). */
+  syncImages: (stores?: StoreId[]) => Promise<void>;
   cancelSync: () => Promise<void>;
 }
 
@@ -48,40 +53,48 @@ export const SyncProvider: FC<{ children: ReactNode }> = ({ children }) => {
     syncStore.getSnapshot,
   );
 
-  const startMut = useRPCMutation<[], { run_id: number }>(
-    rpcRoutes.syncLibraries,
+  const gamesMut = useRPCMutation<[StoreId[] | null], { run_id: number }>(
+    rpcRoutes.syncStoreLibraries,
   );
 
-  const forceMut = useRPCMutation<[boolean?], { run_id: number }>(
-    rpcRoutes.forceSyncLibraries,
+  const imagesMut = useRPCMutation<[StoreId[] | null], { run_id: number }>(
+    rpcRoutes.resyncStoreArtwork,
   );
 
   const cancelMut = useRPCMutation<[], { ok: boolean }>(rpcRoutes.cancelSync);
 
-  const startSync = useCallback(async () => {
-    if (isSyncing) return;
-    // A signed-out Xbox PC has no other way back to the sign-in. It resyncs by
-    // itself when it ends, and that sync queues behind this one.
-    void linkXboxPc({ auto: true });
-    // Confirm the live active Steam user + refresh the owned-library snapshot
-    // before the backend fetch, so shortcuts land in the right userdata dir
-    // and Steam-linked Ubisoft games are hidden this run. Shared with the
-    // post-login sync, which used to skip all of it.
-    await prepareForSync();
-    void startMut
-      .mutate()
-      .catch((e) => console.warn("[SyncContext] startSync RPC failed", e));
-  }, [isSyncing, startMut]);
-
-  const forceSync = useCallback(
-    async (resyncArtwork?: boolean) => {
+  // No `isSyncing` guard on either action: the backend queues a request
+  // behind the running sync, which is what lets a second store row be
+  // pressed mid-sync and show as queued.
+  const syncGames = useCallback(
+    async (stores?: StoreId[]) => {
+      // A signed-out Xbox PC has no other way back to the sign-in. It resyncs
+      // by itself when it ends, and that sync queues behind this one.
       void linkXboxPc({ auto: true });
+      // Confirm the live active Steam user + refresh the owned-library
+      // snapshot before the backend fetch, so shortcuts land in the right
+      // userdata dir and Steam-linked Ubisoft games are hidden this run.
+      // Shared with the post-login sync, which used to skip all of it.
       await prepareForSync();
-      void forceMut
-        .mutate(resyncArtwork)
-        .catch((e) => console.warn("[SyncContext] forceSync RPC failed", e));
+      void gamesMut
+        .mutate(stores ?? null)
+        .catch((e) => console.warn("[SyncContext] syncGames RPC failed", e));
+      void syncStore.refresh();
     },
-    [forceMut],
+    [gamesMut],
+  );
+
+  const syncImages = useCallback(
+    async (stores?: StoreId[]) => {
+      // No library fetch, but the run still ends in a shortcut reconcile
+      // that writes shortcuts.vdf, so it needs the same active-user check.
+      await prepareForSync();
+      void imagesMut
+        .mutate(stores ?? null)
+        .catch((e) => console.warn("[SyncContext] syncImages RPC failed", e));
+      void syncStore.refresh();
+    },
+    [imagesMut],
   );
 
   const cancelSync = useCallback(async () => {
@@ -94,8 +107,8 @@ export const SyncProvider: FC<{ children: ReactNode }> = ({ children }) => {
     progress,
     isSyncing,
     isCancelling,
-    startSync,
-    forceSync,
+    syncGames,
+    syncImages,
     cancelSync,
   };
 

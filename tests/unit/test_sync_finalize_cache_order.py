@@ -40,9 +40,13 @@ class _Svc(m._SyncFinalizeMixin):
         self._watchdog_task: asyncio.Task[None] | None = None
         self._cache_snapshot = None
         self._registry = _Registry()
+        self._chain_idle = asyncio.Event()
         self.calls: list[str] = []
 
     def _populate_app_ids(self, libraries: dict[str, list[Game]]) -> None:
+        pass
+
+    def _record_store_sync_times(self, fetched: object, errors: object) -> None:
         pass
 
     def _save_library_cache(self) -> None:

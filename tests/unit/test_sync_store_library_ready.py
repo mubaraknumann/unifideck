@@ -29,9 +29,11 @@ async def test_library_ready_queues_a_sync_without_awaiting_it() -> None:
     started = asyncio.Event()
     release = asyncio.Event()
     sources: list[str] = []
+    scopes: list[Any] = []
 
     async def fake_sync_all(**kwargs: Any) -> SyncResult:
         sources.append(kwargs["source"])
+        scopes.append(kwargs.get("stores"))
         started.set()
         await release.wait()
         return SyncResult(success=True, games=[], count=0, duration_ms=0)
@@ -43,5 +45,6 @@ async def test_library_ready_queues_a_sync_without_awaiting_it() -> None:
     await asyncio.wait_for(handler(store="itch"), 1)  # returns while the sync runs
     await asyncio.wait_for(started.wait(), 1)
     assert sources == ["library_ready:itch"]
+    assert scopes == [["itch"]]  # not a sync of every store
     release.set()
     await asyncio.gather(*svc._library_ready_syncs)

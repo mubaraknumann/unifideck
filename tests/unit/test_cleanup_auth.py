@@ -379,6 +379,7 @@ class _CacheHost(_SyncCacheMixin):
         self._config = None
         self._all_games: dict[str, list[Game]] = {}
         self._last_sync_time: float | None = None
+        self._store_sync_times: dict[str, float] = {}
 
 
 def _installed_game(store: str, game_id: str, app_id: int) -> Game:
@@ -408,6 +409,7 @@ def test_reset_library_state_clears_memory_and_cache_file(
 
     assert host._all_games == {}
     assert host._last_sync_time is None
+    assert host._store_sync_times == {}
     assert not cache_file.exists()
 
 
@@ -429,7 +431,9 @@ def test_save_after_reset_cannot_resurrect_the_wiped_library(
     host._save_library_cache()
 
     payload = json.loads(host._get_library_cache_path().read_text())
-    assert payload == {"last_sync_time": None, "libraries": {}}
+    assert payload == {
+        "last_sync_time": None, "store_sync_times": {}, "libraries": {},
+    }
 
 
 class _RecordingBus:
