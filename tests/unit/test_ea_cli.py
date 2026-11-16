@@ -93,6 +93,35 @@ async def test_list_games_reads_the_last_json_line(tmp_path: Path) -> None:
     assert json.loads(record.read_text())["argv"] == ["list-games", "--json"]
 
 
+async def test_a_failed_subscription_read_still_lists_the_owned_games(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture,
+) -> None:
+    out = {"games": [{"offer_id": "OFB-EAST:59474"}], "subscription_error": "HTTP 503"}
+    cli_path, _ = _fake_cli(tmp_path, stdout=json.dumps(out))
+    with caplog.at_level("WARNING"):
+        listed = await MaximaCli(cli_path, data_dir=tmp_path / "data").list_games()
+    assert listed == [{"offer_id": "OFB-EAST:59474"}]
+    # The log says what the user loses, not only that something failed.
+    assert "unclaimed EA Play games are missing" in caplog.text and "HTTP 503" in caplog.text
+
+
+async def test_claim_names_the_offer_and_needs_an_owned_answer(tmp_path: Path) -> None:
+    cli_path, record = _fake_cli(tmp_path, stdout='{"claimed": true, "owned": true}')
+    await MaximaCli(cli_path, data_dir=tmp_path / "data").claim("OFB-EAST:49464")
+    assert json.loads(record.read_text())["argv"] == ["claim", "--offer-id", "OFB-EAST:49464"]
+
+    # A game inside a bundle: EA grants the bundle.
+    await MaximaCli(cli_path, data_dir=tmp_path / "data").claim("Origin.OFR.50.0000557", "Origin.OFR.50.0002321")
+    assert json.loads(record.read_text())["argv"] == [
+        "claim", "--offer-id", "Origin.OFR.50.0000557", "--claim-offer-id", "Origin.OFR.50.0002321",
+    ]
+
+    cli_path, _ = _fake_cli(tmp_path, stdout='{"claimed": false}')
+    with pytest.raises(MaximaCliError) as err:
+        await MaximaCli(cli_path, data_dir=tmp_path / "data").claim("OFB-EAST:49464")
+    assert err.value.code == "claim_failed"
+
+
 async def test_missing_binary_is_reported_not_raised_as_oserror(tmp_path: Path) -> None:
     with pytest.raises(MaximaCliError) as err:
         await MaximaCli(None, data_dir=tmp_path / "data").signed_in()

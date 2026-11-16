@@ -20,9 +20,10 @@ import logging
 from pathlib import Path
 
 from unifideck.launcher.ea import maxima
+from unifideck.launcher.ea.fingerprint import pin_install_date
 from unifideck.launcher.ea.records import InstallRecord, read_record
-from unifideck.launcher.ea.sidecar import Sidecar, SidecarError, start_sidecar
-from unifideck.launcher.ea.standin import run_standin, wants_standin
+from unifideck.launcher.ea.sidecar import DEBUG_MARKER, Sidecar, SidecarError, start_sidecar
+from unifideck.launcher.ea.standin import reap_standin, run_standin, wants_standin
 from unifideck.launcher.ea.touchup import prepare_prefix
 from unifideck.launcher.proton.compat.app_local_crt import ensure_crt_activation_manifest
 from unifideck.launcher.proton.infrastructure.core import ProtonLaunchPlan
@@ -32,6 +33,7 @@ from unifideck.launcher.types.errors import (
     DependencyMissingError,
     GameFailedError,
     GameNotFoundError,
+    LicenceRefusedError,
     PrefixCorruptedError,
 )
 from unifideck.utils.config_helpers import read_config_str_cold_start
@@ -49,7 +51,22 @@ async def ea_launch(plan: ProtonLaunchPlan) -> int:
         rc = await _run_game(plan, sidecar)
     finally:
         await sidecar.stop()
+    if rc != 0:
+        await _raise_if_licence_refused(plan, sidecar, rc)
     return finish_game_run(plan, rc)
+
+
+async def _raise_if_licence_refused(plan: ProtonLaunchPlan, sidecar: Sidecar, rc: int) -> None:
+    """Name EA's refusal when the game failed after EA refused its licence."""
+    refusal = await sidecar.licence_refusal()
+    if refusal is None:
+        return
+    # CG_LIMIT_EXCEEDED: too many activations of this game lately; EA lifts it with time.
+    logger.warning("[EA] EA's licence service refused %s while it ran: %s", plan.context.game_id, refusal)
+    raise LicenceRefusedError(
+        f"EA refused the game licence ({refusal})", refusal=refusal, subprocess_rc=rc,
+        context={"store": "ea", "game_id": plan.context.game_id},
+    )
 
 
 async def _resolve(plan: ProtonLaunchPlan) -> tuple[InstallRecord, Path]:
@@ -70,6 +87,7 @@ async def _start_sidecar(plan: ProtonLaunchPlan, record: InstallRecord, cli: Pat
     if not await prepare_prefix(ctx, state):
         raise PrefixCorruptedError("EA Touchup failed", context={"store": "ea", "game_id": ctx.game_id})
     assert state.prefix_path and state.proton_path and state.umu_wrapper  # prepare_prefix checked them
+    await asyncio.to_thread(pin_install_date, ctx.game_id, state.prefix_path)
     env = {**plan.env, **maxima.base_env(), **maxima.prefix_env(state.prefix_path, state.proton_path, state.umu_wrapper)}
     try:
         return await start_sidecar(cli, record.offer_id, ctx.exe_path, env)
@@ -78,9 +96,13 @@ async def _start_sidecar(plan: ProtonLaunchPlan, record: InstallRecord, cli: Pat
         if refusal:
             # CG_LIMIT_EXCEEDED: too many activations of this game lately; EA lifts it with time.
             logger.warning("[EA] EA's licence service refused %s: %s", record.offer_id, refusal)
+        if refusal:
+            raise LicenceRefusedError(
+                f"EA refused the game licence ({refusal})", refusal=refusal, subprocess_rc=e.returncode or -1,
+                context={"store": "ea", "game_id": ctx.game_id},
+            ) from e
         raise GameFailedError(
-            f"EA refused the game licence ({refusal})" if refusal else "EA licence or LSX unavailable",
-            subprocess_rc=e.returncode or -1,
+            "EA licence or LSX unavailable", subprocess_rc=e.returncode or -1,
             context={"store": "ea", "game_id": ctx.game_id, "detail": e.detail[-300:]},
         ) from e
 
@@ -91,6 +113,14 @@ async def _run_game(plan: ProtonLaunchPlan, sidecar: Sidecar) -> int:
     argv = [str(plan.python_bin), str(plan.umu_wrapper), str(exe), *plan.state.game_args]
     cwd = exe.parent if exe.parent.is_dir() else None
     env = {**plan.env, **sidecar.env}
+    if plan.state.prefix_path:
+        # Again after the sidecar's own Wine step, so the game sees the same date too.
+        await asyncio.to_thread(pin_install_date, plan.context.game_id, plan.state.prefix_path)
+    standin_env = dict(env)
+    if await asyncio.to_thread((maxima.data_dir() / DEBUG_MARKER).exists):
+        # The same switch as the sidecar's debug log: Proton's log of the game, beside it.
+        # Never add a web-request trace here: it records sign-in forms in plain text.
+        env.update(PROTON_LOG="1", PROTON_LOG_DIR=str(maxima.data_dir()))
     game_done = asyncio.Event()
     standin = None
     wanted = bool(sidecar.origin_standin and plan.state.prefix_path)
@@ -99,8 +129,11 @@ async def _run_game(plan: ProtonLaunchPlan, sidecar: Sidecar) -> int:
     if wanted and sidecar.origin_standin and plan.state.prefix_path:
         standin = asyncio.create_task(run_standin(
             [str(plan.python_bin), str(plan.umu_wrapper), sidecar.origin_standin],
-            env, exe.name, plan.state.prefix_path, game_done,
+            standin_env, exe.name, plan.state.prefix_path, game_done,
         ))
+    elif plan.state.prefix_path:
+        # The game may start the client at ClientPath itself and leave it behind.
+        standin = asyncio.create_task(reap_standin(exe.name, plan.state.prefix_path, game_done))
     try:
         return await run_umu_with_retry(argv, env=env, cwd=cwd, on_start=plan.on_process_start)
     finally:

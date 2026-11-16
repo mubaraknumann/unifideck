@@ -160,8 +160,27 @@ class EAInstaller:
         entry = await self._entry(game_id)
         if entry is None:
             return _failed(game_id, "ea_game_not_in_library")
+        if entry.get("claimable"):
+            refused = await self._claim(game_id, entry)
+            if refused is not None:
+                return refused
         folder = game_folder(base_path, str(entry.get("slug") or game_id))
         return await self._download(game_id, entry, folder, progress_cb)
+
+    async def _claim(self, game_id: str, entry: dict[str, Any]) -> InstallResult | None:
+        """Add an EA Play game to the account before its first download.
+
+        EA serves builds and licences only for owned offers. None on success;
+        the entry then counts as owned until the next sync lists it so.
+        """
+        try:
+            await self._cli.claim(str(entry["offer_id"]), entry.get("claim_offer_id"))
+        except MaximaCliError as e:
+            logger.warning("%s EA did not add %s to the library, so it cannot be installed: %s", _LOG, game_id, e)
+            return _failed(game_id, f"ea_claim_failed: {e.detail[-300:] or e.code}")
+        entry["claimable"] = False
+        logger.info("%s claimed %s through EA Play", _LOG, game_id)
+        return None
 
     async def update(self, game_id: str, progress_cb: ProgressCallback) -> InstallResult:
         """Download the live build over the installed one."""
@@ -185,7 +204,8 @@ class EAInstaller:
     async def size(self, game_id: str) -> int | None:
         """Space the live build takes once installed, before downloading it."""
         entry = await self._entry(game_id)
-        if entry is None:
+        # EA gives build details only for owned offers: no size before the claim.
+        if entry is None or entry.get("claimable"):
             return None
         try:
             return await self._cli.build_size(str(entry["offer_id"]))

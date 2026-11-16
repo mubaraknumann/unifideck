@@ -37,11 +37,14 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _build_launch_context(store: str, game_id: str, install: Path) -> Any:
+def _build_launch_context(
+    store: str, game_id: str, install: Path, proton_tool: str | None = None,
+) -> Any:
     """Construct the ``(ctx, state)`` pair the setup steps run against.
 
     Builds a ``LaunchContext``/``RuntimeState`` outside an actual launch so
     the prefix-init / compat helpers can be reused at install time.
+    ``proton_tool`` goes in at construction: the context is frozen.
     """
     from unifideck.core.paths import resolve_plugin_dir
     from unifideck.launcher.types.context import LaunchContext, RuntimeState
@@ -55,6 +58,7 @@ def _build_launch_context(store: str, game_id: str, install: Path) -> Any:
         work_dir=install,
         plugin_dir=resolve_plugin_dir(start=Path(__file__)),
         steam_app_id=None,
+        proton_tool=proton_tool,
     )
     return ctx, RuntimeState()
 
@@ -229,8 +233,7 @@ async def warmup_install_prefix(
     # prefix's server dir, never a wineserver for a game the user is running.
     _reap_stale_prefix_wineserver(game_id)
 
-    ctx, state = _build_launch_context(store, game_id, Path(install_path))
-    ctx.proton_tool = proton_tool
+    ctx, state = _build_launch_context(store, game_id, Path(install_path), proton_tool)
 
     # Steps 1+2 reuse the launch path's prefix-init / compat / GE-download /
     # umu-runtime helpers, all of which toast launch progress. During a

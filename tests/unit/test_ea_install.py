@@ -45,6 +45,10 @@ import json, os, sys
 open({record!r}, "a").write(json.dumps({{"argv": sys.argv[1:], "cwd": os.getcwd(),
     "env": {{k: v for k, v in os.environ.items() if k.startswith("MAXIMA_") or k in ("DISPLAY", "XAUTHORITY")}}}}) + "\\n")
 args = sys.argv[1:]
+if args[0] == "claim":
+    sys.stderr.write("ERROR - EA refused the claim: NotFreeOrNoAppropriateSubscriptionError\\n" if {claim_rc} else "")
+    print(json.dumps({{"claimed": True, "owned": True, "offer_id": args[2]}}) if not {claim_rc} else "")
+    sys.exit({claim_rc})
 if args[0] == "install":
     path = args[args.index("--path") + 1]
     os.makedirs(os.path.join(path, "bin_ship"), exist_ok=True)
@@ -63,10 +67,14 @@ def home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return tmp_path
 
 
-def _fake_cli(home: Path, *, rc: int = 0, final: str = '{"event": "done"}') -> tuple[str, Path]:
+def _fake_cli(
+    home: Path, *, rc: int = 0, final: str = '{"event": "done"}', claim_rc: int = 0,
+) -> tuple[str, Path]:
     calls = home / "calls.jsonl"
     script = home / "maxima-cli"
-    script.write_text(_FAKE.format(python=sys.executable, record=str(calls), final=final, rc=rc))
+    script.write_text(_FAKE.format(
+        python=sys.executable, record=str(calls), final=final, rc=rc, claim_rc=claim_rc,
+    ))
     script.chmod(script.stat().st_mode | stat.S_IXUSR)
     return str(script), calls
 
@@ -129,6 +137,50 @@ async def test_a_failed_install_keeps_no_record(home: Path) -> None:
     result = await installer.install(_GAME_ID, str(home / "Games"), None)
     assert not result.success
     assert result.error is not None and result.error.startswith("ea_install_failed")
+    assert read_record(_GAME_ID) is None
+
+
+async def test_an_ea_play_game_is_claimed_before_its_first_download(home: Path) -> None:
+    cli_path, calls = _fake_cli(home)
+    entry = {**_ENTRY, "ownership": [], "claimable": True}
+    installer = EAInstaller(MaximaCli(cli_path), AsyncMock(return_value=entry))
+
+    result = await installer.install(_GAME_ID, str(home / "Games"), None)
+
+    assert result.success, result.error
+    argvs = [json.loads(line)["argv"] for line in calls.read_text().splitlines()]
+    assert argvs[0] == ["claim", "--offer-id", "OFB-EAST:59474"]
+    assert argvs[1][0] == "install"
+    # Owned from here on: a retry or an update must not claim again.
+    assert entry["claimable"] is False
+
+
+async def test_an_unclaimed_game_has_no_size_and_asks_ea_nothing(home: Path) -> None:
+    cli_path, calls = _fake_cli(home)
+    installer = EAInstaller(MaximaCli(cli_path), AsyncMock(return_value={**_ENTRY, "claimable": True}))
+    assert await installer.size(_GAME_ID) is None
+    assert not calls.exists()
+
+
+async def test_an_owned_game_is_never_claimed(home: Path) -> None:
+    cli_path, calls = _fake_cli(home)
+    installer = EAInstaller(MaximaCli(cli_path), AsyncMock(return_value=_ENTRY))
+    assert (await installer.install(_GAME_ID, str(home / "Games"), None)).success
+    assert [json.loads(line)["argv"][0] for line in calls.read_text().splitlines()] == ["install"]
+
+
+async def test_a_refused_claim_fails_the_install_without_downloading(home: Path) -> None:
+    cli_path, calls = _fake_cli(home, claim_rc=1)
+    entry = {**_ENTRY, "ownership": [], "claimable": True}
+    installer = EAInstaller(MaximaCli(cli_path), AsyncMock(return_value=entry))
+
+    result = await installer.install(_GAME_ID, str(home / "Games"), None)
+
+    assert not result.success
+    assert result.error is not None and result.error.startswith("ea_claim_failed: ")
+    assert "NotFreeOrNoAppropriateSubscriptionError" in result.error
+    assert [json.loads(line)["argv"][0] for line in calls.read_text().splitlines()] == ["claim"]
+    assert entry["claimable"] is True
     assert read_record(_GAME_ID) is None
 
 

@@ -32,6 +32,9 @@ READY_TIMEOUT_S = 180.0
 #: A file, not a pipe: nobody reads a pipe during a long session, and a full one
 #: would block the CLI and freeze LSX.
 LOG_PATTERN = "launch-prepare-{}.log"
+#: A file of this name in the data folder makes that log a debug log: every
+#: message between the game and the sidecar. For diagnosing a game; off otherwise.
+DEBUG_MARKER = "debug-log"
 STOP_WAIT_S = 15.0
 _TAIL_CHARS = 800
 #: Older ``maxima-cli`` builds echoed EA's whole refusal, access token included.
@@ -58,11 +61,27 @@ class SidecarError(RuntimeError):
 class Sidecar:
     """One running ``launch-prepare``."""
 
-    def __init__(self, proc: asyncio.subprocess.Process, env: dict[str, str], origin_standin: str | None) -> None:
+    def __init__(
+        self, proc: asyncio.subprocess.Process, env: dict[str, str], origin_standin: str | None,
+        log_path: Path | None = None,
+    ) -> None:
         self._proc = proc
+        self._log_path = log_path
         self.env = env
         #: The Origin client stand-in in the prefix (``launcher/ea/standin.py``), or None.
         self.origin_standin = origin_standin
+
+    async def licence_refusal(self) -> str | None:
+        """EA's code when it refused a licence the running game asked for.
+
+        A Denuvo game asks for its token while it starts (LSX ``RequestLicense``);
+        refused, the game quits or crashes with no reason of its own.
+        """
+        if self._log_path is None:
+            return None
+        detail = await asyncio.to_thread(_log_text, self._log_path)
+        match = _REFUSAL_RE.search(detail)
+        return (match.group(1) or match.group(2)) if match else None
 
     async def stop(self) -> None:
         """End the session: close stdin, then kill the group if it lingers."""
@@ -98,7 +117,7 @@ async def start_sidecar(
     env = {str(k): str(v) for k, v in ready["env"].items()}
     logger.info("[EA] licence and LSX ready for %s (port %s)", offer_id, env.get("EALsxPort"))
     standin = ready.get("origin_standin")
-    return Sidecar(proc, env, standin if isinstance(standin, str) and standin else None)
+    return Sidecar(proc, env, standin if isinstance(standin, str) and standin else None, log_path)
 
 
 async def _spawn(
@@ -110,6 +129,9 @@ async def _spawn(
 
     run_dir = await asyncio.to_thread(maxima.prepare_run_dir)
     log_path = run_dir.parent / LOG_PATTERN.format(re.sub(r"[^A-Za-z0-9._-]", "_", offer_id))
+    if await asyncio.to_thread((run_dir.parent / DEBUG_MARKER).exists):
+        logger.warning("[EA] %s is present: the sidecar writes a debug log to %s", DEBUG_MARKER, log_path)
+        env = {**env, "MAXIMA_LOG_LEVEL": "debug"}
     # It runs umu for the prefix registry step, which must not nest in Steam's container.
     argv = escape_argv(
         [str(cli), "launch-prepare", "--offer-id", offer_id, "--game-path", str(game_exe)], env, cwd=run_dir,
@@ -140,6 +162,14 @@ async def _read_ready(proc: asyncio.subprocess.Process) -> dict[str, Any] | None
             return event
     await proc.wait()
     return None
+
+
+def _log_text(path: Path) -> str:
+    """The whole sidecar log, or empty when it cannot be read."""
+    try:
+        return path.read_bytes().decode(errors="replace")
+    except OSError:
+        return ""
 
 
 def _log_tail(path: Path) -> str:

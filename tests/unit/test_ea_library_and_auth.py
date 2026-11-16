@@ -41,6 +41,18 @@ async def test_library_rows_use_the_row_id_and_keep_the_offer(tmp_path: Any, mon
     assert game.metadata["has_cloud_save"] is True
 
 
+async def test_ea_play_games_not_claimed_yet_are_library_rows(tmp_path: Any, monkeypatch: Any) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cli = MagicMock()
+    unclaimed = {**_ENTRY, "offer_id": "OFB-EAST:49464", "ownership": [], "claimable": True}
+    cli.list_games = AsyncMock(return_value=[_ENTRY, unclaimed])
+    games = await EALibraryReader(cli).get_library()
+    assert games is not None
+    assert [g.metadata["claimable"] for g in games] == [False, True]
+    assert games[1].store_game_id == "OFB-EAST__49464"
+    assert games[1].metadata["ownership"] == []
+
+
 async def test_unreadable_library_is_none_never_empty() -> None:
     cli = MagicMock()
     cli.list_games = AsyncMock(side_effect=MaximaCliError("not_signed_in"))

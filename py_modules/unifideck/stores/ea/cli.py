@@ -144,12 +144,37 @@ class MaximaCli:
         await self._json(["logout"], AUTH_TIMEOUT_S)
 
     async def list_games(self) -> list[dict[str, Any]]:
-        """The owned library, one entry per base game (``unifideck-json``)."""
+        """The library, one entry per base game (``unifideck-json``, ``unifideck-ea-play``).
+
+        Owned games, then the games an EA Play subscription covers that the
+        account has not claimed (``claimable``). The CLI reads the two apart, so
+        a failed subscription read still lists the owned games.
+        """
         value = await self._json(["list-games", "--json"], LIBRARY_TIMEOUT_S)
         games = value.get("games")
         if not isinstance(games, list):
             raise MaximaCliError("bad_output", "list-games gave no games list")
+        if value.get("subscription_error"):
+            logger.warning(
+                "%s could not read the EA Play games (%s): unclaimed EA Play games are missing "
+                "from the EA library until the next sync",
+                _LOG, value["subscription_error"],
+            )
         return [g for g in games if isinstance(g, dict)]
+
+    async def claim(self, offer_id: str, claim_offer_id: str | None = None) -> None:
+        """Add an EA Play game to the account's library (``unifideck-ea-play``).
+
+        Lasting, like the EA app's "Add to library". ``claim_offer_id`` is the
+        offer EA grants when the game comes inside a bundle. A game the account
+        already owns is left alone. Raises when EA refuses.
+        """
+        args = ["claim", "--offer-id", offer_id]
+        if claim_offer_id and claim_offer_id != offer_id:
+            args += ["--claim-offer-id", claim_offer_id]
+        value = await self._json(args, LIBRARY_TIMEOUT_S)
+        if value.get("owned") is not True:
+            raise MaximaCliError("claim_failed", f"claim of {offer_id} did not end owned")
 
     async def live_build_id(self, offer_id: str) -> str | None:
         """The build id EA serves now for ``offer_id`` (``unifideck-json``)."""

@@ -37,6 +37,10 @@ class InstallRecord:
     #: (``launcher/ea/standin.py``). Empty until the first launch.
     sdk_exe: str = ""
     origin_sdk: str = ""
+    #: The prefix's ``drive_c`` modification time (ns) when the game first ran:
+    #: Wine reports it as the Windows install date, an input of the machine
+    #: fingerprint (``launcher/ea/fingerprint.py``). Empty until then.
+    drive_c_mtime_ns: str = ""
 
 
 _REQUIRED = ("game_id", "offer_id", "content_id", "install_path", "exe", "build_id", "version")

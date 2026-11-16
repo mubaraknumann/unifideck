@@ -189,6 +189,29 @@ async def test_launcher_error_toast_reaches_the_live_channel(
     assert kwargs["i18n_title_key"] == "toasts.header.gameLaunch"
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("refusal", "body"), [
+    ("CG_LIMIT_EXCEEDED", "toasts.launcher.activationLimit"),
+    ("FINGERPRINT_CHANGED", "toasts.launcher.fingerprintChanged"),
+    ("CG_SOMETHING_ELSE", "toasts.launcher.licenceRefused"),
+])
+async def test_a_licence_refusal_says_why_instead_of_a_generic_failure(
+    bus: _FakeBus, en_locale: dict[str, Any], refusal: str, body: str,
+) -> None:
+    from unifideck.launcher.types.errors import LicenceRefusedError
+    from unifideck.services.launcher.error_toasts import handle_launcher_error
+
+    svc = _FakeLauncherService(bus)
+    svc._launch_history = None
+    err = LicenceRefusedError("EA refused the game licence", refusal=refusal, subprocess_rc=5)
+    await handle_launcher_error(svc, _FakeCtx(), err)
+
+    kwargs = _sole_emit(bus)
+    assert kwargs["i18n_key"] == body
+    assert _lookup(en_locale, body) is not None
+    assert kwargs["i18n_title_key"] == "toasts.header.gameLaunch"
+
+
 # ── shortcut write refusal ───────────────────────────────────────
 
 

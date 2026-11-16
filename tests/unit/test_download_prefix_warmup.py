@@ -169,3 +169,26 @@ async def test_make_prefix_warmup_passes_item_fields(monkeypatch):
         "install_path": "/data/install/g1", "cloud_svc": sentinel_cloud,
         "proton_tool": "GE-Proton11-12",
     }
+
+
+@pytest.mark.asyncio
+async def test_warmup_reaches_prefix_setup_with_the_install_proton(tmp_path, monkeypatch):
+    """The real (frozen) LaunchContext must carry the fresh install's Proton.
+
+    Assigning it after construction raised FrozenInstanceError on the first
+    line, so no store got its prefix set up at install time.
+    """
+    seen = {}
+
+    async def _setup(ctx, state, key):
+        seen["proton_tool"] = ctx.proton_tool
+
+    monkeypatch.setattr(warmup_mod, "_setup_prefix_with_ge_retry", _setup)
+    monkeypatch.setattr(warmup_mod, "_reap_stale_prefix_wineserver", lambda game_id: None)
+    monkeypatch.setattr(
+        "unifideck.launcher.proton.store_setup.run_store_prefix_setup", AsyncMock(return_value=True),
+    )
+
+    await warmup_mod.warmup_install_prefix("gog", "g1", str(tmp_path), proton_tool="GE-Proton11-12")
+
+    assert seen == {"proton_tool": "GE-Proton11-12"}

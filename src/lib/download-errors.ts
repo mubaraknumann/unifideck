@@ -168,6 +168,9 @@ const CODE_KEYS: ReadonlyArray<readonly [RegExp, string]> = [
   [/^ea_exe_not_found$/, "errors.download.directoryNotFound"],
   [/^ea_uninstall_failed$/, "errors.download.uninstallIncomplete"],
   [/^ea_game_not_in_library$|^ea_not_installed$/, "errors.download.generic"],
+  // EA Play: EA refused to add a subscription game to the account's library
+  // (the claim that precedes the first install of one).
+  [/^ea_claim_failed$/, "errors.download.eaClaimFailed"],
   // Uninstall refusals of a store that deletes the folder itself.
   [/^uninstall_refused_unsafe_path$/, "errors.download.uninstallRefused"],
   [
@@ -256,6 +259,7 @@ export function downloadErrorToast(raw: string | undefined): ToastString {
 const TOAST_KEYS: Readonly<Record<string, ToastKey>> = {
   "errors.download.authExpired": "toasts.downloadError.authExpired",
   "errors.download.claimRequired": "toasts.downloadError.claimRequired",
+  "errors.download.eaClaimFailed": "toasts.downloadError.eaClaimFailed",
   "errors.download.directoryNotFound": "toasts.downloadError.directoryNotFound",
   "errors.download.diskSpace": "toasts.downloadError.diskSpace",
   "errors.download.folderInUse": "toasts.downloadError.folderInUse",

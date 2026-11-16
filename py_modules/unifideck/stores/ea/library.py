@@ -6,6 +6,10 @@ the licence for games bought on Steam or Epic too (unlike Epic and Ubisoft
 titles owned on Steam, which only run when Steam launches them), and Game Pass
 (``XGP_VAULT``) entries are licensed by EA. ``metadata["ownership"]`` keeps how
 the account owns each one; game grouping pairs an EA copy with a Steam copy.
+
+Games an active EA Play subscription covers are listed too, before the account
+claims them: ``metadata["claimable"]``, with no ownership. The first install
+claims the game (``install.py``); from then on EA lists it as owned.
 """
 
 from __future__ import annotations
@@ -40,6 +44,7 @@ def game_from_entry(entry: dict[str, Any]) -> Game | None:
             "slug": entry.get("slug"),
             "has_cloud_save": bool(entry.get("has_cloud_save")),
             "ownership": entry.get("ownership") or [],
+            "claimable": entry.get("claimable") is True,
         },
     )
 
@@ -71,6 +76,9 @@ class EALibraryReader:
         pairs = [(game, entry) for entry in entries if (game := game_from_entry(entry)) is not None]
         self._entries = {game.store_game_id: entry for game, entry in pairs}
         games = [game for game, _ in pairs]
-        logger.info("[EA] library: %d game(s), %d listed by EA", len(games), len(entries))
+        logger.info(
+            "[EA] library: %d game(s), %d of them EA Play games not claimed yet",
+            len(games), sum(1 for game in games if game.metadata["claimable"]),
+        )
         records = await asyncio.to_thread(all_records)
         return merge_install_status(games, {gid: asdict(r) for gid, r in records.items()}, exe_key="exe")

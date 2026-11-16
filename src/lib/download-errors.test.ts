@@ -120,6 +120,11 @@ describe("friendlyDownloadError — bare backend codes", () => {
       "itch_claim_required: claim this game from its bundle on itch.io first",
       "errors.download.claimRequired",
     ],
+    // EA Play: EA refused the claim that precedes a first install.
+    [
+      "ea_claim_failed: EA refused the claim: NotFreeOrNoAppropriateSubscriptionError",
+      "errors.download.eaClaimFailed",
+    ],
   ])("maps %s", (raw, key) => {
     expect(friendlyDownloadError(raw, t)).toBe(key);
   });

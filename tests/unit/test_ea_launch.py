@@ -104,7 +104,9 @@ async def test_the_game_runs_with_the_sidecar_env_and_the_sidecar_always_stops(
     home: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _install(home)
-    running = MagicMock(env={"EALsxPort": "3216"}, stop=AsyncMock(), origin_standin=None)
+    running = MagicMock(
+        env={"EALsxPort": "3216"}, stop=AsyncMock(), origin_standin=None, licence_refusal=AsyncMock(return_value=None),
+    )
     seen: dict[str, Any] = {}
 
     async def fake_umu(argv: list[str], **kw: Any) -> int:
@@ -299,3 +301,119 @@ def test_only_exes_built_with_the_origin_sdk_get_the_standin(home: Path) -> None
                                "install_path": "/g", "exe": "/g/G.exe", "build_id": "/b", "version": "1"}))
     loaded = read_record("Origin.OFR.50.1")
     assert loaded is not None and loaded.origin_sdk == ""
+
+
+def test_an_origin_sdk_shipped_as_a_library_gets_the_standin_too(home: Path) -> None:
+    """A Unity build keeps the SDK in ``<Game>_Data/Managed``; its exe never names it."""
+    from unifideck.launcher.ea import standin
+    from unifideck.launcher.ea.records import read_record
+
+    folder = home / "game"
+    managed = folder / "Game_Data" / "Managed"
+    managed.mkdir(parents=True)
+    exe = folder / "Game.exe"
+    exe.write_bytes(b"MZ" + b"\0" * 4096)
+    write_record(InstallRecord(
+        game_id="Origin.OFR.50.2", offer_id="Origin.OFR.50.2", content_id="1", install_path=str(folder),
+        exe=str(exe), build_id="/b.zip", version="1",
+    ))
+
+    assert standin.wants_standin("Origin.OFR.50.2", exe) is False
+    # A record that already says the exe has no SDK must not hide the library.
+    (managed / "OriginSDK.dll").write_bytes(b"MZ")
+    assert standin.wants_standin("Origin.OFR.50.2", exe) is True
+    kept = read_record("Origin.OFR.50.2")
+    assert kept is not None and kept.origin_sdk == "no"
+
+    # Looked for near the game only, not through the whole tree.
+    (managed / "OriginSDK.dll").unlink()
+    deep = folder / "a" / "b" / "c" / "d" / "e"
+    deep.mkdir(parents=True)
+    (deep / "OriginSDK.dll").write_bytes(b"MZ")
+    assert standin.wants_standin("Origin.OFR.50.2", exe) is False
+
+
+async def test_a_standin_the_game_started_itself_is_ended_when_the_game_quits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Left running, it holds the Wine session open and the launch never ends."""
+    import asyncio
+    import os
+
+    from unifideck.launcher.ea import standin
+
+    monkeypatch.setattr(standin, "POLL_S", 0.05)
+    env = {**os.environ, "WINEPREFIX": str(tmp_path)}
+
+    async def named(name: str, seconds: str) -> asyncio.subprocess.Process:
+        return await asyncio.create_subprocess_exec(
+            "/bin/bash", "-c", 'exec -a "$0" sleep "$1"', name, seconds, env=env,
+        )
+
+    client = await named("C:/Program Files (x86)/Origin/Origin.exe", "60")
+    game = await named("Z:/games/Game.exe", "60")
+    try:
+        for _ in range(200):
+            if standin.prefix_pids("Game.exe", tmp_path) and standin.prefix_pids("Origin.exe", tmp_path):
+                break
+            await asyncio.sleep(0.05)
+        task = asyncio.create_task(standin.reap_standin("Game.exe", tmp_path, asyncio.Event()))
+        await asyncio.sleep(0.3)
+        assert client.returncode is None  # untouched while the game runs
+        game.kill()
+        await game.wait()
+        await asyncio.wait_for(task, 15)
+        assert await asyncio.wait_for(client.wait(), 15) == -9
+    finally:
+        for proc in (client, game):
+            if proc.returncode is None:
+                proc.kill()
+                await proc.wait()
+
+
+
+async def test_the_debug_marker_turns_on_the_sidecar_debug_log(home: Path) -> None:
+    """One file in the data folder, so a game can be diagnosed without a rebuild."""
+    body = """#!{python}
+import json, os, sys
+sys.stderr.write("level=" + os.environ.get("MAXIMA_LOG_LEVEL", "unset") + "\\n")
+print(json.dumps({{"event": "ready", "env": {{}}}}), flush=True)
+sys.stdin.read()
+"""
+    cli = _script(home, body)
+    log = home / ".local/share/unifideck/ea/maxima/launch-prepare-OFB-EAST_59474.log"
+
+    running = await sidecar_mod.start_sidecar(cli, "OFB-EAST:59474", home / "Game.exe", {"PATH": "/usr/bin:/bin"})
+    await running.stop()
+    assert "level=unset" in log.read_text()
+
+    (log.parent / sidecar_mod.DEBUG_MARKER).write_text("")
+    running = await sidecar_mod.start_sidecar(cli, "OFB-EAST:59474", home / "Game.exe", {"PATH": "/usr/bin:/bin"})
+    await running.stop()
+    assert "level=debug" in log.read_text()
+
+
+async def test_a_licence_refused_while_the_game_ran_is_named(
+    home: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A Denuvo game asks for its token as it starts; refused, it just dies."""
+    from unifideck.launcher.types.errors import LicenceRefusedError
+
+    _install(home)
+    log = home / "sidecar.log"
+    log.write_text("ERROR - Failed to process LSX message: license request refused: CG_LIMIT_EXCEEDED\n")
+    proc = MagicMock(stdin=None, returncode=0, wait=AsyncMock(return_value=0))
+    running = sidecar_mod.Sidecar(proc, {"EALsxPort": "3216"}, None, log)
+
+    monkeypatch.setattr(handler.maxima, "find_cli", lambda *_: home / "maxima-cli")
+    monkeypatch.setattr(handler, "prepare_prefix", AsyncMock(return_value=True))
+    monkeypatch.setattr(handler, "start_sidecar", AsyncMock(return_value=running))
+    monkeypatch.setattr(handler, "run_umu_with_retry", AsyncMock(return_value=5))
+
+    with pytest.raises(LicenceRefusedError) as err:
+        await handler.ea_launch(_plan(home))
+    assert err.value.refusal == "CG_LIMIT_EXCEEDED"
+
+    # A game that exits cleanly is not blamed on an old refusal in the log.
+    monkeypatch.setattr(handler, "run_umu_with_retry", AsyncMock(return_value=0))
+    assert await handler.ea_launch(_plan(home)) == 0

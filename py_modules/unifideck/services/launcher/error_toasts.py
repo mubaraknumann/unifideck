@@ -13,6 +13,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from unifideck.core.types import Result
+from unifideck.launcher.types.errors import LicenceRefusedError
 
 if TYPE_CHECKING:
     from unifideck.launcher.types.context import LaunchContext
@@ -103,6 +104,27 @@ async def emit_launcher_error_toast(
     )
 
 
+#: EA's code for "this game was activated on too many PCs lately".
+_ACTIVATION_LIMIT = "CG_LIMIT_EXCEEDED"
+#: maxima-cli would have sent EA a different machine fingerprint for the game, so sent nothing.
+_FINGERPRINT_CHANGED = "FINGERPRINT_CHANGED"
+
+
+async def emit_licence_refused_toast(svc: LauncherService, ctx: LaunchContext, refusal: str) -> None:
+    """The store refused the game's licence: say so, and whether waiting helps."""
+    logger.error("[ErrorToasts] launch of %s failed: licence refused (%s)", ctx.game_key, refusal)
+    key = {
+        _ACTIVATION_LIMIT: "toasts.launcher.activationLimit",
+        _FINGERPRINT_CHANGED: "toasts.launcher.fingerprintChanged",
+    }.get(refusal, "toasts.launcher.licenceRefused")
+    await emit_launch_error_toast(
+        svc, ctx,
+        i18n_key=key,
+        i18n_title_key="toasts.header.gameLaunch",
+        tag="ErrorToasts",
+    )
+
+
 async def handle_launcher_error(
     svc: LauncherService,
     ctx: LaunchContext,
@@ -129,7 +151,10 @@ async def handle_launcher_error(
         except Exception as e:
             logger.debug("[ErrorToasts] Failed to record failure: %s", e)
 
-    await emit_launcher_error_toast(svc, ctx, err_code)
+    if isinstance(err, LicenceRefusedError):
+        await emit_licence_refused_toast(svc, ctx, err.refusal)
+    else:
+        await emit_launcher_error_toast(svc, ctx, err_code)
 
     # ``Result`` has no ``message`` field — its public surface is
     # ``success``, ``error``, ``error_code``, ``store``, and

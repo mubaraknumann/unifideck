@@ -62,3 +62,16 @@ class GameFailedError(LauncherError):
         merged.setdefault("subprocess_rc", subprocess_rc)
         super().__init__(message, context=merged)
         self.subprocess_rc = subprocess_rc
+
+
+class LicenceRefusedError(GameFailedError):
+    """The store's licence service refused the game; ``refusal`` is its code.
+
+    The game cannot run until the store lifts the refusal, so the user is told
+    the reason instead of a generic launch failure.
+    """
+
+    def __init__(self, message: str, *, refusal: str, subprocess_rc: int, context: dict[str, Any] | None = None) -> None:
+        """Initialize the instance."""
+        super().__init__(message, subprocess_rc=subprocess_rc, context={**(context or {}), "refusal": refusal})
+        self.refusal = refusal
