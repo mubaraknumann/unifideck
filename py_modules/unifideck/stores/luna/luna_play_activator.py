@@ -1,10 +1,9 @@
 """LunaPlayActivator: CDP play-trigger that clicks the title's play action,
 reaches the shared ``/player`` URL, and confirms the ``<video>`` is playing.
 
-Scaffolding stub — implemented by a later amazon-luna-streaming task. New;
-no xCloud analogue (Luna has no per-title deep link).
+New; no xCloud analogue (Luna has no per-title deep link).
 
-Implemented for task 7.3 (Req 5.3, 5.4, 5.5, 11.3). After the detail URL
+After the detail URL
 has loaded, :meth:`LunaPlayActivator.activate` triggers the title's play
 action over CDP within 15s, then confirms within 30s that the browser
 reached the shared ``/player`` URL and the ``<video>`` element is playing
