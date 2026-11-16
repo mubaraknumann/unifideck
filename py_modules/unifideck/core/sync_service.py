@@ -354,11 +354,8 @@ class SyncService(
         would silently drop the refresh. Routing through ``_enqueue``
         means the new library shows up the moment the current sync
         finishes.
-
-        Covers ``store`` alone. A sync of every store re-ran every other
-        store's fetch and artwork steps, so signing into one store made
-        all the other rows flip to Queued and back for nothing.
         """
+        # This store only: a full sync flipped every other row to Queued.
         return await self.sync_all(source=f"auth:{store}", stores=[store])
 
     def _on_post_sync_phase(self, **kwargs: Any) -> None:
