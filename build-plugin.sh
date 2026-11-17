@@ -1639,6 +1639,47 @@ _dev_release_delete() {
         "$api/git/refs/tags/$tag" >/dev/null 2>&1 || true
 }
 
+# Echo the newest real release tag (never a Dev-* prerelease), or nothing.
+# GitHub's /releases/latest is authoritative and skips prereleases; the local
+# Release-* tags are the fallback when the API is unreachable.
+_last_release_tag() {
+    local api="$1" token="$2" tag=""
+    tag=$(curl -sf -H "Authorization: Bearer $token" \
+            -H "Accept: application/vnd.github+json" \
+            "$api/releases/latest" 2>/dev/null \
+        | python3 -c 'import json,sys; print(json.load(sys.stdin).get("tag_name", ""))' \
+            2>/dev/null) || tag=""
+    if [ -z "$tag" ]; then
+        tag=$(git -C "$SCRIPT_DIR" tag --list 'Release-*' --sort=-v:refname \
+            2>/dev/null | head -1)
+    fi
+    printf '%s' "$tag"
+}
+
+# Echo a markdown list of the commits on HEAD since release tag $1, one
+# "- subject (sha)" line each, merges left out. A release is tagged on main
+# after its merge, so it is usually NOT an ancestor of the WIP branch: the
+# "tag..HEAD" range (commits HEAD has and the tag lacks) is what we want, not
+# git describe. Echoes nothing when the tag cannot be resolved.
+DEV_CHANGELOG_MAX=200
+_dev_release_changelog() {
+    local tag="$1"
+    [ -n "$tag" ] || return 0
+    if ! git -C "$SCRIPT_DIR" rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+        git -C "$SCRIPT_DIR" fetch --quiet origin \
+            "refs/tags/$tag:refs/tags/$tag" >/dev/null 2>&1 || return 0
+    fi
+    local lines total
+    lines=$(git -C "$SCRIPT_DIR" log --no-merges --format='- %s (%h)' \
+        "$tag..HEAD" 2>/dev/null) || return 0
+    [ -n "$lines" ] || return 0
+    total=$(printf '%s\n' "$lines" | wc -l)
+    printf '%s\n' "$lines" | head -n "$DEV_CHANGELOG_MAX"
+    if [ "$total" -gt "$DEV_CHANGELOG_MAX" ]; then
+        printf -- '- ...and %d more\n' "$((total - DEV_CHANGELOG_MAX))"
+    fi
+}
+
 publish_dev_release() {
     if [[ "$ENV_MODE" == "prod" ]]; then
         return 0
@@ -1722,10 +1763,21 @@ print(resolved)
         log_warn "  Push the branch first if you want an exact tag."
     fi
 
+    # What changed since the last real release, for testers. Optional: a
+    # missing tag or git failure just leaves the section out of the body.
+    local since_tag commits=""
+    since_tag=$(_last_release_tag "$api" "$token")
+    commits=$(_dev_release_changelog "$since_tag")
+    if [ -z "$commits" ]; then
+        log_warn "No commit list in the release body (last release not found)."
+    fi
+
     # Create the release up front, carrying the same body the rolling release
     # used to get via a separate PATCH after upload.
     local release_id
     release_id=$(GH_API="$api" GH_TOK="$token" GH_TAG="$tag" \
+            GH_SINCE_TAG="$since_tag" GH_COMMITS="$commits" \
+            GH_REPO="$GH_REPO_SLUG" \
             GH_TARGET="$target" GH_BUILD="$DEV_BUILD_ID" \
             GH_SHA="${GIT_SHA:-unknown}" GH_BR="${GIT_BRANCH:-unknown}" \
             GH_WHEN="$(date -u '+%Y-%m-%d %H:%M UTC')" python3 -c '
@@ -1737,6 +1789,16 @@ body = (
     "- Commit: `" + os.environ["GH_SHA"] + "` on branch `"
     + os.environ["GH_BR"] + "`\n"
     "- Built: " + os.environ["GH_WHEN"] + "\n\n"
+)
+commits = os.environ.get("GH_COMMITS", "").strip()
+if commits:
+    since = os.environ["GH_SINCE_TAG"]
+    body += (
+        "### Changes since " + since + "\n\n" + commits + "\n\n"
+        "[Full diff](https://github.com/" + os.environ["GH_REPO"]
+        + "/compare/" + since + "..." + os.environ["GH_TARGET"] + ")\n\n"
+    )
+body += (
     "Install from Unifideck settings → Check for Updates → pick this version."
 )
 payload = {
