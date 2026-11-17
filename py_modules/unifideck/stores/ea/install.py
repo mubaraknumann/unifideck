@@ -39,6 +39,10 @@ EXIT_WAIT_S = 60
 #: The CLI prints progress every second, also while it checks existing files.
 STALL_S = 300.0
 _REGISTRY_PREFIX = re.compile(r"^\[[^\]]*\]")
+#: The build's own manifest; its ``<runtime><launcher>`` entries name the game exe.
+BUILD_MANIFEST = "__Installer/installerdata.xml"
+_LAUNCHER = re.compile(r"<launcher\b[^>]*>(.*?)</launcher>", re.DOTALL | re.IGNORECASE)
+_ESCAPES = {"&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&apos;": "'"}
 
 
 def exe_relative_path(template: str | None) -> str | None:
@@ -77,11 +81,44 @@ def game_folder(base_path: str | None, slug: str) -> Path:
     return Path(base_path or "~/Games").expanduser() / "EA" / slug
 
 
+def _tag(block: str, name: str) -> str:
+    match = re.search(rf"<{name}\b[^>]*>(.*?)</{name}>", block, re.DOTALL | re.IGNORECASE)
+    if match is None:
+        return ""
+    return re.sub(r"&\w+;", lambda m: _ESCAPES.get(m.group(0), m.group(0)), match.group(1)).strip()
+
+
+def manifest_exe_template(folder: Path) -> str | None:
+    """The game exe template the downloaded build's manifest names, or None.
+
+    Some offers carry no path template in EA's catalogue; the build still
+    names its launcher. Trial and hidden launchers are skipped.
+    """
+    manifest = resolve_case_insensitive(folder, BUILD_MANIFEST)
+    if manifest is None:
+        return None
+    try:
+        text = manifest.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    for block in _LAUNCHER.findall(text):
+        if _tag(block, "trial") == "1" or _tag(block, "hidden") == "1":
+            continue
+        path = _tag(block, "filePath")
+        if exe_relative_path(path):
+            return path
+    return None
+
+
 def locate_exe(folder: Path, entry: dict[str, Any]) -> tuple[Path, str] | str:
-    """``(exe, path relative to folder)`` from the offer's templates, or why not."""
-    relative = exe_relative_path(entry.get("execute_path")) or exe_relative_path(entry.get("install_check"))
+    """``(exe, path relative to folder)`` from the offer's templates, else the build manifest, or why not."""
+    relative = (
+        exe_relative_path(entry.get("execute_path"))
+        or exe_relative_path(entry.get("install_check"))
+        or exe_relative_path(manifest_exe_template(folder))
+    )
     if relative is None:
-        return "no path from EA"
+        return "no game path in the EA offer or the build manifest"
     exe = resolve_case_insensitive(folder, relative)
     if exe is None:
         return relative
@@ -94,6 +131,7 @@ class _ProgressMapper:
     def __init__(self, tail: TailRingBuffer) -> None:
         self._tail = tail
         self.build: dict[str, Any] = {}
+        self.locale = ""
         self.done = False
         self._last: tuple[float, int] | None = None
 
@@ -106,6 +144,8 @@ class _ProgressMapper:
         kind = event.get("event")
         if kind == "build":
             self.build = event
+        elif kind == "locale":
+            self.locale = str(event.get("locale") or "")
         elif kind == "done":
             self.done = True
         if kind not in ("progress", "done") or progress_cb is None:
@@ -155,8 +195,13 @@ class EAInstaller:
 
     async def install(
         self, game_id: str, base_path: str | None, progress_cb: ProgressCallback,
+        language: str | None = None,
     ) -> InstallResult:
-        """Install ``game_id`` under ``<base_path>/EA/<slug>``."""
+        """Install ``game_id`` under ``<base_path>/EA/<slug>``.
+
+        ``language`` is the picked install language (``de-DE``); the CLI maps
+        it to the build's locale. None: the build's default.
+        """
         entry = await self._entry(game_id)
         if entry is None:
             return _failed(game_id, "ea_game_not_in_library")
@@ -165,7 +210,31 @@ class EAInstaller:
             if refused is not None:
                 return refused
         folder = game_folder(base_path, str(entry.get("slug") or game_id))
-        return await self._download(game_id, entry, folder, progress_cb)
+        return await self._download(game_id, entry, folder, progress_cb, language)
+
+    async def languages(self, game_id: str) -> list[str]:
+        """The install languages of the live build, as ``de-DE`` tags.
+
+        EA serves build details only for owned offers, so an EA Play game is
+        claimed first (the user has chosen to install it). Empty, so no picker
+        shows, when the languages share the same game files (only help and
+        EULA differ: the game picks its language itself), when the build lists
+        none, or when EA cannot be read. The install then takes the build's default.
+        """
+        entry = await self._entry(game_id)
+        if entry is None:
+            return []
+        if entry.get("claimable") and await self._claim(game_id, entry) is not None:
+            return []
+        try:
+            locales, split = await self._cli.build_locales(str(entry["offer_id"]))
+        except MaximaCliError as e:
+            logger.warning("%s could not read the languages of %s: %s", _LOG, game_id, e)
+            return []
+        if not split:
+            logger.info("%s %s: %d language(s) share the same game files, no picker", _LOG, game_id, len(locales))
+            return []
+        return [locale.replace("_", "-") for locale in locales]
 
     async def _claim(self, game_id: str, entry: dict[str, Any]) -> InstallResult | None:
         """Add an EA Play game to the account before its first download.
@@ -188,7 +257,9 @@ class EAInstaller:
         entry = await self._entry(game_id)
         if record is None or entry is None:
             return _failed(game_id, "ea_not_installed")
-        return await self._download(game_id, entry, Path(record.install_path), progress_cb)
+        return await self._download(
+            game_id, entry, Path(record.install_path), progress_cb, record.locale or None,
+        )
 
     async def live_build(self, game_id: str) -> str | None:
         """The build id EA serves now, or None when it cannot be read."""
@@ -225,9 +296,12 @@ class EAInstaller:
 
     async def _download(
         self, game_id: str, entry: dict[str, Any], folder: Path, progress_cb: ProgressCallback,
+        language: str | None = None,
     ) -> InstallResult:
         await asyncio.to_thread(lambda: folder.mkdir(parents=True, exist_ok=True))
         args = ["install", "--offer-id", str(entry["offer_id"]), "--path", str(folder)]
+        if language:
+            args += ["--locale", language]
         try:
             proc = await self._cli.spawn(args, merge_stderr=True)
         except MaximaCliError as e:
@@ -241,10 +315,11 @@ class EAInstaller:
         if drained.rc != 0 or not mapper.done:
             logger.error("%s %s failed (exit %s): %s", _LOG, game_id, drained.rc, drained.tail)
             return _failed(game_id, f"ea_install_failed: {drained.tail[-300:]}")
-        return await self._finish(game_id, entry, folder, mapper.build)
+        return await self._finish(game_id, entry, folder, mapper.build, mapper.locale)
 
     async def _finish(
         self, game_id: str, entry: dict[str, Any], folder: Path, build: dict[str, Any],
+        locale: str = "",
     ) -> InstallResult:
         located = await asyncio.to_thread(locate_exe, folder, entry)
         if isinstance(located, str):
@@ -258,6 +333,7 @@ class EAInstaller:
             exe=str(exe),
             build_id=str(build.get("build_id") or ""),
             version=str(build.get("version") or ""),
+            locale=locale,
         )
         await asyncio.to_thread(write_record, record)
         await write_manifest(
@@ -265,7 +341,7 @@ class EAInstaller:
             title=str(entry.get("name") or game_id),
             executable_relative=exe_relative, platform="windows",
         )
-        logger.info("%s %s installed at %s (%s)", _LOG, game_id, folder, record.version)
+        logger.info("%s %s installed at %s (%s, %s)", _LOG, game_id, folder, record.version, locale or "default locale")
         # ``exe_path`` is what the download worker writes to games.map; without it the
         # worker guesses, and picked a build's trial exe (which demands Origin).
         return InstallResult(

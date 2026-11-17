@@ -16,7 +16,7 @@
 import { describe, it, expect } from "vitest";
 import { pickDefaultLanguage } from "./pick-default-language";
 
-// Exactly what `get_epic_game_languages` reports for Hogwarts Legacy and
+// Exactly what `get_install_languages` reports (Epic) for Hogwarts Legacy and
 // Suicide Squad, in order, with the synthetic base entry first.
 const EPIC_SDL_OPTIONS = ["en", "de", "es-ES", "es-MX", "fr", "it", "ja", "pt-BR"];
 
@@ -48,6 +48,15 @@ describe("pickDefaultLanguage", () => {
     expect(pickDefaultLanguage(gog, "en-US")).toBe("English");
     expect(pickDefaultLanguage(gog, "de-DE")).toBe("Deutsch");
     expect(pickDefaultLanguage(gog, "th-TH")).toBe("English");
+  });
+
+  it("handles EA build locales, sent as region tags", () => {
+    // `get_install_languages` (EA): the build's `<locales>`, `_` → `-`.
+    const ea = ["en-US", "cs-CZ", "de-DE", "pl-PL", "zh-TW"];
+    expect(pickDefaultLanguage(ea, "en")).toBe("en-US");
+    expect(pickDefaultLanguage(ea, "de")).toBe("de-DE");
+    expect(pickDefaultLanguage(ea, "pl-PL")).toBe("pl-PL");
+    expect(pickDefaultLanguage(ea, "th-TH")).toBe("en-US");
   });
 
   it("uses the first option only when nothing matches at all", () => {

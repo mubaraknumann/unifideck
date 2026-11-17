@@ -41,6 +41,9 @@ class InstallRecord:
     #: Wine reports it as the Windows install date, an input of the machine
     #: fingerprint (``launcher/ea/fingerprint.py``). Empty until then.
     drive_c_mtime_ns: str = ""
+    #: The EA locale the build was installed in (``de_DE``), as ``maxima-cli
+    #: install`` reported it; Touchup is given the same. Empty: the build's default.
+    locale: str = ""
 
 
 _REQUIRED = ("game_id", "offer_id", "content_id", "install_path", "exe", "build_id", "version")

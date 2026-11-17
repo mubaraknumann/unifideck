@@ -21,6 +21,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from unifideck.core import stale_installs
+from unifideck.core.store_capabilities import LANGUAGE_PICKER_STORES
 from unifideck.launcher.wrapper_stores import (
     is_wrapper_store,
     uses_manual_download_phase,
@@ -281,11 +282,10 @@ class _WorkerMixin:
                 store,
                 progress_cb,
             )
-        # GOG and Epic honour a user-picked install language (GOG via
-        # gogdl's --lang, Epic via a legendary SDL install tag); the
-        # other stores don't accept the kwarg, so only pass it to those.
+        # Language-picker stores take the picked language (gogdl --lang, legendary
+        # SDL tag, maxima-cli --locale); the others don't accept the kwarg.
         extra: dict[str, Any] = {}
-        if item.store in ("gog", "epic") and item.language:
+        if item.store in LANGUAGE_PICKER_STORES and item.language:
             extra["language"] = item.language
             logger.info(
                 "[DownloadWorker] %s install language=%s",

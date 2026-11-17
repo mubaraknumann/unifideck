@@ -6,12 +6,14 @@
  * download is queued :
  *  - Storage picker: `pickStorageForInstall` always runs first
  *    so the user chooses where the game lands.
- *  - GOG / Epic: fetch the store's install languages, prompt the
+ *  - GOG / Epic / EA: fetch the store's install languages, prompt the
  *    user via `<LanguageSelectModal>` when more than one is
  *    offered. Epic only reports languages for legendary's
  *    Selective Downloads titles, where the language packs are
  *    separate downloads; everything else comes back empty and
- *    installs without a prompt.
+ *    installs without a prompt. EA reports the build's locales
+ *    (claiming an EA Play game first, as EA serves build details
+ *    only for owned games).
  *  - A game paid for but not yet claimed (an itch.io bundle game, tag
  *    `claim_required`): the claim page opens first
  *    (`services/store/claim-flow.tsx`). Also run when `install_game`
@@ -65,27 +67,17 @@ interface SteamBridgeShape {
 }
 
 /** Languages response from `get_gog_game_languages` /
- *  `get_epic_game_languages`. GOG returns raw locale codes and the
- *  modal maps them to display labels; Epic's SDL configs carry their
- *  own names, so it also sends `labels`. */
+ *  `get_install_languages`. Locale codes the modal maps to display
+ *  labels; a store whose options carry their own names (Epic's SDL
+ *  configs) also sends `labels`. */
 interface LanguagesResponse {
   success: boolean;
   languages: string[];
   labels?: Record<string, string>;
+  /** With one option or none, install in the UI language rather than the
+   *  store's default (EA: Touchup writes it for the game). */
+  follow_ui?: boolean;
 }
-
-/** Which RPC reports a store's language list.
- *
- *  *Whether* a store has one is the backend's `has_language_picker`
- *  capability, not a list here — this map only records which of the two
- *  routes to call, which the payload does not carry. It used to double as
- *  the gate, making it a second copy of a per-store policy (audit register
- *  items 26/31). Keys must stay a subset of the capability set;
- *  `tests/unit/test_store_capabilities.py` pins the backend half. */
-const LANGUAGE_ROUTE: Record<string, "gog" | "epic" | undefined> = {
-  gog: "gog",
-  epic: "epic",
-};
 
 /**
  * Bundle returned by {@link useInstallFlow} — `start(game)`
@@ -107,8 +99,8 @@ export function useInstallFlow(bridge: SteamBridgeShape): UseInstallFlowResult {
   const getGogLangs = useRPC<[string], LanguagesResponse>(
     rpcRoutes.getGogGameLanguages,
   );
-  const getEpicLangs = useRPC<[string], LanguagesResponse>(
-    rpcRoutes.getEpicGameLanguages,
+  const getStoreLangs = useRPC<[string, string], LanguagesResponse>(
+    rpcRoutes.getInstallLanguages,
   );
   const getStorageLocations = useRPC<[], StorageLocationsResponse>(
     rpcRoutes.getStorageLocations,
@@ -212,12 +204,13 @@ export function useInstallFlow(bridge: SteamBridgeShape): UseInstallFlowResult {
           customPath ?? "none",
         );
 
-        const fetchLangs =
+        // Whether a store has a picker is the backend's
+        // `has_language_picker` capability, never a list here. GOG keeps
+        // its own route; every other picker store answers the generic one.
+        const hasPicker =
           !isXboxPcRow(game) &&
-          storeHasCapability(game.store, "has_language_picker")
-            ? LANGUAGE_ROUTE[game.store]
-            : undefined;
-        if (!fetchLangs) {
+          storeHasCapability(game.store, "has_language_picker");
+        if (!hasPicker) {
           console.log(
             "[useInstallFlow] installing %s/%s with storage=%s",
             game.store,
@@ -226,13 +219,15 @@ export function useInstallFlow(bridge: SteamBridgeShape): UseInstallFlowResult {
           );
           return await install({ storage });
         }
-        const langs = await (fetchLangs === "gog"
+        const langs = await (game.store === "gog"
           ? getGogLangs(game.store_game_id)
-          : getEpicLangs(game.store_game_id)
+          : getStoreLangs(game.store, game.store_game_id)
         ).catch(() => null);
         const list = langs?.languages ?? [];
         if (list.length <= 1) {
-          return await install({ language: list[0], storage });
+          const language =
+            list[0] ?? (langs?.follow_ui ? i18n.language : undefined);
+          return await install({ language, storage });
         }
         const language = await pickLanguageViaModal(
           game.title,
@@ -248,7 +243,7 @@ export function useInstallFlow(bridge: SteamBridgeShape): UseInstallFlowResult {
     [
       actions,
       getGogLangs,
-      getEpicLangs,
+      getStoreLangs,
       getStorageLocations,
       locations,
       defaultLocation,

@@ -183,6 +183,16 @@ class MaximaCli:
         build = live.get("buildId") if isinstance(live, dict) else None
         return str(build) if build else None
 
+    async def build_locales(self, offer_id: str) -> tuple[list[str], bool]:
+        """EA locales (``en_US``, ...) the live build offers, from its manifest alone (``unifideck-locale``).
+
+        The flag: whether the languages differ in game files, not only in help and EULA.
+        """
+        value = await self._json(["build-locales", "--offer-id", offer_id], LIBRARY_TIMEOUT_S)
+        locales = value.get("locales")
+        found = [str(x) for x in locales if x] if isinstance(locales, list) else []
+        return found, value.get("split") is True
+
     async def build_size(self, offer_id: str) -> int | None:
         """Installed bytes of EA's live build, read from its archive index."""
         value = await self._json(["build-size", "--offer-id", offer_id], LIBRARY_TIMEOUT_S)

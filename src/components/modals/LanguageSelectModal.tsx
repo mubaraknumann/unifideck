@@ -4,8 +4,8 @@
  *
  * Games can ship their languages as separate downloads. When the
  * backend's `get_gog_game_languages` (GOG) or
- * `get_epic_game_languages` (Epic Selective Downloads titles)
- * returns more than one option, the install flow defers to this
+ * `get_install_languages` (Epic Selective Downloads titles, EA
+ * builds) returns more than one option, the install flow defers to this
  * modal so the user picks before the download is queued. With one
  * language available the modal is skipped entirely (queued with
  * the default).

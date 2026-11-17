@@ -179,7 +179,7 @@ The `Plugin` class in `main.py` is composed from the RPC mixin classes enumerate
 | -------------------------- | ------------------------------------------------------------------------------- |
 | `StoreRPCMixin`            | `check_store_status`, `get_store_infos`, `store_auth`, `connect_gamevault`, `connect_gamevault_local`, `clear_store_auths` |
 | `SyncRPCMixin`             | `sync_libraries`, `force_sync_libraries`, `get_game_info`, `get_sync_progress`   |
-| `DownloadRPCMixin`         | `install_game`, `uninstall_game`, `update_game`, `cancel_download`, `get_download_queue`, `get_available_updates` |
+| `DownloadRPCMixin`         | `install_game`, `uninstall_game`, `update_game`, `cancel_download`, `get_download_queue`, `get_available_updates`, `get_gog_game_languages`, `get_install_languages` (install-language picker; Epic and EA through the store's `get_install_language_options`) |
 | `StorageRPCMixin`          | `get_storage_locations`, `get_browseable_devices`, `set_custom_install_path`    |
 | `LaunchRPCMixin`           | `notify_game_launched`, `notify_game_stopped`, `get_launch_failures`, `get_battlenet_launch_choices`, `set_battlenet_launch_choice` |
 | `AuthShortcutsRPCMixin`    | `get_<store>_auth_shortcut_context`, `get_compat_tool_for_game`                  |

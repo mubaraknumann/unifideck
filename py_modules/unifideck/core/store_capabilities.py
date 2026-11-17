@@ -47,9 +47,11 @@ ACHIEVEMENT_STORES = frozenset({"gog", "epic", "microsoft", "ea"})
 #: strategy that does not exist is worse than no set at all.
 CLOUD_SAVE_STORES = frozenset({"gog", "epic", "ea"})
 
-#: Stores that expose a per-game language list at install time, i.e. those
-#: with a ``get_<store>_game_languages`` RPC.
-LANGUAGE_PICKER_STORES = frozenset({"gog", "epic"})
+#: Stores that expose a per-game language list at install time: GOG through
+#: ``get_gog_game_languages``, the others through ``get_install_languages``
+#: (their store's ``get_install_language_options``). The download worker
+#: passes the picked language only to these.
+LANGUAGE_PICKER_STORES = frozenset({"gog", "epic", "ea"})
 
 #: Stores whose storefront opens in the embedded browser rather than in a
 #: vendor client running inside a Wine prefix. The complement of

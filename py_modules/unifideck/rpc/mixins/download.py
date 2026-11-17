@@ -29,6 +29,7 @@ from typing import Any
 
 from unifideck.core import marker_sweep
 from unifideck.core.safe_delete import delete_game_prefix
+from unifideck.core.store_capabilities import LANGUAGE_PICKER_STORES
 from unifideck.core.types import Result
 from unifideck.core.types.identifiers import (
     InvalidIdentifierError,
@@ -383,33 +384,32 @@ class DownloadRPCMixin:
             logger.exception("[download] get_gog_game_languages(%s) failed", game_id)
             return {"success": False, "error": str(e), "languages": ["en-US"]}
 
-    async def get_epic_game_languages(self, game_id: str) -> Any:
-        """Return the install languages available for an Epic game.
+    async def get_install_languages(self, store: str, game_id: str) -> Any:
+        """Return the install languages a store offers for one game.
 
-        Drives the same language-select modal as GOG. Non-empty only for
-        legendary's Selective Downloads titles (Fallout 3 GOTY, Hogwarts
-        Legacy, Cyberpunk 2077, …), where the optional language packs are
-        separate downloads; every other Epic title returns an empty list
-        and the frontend skips the picker.
-
-        ``languages`` are legendary's own SDL option keys and ``labels``
-        maps each to legendary's display name, which is richer than the
-        bare locale codes GOG reports. Fails open to an empty list — a
-        lookup failure must never block an install, since the backend
-        falls back to installing the base game only.
+        Drives the language-select modal (``useInstallFlow``) for every store
+        whose ``get_install_language_options`` returns ``{code: label}``:
+        Epic (legendary's Selective Downloads titles, the language packs are
+        separate downloads) and EA (the build's locales, read from its
+        manifest; claims an EA Play game first). An empty label leaves the
+        name to the modal. ``follow_ui``: with one option or none, install in
+        the UI language rather than the store's default (a store whose empty
+        list means "base game only", like Epic, leaves it False). Fails open
+        to an empty list: a lookup failure must never block an install.
         """
         try:
-            store = self.registry.get_store("epic")
-            if store is None:
-                return {"success": False, "error": "store_not_found", "languages": []}
-            options = await store.get_install_language_options(game_id)
+            target = self.registry.get_store(store) if store in LANGUAGE_PICKER_STORES else None
+            if target is None or not hasattr(target, "get_install_language_options"):
+                return {"success": False, "error": "no_language_options", "languages": []}
+            options = await target.get_install_language_options(game_id)
             return {
                 "success": True,
                 "languages": list(options.keys()),
-                "labels": options,
+                "labels": {code: label for code, label in options.items() if label},
+                "follow_ui": getattr(target, "install_language_follows_ui", False) is True,
             }
         except Exception as e:
-            logger.exception("[download] get_epic_game_languages(%s) failed", game_id)
+            logger.exception("[download] get_install_languages(%s, %s) failed", store, game_id)
             return {"success": False, "error": str(e), "languages": []}
 
     async def cancel_download(self, store: str, game_id: str) -> Any:

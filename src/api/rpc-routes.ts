@@ -79,7 +79,7 @@ export const rpcRoutes = {
   getGameMetadataDisplay: "get_game_metadata_display",
   getStorageLocations: "get_storage_locations",
   getGogGameLanguages: "get_gog_game_languages",
-  getEpicGameLanguages: "get_epic_game_languages",
+  getInstallLanguages: "get_install_languages",
   getProtondbCache: "get_protondb_cache",
   // Library facets — per-shortcut enrichment for native Sort/Filters
   // + shortcut-keyed Great-on-Deck compat (LibraryFacetsRPCMixin)

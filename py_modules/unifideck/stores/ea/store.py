@@ -126,8 +126,19 @@ class EAStore(BrowserAuthRebuildMixin, StoreBase):
         self, game_id: str, base_path: str | None = None,
         progress_cb: ProgressCallback = None, **kwargs: Any,
     ) -> InstallResult:
-        """Download ``game_id``; Touchup follows at the prefix warmup."""
-        return await self._installer.install(game_id, base_path, progress_cb)
+        """Download ``game_id`` in the picked ``language``; Touchup follows at the prefix warmup."""
+        return await self._installer.install(game_id, base_path, progress_cb, kwargs.get("language"))
+
+    #: With no picker shown, the install still gets the UI language: EA's
+    #: Touchup writes it for the game (``get_install_languages``).
+    install_language_follows_ui = True
+
+    async def get_install_language_options(self, game_id: str) -> dict[str, str]:
+        """``{tag: ""}`` install-language choices (``de-DE``); the picker labels them.
+
+        Claims an EA Play game first: EA serves build details only for owned offers.
+        """
+        return dict.fromkeys(await self._installer.languages(game_id), "")
 
     async def uninstall_game(self, game_id: str, **kwargs: Any) -> Result:
         """Delete the game folder.

@@ -95,18 +95,32 @@ def test_achievement_set_matches_the_stores_defining_the_method() -> None:
 
 
 def test_language_picker_set_matches_the_exposed_rpcs() -> None:
-    """One ``get_<store>_game_languages`` RPC per listed store."""
+    """Each listed store answers a language RPC: GOG its own, the others
+    ``get_install_languages`` through their store's ``get_install_language_options``."""
+    import importlib
+    import pkgutil
+
+    import unifideck.stores as stores_pkg
     from unifideck.rpc.mixins.download import DownloadRPCMixin
+    from unifideck.stores.shared.store_base import StoreBase
+
+    for module in pkgutil.walk_packages(stores_pkg.__path__, "unifideck.stores."):
+        if module.name.endswith(("store", "_store")) and ".shared." not in module.name:
+            importlib.import_module(module.name)
+    classes = {cls.store_info.name: cls for cls in StoreBase.__subclasses__()}
+    assert {"gog", "epic", "ea"} <= set(classes)
 
     exposed = {
         store
         for store in ALL_STORES
         if hasattr(DownloadRPCMixin, f"get_{store}_game_languages")
+        or hasattr(classes.get(store), "get_install_language_options")
     }
     assert exposed == set(LANGUAGE_PICKER_STORES), (
         f"LANGUAGE_PICKER_STORES={sorted(LANGUAGE_PICKER_STORES)} but the "
         f"exposed RPCs cover {sorted(exposed)}"
     )
+    assert hasattr(DownloadRPCMixin, "get_install_languages")
 
 
 def test_browser_and_wrapper_storefronts_do_not_overlap() -> None:
