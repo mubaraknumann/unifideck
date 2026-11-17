@@ -18,6 +18,7 @@ from pathlib import Path
 
 from . import xml_lite
 from .errors import XboxPcLaunchError
+from .package_identity import PackageNames, package_names
 from .xml_lite import Element
 
 logger = logging.getLogger(__name__)
@@ -65,6 +66,8 @@ class GameInfo:
     #: An Xbox back-compat package: ``executable`` is the emulator its
     #: EmuMenu launcher names, not the manifest's executable (I-081).
     backcompat: bool = False
+    #: The Windows package names from ``<Identity>``, or None (I-085).
+    package: PackageNames | None = None
 
     @property
     def exe_name(self) -> str:
@@ -184,16 +187,27 @@ def _anticheat_dir(
     return None
 
 
-def _identity(nodes: list[Element], root: Path) -> tuple[str, str | None, str | None]:
-    """``(display title, StoreId, hex TitleId)`` from the manifest."""
+@dataclass(frozen=True)
+class _Identity:
+    """Who the manifest says the game is."""
+
+    title: str
+    store_id: str | None
+    title_id: str | None
+    package: PackageNames | None
+
+
+def _identity(nodes: list[Element], root: Path) -> _Identity:
+    """Display title, StoreId, hex TitleId and package names from the manifest."""
     visuals = _first(nodes, "ShellVisuals")
     store_node = _first(nodes, "StoreId")
     title_id = _text(_first(nodes, "TitleId"))
     title = (visuals.get("DefaultDisplayName") if visuals is not None else None) or root.name
-    return (
-        title,
-        _text(store_node) if store_node is not None else None,
-        title_id if _HEX_RE.fullmatch(title_id) else None,
+    return _Identity(
+        title=title,
+        store_id=_text(store_node) if store_node is not None else None,
+        title_id=title_id if _HEX_RE.fullmatch(title_id) else None,
+        package=_package(nodes, _architecture(nodes)),
     )
 
 
@@ -270,6 +284,14 @@ def _architecture(nodes: list[Element]) -> str | None:
     return _text(_first(nodes, "ProcessorArchitecture")).lower() or None
 
 
+def _package(nodes: list[Element], architecture: str | None) -> PackageNames | None:
+    """The package names ``<Identity>`` gives, or None."""
+    node = _first(nodes, "Identity")
+    if node is None:
+        return None
+    return package_names(node.get("Name"), node.get("Publisher"), node.get("Version"), architecture)
+
+
 def _parse_manifest(root: Path) -> list[Element]:
     """Every node of the folder's manifest. Raises ``not_downloaded``."""
     config = find_ci(root, MANIFEST_NAME)
@@ -304,15 +326,15 @@ def inspect_game(directory: Path) -> GameInfo:
     """
     root = directory.resolve()
     nodes = _parse_manifest(root)
-    title, store_id, title_id = _identity(nodes, root)
+    identity = _identity(nodes, root)
     executable, backcompat = _launch_executable(nodes, root)
     needs_vc, vc_encrypted = _vc_facts(nodes, root)
     return GameInfo(
         path=root,
-        title=title,
+        title=identity.title,
         executable=executable,
-        store_id=store_id,
-        title_id=title_id,
+        store_id=identity.store_id,
+        title_id=identity.title_id,
         locales=_locales(nodes),
         vc_redist_encrypted=vc_encrypted,
         eac=_anticheat_dir(root, executable, _EAC_DIRS, _EAC_MARKERS),
@@ -321,4 +343,5 @@ def inspect_game(directory: Path) -> GameInfo:
         battleye=_anticheat_dir(root, executable, _BATTLEYE_DIRS, _BATTLEYE_MARKERS),
         needs_vc_runtime=needs_vc,
         backcompat=backcompat,
+        package=identity.package,
     )
