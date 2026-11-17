@@ -22,6 +22,7 @@ import { FC, useState } from "react";
 import { Focusable } from "@decky/ui";
 import { useGameInfo } from "../../hooks/useGameInfo";
 import { useGameMetadata } from "../../hooks/useGameMetadata";
+import { useDlcLink } from "../../hooks/useDlcLink";
 import { useViewMode } from "../../hooks/useViewMode";
 import { GameInfoCompatRow } from "./GameInfoCompatRow";
 import { GameInfoInfoRow } from "./GameInfoInfoRow";
@@ -58,6 +59,7 @@ const PANEL_FOCUS_CSS = `
 export const GameInfoPanel: FC<Props> = ({ appId }) => {
   const { data: game } = useGameInfo(appId);
   const { data: meta } = useGameMetadata(appId);
+  const dlcAction = useDlcLink(game);
   const { mode } = useViewMode();
   const [synopsisOpen, setSynopsisOpen] = useState(false);
 
@@ -96,7 +98,7 @@ export const GameInfoPanel: FC<Props> = ({ appId }) => {
         {synopsisOpen && meta.description && (
           <GameInfoSynopsisSection description={meta.description} />
         )}
-        <GameInfoNavButtons meta={meta} />
+        <GameInfoNavButtons meta={meta} dlcAction={dlcAction} />
       </Focusable>
     </>
   );

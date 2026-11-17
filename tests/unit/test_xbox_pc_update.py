@@ -309,9 +309,43 @@ async def test_a_running_download_gets_the_last_answer(env: dict[str, Any]) -> N
     cli = FakeCli(env["tmp"])
     cli.backend_error = AssertionError("must not be called")
     updates = XboxPcUpdates(FakeXboxPc(), cli)
-    updates._last = [PID]
+    updates._newer = [PID]
     async with cli.credential_lock:
         assert await updates.check_installed() == [PID]
+
+
+def _with_dlc(state: str) -> None:
+    record = read_install_record(PID)
+    assert record is not None
+    record["dlc"] = {"9N77PDNB7CWZ": {"state": state}}
+    write_install_record(record)
+
+
+@pytest.mark.parametrize(("state", "listed"), [
+    ("selected", True), ("partial", True), ("failed", True), ("installed", False), ("declined", False),
+])
+async def test_a_game_waiting_for_chosen_dlc_has_an_update(
+    env: dict[str, Any], state: str, listed: bool,
+) -> None:
+    _installed(env["root"])
+    _with_dlc(state)
+    cli = FakeCli(env["tmp"])
+    cli.backend_error = AssertionError("must not be called")
+    async with cli.credential_lock:  # no service: the DLC part is read from the record
+        assert await XboxPcUpdates(FakeXboxPc(), cli).check_installed() == ([PID] if listed else [])
+
+
+async def test_a_recent_service_answer_is_reused(env: dict[str, Any]) -> None:
+    _installed(env["root"])
+    cli = FakeCli(env["tmp"])
+    cli.backend_error = AssertionError("must not be called")
+    now = [1000.0]
+    updates = XboxPcUpdates(FakeXboxPc(), cli, clock=lambda: now[0])
+    updates._newer, updates._asked_at = [OTHER], 999.0
+    assert await updates.check_installed() == [OTHER]
+    assert updates.has_base_update(OTHER, {"state": "installed"})
+    assert not updates.has_base_update(PID, {"state": "installed"})
+    assert updates.has_base_update(PID, {"state": "updating"})
 
 
 async def test_a_failed_session_reports_nothing(

@@ -92,6 +92,19 @@ const XBOX_PC_CODE_KEYS: ReadonlyArray<readonly [RegExp, string]> = [
     "errors.download.xboxPcGameRunning",
   ],
   [/^xbox_install_in_progress$/, "errors.download.lockConflict"],
+  // DLC (an Install or Update job's DLC step, or the game page's DLC list).
+  // A failed DLC stays chosen, so Play stays Update until it downloads.
+  [
+    /^xbox_dlc_failed$|^xbox_dlc_incomplete$/,
+    "errors.download.xboxPcDlcFailed",
+  ],
+  [
+    /^xbox_dlc_unavailable$|^xbox_dlc_choice$/,
+    "errors.download.xboxPcDlcUnavailable",
+  ],
+  [/^xbox_dlc_remove_failed$/, "errors.download.xboxPcDlcRemoveFailed"],
+  [/^xbox_dlc_nothing_pending$/, "errors.download.xboxPcDlcNothingPending"],
+  [/^xbox_dlc_unknown$/, "errors.download.xboxPcDlcUnknown"],
   // The folder's drive (an SD card, a USB drive) is not mounted. The record
   // is kept, so the game is found again once the drive is back.
   [/^xbox_install_unreachable$/, "errors.download.xboxPcDriveMissing"],
@@ -288,6 +301,14 @@ const TOAST_KEYS: Readonly<Record<string, ToastKey>> = {
     "toasts.downloadError.xboxPcDriveMissing",
   "errors.download.xboxPcFilesystem": "toasts.downloadError.xboxPcFilesystem",
   "errors.download.xboxPcGameRunning": "toasts.downloadError.xboxPcGameRunning",
+  "errors.download.xboxPcDlcFailed": "toasts.downloadError.xboxPcDlcFailed",
+  "errors.download.xboxPcDlcUnavailable":
+    "toasts.downloadError.xboxPcDlcUnavailable",
+  "errors.download.xboxPcDlcRemoveFailed":
+    "toasts.downloadError.xboxPcDlcRemoveFailed",
+  "errors.download.xboxPcDlcNothingPending":
+    "toasts.downloadError.xboxPcDlcNothingPending",
+  "errors.download.xboxPcDlcUnknown": "toasts.downloadError.xboxPcDlcUnknown",
   "errors.download.xboxPcIncomplete": "toasts.downloadError.xboxPcIncomplete",
   "errors.download.xboxPcLicenseDenied":
     "toasts.downloadError.xboxPcLicenseDenied",

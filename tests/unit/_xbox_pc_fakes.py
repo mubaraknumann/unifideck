@@ -185,6 +185,7 @@ class FakeCli:
         self.make_proc = make_proc or (lambda: FakeProc(FakeStdout(happy_stdout())))
         self.on_spawn = on_spawn or write_game
         self.spawned: list[tuple[str, str, str, str]] = []
+        self.resolved: list[tuple[str, bool]] = []
         self.backend_error: Exception | None = None
         self.service = tmp / "xodus-service"
 
@@ -197,10 +198,13 @@ class FakeCli:
             raise self.backend_error
         return type("Paths", (), {"service": self.service, "cli": self.service})()
 
-    async def resolve_package(self, pid: str, market: str) -> dict[str, Any]:
-        if isinstance(self.resolve, Exception):
-            raise self.resolve
-        return self.resolve
+    async def resolve_package(self, pid: str, market: str, include_dlc: bool = False) -> dict[str, Any]:
+        """``resolve`` itself, or ``resolve(pid, include_dlc)`` when it is callable."""
+        self.resolved.append((pid, include_dlc))
+        answer = self.resolve(pid, include_dlc) if callable(self.resolve) else self.resolve
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
 
     async def spawn_streaming(self, pid: str, dest: str, market: str, content_id: str,
                               active: Any = None) -> Any:

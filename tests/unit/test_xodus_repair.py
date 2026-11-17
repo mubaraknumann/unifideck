@@ -52,6 +52,11 @@ def test_not_downloaded_toast_carries_the_repair() -> None:
     assert toast_action("not_installed", PID) is None
 
 
+def test_dlc_pending_toast_carries_the_dlc_install() -> None:
+    assert toast_action("dlc_pending", PID) == {"verb": "install-xbox-pc-dlc", "args": [PID]}
+    assert toast_action("dlc_pending") is None
+
+
 class _Facade:
     def __init__(self, target: dict[str, Any]) -> None:
         self.target = target

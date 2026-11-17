@@ -342,7 +342,12 @@
       "xboxPcUnsupportedPlan": "方案不支援",
       "xboxPcUnsupportedPackage": "UWP 不支援",
       "xboxPcUpdatePending": "請先完成更新",
-      "xboxRefused": "Xbox 拒絕了請求"
+      "xboxRefused": "Xbox 拒絕了請求",
+      "xboxPcDlcFailed": "DLC 下載失敗",
+      "xboxPcDlcUnavailable": "無 PC 版 DLC",
+      "xboxPcDlcRemoveFailed": "未能刪除",
+      "xboxPcDlcNothingPending": "無需下載",
+      "xboxPcDlcUnknown": "無法讀取 DLC"
     },
     "downloadQueued": "已加入佇列",
     "edgeInstallFailed": "安裝失敗",
@@ -455,6 +460,7 @@
       "xboxPcLaunchFailed": "無法啟動",
       "xboxPcLicenseDenied": "沒有授權",
       "xboxPcNotDownloaded": "正在取得檔案…",
+      "xboxPcDlcPending": "正在取得 DLC…",
       "xboxPcNotInstalled": "尚未安裝",
       "xboxPcPrefixFailed": "Prefix 建立失敗",
       "xboxPcRestartLoop": "重複重新啟動",
@@ -646,7 +652,12 @@
       "xboxPcComponentsBusy": "Xbox PC 元件正在更新。請一分鐘後再試一次。",
       "xboxPcBackendFailed": "Xodus 因錯誤而停止。請再試一次，如果仍然失敗，請收集記錄。",
       "uninstallRefused": "該資料夾中還有另一個遊戲，因此未將其刪除。",
-      "uninstallIncomplete": "部分遊戲檔案無法刪除。"
+      "uninstallIncomplete": "部分遊戲檔案無法刪除。",
+      "xboxPcDlcFailed": "部分 DLC 未能下載。按「更新」重試，或在遊戲的 DLC 頁面取消勾選，即可在沒有它們的情況下遊玩。",
+      "xboxPcDlcUnavailable": "此 DLC 沒有適用於該遊戲的 PC 安裝包。",
+      "xboxPcDlcRemoveFailed": "無法刪除該 DLC 的檔案。請關閉遊戲後重試。",
+      "xboxPcDlcNothingPending": "該遊戲沒有等待下載的 DLC。",
+      "xboxPcDlcUnknown": "無法讀取該遊戲的 DLC。請檢查網路連線，然後重新開啟遊戲頁面。"
     },
     "unknown": "未知錯誤",
     "steamAppsUnavailable": "SteamClient.Apps API 不可用"
@@ -1340,5 +1351,28 @@
       "needsChoice": "此遊戲有多個套件可供選擇。暫不支援選擇套件。",
       "unavailable": "無法安裝此遊戲的 PC 版本。"
     }
+  },
+  "dlcModal": {
+    "title": "DLC",
+    "description": {
+      "install": "{{title}} 有較大的 DLC。請選擇要隨遊戲一起下載的內容。",
+      "manage": "你擁有的 {{title}} DLC。已勾選的會被安裝。新勾選的會在按「更新」時下載。"
+    },
+    "chooseAtInstall": "你擁有的 {{title}} DLC。",
+    "install": "安裝",
+    "save": "儲存",
+    "sizeUnknown": "大小未知",
+    "total": "已選：{{size}}",
+    "smallIncluded": "隨遊戲一起下載的小型 DLC：{{count}}",
+    "state": {
+      "not_installed": "未安裝",
+      "selected": "更新時下載",
+      "partial": "部分已下載",
+      "installed": "已安裝",
+      "failed": "下載失敗"
+    },
+    "totalDownload": "總下載量：{{size}}",
+    "breakdown": "遊戲 {{game}} + DLC {{addons}}",
+    "addonsOnly": "DLC {{addons}}（遊戲大小未知）"
   }
 }

@@ -15,14 +15,25 @@ always reported, so the Update button stays until the update finishes.
 A product the service could not answer for is logged with its stage and
 left out. That costs the user only a missing Update badge until the next
 sweep.
+
+A game with chosen DLC that is not installed (``dlc_records.pending_dlc``)
+is reported too: the game must not start without it, so Play turns into
+Update and the Update job downloads it. That part is read from the
+records alone, and a check within ``NETWORK_REUSE_S`` of the last service
+answer reuses that answer, so ticking a DLC shows Update at once.
+:meth:`XboxPcUpdates.has_base_update` tells the Update job whether the
+game itself needs streaming or only its DLC.
 """
 from __future__ import annotations
 
 import asyncio
 import logging
+import time
+from collections.abc import Callable
 from typing import Any
 
 from unifideck.launcher.xbox_pc.component_locks import components_in_use
+from unifideck.launcher.xbox_pc.dlc_records import pending_dlc
 from unifideck.launcher.xbox_pc.install_records import list_install_records
 from unifideck.launcher.xbox_pc.layout import PID_RE
 
@@ -37,6 +48,8 @@ logger = logging.getLogger(__name__)
 
 #: The whole check must end inside the sweep's 300 s per-store budget.
 CHECK_BUDGET_S = 240.0
+#: A check this soon after the last service answer reuses it.
+NETWORK_REUSE_S = 600.0
 
 
 def _installed_records() -> list[dict[str, Any]]:
@@ -58,11 +71,21 @@ def _checkable(records: list[dict[str, Any]]) -> list[tuple[str, str]]:
 class XboxPcUpdates:
     """The update check of installed Xbox PC games."""
 
-    def __init__(self, xbox_pc: steps.XboxPcLike, cli: steps.XodusCliLike) -> None:
+    def __init__(
+        self, xbox_pc: steps.XboxPcLike, cli: steps.XodusCliLike,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
         """Keep the facade and the CLI adapter."""
         self._xbox_pc = xbox_pc
         self._cli = cli
-        self._last: list[str] = []
+        self._clock = clock
+        #: ``store_game_id`` of the games the service last said are newer.
+        self._newer: list[str] = []
+        self._asked_at: float | None = None
+
+    def has_base_update(self, game_id: str, record: dict[str, Any]) -> bool:
+        """Whether the game itself needs streaming (not only its DLC)."""
+        return record.get("state") == "updating" or game_id in self._newer
 
     async def check_installed(self) -> list[str]:
         """``store_game_id`` of every game with an update. Never raises except on cancel."""
@@ -70,21 +93,29 @@ class XboxPcUpdates:
             return []
         records = await asyncio.to_thread(_installed_records)
         if not records:
-            self._last = []
+            self._newer = []
             return []
-        names = {str(r["productId"]): store_game_id(r) for r in records}
-        pending = sorted(store_game_id(r) for r in records if r.get("state") == "updating")
+        local = {store_game_id(r) for r in records
+                 if r.get("state") == "updating" or pending_dlc(r)}
+        return sorted(set(await self._service_answer(records)) | local)
+
+    async def _service_answer(self, records: list[dict[str, Any]]) -> list[str]:
+        """The games the service says are newer, asked again only when due."""
+        recent = self._asked_at is not None and self._clock() - self._asked_at < NETWORK_REUSE_S
+        if recent:
+            return self._newer
         if self._cli.credential_lock.locked() or await asyncio.to_thread(components_in_use):
             logger.info("[xbox_updates] a download or a game holds the sign-in; using the last answer")
-            return sorted(set(self._last) | set(pending))
-        newer: list[str]
+            return self._newer
+        names = {str(r["productId"]): store_game_id(r) for r in records}
         try:
             newer = await asyncio.wait_for(self._ask(_checkable(records)), CHECK_BUDGET_S)
         except TimeoutError:
             logger.warning("[xbox_updates] the update check ran out of time")
             newer = []
-        self._last = sorted({names[pid] for pid in newer} | set(pending))
-        return self._last
+        self._newer = sorted(names[pid] for pid in newer)
+        self._asked_at = self._clock()
+        return self._newer
 
     async def _ask(self, games: list[tuple[str, str]]) -> list[str]:
         """Start one service session and query every game."""

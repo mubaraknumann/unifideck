@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveNativeAction } from "./native-action";
+import { resolveNativeAction, withInstallBusy } from "./native-action";
 import { DisplayStatus } from "./overview-proxy";
 import type { PlaySectionState } from "../../../hooks/resolvePlaySection";
 import type { DownloadItem } from "../../../types/downloads";
@@ -102,5 +102,25 @@ describe("resolveNativeAction", () => {
       status: DisplayStatus.InstallUnavailable,
       intent: { kind: "none" },
     });
+  });
+});
+
+describe("withInstallBusy", () => {
+  const install = {
+    status: DisplayStatus.Install,
+    intent: { kind: "install" as const },
+  };
+  it("greys out Install while the install flow runs", () => {
+    expect(withInstallBusy(install, true)).toEqual({
+      status: DisplayStatus.InstallUnavailable,
+      intent: { kind: "none" },
+    });
+  });
+  it("leaves Install alone otherwise", () => {
+    expect(withInstallBusy(install, false)).toBe(install);
+  });
+  it("never touches Play or Update", () => {
+    const play = { status: DisplayStatus.Play, intent: { kind: "play" as const } };
+    expect(withInstallBusy(play, true)).toBe(play);
   });
 });

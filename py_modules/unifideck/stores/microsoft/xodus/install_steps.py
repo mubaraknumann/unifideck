@@ -87,7 +87,9 @@ class XodusCliLike(Protocol):
     async def backend(self) -> Any:
         """The verified backend paths. Raises ``XodusCliError``."""
 
-    async def resolve_package(self, pid: str, market: str) -> dict[str, Any]:
+    async def resolve_package(
+        self, pid: str, market: str, include_dlc: bool = False,
+    ) -> dict[str, Any]:
         """``resolve-package`` JSON. Raises ``XodusCliError``."""
 
     async def spawn_streaming(

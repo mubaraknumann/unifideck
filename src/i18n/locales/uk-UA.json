@@ -342,7 +342,12 @@
       "xboxPcUnsupportedPlan": "Тариф не працює",
       "xboxPcUnsupportedPackage": "UWP не працює",
       "xboxPcUpdatePending": "Спершу оновіть",
-      "xboxRefused": "Xbox відмовив"
+      "xboxRefused": "Xbox відмовив",
+      "xboxPcDlcFailed": "Помилка DLC",
+      "xboxPcDlcUnavailable": "Немає DLC для ПК",
+      "xboxPcDlcRemoveFailed": "Не видалено",
+      "xboxPcDlcNothingPending": "Нічого качати",
+      "xboxPcDlcUnknown": "DLC невідомі"
     },
     "downloadQueued": "Додано в чергу",
     "edgeInstallFailed": "Не встановлено",
@@ -455,6 +460,7 @@
       "xboxPcLaunchFailed": "Не запустилась",
       "xboxPcLicenseDenied": "Немає ліцензії",
       "xboxPcNotDownloaded": "Докачуємо файли…",
+      "xboxPcDlcPending": "Качаємо DLC…",
       "xboxPcNotInstalled": "Не встановлено",
       "xboxPcPrefixFailed": "Помилка префікса",
       "xboxPcRestartLoop": "Рестарт по колу",
@@ -646,7 +652,12 @@
       "xboxPcComponentsBusy": "Компоненти Xbox PC оновлюються. Повторіть спробу за хвилину.",
       "xboxPcBackendFailed": "Xodus завершився з помилкою. Повторіть спробу, а якщо помилка повторюється, зберіть журнали.",
       "uninstallRefused": "У папці є ще одна гра, тому її не було видалено.",
-      "uninstallIncomplete": "Не вдалося видалити деякі файли гри."
+      "uninstallIncomplete": "Не вдалося видалити деякі файли гри.",
+      "xboxPcDlcFailed": "Частину DLC не завантажено. Натисніть «Оновити», щоб повторити, або зніміть позначку на сторінці DLC гри, щоб грати без них.",
+      "xboxPcDlcUnavailable": "Це DLC не має пакета для ПК для цієї гри.",
+      "xboxPcDlcRemoveFailed": "Не вдалося видалити файли DLC. Закрийте гру й спробуйте ще раз.",
+      "xboxPcDlcNothingPending": "Для цієї гри немає DLC, що чекають на завантаження.",
+      "xboxPcDlcUnknown": "Не вдалося прочитати DLC гри. Перевірте з'єднання й відкрийте сторінку гри знову."
     },
     "unknown": "Невідома помилка",
     "steamAppsUnavailable": "API SteamClient.Apps недоступне"
@@ -1340,5 +1351,28 @@
       "needsChoice": "Ця гра має кілька пакетів на вибір. Вибір пакета поки що не підтримується.",
       "unavailable": "Версію цієї гри для ПК встановити не можна."
     }
+  },
+  "dlcModal": {
+    "title": "DLC",
+    "description": {
+      "install": "{{title}} має великі DLC. Виберіть, які завантажити разом із грою.",
+      "manage": "Ваші DLC для {{title}}. Позначені встановлено. Щойно позначене завантажиться, коли ви натиснете «Оновити»."
+    },
+    "chooseAtInstall": "Ваші DLC для {{title}}.",
+    "install": "Встановити",
+    "save": "Зберегти",
+    "sizeUnknown": "Розмір невідомий",
+    "total": "Вибрано: {{size}}",
+    "smallIncluded": "Невеликі DLC, що завантажуються разом із грою: {{count}}",
+    "state": {
+      "not_installed": "Не встановлено",
+      "selected": "Завантажиться під час оновлення",
+      "partial": "Завантажено частково",
+      "installed": "Встановлено",
+      "failed": "Помилка завантаження"
+    },
+    "totalDownload": "Усього завантажити: {{size}}",
+    "breakdown": "Гра {{game}} + DLC {{addons}}",
+    "addonsOnly": "DLC {{addons}} (розмір гри невідомий)"
   }
 }

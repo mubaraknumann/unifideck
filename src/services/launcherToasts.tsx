@@ -22,6 +22,7 @@ import { CloudSaveConflictModal } from "../components/modals/CloudSaveConflictMo
 import { isConflictAction } from "./toast-action";
 import { showStageToast } from "./stage-toast";
 import { REPAIR_VERB, repairXboxPcGame } from "./store/xbox-pc-repair";
+import { DLC_VERB, installXboxPcDlc } from "./store/xbox-pc-dlc";
 import type { ToastActionPayload } from "../types/events";
 
 const POLL_INTERVAL_MS = 2000;
@@ -114,6 +115,11 @@ function showLauncherToast(ev: LauncherToast): void {
   // toast below still says what is happening.
   if (ev.action?.verb === REPAIR_VERB && ev.action.args?.[0]) {
     void repairXboxPcGame(ev.action.args[0]);
+  }
+  // Play on an Xbox PC game whose chosen DLC is missing (a start that
+  // bypassed the Update button): download the DLC now, as a queue row.
+  if (ev.action?.verb === DLC_VERB && ev.action.args?.[0]) {
+    void installXboxPcDlc(ev.action.args[0]);
   }
 
   showStageToast(ev);

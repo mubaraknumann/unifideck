@@ -238,6 +238,8 @@ elif sys.argv[1] == "resolve-package":
     assert profile.gamertag == "Gamer" and profile.has_picture is False
     plan = await cli.resolve_package(PID, "IN")
     assert plan["args"] == [PID, "--json", "--market", "IN"]
+    plan = await cli.resolve_package(PID, "IN", include_dlc=True)
+    assert plan["args"] == [PID, "--json", "--market", "IN", "--include-dlc"]
 
 
 async def test_spawn_streaming_keeps_stderr_apart(tmp_path: Path) -> None:

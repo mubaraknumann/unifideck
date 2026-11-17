@@ -164,6 +164,36 @@ export interface XboxPcInfo {
   end_date: string | null;
 }
 
+/** One owned DLC of an Xbox PC game: an entry of ``get_xbox_pc_dlc``.
+ *
+ *  ``large`` DLC (over 1 GiB, or of unknown size) is offered in the install
+ *  picker; the rest always installs with the game. ``state`` is the install
+ *  record's (``not_installed`` before install or when never chosen).
+ *  ``chosen`` is whether it is, or will be, installed. */
+export interface XboxPcDlc {
+  product_id: string;
+  parent: string;
+  title: string;
+  size_bytes: number | null;
+  large: boolean;
+  state:
+    | "not_installed"
+    | "selected"
+    | "partial"
+    | "installed"
+    | "failed"
+    | "declined";
+  chosen: boolean;
+}
+
+/** ``get_xbox_pc_dlc``: the game page's DLC list. ``applicable`` is false
+ *  for a game that is not Xbox PC or whose DLC cannot be read. */
+export interface XboxPcDlcList {
+  applicable: boolean;
+  installed: boolean;
+  dlc: XboxPcDlc[];
+}
+
 export type XboxPcRuntimeState =
   | "missing"
   | "installing"

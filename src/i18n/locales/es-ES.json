@@ -342,7 +342,12 @@
       "xboxPcUnsupportedPlan": "Plan no admitido",
       "xboxPcUnsupportedPackage": "UWP no admitido",
       "xboxPcUpdatePending": "Falta actualizar",
-      "xboxRefused": "Xbox lo rechaza"
+      "xboxRefused": "Xbox lo rechaza",
+      "xboxPcDlcFailed": "Fallo de DLC",
+      "xboxPcDlcUnavailable": "Sin DLC para PC",
+      "xboxPcDlcRemoveFailed": "No se quitó",
+      "xboxPcDlcNothingPending": "Nada pendiente",
+      "xboxPcDlcUnknown": "DLC no leídos"
     },
     "downloadQueued": "En cola",
     "edgeInstallFailed": "No se instaló",
@@ -455,6 +460,7 @@
       "xboxPcLaunchFailed": "No arrancó",
       "xboxPcLicenseDenied": "Sin licencia",
       "xboxPcNotDownloaded": "Descargando…",
+      "xboxPcDlcPending": "Descargando DLC…",
       "xboxPcNotInstalled": "No instalado",
       "xboxPcPrefixFailed": "Error de prefijo",
       "xboxPcRestartLoop": "Bucle sin fin",
@@ -646,7 +652,12 @@
       "xboxPcComponentsBusy": "Se están actualizando los componentes de Xbox PC. Inténtalo de nuevo dentro de un minuto.",
       "xboxPcBackendFailed": "Xodus se detuvo con un error. Inténtalo de nuevo y captura los registros si sigue fallando.",
       "uninstallRefused": "La carpeta también contiene otro juego, así que no se ha eliminado.",
-      "uninstallIncomplete": "No se pudieron eliminar algunos archivos del juego."
+      "uninstallIncomplete": "No se pudieron eliminar algunos archivos del juego.",
+      "xboxPcDlcFailed": "Algunos DLC no se descargaron. Pulsa Actualizar para reintentarlo o desmárcalos en la página de DLC del juego para jugar sin ellos.",
+      "xboxPcDlcUnavailable": "Este DLC no tiene paquete de PC para este juego.",
+      "xboxPcDlcRemoveFailed": "No se pudieron quitar los archivos del DLC. Cierra el juego e inténtalo de nuevo.",
+      "xboxPcDlcNothingPending": "No hay DLC pendientes de descarga para este juego.",
+      "xboxPcDlcUnknown": "No se pudieron leer los DLC del juego. Comprueba la conexión y vuelve a abrir la página del juego."
     },
     "unknown": "Error desconocido",
     "steamAppsUnavailable": "API SteamClient.Apps no disponible"
@@ -1340,5 +1351,28 @@
       "needsChoice": "Este título tiene varios paquetes entre los que elegir. Aún no se puede elegir uno.",
       "unavailable": "La versión para PC de este título no se puede instalar."
     }
+  },
+  "dlcModal": {
+    "title": "DLC",
+    "description": {
+      "install": "{{title}} tiene DLC grandes. Elige cuáles descargar con el juego.",
+      "manage": "DLC que tienes de {{title}}. Los marcados se instalan. Uno recién marcado se descarga al pulsar Actualizar."
+    },
+    "chooseAtInstall": "DLC que tienes de {{title}}.",
+    "install": "Instalar",
+    "save": "Guardar",
+    "sizeUnknown": "Tamaño desconocido",
+    "total": "Seleccionado: {{size}}",
+    "smallIncluded": "DLC pequeños que se descargan con el juego: {{count}}",
+    "state": {
+      "not_installed": "No instalado",
+      "selected": "Se descarga al actualizar",
+      "partial": "Descarga parcial",
+      "installed": "Instalado",
+      "failed": "Error de descarga"
+    },
+    "totalDownload": "Descarga total: {{size}}",
+    "breakdown": "Juego {{game}} + DLC {{addons}}",
+    "addonsOnly": "DLC {{addons}} (tamaño del juego desconocido)"
   }
 }

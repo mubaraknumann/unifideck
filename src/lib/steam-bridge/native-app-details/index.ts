@@ -44,6 +44,7 @@ export {
 } from "./overview-proxy";
 export {
   resolveNativeAction,
+  withInstallBusy,
   type NativeAction,
   type NativeIntent,
 } from "./native-action";

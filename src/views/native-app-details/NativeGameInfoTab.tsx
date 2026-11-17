@@ -19,7 +19,11 @@ import {
   getNativeClasses,
 } from "../../lib/steam-bridge/native-app-details";
 import { GameAchievementsSummary } from "../../components/info/GameAchievementsSummary";
-import { gameLinks, openUrl } from "../../components/info/GameInfoNavButtons";
+import {
+  activateLink,
+  gameLinks,
+} from "../../components/info/GameInfoNavButtons";
+import { useDlcLink } from "../../hooks/useDlcLink";
 import { NativeGameInfoAbout } from "./NativeGameInfoAbout";
 import { HeaderLatchNudge } from "./HeaderLatchNudge";
 import { NativeCollections } from "./NativeCollections";
@@ -30,7 +34,10 @@ interface Props {
   overview: object;
 }
 
-const QuickLinks: FC<{ meta: GameMetadata }> = ({ meta }) => {
+const QuickLinks: FC<{ meta: GameMetadata; dlcAction?: () => void }> = ({
+  meta,
+  dlcAction,
+}) => {
   const { t } = useTranslation();
   const { details, links } = getNativeClasses();
   return (
@@ -39,12 +46,12 @@ const QuickLinks: FC<{ meta: GameMetadata }> = ({ meta }) => {
       flow-children="row"
       style={{ display: "flex", flexWrap: "wrap", gap: 8 }}
     >
-      {gameLinks(meta).map((link) => (
+      {gameLinks(meta, dlcAction).map((link) => (
         <Focusable
           key={link.key}
           className={links.Anchor}
-          onActivate={() => openUrl(link.url)}
-          onClick={() => openUrl(link.url)}
+          onActivate={() => activateLink(link)}
+          onClick={() => activateLink(link)}
         >
           <div className={links.Link}>
             <span className={links.Text}>
@@ -60,6 +67,7 @@ const QuickLinks: FC<{ meta: GameMetadata }> = ({ meta }) => {
 export const NativeGameInfoTab: FC<Props> = ({ appId, overview }) => {
   const { data: game } = useGameInfo(appId);
   const { data: meta } = useGameMetadata(appId);
+  const dlcAction = useDlcLink(game);
   const ready = !!game && !!meta;
 
   const { details } = getNativeClasses();
@@ -82,7 +90,7 @@ export const NativeGameInfoTab: FC<Props> = ({ appId, overview }) => {
             gameId={game.id}
             title={game.title}
           />
-          <QuickLinks meta={meta} />
+          <QuickLinks meta={meta} dlcAction={dlcAction} />
           <NativeCollections appId={appId} />
         </Focusable>
       )}

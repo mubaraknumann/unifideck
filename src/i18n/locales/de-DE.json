@@ -342,7 +342,12 @@
       "xboxPcUnsupportedPlan": "Abo ungeeignet",
       "xboxPcUnsupportedPackage": "UWP ungeeignet",
       "xboxPcUpdatePending": "Update beenden",
-      "xboxRefused": "Xbox lehnt ab"
+      "xboxRefused": "Xbox lehnt ab",
+      "xboxPcDlcFailed": "Add-on-Fehler",
+      "xboxPcDlcUnavailable": "Kein PC-Add-on",
+      "xboxPcDlcRemoveFailed": "Nicht entfernt",
+      "xboxPcDlcNothingPending": "Nichts zu laden",
+      "xboxPcDlcUnknown": "Add-ons unklar"
     },
     "downloadQueued": "In Warteschlange",
     "edgeInstallFailed": "Setup misslang",
@@ -455,6 +460,7 @@
       "xboxPcLaunchFailed": "Start misslungen",
       "xboxPcLicenseDenied": "Keine Lizenz",
       "xboxPcNotDownloaded": "Lade Dateien…",
+      "xboxPcDlcPending": "Lade Add-ons…",
       "xboxPcNotInstalled": "Nicht vorhanden",
       "xboxPcPrefixFailed": "Prefix-Fehler",
       "xboxPcRestartLoop": "Neustartschleife",
@@ -646,7 +652,12 @@
       "xboxPcComponentsBusy": "Die Xbox-PC-Komponenten werden gerade aktualisiert. Versuche es in einer Minute erneut.",
       "xboxPcBackendFailed": "Xodus wurde mit einem Fehler beendet. Versuche es erneut und erfasse die Protokolle, wenn es weiterhin fehlschlägt.",
       "uninstallRefused": "Der Ordner enthält noch ein anderes Spiel, daher wurde er nicht gelöscht.",
-      "uninstallIncomplete": "Einige Dateien des Spiels konnten nicht gelöscht werden."
+      "uninstallIncomplete": "Einige Dateien des Spiels konnten nicht gelöscht werden.",
+      "xboxPcDlcFailed": "Einige Add-ons wurden nicht heruntergeladen. Drücke „Aktualisieren“, um es erneut zu versuchen, oder wähle sie auf der DLC-Seite des Spiels ab, um ohne sie zu spielen.",
+      "xboxPcDlcUnavailable": "Für dieses Add-on gibt es kein PC-Paket für dieses Spiel.",
+      "xboxPcDlcRemoveFailed": "Die Dateien des Add-ons konnten nicht entfernt werden. Schließe das Spiel und versuche es erneut.",
+      "xboxPcDlcNothingPending": "Für dieses Spiel warten keine Add-ons auf den Download.",
+      "xboxPcDlcUnknown": "Die Add-ons des Spiels konnten nicht gelesen werden. Prüfe die Verbindung und öffne die Spielseite erneut."
     },
     "unknown": "Unbekannter Fehler",
     "steamAppsUnavailable": "SteamClient.Apps API nicht verfügbar"
@@ -1340,5 +1351,28 @@
       "needsChoice": "Für diesen Titel stehen mehrere Pakete zur Auswahl. Die Auswahl eines Pakets wird noch nicht unterstützt.",
       "unavailable": "Die PC-Version dieses Titels kann nicht installiert werden."
     }
+  },
+  "dlcModal": {
+    "title": "Add-ons",
+    "description": {
+      "install": "{{title}} hat große Add-ons. Wähle, welche mit dem Spiel heruntergeladen werden.",
+      "manage": "Deine Add-ons für {{title}}. Angehakte sind installiert. Ein neu angehaktes wird geladen, wenn du „Aktualisieren“ drückst."
+    },
+    "chooseAtInstall": "Deine Add-ons für {{title}}.",
+    "install": "Installieren",
+    "save": "Speichern",
+    "sizeUnknown": "Größe unbekannt",
+    "total": "Ausgewählt: {{size}}",
+    "smallIncluded": "Kleine Add-ons, die mit dem Spiel geladen werden: {{count}}",
+    "state": {
+      "not_installed": "Nicht installiert",
+      "selected": "Lädt beim Aktualisieren",
+      "partial": "Teilweise geladen",
+      "installed": "Installiert",
+      "failed": "Download fehlgeschlagen"
+    },
+    "totalDownload": "Gesamter Download: {{size}}",
+    "breakdown": "Spiel {{game}} + Add-ons {{addons}}",
+    "addonsOnly": "Add-ons {{addons}} (Spielgröße unbekannt)"
   }
 }

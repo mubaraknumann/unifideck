@@ -175,7 +175,7 @@ def test_offline_licences_come_only_from_a_verified_manifest_patch_list(root: Pa
     assert paths is not None and not paths.offline_licences
     manifest = active.backend_dir / "manifest.json"
     data = json.loads(manifest.read_bytes())
-    data["patches"] = ["xodus-linux-run.patch", backend.OFFLINE_LICENCE_PATCH]
+    data["patches"] = ["xodus-linux-run.patch", "unifideck-offline-play.patch"]
     raw = json.dumps(data).encode()
     manifest.write_bytes(raw)
     upgraded = dataclasses.replace(active, manifest_sha256=hashlib.sha256(raw).hexdigest())
@@ -183,6 +183,14 @@ def test_offline_licences_come_only_from_a_verified_manifest_patch_list(root: Pa
     assert paths is not None and paths.offline_licences
     # The same list under the old manifest hash is a tampered manifest.
     assert backend.check_backend(active) == (None, "backend_tampered")
+
+
+def test_build_repo_patches_match_by_name_whatever_their_prefix() -> None:
+    # Released backends list the same patches under an older prefix.
+    for listed in ("unifideck-offline-play.patch", "legacy-offline-play.patch"):
+        assert backend.has_patch(frozenset({listed}), backend.OFFLINE_LICENCE_PATCH)
+    assert not backend.has_patch(frozenset({"xodus-offline-play-extra.patch"}), backend.OFFLINE_LICENCE_PATCH)
+    assert not backend.has_patch(frozenset(), backend.SEALED_CREDENTIALS_PATCH)
 
 
 def test_tampered_binary_is_refused(root: Path) -> None:

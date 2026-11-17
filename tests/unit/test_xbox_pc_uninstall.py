@@ -169,6 +169,11 @@ async def test_store_hooks_uninstall_needs_nothing_but_the_bus(env: dict[str, An
         def __getattr__(self, name: str) -> Any:
             raise AssertionError(f"uninstall touched {name}")
 
-    hooks = XboxPcStoreHooks(FakeBus(), _Unusable(), _Unusable(), lambda _pid: None)  # type: ignore[arg-type]
+    hooks = XboxPcStoreHooks(FakeBus(), _Unusable(), _Unusable(), lambda _pid: None, _no_dlc)  # type: ignore[arg-type]
     assert (await hooks.uninstall(PID)).success
     assert not env["root"].exists()
+
+
+async def _no_dlc(_game_id: str) -> list[object]:
+    """The owned-DLC lookup of a game with none."""
+    return []

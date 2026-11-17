@@ -342,7 +342,12 @@
       "xboxPcUnsupportedPlan": "اشتراك غير مدعوم",
       "xboxPcUnsupportedPackage": "UWP غير مدعوم",
       "xboxPcUpdatePending": "أكمل التحديث",
-      "xboxRefused": "رفض Xbox الطلب"
+      "xboxRefused": "رفض Xbox الطلب",
+      "xboxPcDlcFailed": "فشلت الإضافة",
+      "xboxPcDlcUnavailable": "لا إضافة للحاسوب",
+      "xboxPcDlcRemoveFailed": "لم تتم الإزالة",
+      "xboxPcDlcNothingPending": "لا شيء للتنزيل",
+      "xboxPcDlcUnknown": "الإضافات مجهولة"
     },
     "downloadQueued": "أُضيف للانتظار",
     "edgeInstallFailed": "فشل التثبيت",
@@ -455,6 +460,7 @@
       "xboxPcLaunchFailed": "تعذّر البدء",
       "xboxPcLicenseDenied": "لا ترخيص",
       "xboxPcNotDownloaded": "جارٍ جلب الملفات…",
+      "xboxPcDlcPending": "جلب الإضافات…",
       "xboxPcNotInstalled": "غير مثبتة",
       "xboxPcPrefixFailed": "فشلت البادئة",
       "xboxPcRestartLoop": "تكرار التشغيل",
@@ -646,7 +652,12 @@
       "xboxPcComponentsBusy": "يجري تحديث مكونات Xbox PC. حاول مرة أخرى بعد دقيقة.",
       "xboxPcBackendFailed": "توقف Xodus بسبب خطأ. حاول مرة أخرى، واجمع السجلات إذا استمر الفشل.",
       "uninstallRefused": "يحتوي المجلد أيضاً على لعبة أخرى، لذا لم يتم حذفه.",
-      "uninstallIncomplete": "تعذر حذف بعض ملفات اللعبة."
+      "uninstallIncomplete": "تعذر حذف بعض ملفات اللعبة.",
+      "xboxPcDlcFailed": "لم يتم تنزيل بعض الإضافات. اضغط تحديث للمحاولة مرة أخرى، أو ألغِ تحديدها في صفحة المحتوى الإضافي للعبة لتلعب بدونها.",
+      "xboxPcDlcUnavailable": "لا توجد حزمة حاسوب لهذه الإضافة في هذه اللعبة.",
+      "xboxPcDlcRemoveFailed": "تعذرت إزالة ملفات الإضافة. أغلق اللعبة وحاول مرة أخرى.",
+      "xboxPcDlcNothingPending": "لا توجد إضافات بانتظار التنزيل لهذه اللعبة.",
+      "xboxPcDlcUnknown": "تعذرت قراءة إضافات اللعبة. تحقق من الاتصال وافتح صفحة اللعبة مرة أخرى."
     },
     "unknown": "خطأ غير معروف",
     "steamAppsUnavailable": "واجهة برمجة تطبيقات SteamClient.Apps غير متوفرة"
@@ -1340,5 +1351,28 @@
       "needsChoice": "لهذا العنوان عدة حزم للاختيار من بينها. اختيار إحداها غير مدعوم بعد.",
       "unavailable": "لا يمكن تثبيت إصدار الكمبيوتر من هذا العنوان."
     }
+  },
+  "dlcModal": {
+    "title": "الإضافات",
+    "description": {
+      "install": "تحتوي {{title}} على إضافات كبيرة. اختر ما تريد تنزيله مع اللعبة.",
+      "manage": "الإضافات التي تملكها لـ {{title}}. المحددة مثبتة. الإضافة المحددة حديثًا تُنزَّل عند الضغط على تحديث."
+    },
+    "chooseAtInstall": "الإضافات التي تملكها لـ {{title}}.",
+    "install": "تثبيت",
+    "save": "حفظ",
+    "sizeUnknown": "الحجم غير معروف",
+    "total": "المحدد: {{size}}",
+    "smallIncluded": "الإضافات الصغيرة التي تُنزَّل مع اللعبة: {{count}}",
+    "state": {
+      "not_installed": "غير مثبتة",
+      "selected": "يُنزَّل عند التحديث",
+      "partial": "منزّلة جزئيًا",
+      "installed": "مثبتة",
+      "failed": "فشل التنزيل"
+    },
+    "totalDownload": "إجمالي التنزيل: {{size}}",
+    "breakdown": "اللعبة {{game}} + الإضافات {{addons}}",
+    "addonsOnly": "الإضافات {{addons}} (حجم اللعبة غير معروف)"
   }
 }

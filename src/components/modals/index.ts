@@ -7,6 +7,7 @@
  *  - UninstallConfirmModal    (delete confirmation)
  *  - CloudSaveConflictModal   (cloud save resolution)
  *  - LanguageSelectModal      (multi-language installs: GOG, Epic)
+ *  - DlcSelectModal           (Xbox PC DLC: install picker and the DLC button)
  *  - GameVaultConnectModal    (remote server vs local vault chooser)
  *  - GameVaultLocalVaultModal (local vault folder setup)
  *  - ForceSyncModal           (force-sync artwork picker)
@@ -23,6 +24,7 @@ export { SteamRestartModal } from "./SteamRestartModal";
 export { UninstallConfirmModal } from "./UninstallConfirmModal";
 export { CloudSaveConflictModal } from "./CloudSaveConflictModal";
 export { LanguageSelectModal } from "./LanguageSelectModal";
+export { DlcSelectModal } from "./DlcSelectModal";
 export { GameVaultConnectModal } from "./GameVaultConnectModal";
 export { GameVaultCredentialsModal } from "./GameVaultCredentialsModal";
 export { GameVaultLocalVaultModal } from "./GameVaultLocalVaultModal";

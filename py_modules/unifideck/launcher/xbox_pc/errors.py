@@ -40,6 +40,7 @@ REASON_TOAST_KEYS: dict[str, str] = {
     "steam_root_missing": _PREFIX + "xboxPcSteamRootMissing",
     "sign_in_required": _PREFIX + "xboxPcSignInRequired",
     "not_downloaded": _PREFIX + "xboxPcNotDownloaded",
+    "dlc_pending": _PREFIX + "xboxPcDlcPending",
     "market_unknown": LAUNCH_FAILED_KEY,
     "already_running": _PREFIX + "xboxPcAlreadyRunning",
     "prefix_failed": _PREFIX + "xboxPcPrefixFailed",
@@ -99,6 +100,8 @@ def toast_key(reason: str) -> str:
 
 #: The verb that makes the frontend queue a repair of the game at once.
 REPAIR_VERB = "repair-xbox-pc"
+#: The verb that makes the frontend queue the game's pending DLC at once.
+DLC_VERB = "install-xbox-pc-dlc"
 
 
 def toast_action(reason: str, game_id: str = "") -> dict[str, Any] | None:
@@ -106,10 +109,14 @@ def toast_action(reason: str, game_id: str = "") -> dict[str, Any] | None:
 
     ``not_downloaded`` carries ``repair-xbox-pc``: the frontend queues a
     repair as soon as it sees the toast, so Play on a game with missing
-    files downloads them (no tap needed).
+    files downloads them (no tap needed). ``dlc_pending`` carries
+    ``install-xbox-pc-dlc`` the same way, for a start that bypassed the
+    game page's Update button (Steam's recents, a ``steam://`` link).
     """
     if reason == "not_downloaded" and game_id:
         return {"verb": REPAIR_VERB, "args": [game_id]}
+    if reason == "dlc_pending" and game_id:
+        return {"verb": DLC_VERB, "args": [game_id]}
     appid = _REASON_STEAM_TOOLS.get(reason)
     if appid is None:
         return None

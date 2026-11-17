@@ -18,6 +18,8 @@ import type { GameMetadata, StoreId } from "../../types/api";
 
 interface Props {
   meta: GameMetadata;
+  /** Opens the Xbox PC DLC list (`useDlcLink`); absent for other games. */
+  dlcAction?: () => void;
 }
 
 const SUPPORT_URLS: Record<string, string> = {
@@ -49,15 +51,31 @@ export interface GameLink {
   key: string;
   /** i18n key under `gameInfoPanel.buttons`. */
   labelKey: string;
-  url: string;
+  /** Opened on press, unless the link has an `action`. */
+  url?: string;
+  /** Run on press instead of opening a URL (the Xbox PC DLC button). */
+  action?: () => void;
+}
+
+/** Press a link: its action, else its URL. */
+export function activateLink(link: GameLink): void {
+  if (link.action) link.action();
+  else if (link.url) openUrl(link.url);
 }
 
 /**
  * The links for a game, in display order. Steam-hosted ones only when the
  * shortcut maps to a real Steam Store page (they 404 otherwise). Shared by
  * this row and the native Game info tab.
+ *
+ * `dlcAction` (an Xbox PC game with owned DLC, `useDlcLink`) makes the DLC
+ * button open our DLC list instead of Steam's store page, and shows it
+ * whether or not a Steam page exists.
  */
-export function gameLinks(meta: GameMetadata): GameLink[] {
+export function gameLinks(
+  meta: GameMetadata,
+  dlcAction?: () => void,
+): GameLink[] {
   const steamId = meta.steam_app_id;
   const hasSteam = meta.has_steam_store_page && steamId > 0;
   const storePageUrl = hasSteam ? `steam://store/${steamId}` : meta.store_url;
@@ -65,15 +83,20 @@ export function gameLinks(meta: GameMetadata): GameLink[] {
   if (storePageUrl) {
     links.push({ key: "store", labelKey: "storePage", url: storePageUrl });
   }
+  if (dlcAction) {
+    links.push({ key: "dlc", labelKey: "dlc", action: dlcAction });
+  }
   if (hasSteam) {
     const store = "https://store.steampowered.com";
     const community = "https://steamcommunity.com/app";
-    links.push(
-      {
+    if (!dlcAction) {
+      links.push({
         key: "dlc",
         labelKey: "dlc",
         url: `steam://openurl/${store}/dlc/${steamId}`,
-      },
+      });
+    }
+    links.push(
       {
         key: "hub",
         labelKey: "communityHub",
@@ -114,7 +137,7 @@ const buttonStyle = {
   alignItems: "center",
 } as const;
 
-export const GameInfoNavButtons: FC<Props> = ({ meta }) => {
+export const GameInfoNavButtons: FC<Props> = ({ meta, dlcAction }) => {
   const { t } = useTranslation();
   return (
     // "grid", not "row": these buttons `flex-wrap` onto several visual lines,
@@ -137,12 +160,12 @@ export const GameInfoNavButtons: FC<Props> = ({ meta }) => {
         alignItems: "center",
       }}
     >
-      {gameLinks(meta).map((link) => (
+      {gameLinks(meta, dlcAction).map((link) => (
         <DialogButton
           key={link.key}
           className="unifideck-nav-button"
           style={buttonStyle}
-          onClick={() => openUrl(link.url)}
+          onClick={() => activateLink(link)}
         >
           {t(`gameInfoPanel.buttons.${link.labelKey}`)}
         </DialogButton>

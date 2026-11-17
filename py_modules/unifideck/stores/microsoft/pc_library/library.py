@@ -41,8 +41,10 @@ from unifideck.stores.shared.install_status import merge_install_status
 from unifideck.stores.shared.installed_path import install_path_from_record
 from unifideck.utils.locale import get_unifideck_locale
 
+from .entitlement_cache import EntitlementCache
 from .entitlements import EntitlementSnapshot, EnvelopeError, access_of, parse_library_output
 from .installed import InstalledState, is_verified, load_installed
+from .owned_dlc import OwnedDlc
 from .package_plan import FetchDetailed, fetch_plan_products
 from .rows import (
     META_KEY,
@@ -147,6 +149,13 @@ class XboxPcLibrary:
         self._snapshot = XboxPcSnapshot(cache)
         self._by_sgid: dict[str, dict[str, Any]] = {}
         self._stale = True
+        #: Every parsed ``library`` answer, the sync's and on-demand ones.
+        self._ent = EntitlementCache(
+            cli, self._snapshot, enabled=xbox_pc.enabled, resolve_market=self.resolve_market,
+            check_account=self._check_account, clock=clock, monotonic=monotonic,
+        )
+        #: Owned DLC per game, on demand (the game page and the install).
+        self.owned_dlc = OwnedDlc(self, fetch=fetch_products)
 
     # ── market ───────────────────────────────────────────────────────────
     def fallback_market(self) -> str:
@@ -267,6 +276,7 @@ class XboxPcLibrary:
             logger.warning("[XboxPcLibrary] unusable Xbox PC list answer: %s", e.code)
             return _kept(LIST_KEPT)
         await self._check_account(snap)
+        self._ent.remember(snap)
         summaries, unknown_roots = await self._plans_for(snap, market, deadline)
         titles, unknown = classify(snap, summaries, unknown_roots, self._clock())
         return self._judge(snap, titles, unknown)
@@ -363,6 +373,24 @@ class XboxPcLibrary:
         self._by_sgid = by_sgid
         if ids != self._snapshot.ids():
             self._snapshot.update(ids=ids)
+
+    # ── entitlements on demand (the DLC list) ───────────────────────────
+    async def entitlements(
+        self, market: str | None, *, max_age_s: float, force: bool = False,
+    ) -> EntitlementSnapshot | None:
+        """``EntitlementCache.entitlements``."""
+        return await self._ent.entitlements(market, max_age_s=max_age_s, force=force)
+
+    async def owned_ids(
+        self, market: str | None, *, max_age_s: float, force: bool = False,
+    ) -> list[str] | None:
+        """``EntitlementCache.owned_ids``: never waits when anything is known."""
+        return await self._ent.owned_ids(market, max_age_s=max_age_s, force=force)
+
+    def known_kinds(self, market: str) -> dict[str, str]:
+        """``ProductType`` per product id from the cached plan summaries."""
+        plans = self._snapshot.plans(market, self._clock())
+        return {pid: str(s.get("kind") or "") for pid, s in plans.items() if isinstance(s, dict)}
 
     # ── queries ──────────────────────────────────────────────────────────
     def title_for(self, store_game_id: str) -> dict[str, Any] | None:

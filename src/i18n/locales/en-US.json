@@ -342,7 +342,12 @@
       "xboxPcUnsupportedPlan": "Plan unsupported",
       "xboxPcUnsupportedPackage": "UWP unsupported",
       "xboxPcUpdatePending": "Finish update",
-      "xboxRefused": "Xbox refused"
+      "xboxRefused": "Xbox refused",
+      "xboxPcDlcFailed": "Add-on failed",
+      "xboxPcDlcUnavailable": "No PC add-on",
+      "xboxPcDlcRemoveFailed": "Not removed",
+      "xboxPcDlcNothingPending": "Nothing to get",
+      "xboxPcDlcUnknown": "Add-ons unknown"
     },
     "downloadQueued": "Added to queue",
     "edgeInstallFailed": "Install failed",
@@ -455,6 +460,7 @@
       "xboxPcLaunchFailed": "Couldn't start",
       "xboxPcLicenseDenied": "No license",
       "xboxPcNotDownloaded": "Getting files…",
+      "xboxPcDlcPending": "Getting add-ons…",
       "xboxPcNotInstalled": "Not installed",
       "xboxPcPrefixFailed": "Prefix failed",
       "xboxPcRestartLoop": "Restart loop",
@@ -646,7 +652,12 @@
       "xboxPcComponentsBusy": "The Xbox PC components are being updated. Try again in a minute.",
       "xboxPcBackendFailed": "Xodus stopped with an error. Try again, and capture logs if it keeps failing.",
       "uninstallRefused": "The folder also holds another game, so it was not deleted.",
-      "uninstallIncomplete": "Some of the game's files could not be deleted."
+      "uninstallIncomplete": "Some of the game's files could not be deleted.",
+      "xboxPcDlcFailed": "Some add-ons did not download. Press Update to try again, or untick them on the game's DLC page to play without them.",
+      "xboxPcDlcUnavailable": "This add-on has no PC package for this game.",
+      "xboxPcDlcRemoveFailed": "The add-on's files could not be removed. Close the game and try again.",
+      "xboxPcDlcNothingPending": "No add-ons are waiting to download for this game.",
+      "xboxPcDlcUnknown": "The game's add-ons could not be read. Check the connection and open the game page again."
     },
     "unknown": "Unknown error",
     "steamAppsUnavailable": "SteamClient.Apps API not available"
@@ -1340,5 +1351,28 @@
       "needsChoice": "This title has several packages to choose from. Choosing one is not supported yet.",
       "unavailable": "The PC version of this title can't be installed."
     }
+  },
+  "dlcModal": {
+    "title": "Add-ons",
+    "description": {
+      "install": "{{title}} has large add-ons. Choose which to download with the game.",
+      "manage": "Add-ons you own for {{title}}. Ticked ones are installed. A newly ticked one downloads when you press Update."
+    },
+    "chooseAtInstall": "Add-ons you own for {{title}}.",
+    "install": "Install",
+    "save": "Save",
+    "sizeUnknown": "Size unknown",
+    "total": "Selected: {{size}}",
+    "smallIncluded": "Small add-ons that download with the game: {{count}}",
+    "state": {
+      "not_installed": "Not installed",
+      "selected": "Downloads on Update",
+      "partial": "Partly downloaded",
+      "installed": "Installed",
+      "failed": "Download failed"
+    },
+    "totalDownload": "Total download: {{size}}",
+    "breakdown": "Game {{game}} + add-ons {{addons}}",
+    "addonsOnly": "Add-ons {{addons}} (game size unknown)"
   }
 }

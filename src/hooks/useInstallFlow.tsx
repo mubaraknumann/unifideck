@@ -22,7 +22,9 @@
  *    finished in place, with no dialog (`linkXboxPc`). When
  *    `install_game` refuses with a setup code (`xbox_pc_disabled`,
  *    `_runtime_missing`, `_not_signed_in`), setup runs and the install is
- *    retried once. No language picker: Xodus picks the package.
+ *    retried once. No language picker: Xodus picks the package. When the
+ *    game has DLC over 1 GiB, `DlcSelectModal` asks which to install
+ *    first (small DLC always installs with the game).
  *  - Other stores: pass straight through.
  */
 import { useCallback, useState } from "react";
@@ -49,6 +51,11 @@ import {
   runXboxPcSetup,
 } from "../services/store/xbox-pc-flow";
 import { xboxPcSnapshot } from "./useXboxPcStatus";
+import { downloadSizeBytes } from "./useGameSize";
+import {
+  dlcListForInstall,
+  pickDlcForInstall,
+} from "../services/store/xbox-pc-dlc";
 
 /** Steam bridge shape — same minimal surface useGameActions
  *  consumes. */
@@ -160,10 +167,36 @@ export function useInstallFlow(bridge: SteamBridgeShape): UseInstallFlowResult {
           );
         }
 
+        // The row often carries no size (0): read the download size the
+        // game page shows ("Space required") instead.
+        let baseBytes = game.size_bytes ?? 0;
+        if (baseBytes <= 0 && game.app_id) {
+          baseBytes = await downloadSizeBytes(game.app_id);
+        }
+
+        // Xbox PC: large DLC is chosen before the storage picker, so the
+        // free-space check counts the game plus every DLC that will download.
+        let dlcBytes = 0;
+        if (isXboxPcRow(game)) {
+          const list = await dlcListForInstall(game);
+          const extra =
+            list == null
+              ? 0
+              : await pickDlcForInstall(
+                  game.store_game_id,
+                  game.title,
+                  list,
+                  baseBytes,
+                );
+          if (extra == null) return null;
+          dlcBytes = extra;
+        }
+
         console.log("[useInstallFlow] opening storage picker for", game.title);
+        const total = baseBytes + dlcBytes;
         const picked = await pickStorageForInstall(
           game.title,
-          game.size_bytes,
+          total > 0 ? total : undefined,
           currentLocations,
           currentDefault,
           setCustomPath,

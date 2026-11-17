@@ -30,6 +30,12 @@ def test_plugin_command_argv() -> None:
     ]
 
 
+def test_resolve_package_argv_with_dlc() -> None:
+    assert argv.resolve_package_argv(CLI, PID, "US", include_dlc=True) == [
+        CLI, "resolve-package", PID, "--json", "--market", "US", "--include-dlc",
+    ]
+
+
 def test_streaming_argv() -> None:
     assert argv.streaming_argv(CLI, PID, "/mnt/Xbox/9PK087LNGJC5/game", "IN", CID) == [
         CLI, "streaming", PID, "/mnt/Xbox/9PK087LNGJC5/game", "--progress-json",

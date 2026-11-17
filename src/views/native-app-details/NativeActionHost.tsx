@@ -47,6 +47,7 @@ import {
   patchActionRowFrom,
   resolveNativeAction,
   withDisplayStatus,
+  withInstallBusy,
   type ActionSpec,
   type NativeIntent,
 } from "../../lib/steam-bridge/native-app-details";
@@ -102,11 +103,14 @@ const NativeActionBinding: FC<Props> = ({ element, appId }) => {
   const info = useGameInfo(appId);
   const actions = usePlayActions(appId);
   const overview = element.props.overview;
-  const action = resolveNativeAction(
-    state,
-    info.status,
-    realStatusOf(overview),
-    actions.hasUpdate,
+  const action = withInstallBusy(
+    resolveNativeAction(
+      state,
+      info.status,
+      realStatusOf(overview),
+      actions.hasUpdate,
+    ),
+    actions.isWorking,
   );
 
   // The download bar and the "Play from" arrow belong to the game page's

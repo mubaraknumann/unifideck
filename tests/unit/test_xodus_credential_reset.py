@@ -162,7 +162,7 @@ def test_the_manifest_names_the_sealing_patch(tmp_path: Path) -> None:
         (folder / name).write_bytes(name.encode())
         (folder / name).chmod(0o755)
         files[name] = hashlib.sha256(name.encode()).hexdigest()
-    raw = json.dumps({"files": files, "patches": [SEALED_CREDENTIALS_PATCH]}).encode()
+    raw = json.dumps({"files": files, "patches": [f"unifideck-{SEALED_CREDENTIALS_PATCH}.patch"]}).encode()
     (folder / "manifest.json").write_bytes(raw)
     ref = SimpleNamespace(backend_dir=folder, backend_version="1", manifest_sha256=hashlib.sha256(raw).hexdigest())
     paths, problem = check_backend(ref)

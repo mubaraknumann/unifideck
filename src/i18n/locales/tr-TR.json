@@ -342,7 +342,12 @@
       "xboxPcUnsupportedPlan": "Plan uygun değil",
       "xboxPcUnsupportedPackage": "UWP uygun değil",
       "xboxPcUpdatePending": "Önce güncelleyin",
-      "xboxRefused": "Xbox reddetti"
+      "xboxRefused": "Xbox reddetti",
+      "xboxPcDlcFailed": "DLC hatası",
+      "xboxPcDlcUnavailable": "PC DLC'si yok",
+      "xboxPcDlcRemoveFailed": "Kaldırılamadı",
+      "xboxPcDlcNothingPending": "İndirilecek yok",
+      "xboxPcDlcUnknown": "DLC okunamadı"
     },
     "downloadQueued": "Sıraya eklendi",
     "edgeInstallFailed": "Yüklenemedi",
@@ -455,6 +460,7 @@
       "xboxPcLaunchFailed": "Başlatılamadı",
       "xboxPcLicenseDenied": "Lisans yok",
       "xboxPcNotDownloaded": "İndiriliyor…",
+      "xboxPcDlcPending": "DLC indiriliyor…",
       "xboxPcNotInstalled": "Yüklü değil",
       "xboxPcPrefixFailed": "Önek hatası",
       "xboxPcRestartLoop": "Sürekli yeniden",
@@ -646,7 +652,12 @@
       "xboxPcComponentsBusy": "Xbox PC bileşenleri güncelleniyor. Bir dakika sonra tekrar deneyin.",
       "xboxPcBackendFailed": "Xodus bir hatayla durdu. Tekrar deneyin, sorun sürerse günlükleri toplayın.",
       "uninstallRefused": "Klasörde başka bir oyun da bulunduğu için klasör silinmedi.",
-      "uninstallIncomplete": "Oyunun bazı dosyaları silinemedi."
+      "uninstallIncomplete": "Oyunun bazı dosyaları silinemedi.",
+      "xboxPcDlcFailed": "Bazı DLC'ler indirilemedi. Yeniden denemek için Güncelle'ye bas veya onlarsız oynamak için oyunun DLC sayfasında işaretlerini kaldır.",
+      "xboxPcDlcUnavailable": "Bu DLC'nin bu oyun için PC paketi yok.",
+      "xboxPcDlcRemoveFailed": "DLC dosyaları kaldırılamadı. Oyunu kapatıp yeniden dene.",
+      "xboxPcDlcNothingPending": "Bu oyun için indirilmeyi bekleyen DLC yok.",
+      "xboxPcDlcUnknown": "Oyunun DLC'leri okunamadı. Bağlantıyı kontrol edip oyun sayfasını yeniden aç."
     },
     "unknown": "Bilinmeyen hata",
     "steamAppsUnavailable": "SteamClient.Apps API'si kullanılamıyor"
@@ -1340,5 +1351,28 @@
       "needsChoice": "Bu oyunda seçilebilecek birkaç paket var. Paket seçme henüz desteklenmiyor.",
       "unavailable": "Bu oyunun PC sürümü yüklenemiyor."
     }
+  },
+  "dlcModal": {
+    "title": "DLC'ler",
+    "description": {
+      "install": "{{title}} büyük DLC'lere sahip. Oyunla birlikte hangilerinin indirileceğini seç.",
+      "manage": "{{title}} için sahip olduğun DLC'ler. İşaretliler yüklüdür. Yeni işaretlenen, Güncelle'ye bastığında indirilir."
+    },
+    "chooseAtInstall": "{{title}} için sahip olduğun DLC'ler.",
+    "install": "Yükle",
+    "save": "Kaydet",
+    "sizeUnknown": "Boyut bilinmiyor",
+    "total": "Seçilen: {{size}}",
+    "smallIncluded": "Oyunla birlikte indirilen küçük DLC'ler: {{count}}",
+    "state": {
+      "not_installed": "Yüklü değil",
+      "selected": "Güncellemede indirilir",
+      "partial": "Kısmen indirildi",
+      "installed": "Yüklü",
+      "failed": "İndirme başarısız"
+    },
+    "totalDownload": "Toplam indirme: {{size}}",
+    "breakdown": "Oyun {{game}} + DLC'ler {{addons}}",
+    "addonsOnly": "DLC'ler {{addons}} (oyun boyutu bilinmiyor)"
   }
 }

@@ -24,6 +24,7 @@ import { SteamBridge } from "../lib/steam-bridge";
 import { launchAppWithControllerLayout } from "../utils/controllerConfig";
 import { UninstallConfirmModal } from "../components/modals/UninstallConfirmModal";
 import { UpdateAvailableModal } from "../components/modals/UpdateAvailableModal";
+import { hasPendingDlc, useXboxPcDlc } from "./useXboxPcDlc";
 import type { DownloadItem } from "../types/downloads";
 
 export interface CancelProgress {
@@ -155,6 +156,7 @@ export function usePlayActions(
   const installFlow = useInstallFlow(bridge);
   const toast = useToast();
   const hasUpdate = useGameUpdate(game?.store, game?.id);
+  const dlc = useXboxPcDlc(game);
 
   const update = useCallback(async () => {
     if (!game) return;
@@ -188,6 +190,12 @@ export function usePlayActions(
       actions.launch(appId);
       return;
     }
+    // An Xbox PC game waiting for DLC the user chose never starts without
+    // it: the Update downloads the DLC, with no "Play anyway".
+    if (hasPendingDlc(dlc.list)) {
+      void update();
+      return;
+    }
     showModal(
       <UpdateAvailableModal
         gameTitle={game.title}
@@ -196,7 +204,7 @@ export function usePlayActions(
         closeModal={() => {}}
       />,
     );
-  }, [actions, appId, game, hasUpdate, update]);
+  }, [actions, appId, game, hasUpdate, update, dlc.list]);
 
   const install = useCallback(async () => {
     if (!game || installFlow.isWorking) return;

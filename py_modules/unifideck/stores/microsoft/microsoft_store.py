@@ -156,8 +156,9 @@ class MicrosoftStore(MicrosoftAchievementsMixin, MicrosoftSaveStatusMixin, Brows
             self._config_manager, self._xbox_pc, self._xbox_pc.cli, cache=cache, bus=bus,
         )
         self._xbox_pc.sign_out_listeners.append(self._pc_library.clear)
-        self._xbox_hooks = XboxPcStoreHooks(
+        self.xbox_hooks = self._xbox_hooks = XboxPcStoreHooks(
             bus, self._xbox_pc, self._xbox_pc.cli, self._pc_library.title_for,
+            self._pc_library.owned_dlc.for_game,
         )
 
     @property

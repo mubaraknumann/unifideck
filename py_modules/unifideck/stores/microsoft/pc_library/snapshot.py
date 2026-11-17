@@ -8,7 +8,8 @@ of key::
     "library"        {"v": 1, "account_hash", "market", "checked_at", "clean",
                       "skipped", "titles": [meta, ...],
                       "ids": {UPPER product id: store_game_id},
-                      "notices": [SYNC_SKIPPED reason, ...]}
+                      "notices": [SYNC_SKIPPED reason, ...],
+                      "owned": [UPPER product id with install access, ...]}
     "plans:<market>" {"<root product id>": {"at": epoch s, ...summary}}
 
 Plans are kept 24 hours. Only answered products are cached: an unknown or
@@ -35,6 +36,7 @@ def _empty() -> dict[str, Any]:
     return {
         "v": _VERSION, "account_hash": None, "market": None, "checked_at": None,
         "clean": False, "skipped": 0, "titles": [], "ids": {}, "notices": [],
+        "owned": [],
     }
 
 
@@ -72,6 +74,11 @@ class XboxPcSnapshot:
         """The last good titles."""
         out = (PcTitle.from_meta(m) for m in self.library()["titles"])
         return [t for t in out if t is not None]
+
+    def owned(self) -> list[str]:
+        """Product ids the account could install at the last read (games and DLC)."""
+        raw = self.library().get("owned")
+        return [p for p in raw if isinstance(p, str)] if isinstance(raw, list) else []
 
     def ids(self) -> dict[str, str]:
         """The remembered ``store_game_id`` per upper-case product id."""

@@ -86,6 +86,15 @@ async function fetchSize(appId: number, key: string): Promise<number> {
 }
 
 /**
+ * The download size (bytes) of a game that is not installed, outside React:
+ * the install flow reads it when the row carries no size. 0 when unknown.
+ * Shares the hook's cache and in-flight fetch.
+ */
+export function downloadSizeBytes(appId: number): Promise<number> {
+  return fetchSize(appId, cacheKey(appId, false)).catch(() => 0);
+}
+
+/**
  * Resolve the install / download size (bytes) for a Steam shortcut
  * appId. Returns `undefined` until the fetch resolves; `0` means the
  * size is unknown (e.g. Ubisoft / Microsoft, or an offline store).

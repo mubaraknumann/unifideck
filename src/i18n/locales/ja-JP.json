@@ -342,7 +342,12 @@
       "xboxPcUnsupportedPlan": "プラン非対応",
       "xboxPcUnsupportedPackage": "UWP 非対応",
       "xboxPcUpdatePending": "更新を完了してください",
-      "xboxRefused": "Xboxに拒否されました"
+      "xboxRefused": "Xboxに拒否されました",
+      "xboxPcDlcFailed": "DLCの失敗",
+      "xboxPcDlcUnavailable": "PC版DLCなし",
+      "xboxPcDlcRemoveFailed": "削除できません",
+      "xboxPcDlcNothingPending": "取得するものなし",
+      "xboxPcDlcUnknown": "DLCを読めません"
     },
     "downloadQueued": "待機列に追加しました",
     "edgeInstallFailed": "インストール失敗",
@@ -455,6 +460,7 @@
       "xboxPcLaunchFailed": "起動できません",
       "xboxPcLicenseDenied": "ライセンスなし",
       "xboxPcNotDownloaded": "ファイル取得中…",
+      "xboxPcDlcPending": "DLCを取得中…",
       "xboxPcNotInstalled": "未インストールです",
       "xboxPcPrefixFailed": "プレフィックス失敗",
       "xboxPcRestartLoop": "再起動を繰り返し",
@@ -646,7 +652,12 @@
       "xboxPcComponentsBusy": "Xbox PC コンポーネントを更新中です。1 分ほどしてから、もう一度お試しください。",
       "xboxPcBackendFailed": "Xodus がエラーで停止しました。もう一度お試しください。失敗が続く場合はログを収集してください。",
       "uninstallRefused": "このフォルダーには別のゲームも含まれているため、削除しませんでした。",
-      "uninstallIncomplete": "ゲームの一部のファイルを削除できませんでした。"
+      "uninstallIncomplete": "ゲームの一部のファイルを削除できませんでした。",
+      "xboxPcDlcFailed": "一部のDLCをダウンロードできませんでした。「アップデート」を押して再試行するか、ゲームのDLCページで選択を外すとDLCなしでプレイできます。",
+      "xboxPcDlcUnavailable": "このDLCには、このゲーム用のPCパッケージがありません。",
+      "xboxPcDlcRemoveFailed": "DLCのファイルを削除できませんでした。ゲームを終了してもう一度お試しください。",
+      "xboxPcDlcNothingPending": "このゲームでダウンロード待ちのDLCはありません。",
+      "xboxPcDlcUnknown": "ゲームのDLCを読み込めませんでした。接続を確認して、ゲームページを開き直してください。"
     },
     "unknown": "不明なエラー",
     "steamAppsUnavailable": "SteamClient.Apps API が利用できません"
@@ -1340,5 +1351,28 @@
       "needsChoice": "このタイトルには選択可能なパッケージが複数あります。パッケージの選択にはまだ対応していません。",
       "unavailable": "このタイトルの PC 版はインストールできません。"
     }
+  },
+  "dlcModal": {
+    "title": "DLC",
+    "description": {
+      "install": "{{title}}には大きなDLCがあります。ゲームと一緒にダウンロードするものを選んでください。",
+      "manage": "所有している{{title}}のDLCです。チェックしたものがインストールされます。新しくチェックしたものは「アップデート」を押すとダウンロードされます。"
+    },
+    "chooseAtInstall": "所有している{{title}}のDLCです。",
+    "install": "インストール",
+    "save": "保存",
+    "sizeUnknown": "サイズ不明",
+    "total": "選択中: {{size}}",
+    "smallIncluded": "ゲームと一緒にダウンロードされる小さなDLC: {{count}}",
+    "state": {
+      "not_installed": "未インストール",
+      "selected": "アップデート時にダウンロード",
+      "partial": "一部ダウンロード済み",
+      "installed": "インストール済み",
+      "failed": "ダウンロード失敗"
+    },
+    "totalDownload": "合計ダウンロード: {{size}}",
+    "breakdown": "ゲーム {{game}} + DLC {{addons}}",
+    "addonsOnly": "DLC {{addons}}（ゲームのサイズ不明）"
   }
 }

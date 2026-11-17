@@ -63,6 +63,41 @@ def installable_content_ids(plan: Any, root_pid: str) -> list[str]:
     return seen
 
 
+def _dlc_installable(choice: dict[str, Any], dlc_pid: str, parent_pid: str) -> bool:
+    """A supported PC ``Durable`` package of ``dlc_pid`` whose parent is ``parent_pid``."""
+    return (
+        choice.get("supported") is True
+        and choice.get("kind") == "Durable"
+        and choice.get("platform") == "Windows.Desktop"
+        and str(choice.get("productId", "")).upper() == dlc_pid
+        and str(choice.get("parentProductId", "")).upper() == parent_pid
+        and isinstance(choice.get("contentId"), str)
+        and CONTENT_ID_RE.match(choice["contentId"]) is not None
+    )
+
+
+def select_dlc_content(plan: Any, dlc_pid: str, parent_pid: str) -> str:
+    """The content id to stream for the DLC ``dlc_pid`` of game ``parent_pid``.
+
+    ``plan`` is a ``resolve-package --include-dlc`` answer. Exactly one
+    supported PC ``Durable`` choice must name ``parent_pid`` as its parent;
+    a DLC of another game is never installed into this one. Raises
+    ``xbox_dlc_unavailable`` when there is none and ``xbox_dlc_choice``
+    when there are several.
+    """
+    dlc_pid, parent_pid = dlc_pid.upper(), parent_pid.upper()
+    found: list[str] = []
+    for choice in _check_plan(plan, dlc_pid):
+        cid = str(choice.get("contentId", "")).lower()
+        if _dlc_installable(choice, dlc_pid, parent_pid) and cid not in found:
+            found.append(cid)
+    if len(found) == 1:
+        return found[0]
+    if not found:
+        raise InstallError("xbox_dlc_unavailable")
+    raise InstallError("xbox_dlc_choice", f"{len(found)} packages")
+
+
 def select_content(plan: Any, root_pid: str, prefer_cid: str | None = None) -> str:
     """The content id to stream for ``root_pid``.
 

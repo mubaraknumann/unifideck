@@ -35,7 +35,7 @@ from unifideck.launcher.xbox_pc.errors import (
     VC_RUNTIME_INSTALLING_KEY,
     XboxPcLaunchError,
 )
-from unifideck.launcher.xbox_pc.install_records import write_install_record
+from unifideck.launcher.xbox_pc.install_records import read_install_record, write_install_record
 from unifideck.launcher.xbox_pc.layout import (
     ActiveComponents,
     backend_root,
@@ -452,6 +452,43 @@ async def test_refuses_an_incomplete_record(
     shutil.rmtree(tmp_path / "library")
     _install_game(tmp_path / "library", state=state, market=market)
     assert await _reason(world) == reason
+
+
+def _with_dlc(game: Path, **dlc: dict[str, Any]) -> Path:
+    """Add a ``dlc`` map to the test game's record; return the install root."""
+    record = read_install_record(PID)
+    assert record is not None
+    record["dlc"] = dlc
+    write_install_record(record)
+    return game.parent
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("state", ["selected", "partial", "failed"])
+async def test_refuses_while_a_chosen_dlc_is_not_installed(world: dict[str, Any], state: str) -> None:
+    _with_dlc(world["game"], **{"9N77PDNB7CWZ": {"state": state}})
+    assert await _reason(world) == "dlc_pending"
+
+
+@pytest.mark.asyncio
+async def test_installed_dlc_reaches_the_game_and_declined_dlc_does_not_block(
+    world: dict[str, Any],
+) -> None:
+    root = _with_dlc(world["game"], **{
+        "9N77PDNB7CWZ": {"state": "installed"}, "9NB77CW5J1TT": {"state": "declined"},
+        "9N5PQG53S4SW": {"state": "installed"},  # its folder is gone: not handed over
+    })
+    (root / "dlc" / "9N77PDNB7CWZ").mkdir(parents=True)
+    assert await session_mod.XboxPcLaunch(_ctx(), _deps(world)).run() == 0
+    env = json.loads(world["out"].read_text())["env"]
+    expected = "Z:" + str((root / "dlc" / "9N77PDNB7CWZ").resolve()).replace("/", "\\")
+    assert env["XODUS_CONTENT_ROOTS"] == expected
+
+
+@pytest.mark.asyncio
+async def test_no_dlc_sets_no_content_roots(world: dict[str, Any]) -> None:
+    await session_mod.XboxPcLaunch(_ctx(), _deps(world)).run()
+    assert "XODUS_CONTENT_ROOTS" not in json.loads(world["out"].read_text())["env"]
 
 
 @pytest.mark.asyncio

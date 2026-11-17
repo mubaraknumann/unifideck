@@ -23,6 +23,7 @@ import { isConflictAction } from "./toast-action";
 import { showStageToast } from "./stage-toast";
 import { toastText, headerText, type ToastKey } from "./toast-text";
 import { showToast } from "./show-toast";
+import { continueDlcAfterInstall } from "./store/xbox-pc-dlc";
 
 /**
  * `SYNC_SKIPPED.reason` → the toast body explaining the skip, under the
@@ -126,6 +127,15 @@ export function startBootEventListener(): () => void {
         body: toastText(key),
         duration: resolveToastDuration(undefined, "warning"),
       });
+    }),
+  );
+
+  // ── DOWNLOAD_COMPLETE ─────────────────────────────────
+  // An Xbox PC install ends with the base game; its chosen DLC follows as
+  // its own Update job, so cancelling the DLC never undoes the install.
+  unsubs.push(
+    EventBusClient.subscribe("download_complete", (payload) => {
+      void continueDlcAfterInstall(payload);
     }),
   );
 

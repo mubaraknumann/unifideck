@@ -90,9 +90,20 @@ def _cached_sha256(path: Path) -> str | None:
 
 
 #: The build-repo patch that adds ``run --license-cache`` (offline play).
-OFFLINE_LICENCE_PATCH = "ours-offline-play.patch"
+OFFLINE_LICENCE_PATCH = "offline-play"
 #: The build-repo patch that encrypts the credential folder and licence cache.
-SEALED_CREDENTIALS_PATCH = "ours-encrypted-credentials.patch"
+SEALED_CREDENTIALS_PATCH = "encrypted-credentials"
+
+
+def has_patch(patches: frozenset[str], name: str) -> bool:
+    """Whether a manifest lists build-repo patch ``name``.
+
+    Manifests list ``<prefix>-<name>.patch``. The prefix changed between
+    releases (now ``unifideck-``), and released backends keep the old one,
+    so only the name after the prefix is compared.
+    """
+    suffix = f"-{name}.patch"
+    return any(patch.endswith(suffix) for patch in patches)
 
 
 def _manifest(directory: Path, manifest_sha256: str) -> tuple[dict[str, str], frozenset[str]] | str:
@@ -163,8 +174,8 @@ def check_backend(active: BackendRef) -> tuple[BackendPaths | None, str | None]:
         service=directory / SERVICE_NAME,
         directory=directory,
         version=active.backend_version,
-        offline_licences=OFFLINE_LICENCE_PATCH in patches,
-        sealed_credentials=SEALED_CREDENTIALS_PATCH in patches,
+        offline_licences=has_patch(patches, OFFLINE_LICENCE_PATCH),
+        sealed_credentials=has_patch(patches, SEALED_CREDENTIALS_PATCH),
     ), None
 
 

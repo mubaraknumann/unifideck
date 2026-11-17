@@ -168,7 +168,7 @@ def test_uninstall_deletes_the_product_id_prefix(home: Path) -> None:
     _record("xcloud-row", home)
     prefix = canonical_prefix(PID)
     prefix.mkdir(parents=True)
-    hooks = XboxPcStoreHooks(_Bus(), MagicMock(), MagicMock(), lambda _g: None)
+    hooks = XboxPcStoreHooks(_Bus(), MagicMock(), MagicMock(), lambda _g: None, AsyncMock(return_value=[]))
     assert asyncio.run(hooks.uninstall("xcloud-row", delete_prefix=True)).success
     assert not prefix.exists()
 
@@ -177,6 +177,6 @@ def test_uninstall_keeps_the_prefix_unless_asked(home: Path) -> None:
     _record("xcloud-row", home)
     prefix = canonical_prefix(PID)
     prefix.mkdir(parents=True)
-    hooks = XboxPcStoreHooks(_Bus(), MagicMock(), MagicMock(), lambda _g: None)
+    hooks = XboxPcStoreHooks(_Bus(), MagicMock(), MagicMock(), lambda _g: None, AsyncMock(return_value=[]))
     assert asyncio.run(hooks.uninstall("xcloud-row")).success
     assert prefix.exists()

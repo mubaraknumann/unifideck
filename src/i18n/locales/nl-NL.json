@@ -342,7 +342,12 @@
       "xboxPcUnsupportedPlan": "Plan ongeschikt",
       "xboxPcUnsupportedPackage": "UWP ongeschikt",
       "xboxPcUpdatePending": "Werk eerst bij",
-      "xboxRefused": "Xbox weigerde"
+      "xboxRefused": "Xbox weigerde",
+      "xboxPcDlcFailed": "DLC mislukt",
+      "xboxPcDlcUnavailable": "Geen pc-DLC",
+      "xboxPcDlcRemoveFailed": "Niet verwijderd",
+      "xboxPcDlcNothingPending": "Niets te laden",
+      "xboxPcDlcUnknown": "DLC onbekend"
     },
     "downloadQueued": "In de wachtrij",
     "edgeInstallFailed": "Install. mislukt",
@@ -455,6 +460,7 @@
       "xboxPcLaunchFailed": "Starten mislukt",
       "xboxPcLicenseDenied": "Geen licentie",
       "xboxPcNotDownloaded": "Bestanden laden…",
+      "xboxPcDlcPending": "DLC laden…",
       "xboxPcNotInstalled": "Geen installatie",
       "xboxPcPrefixFailed": "Prefix mislukt",
       "xboxPcRestartLoop": "Herstartlus",
@@ -646,7 +652,12 @@
       "xboxPcComponentsBusy": "De Xbox PC-componenten worden bijgewerkt. Probeer het over een minuut opnieuw.",
       "xboxPcBackendFailed": "Xodus is gestopt met een fout. Probeer het opnieuw en leg logboeken vast als het blijft mislukken.",
       "uninstallRefused": "De map bevat ook een andere game en is daarom niet verwijderd.",
-      "uninstallIncomplete": "Sommige bestanden van de game konden niet worden verwijderd."
+      "uninstallIncomplete": "Sommige bestanden van de game konden niet worden verwijderd.",
+      "xboxPcDlcFailed": "Sommige DLC is niet gedownload. Druk op Bijwerken om het opnieuw te proberen, of vink ze uit op de DLC-pagina van de game om zonder te spelen.",
+      "xboxPcDlcUnavailable": "Deze DLC heeft geen pc-pakket voor deze game.",
+      "xboxPcDlcRemoveFailed": "De bestanden van de DLC konden niet worden verwijderd. Sluit de game en probeer het opnieuw.",
+      "xboxPcDlcNothingPending": "Er wacht geen DLC op downloaden voor deze game.",
+      "xboxPcDlcUnknown": "De DLC van de game kon niet worden gelezen. Controleer de verbinding en open de gamepagina opnieuw."
     },
     "unknown": "Onbekende fout",
     "steamAppsUnavailable": "API SteamClient.Apps niet beschikbaar"
@@ -1340,5 +1351,28 @@
       "needsChoice": "Deze titel heeft meerdere pakketten om uit te kiezen. Een pakket kiezen wordt nog niet ondersteund.",
       "unavailable": "De pc-versie van deze titel kan niet worden geïnstalleerd."
     }
+  },
+  "dlcModal": {
+    "title": "DLC",
+    "description": {
+      "install": "{{title}} heeft grote DLC. Kies welke je samen met de game downloadt.",
+      "manage": "DLC die je hebt voor {{title}}. Aangevinkte DLC is geïnstalleerd. Nieuw aangevinkte DLC wordt gedownload als je op Bijwerken drukt."
+    },
+    "chooseAtInstall": "DLC die je hebt voor {{title}}.",
+    "install": "Installeren",
+    "save": "Opslaan",
+    "sizeUnknown": "Grootte onbekend",
+    "total": "Geselecteerd: {{size}}",
+    "smallIncluded": "Kleine DLC die met de game wordt gedownload: {{count}}",
+    "state": {
+      "not_installed": "Niet geïnstalleerd",
+      "selected": "Downloadt bij Bijwerken",
+      "partial": "Deels gedownload",
+      "installed": "Geïnstalleerd",
+      "failed": "Download mislukt"
+    },
+    "totalDownload": "Totale download: {{size}}",
+    "breakdown": "Game {{game}} + DLC {{addons}}",
+    "addonsOnly": "DLC {{addons}} (grootte van de game onbekend)"
   }
 }

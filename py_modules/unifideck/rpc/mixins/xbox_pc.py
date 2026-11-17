@@ -17,12 +17,17 @@ surfaces. With no Microsoft store registered, the status routes answer
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
+from unifideck.launcher.xbox_pc.dlc_records import pending_dlc
 from unifideck.launcher.xbox_pc.layout import is_xodus_store
 from unifideck.rpc.errors import RpcError
 from unifideck.stores.microsoft.save_status_mixin import NOT_APPLICABLE
+from unifideck.stores.microsoft.xodus.dlc_choice import apply_choice as apply_dlc_choice
+from unifideck.stores.microsoft.xodus.dlc_choice import view_for as dlc_view_for
+from unifideck.stores.microsoft.xodus.ids import record_for_game
 from unifideck.stores.microsoft.xodus.xbox_pc import XboxPcError, unavailable_status
 
 logger = logging.getLogger(__name__)
@@ -35,6 +40,10 @@ class XboxPcRPCMixin:
     sync_service: Any
     #: ``DownloadRPCMixin._queue_install``, on the same plugin.
     _queue_install: Any
+    #: ``DownloadRPCMixin._request_update_scan``, on the same plugin.
+    _request_update_scan: Any
+    #: ``DownloadRPCMixin._require_download``, on the same plugin.
+    _require_download: Any
 
     def _xbox_pc(self) -> Any:
         """The facade, or None when the Microsoft store is missing."""
@@ -108,6 +117,63 @@ class XboxPcRPCMixin:
             "microsoft", str(game_id), target["base_path"], target["title"],
         )
         return result
+
+    def _xbox_hooks(self) -> Any:
+        """The Xbox PC install hooks, or None when the Microsoft store is missing."""
+        store = self.registry.get("microsoft")
+        return getattr(store, "xbox_hooks", None) if store is not None else None
+
+    async def get_xbox_pc_dlc(self, game_id: str, force: bool = False) -> dict[str, Any]:
+        """The game page's DLC list: ``{applicable, installed, dlc: [...]}``.
+
+        Loaded with the game's details, never from a library sync. Each
+        entry is ``{product_id, parent, title, size_bytes, large, state,
+        chosen}``. ``applicable`` is False for a game that is not Xbox PC or
+        whose account entitlements cannot be read; the page then shows no
+        DLC button. ``force`` reads the entitlements and catalog again.
+        """
+        hooks = self._xbox_hooks()
+        owned = await hooks.dlc_for(str(game_id), force=bool(force)) if hooks is not None else None
+        if owned is None:
+            return {"applicable": False, "installed": False, "dlc": []}
+        view: dict[str, Any] = await dlc_view_for(str(game_id), owned)
+        return {"applicable": True, **view}
+
+    async def set_xbox_pc_dlc(self, game_id: str, selected: list[str] | None = None) -> dict[str, Any]:
+        """Tick DLC on the game page: ``{success, error?, installed}``.
+
+        ``selected`` is every product id that should be installed. Nothing
+        downloads here: on an installed game a newly ticked DLC makes Play
+        show Update (the update scan is asked at once), and an unticked one
+        is removed. Before install it is the large-DLC choice of the picker.
+        """
+        hooks = self._xbox_hooks()
+        owned = await hooks.dlc_for(str(game_id)) if hooks is not None else None
+        if owned is None:
+            return {"success": False, "error": "xbox_dlc_unknown", "installed": False}
+        result: dict[str, Any] = await apply_dlc_choice(str(game_id), owned, list(selected or []))
+        if result.get("success") and result.get("installed"):
+            self._request_update_scan("microsoft")
+        return result
+
+    async def install_xbox_pc_dlc(self, game_id: str) -> dict[str, Any]:
+        """Queue the Update job that downloads a game's pending DLC: ``{success, error}``.
+
+        A start that bypassed the game page's Update button refuses in the
+        launcher with ``dlc_pending``; its toast carries the
+        ``install-xbox-pc-dlc`` action, and the launcher-toast poll calls this
+        at once, so the download starts with no extra tap.
+        """
+        record = await asyncio.to_thread(record_for_game, str(game_id))
+        if record is None or not pending_dlc(record):
+            return {"success": False, "error": "xbox_dlc_nothing_pending"}
+        logger.info("[XboxPcRPC] queueing the pending DLC of %s", game_id)
+        result = await self._require_download().add(
+            store="microsoft", game_id=str(game_id),
+            install_path=str(record.get("installRoot") or ""),
+            title=str(record.get("title") or ""), is_update=True,
+        )
+        return {"success": result.success, "error": result.error}
 
     async def get_xbox_pc_save_status(self, game_id: str, force: bool = False) -> dict[str, Any]:
         """Compare an installed game's saves with the cloud. Read-only.

@@ -342,7 +342,12 @@
       "xboxPcUnsupportedPlan": "Plan bez obsługi",
       "xboxPcUnsupportedPackage": "UWP bez obsługi",
       "xboxPcUpdatePending": "Dokończ update",
-      "xboxRefused": "Xbox odmówił"
+      "xboxRefused": "Xbox odmówił",
+      "xboxPcDlcFailed": "Błąd DLC",
+      "xboxPcDlcUnavailable": "Brak DLC na PC",
+      "xboxPcDlcRemoveFailed": "Nie usunięto",
+      "xboxPcDlcNothingPending": "Nic do pobrania",
+      "xboxPcDlcUnknown": "DLC nieznane"
     },
     "downloadQueued": "W kolejce",
     "edgeInstallFailed": "Błąd instalacji",
@@ -455,6 +460,7 @@
       "xboxPcLaunchFailed": "Nie udało się",
       "xboxPcLicenseDenied": "Brak licencji",
       "xboxPcNotDownloaded": "Pobieram pliki…",
+      "xboxPcDlcPending": "Pobieranie DLC…",
       "xboxPcNotInstalled": "Brak instalacji",
       "xboxPcPrefixFailed": "Błąd prefiksu",
       "xboxPcRestartLoop": "Pętla restartów",
@@ -646,7 +652,12 @@
       "xboxPcComponentsBusy": "Komponenty Xbox PC są aktualizowane. Spróbuj ponownie za minutę.",
       "xboxPcBackendFailed": "Xodus zatrzymał się z błędem. Spróbuj ponownie, a jeśli błąd się powtarza, przechwyć dzienniki.",
       "uninstallRefused": "Folder zawiera też inną grę, więc nie został usunięty.",
-      "uninstallIncomplete": "Nie udało się usunąć niektórych plików gry."
+      "uninstallIncomplete": "Nie udało się usunąć niektórych plików gry.",
+      "xboxPcDlcFailed": "Część DLC nie została pobrana. Naciśnij Aktualizuj, aby spróbować ponownie, albo odznacz je na stronie DLC gry, aby grać bez nich.",
+      "xboxPcDlcUnavailable": "To DLC nie ma pakietu na PC dla tej gry.",
+      "xboxPcDlcRemoveFailed": "Nie udało się usunąć plików DLC. Zamknij grę i spróbuj ponownie.",
+      "xboxPcDlcNothingPending": "Brak DLC oczekujących na pobranie dla tej gry.",
+      "xboxPcDlcUnknown": "Nie udało się odczytać DLC gry. Sprawdź połączenie i otwórz stronę gry ponownie."
     },
     "unknown": "Nieznany błąd",
     "steamAppsUnavailable": "API SteamClient.Apps niedostępne"
@@ -1340,5 +1351,28 @@
       "needsChoice": "Ten tytuł ma kilka pakietów do wyboru. Wybór pakietu nie jest jeszcze obsługiwany.",
       "unavailable": "Nie można zainstalować wersji PC tego tytułu."
     }
+  },
+  "dlcModal": {
+    "title": "DLC",
+    "description": {
+      "install": "{{title}} ma duże DLC. Wybierz, które pobrać razem z grą.",
+      "manage": "Twoje DLC do {{title}}. Zaznaczone są zainstalowane. Nowo zaznaczone pobierze się po naciśnięciu Aktualizuj."
+    },
+    "chooseAtInstall": "Twoje DLC do {{title}}.",
+    "install": "Zainstaluj",
+    "save": "Zapisz",
+    "sizeUnknown": "Rozmiar nieznany",
+    "total": "Wybrano: {{size}}",
+    "smallIncluded": "Małe DLC pobierane razem z grą: {{count}}",
+    "state": {
+      "not_installed": "Niezainstalowane",
+      "selected": "Pobierze się przy aktualizacji",
+      "partial": "Pobrane częściowo",
+      "installed": "Zainstalowane",
+      "failed": "Pobieranie nieudane"
+    },
+    "totalDownload": "Łączne pobieranie: {{size}}",
+    "breakdown": "Gra {{game}} + DLC {{addons}}",
+    "addonsOnly": "DLC {{addons}} (rozmiar gry nieznany)"
   }
 }

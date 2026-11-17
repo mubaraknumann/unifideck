@@ -47,6 +47,7 @@ from unifideck.launcher.types.context import LaunchContext
 from .argv import build_env, run_argv, validate_market
 from .backend import BackendPaths
 from .component_locks import ComponentsBusyError, game_lock, reading_components
+from .dlc_records import launch_dlc
 from .environment import build_game_env, clean_env, pick_locale
 from .errors import (
     INITIALIZING_PREFIX_KEY,
@@ -134,6 +135,7 @@ class _Plan:
     game_dir: Path
     steam_root: Path
     credentials: Path
+    dlc_roots: tuple[Path, ...] = ()  # installed DLC, the game's content roots
 
 
 class XboxPcLaunch:
@@ -199,6 +201,9 @@ class XboxPcLaunch:
         if record is None or record.get("state") != "installed":
             state = record.get("state") if record else "no record"
             raise XboxPcLaunchError("not_downloaded", f"install state: {state}")
+        pending, dlc_roots = launch_dlc(record)
+        if pending:  # never without the chosen DLC; the toast queues it (``toast_action``)
+            raise XboxPcLaunchError("dlc_pending", ", ".join(pending))
         game_dir = str(record.get("gameDir") or "")
         if not os.path.isabs(game_dir):
             raise XboxPcLaunchError("not_downloaded", "the record has no absolute gameDir")
@@ -210,7 +215,7 @@ class XboxPcLaunch:
         if not (credentials / USER_SESSION_FILE).is_file():
             raise XboxPcLaunchError("sign_in_required", "no stored Xbox PC session")
         pid = validate_pid(str(record["productId"]))
-        return _Plan(pid, market, Path(game_dir), steam_root, credentials)
+        return _Plan(pid, market, Path(game_dir), steam_root, credentials, dlc_roots)
 
     # ── 2. locks and components ──────────────────────────────────────
 
@@ -376,8 +381,11 @@ class XboxPcLaunch:
         extra = title_env(game.store_id or plan.pid, backcompat=game.backcompat)
         if extra:
             logger.info("[xbox_pc] runtime features for this title: %s", ", ".join(f"{k}={v}" for k, v in extra.items()))
+        if plan.dlc_roots:
+            logger.info("[xbox_pc] %d installed DLC handed to the game", len(plan.dlc_roots))
         env = build_game_env(
             base, credential_dir=plan.credentials, locale=self._locale,
+            content_roots=plan.dlc_roots,
             window_env=self._deps.window_env, service_env=self._service.env(),
             title_env=extra, overrides=self._ctx.env_overrides,
         )

@@ -84,3 +84,16 @@ export function resolveNativeAction(
       return NATIVE;
   }
 }
+
+/**
+ * Steam's greyed-out Install while our install flow is still gathering what
+ * it needs (for an Xbox PC game, its DLC list), so a press that cannot act
+ * yet does not look ignored. Every other action is unchanged.
+ */
+export function withInstallBusy(
+  action: NativeAction,
+  busy: boolean,
+): NativeAction {
+  if (!busy || action.intent.kind !== "install") return action;
+  return { status: DisplayStatus.InstallUnavailable, intent: { kind: "none" } };
+}

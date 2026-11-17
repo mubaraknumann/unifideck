@@ -1,6 +1,6 @@
 """stores/microsoft/xodus/credential_reset.py — clear what older builds left in plain text.
 
-Backends with ``ours-encrypted-credentials`` seal everything they write, in the
+Backends with the ``encrypted-credentials`` patch seal everything they write, in the
 same format as ``SecureTokenStore``, and can still read plain files. So plain
 files would stay on disk until something happened to rewrite them, and some are
 never rewritten. Once such a backend is installed, this signs the user out so

@@ -126,12 +126,20 @@ def library_argv(cli: str | Path, market: str) -> list[str]:
     return [str(cli), "library", "--json", "--market", validate_market(market)]
 
 
-def resolve_package_argv(cli: str | Path, pid: str, market: str) -> list[str]:
-    """The installable packages of a product (no credentials needed)."""
-    return [
+def resolve_package_argv(
+    cli: str | Path, pid: str, market: str, include_dlc: bool = False,
+) -> list[str]:
+    """The installable packages of a product (no credentials needed).
+
+    ``include_dlc`` lets a PC ``Durable`` (DLC) package be selected. Without
+    it the backend marks every Durable unsupported, so a game edition that
+    bundles add-ons still resolves to its one ``Game`` package.
+    """
+    argv = [
         str(cli), "resolve-package", validate_pid(pid),
         "--json", "--market", validate_market(market),
     ]
+    return [*argv, "--include-dlc"] if include_dlc else argv
 
 
 #: Connections a game download may use at once (``--parallel``).

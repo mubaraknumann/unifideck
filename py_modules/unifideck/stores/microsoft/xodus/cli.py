@@ -299,10 +299,12 @@ class XodusCli:
             return LibraryRead("failed", tail="xodus_bad_json")
         return LibraryRead("ok", stdout=line.strip())
 
-    async def resolve_package(self, pid: str, market: str) -> dict[str, Any]:
+    async def resolve_package(
+        self, pid: str, market: str, include_dlc: bool = False,
+    ) -> dict[str, Any]:
         """``resolve-package``: which package to install. Needs no credentials."""
         paths = await self.backend()
-        argv = xargv.resolve_package_argv(paths.cli, pid, market)
+        argv = xargv.resolve_package_argv(paths.cli, pid, market, include_dlc)
         data = last_json_object(await self._json(argv, RESOLVE_TIMEOUT_S))
         if data is None:
             raise XodusCliError("bad_json")
