@@ -427,6 +427,7 @@
       "prerequisitesFailedMessage": "Teilweise fertig",
       "prerequisitesInstalled": "Bereit",
       "protonDamagedMessage": "Wird neu geladen",
+      "protonRepairHeld": "Defekt: {{version}}",
       "protonReadyBody": "Fertig: {{version}}",
       "protonSwitchedTo": "Nutze {{version}}",
       "redistributablesInstalled": "Bibliotheken da",

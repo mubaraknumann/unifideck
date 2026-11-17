@@ -427,6 +427,7 @@
       "prerequisitesFailedMessage": "前置组件不完整",
       "prerequisitesInstalled": "前置组件已就绪",
       "protonDamagedMessage": "正在重新下载",
+      "protonRepairHeld": "已损坏：{{version}}",
       "protonReadyBody": "已安装 {{version}}",
       "protonSwitchedTo": "正在使用 {{version}}",
       "redistributablesInstalled": "依赖库已添加",

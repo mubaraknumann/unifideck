@@ -16,7 +16,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from unifideck.launcher.frontend_bridge import launcher_toast
+from unifideck.launcher.frontend_bridge import launcher_toast, request_steam_compat_tool
 from unifideck.launcher.proton.infrastructure.core import proton_prepare
 
 if TYPE_CHECKING:
@@ -133,10 +133,12 @@ async def _persist_fallback_choice(
 ) -> None:
     """Make the successful fallback stick, and tell the user.
 
-    Pins ``tag`` as this game's Force-Compat choice (tier 1) so the next
-    launch goes straight to it instead of re-resolving the broken tool and
-    hanging again, and re-stamps the prefix marker so that next launch does
-    not read the switch as a family change and reset the prefix just built.
+    Makes ``tag`` the game's Steam Compatibility setting so the next launch
+    goes straight to it instead of re-resolving the broken tool and hanging
+    again (the request's toast names the new Proton), and re-stamps the
+    prefix marker so that next launch does not read the switch as a family
+    change and reset the prefix just built. Without an appid to set, the
+    GE-built prefix still keeps the game on GE (``setup_proton``).
     """
     from unifideck.launcher.proton.compat.prefix_init import _MARKER_NAME
     from unifideck.launcher.proton.compat.save_migration import (
@@ -145,13 +147,13 @@ async def _persist_fallback_choice(
 
     with contextlib.suppress(OSError):
         (prefix_root / _MARKER_NAME).write_text(tag, encoding="utf-8")
-    from unifideck.compatibility.proton_helpers import save_proton_setting
-    save_proton_setting(f"{plan.context.store}:{plan.context.game_id}", tag)
 
     await restore_or_migrate_saves(ge_plan, prefix_root)
-    launcher_toast(
-        "toasts.launcher.protonSwitchedTo",
-        i18n_title_key="toasts.header.proton",
-        i18n_params={"version": tag},
-        game_title=plan.context.game_key,
-    )
+    appid = getattr(plan.context, "steam_app_id", None)
+    if not request_steam_compat_tool(appid, tag, plan.context.game_key):
+        launcher_toast(
+            "toasts.launcher.protonSwitchedTo",
+            i18n_title_key="toasts.header.proton",
+            i18n_params={"version": tag},
+            game_title=plan.context.game_key,
+        )

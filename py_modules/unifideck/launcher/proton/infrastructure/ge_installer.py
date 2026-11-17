@@ -300,6 +300,21 @@ def _find_extracted_root(staging: Path, tag: str) -> Path | None:
     return candidates[0]
 
 
+def _seal(extracted: Path, tag: str, tarball_sha512: str | None) -> None:
+    """Record the staged tree's manifest, then make its Wine libraries read-only.
+
+    The manifest needs a tarball that matched GE's published hash. The
+    read-only step always runs: a prefix another Proton later runs writes
+    through its leftover symlinks into this tree otherwise (see
+    ``proton_integrity.protect_wine_libs``).
+    """
+    if tarball_sha512 is not None:
+        manifest = proton_integrity.build_manifest(extracted, tag, tarball_sha512)
+        if manifest is not None:
+            proton_integrity.write_manifest(extracted, manifest)
+    proton_integrity.protect_wine_libs(extracted)
+
+
 def _promote_extracted(
     staging: Path, tag: str, tarball_sha512: str | None = None,
 ) -> Path | None:
@@ -339,10 +354,7 @@ def _promote_extracted(
         )
         return None
     _make_executable(proton)
-    if tarball_sha512 is not None:
-        manifest = proton_integrity.build_manifest(extracted, tag, tarball_sha512)
-        if manifest is not None:
-            proton_integrity.write_manifest(extracted, manifest)
+    _seal(extracted, tag, tarball_sha512)
 
     dest = COMPAT_TOOLS_DIR / tag
     # Rename-aside, never rmtree-then-move. ``dest`` may be the Proton a game
@@ -392,6 +404,7 @@ def _adopt_if_intact(staging: Path, tag: str, tarball_sha512: str) -> Path | Non
         return None
     proton_integrity.write_manifest(live, manifest)
     proton_integrity.clear_damaged(live)
+    proton_integrity.protect_wine_libs(live)
     logger.info("[ge_installer] %s matches the official release; kept in place", live)
     return live / "proton"
 

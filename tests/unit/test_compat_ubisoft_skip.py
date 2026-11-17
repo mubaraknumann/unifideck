@@ -85,8 +85,8 @@ async def _run_setup_prefix(monkeypatch, tmp_path, store: str):
         ),
     )
     monkeypatch.setattr(
-        proton_pkg, "select_proton_version",
-        lambda steam_app_id, store_game_id: ("/protons/experimental", "proton_exp"),
+        proton_pkg, "select_proton_with_source",
+        lambda steam_app_id, store_game_id: ("/protons/experimental", "proton_exp", "steam"),
     )
     monkeypatch.setattr(
         proton_pkg, "select_managed_ge_proton",

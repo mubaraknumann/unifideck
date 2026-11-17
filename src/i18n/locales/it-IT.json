@@ -427,6 +427,7 @@
       "prerequisitesFailedMessage": "Forse incompleti",
       "prerequisitesInstalled": "Prerequisiti ok",
       "protonDamagedMessage": "Nuovo download",
+      "protonRepairHeld": "Guasto: {{version}}",
       "protonReadyBody": "Pronto {{version}}",
       "protonSwitchedTo": "Uso {{version}}",
       "redistributablesInstalled": "Librerie pronte",

@@ -147,6 +147,58 @@ def test_damaged_tree_is_announced_then_reinstalled(compat, installs):
     assert len(installs) == 1
 
 
+def test_damage_after_a_repair_is_held_not_downloaded_again(compat, installs, monkeypatch):
+    """One automatic re-download per tag per plugin version, then stop.
+
+    Damage that returns after a fresh copy has a cause a fresh copy does not
+    remove; downloading ~600 MB on every plugin start never ends.
+    """
+    monkeypatch.setattr(ge_repair, "_plugin_version", lambda: "0.8.1")
+    root = _with_manifest(_write_tree(compat / _TAG))
+    (root / "files/bin/wine").unlink()
+    assert ge_repair.audit_ge(_TAG).status == "repaired"
+
+    announced = []
+    result = ge_repair.audit_ge(_TAG, on_repair=lambda t, p: announced.append(t))
+
+    assert result == ge_repair.AuditResult(_TAG, "held", "files/bin/wine: missing")
+    assert len(installs) == 1, "no second download"
+    assert announced == []
+
+
+def test_a_new_plugin_version_allows_one_more_repair(compat, installs, monkeypatch):
+    version = {"value": "0.8.1"}
+    monkeypatch.setattr(ge_repair, "_plugin_version", lambda: version["value"])
+    root = _with_manifest(_write_tree(compat / _TAG))
+    (root / "files/bin/wine").unlink()
+    ge_repair.audit_ge(_TAG)
+
+    version["value"] = "0.8.2"
+
+    assert ge_repair.audit_ge(_TAG).status == "repaired"
+    assert len(installs) == 2
+
+
+def test_the_hold_is_per_tag(compat, installs, monkeypatch):
+    monkeypatch.setattr(ge_repair, "_plugin_version", lambda: "0.8.1")
+    for tag in (_TAG, "GE-Proton11-12"):
+        root = _with_manifest(_write_tree(compat / tag))
+        (root / "files/bin/wine").unlink()
+
+    assert ge_repair.audit_ge(_TAG).status == "repaired"
+    assert ge_repair.audit_ge("GE-Proton11-12").status == "repaired"
+
+
+def test_intact_tree_gets_read_only_wine_libs(compat, installs):
+    """Trees installed before the read-only step get it at the next audit."""
+    root = _with_manifest(_write_tree(compat / _TAG))
+    dll = root / "files/lib/wine/x86_64-windows/shell32.dll"
+
+    assert ge_repair.audit_ge(_TAG).status == "ok"
+    assert not dll.stat().st_mode & 0o222
+    assert ge_repair.audit_ge(_TAG).status == "ok", "read-only is not damage"
+
+
 def test_marked_tree_is_reinstalled(compat, installs):
     root = _write_tree(compat / _TAG)
     proton_integrity.mark_damaged(root, "shell32.dll replaced")
@@ -199,6 +251,20 @@ def test_install_records_a_manifest_from_the_verified_tarball(compat, release):
     assert set(manifest["files"]) == set(_FILES)
     assert proton_integrity.deep_problem(compat / _TAG) is None
     assert sorted(p.name for p in compat.iterdir()) == [_TAG], "no tarball or staging left"
+    dll = compat / _TAG / "files/lib/wine/x86_64-windows/shell32.dll"
+    assert not dll.stat().st_mode & 0o222, "Wine libs are read-only like Valve's"
+    assert (compat / _TAG / "files/lib/wine").stat().st_mode & 0o200, "dirs stay writable"
+
+
+def test_a_read_only_tree_can_still_be_replaced(compat, release):
+    """The swap renames the old tree aside and deletes it; read-only files must not block that."""
+    ge_installer._download_and_install(_TAG, "https://x/r.tar.gz", None)
+    live = compat / _TAG
+    (live / "files/bin/wine").write_bytes(b"changed")
+
+    assert ge_installer._download_and_install(_TAG, "https://x/r.tar.gz", None) is not None
+    assert proton_integrity.deep_problem(compat / _TAG) is None
+    assert sorted(p.name for p in compat.iterdir()) == [_TAG]
 
 
 def test_checksum_mismatch_installs_nothing_and_leaves_nothing(compat, release):

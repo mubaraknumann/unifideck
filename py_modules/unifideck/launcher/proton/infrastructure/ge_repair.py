@@ -18,6 +18,7 @@ Two rules bound what it touches:
 """
 from __future__ import annotations
 
+import json
 import logging
 import re
 import shutil
@@ -39,6 +40,10 @@ GE_DIR_RE = re.compile(r"^GE-Proton\d+-\d+$")
 # both created by ``ge_installer`` and normally removed by it.
 _LEFTOVER_RE = re.compile(r"^\.GE-Proton[\w.-]*\.(?:dl|old)-\w+$")
 STALE_AFTER_SECONDS = 3600
+# One automatic re-download per GE tag per plugin version. Damage that comes
+# back after a repair has a cause a fresh copy does not remove, and
+# downloading ~600 MB on every plugin start never ends.
+REPAIRS_FILE = Path("~/.local/share/unifideck/ge_repairs.json").expanduser()
 
 
 @dataclass(frozen=True)
@@ -49,7 +54,8 @@ class AuditResult:
     yet; checked against the release and kept or replaced), ``repaired``
     (was damaged; replaced or proven intact), ``unverified`` (no manifest,
     nothing found wrong, release unreachable), ``failed`` (damaged, and
-    the release could not be fetched or installed).
+    the release could not be fetched or installed), ``held`` (damaged again
+    after this plugin version already repaired it once; not re-downloaded).
     """
 
     tag: str
@@ -109,20 +115,20 @@ def audit_ge(
         with install_lock():
             if not (root / "proton").is_file():
                 return AuditResult(tag, "ok")
-            problem = proton_integrity.damaged_marker(root) or proton_integrity.deep_problem(root)
-            if problem is None and proton_integrity.load_manifest(root) is not None:
+            intact, problem = _inspect(root)
+            if intact:
                 return AuditResult(tag, "ok")
-            if problem:
-                logger.warning("[ge_repair] %s is damaged: %s", root, problem)
-                if on_repair is not None:
-                    on_repair(tag, problem)
-            else:
-                logger.info("[ge_repair] %s has no manifest; checking it against the release", root)
-            release = ge_installer.fetch_release(tag)
-            script = (
-                ge_installer.install_release_unlocked(tag, release, progress_cb)
-                if release else None
-            )
+            version = _plugin_version()
+            if problem and _repaired_before(tag, version):
+                logger.error(
+                    "[ge_repair] %s is damaged again after an automatic repair: %s. "
+                    "Not downloading it again in this plugin version; launches keep using it",
+                    root, problem,
+                )
+                return AuditResult(tag, "held", problem)
+            script = _replace(tag, problem, on_repair, progress_cb)
+            if script is not None and problem:
+                _record_repair(tag, version, problem)
     except Exception as e:
         logger.exception("[ge_repair] audit of %s failed", tag)
         return AuditResult(tag, "failed", str(e))
@@ -131,6 +137,82 @@ def audit_ge(
             return AuditResult(tag, "unverified", "could not fetch the official release")
         return AuditResult(tag, "failed", problem)
     return AuditResult(tag, "repaired" if problem else "verified", problem)
+
+
+def _inspect(root: Path) -> tuple[bool, str | None]:
+    """``(intact, problem)`` for one tree.
+
+    Intact means it carries a manifest and every file matches it; such a tree
+    also gets read-only Wine libraries, which covers trees installed before
+    the installer applied them. ``problem`` names the damage, or is None when
+    the tree is only missing its manifest.
+    """
+    problem = proton_integrity.damaged_marker(root) or proton_integrity.deep_problem(root)
+    if problem is None and proton_integrity.load_manifest(root) is not None:
+        proton_integrity.protect_wine_libs(root)
+        return True, None
+    return False, problem
+
+
+def _replace(
+    tag: str,
+    problem: str | None,
+    on_repair: Callable[[str, str], None] | None,
+    progress_cb: ProgressCb | None,
+) -> Path | None:
+    """Download ``tag``'s release and swap it in (or keep an identical tree).
+
+    Called under the install lock. Announces a repair first when ``problem``
+    is set; without one this only builds the missing manifest.
+    """
+    root = ge_installer.COMPAT_TOOLS_DIR / tag
+    if problem:
+        logger.warning("[ge_repair] %s is damaged: %s", root, problem)
+        if on_repair is not None:
+            on_repair(tag, problem)
+    else:
+        logger.info("[ge_repair] %s has no manifest; checking it against the release", root)
+    release = ge_installer.fetch_release(tag)
+    return ge_installer.install_release_unlocked(tag, release, progress_cb) if release else None
+
+
+def _plugin_version() -> str:
+    """The installed plugin's version from ``package.json``, or "" if unreadable."""
+    try:
+        from unifideck.core.paths import resolve_plugin_dir
+
+        data = json.loads((resolve_plugin_dir() / "package.json").read_text(encoding="utf-8"))
+        return str(data.get("version", ""))
+    except Exception:
+        return ""
+
+
+def _repairs() -> dict[str, dict[str, str]]:
+    """The automatic-repair record, ``{tag: {"version", "problem"}}``; {} if none."""
+    try:
+        data = json.loads(REPAIRS_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _repaired_before(tag: str, version: str) -> bool:
+    """Whether ``tag`` already got its automatic repair under this plugin version."""
+    entry = _repairs().get(tag)
+    return isinstance(entry, dict) and entry.get("version") == version
+
+
+def _record_repair(tag: str, version: str, problem: str) -> None:
+    """Remember that ``tag`` was repaired, so the same damage is not re-downloaded forever."""
+    data = _repairs()
+    data[tag] = {"version": version, "problem": problem}
+    try:
+        REPAIRS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        tmp = REPAIRS_FILE.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(data), encoding="utf-8")
+        tmp.replace(REPAIRS_FILE)
+    except OSError as e:
+        logger.warning("[ge_repair] could not record the repair of %s: %s", tag, e)
 
 
 def _tree_bytes(root: Path) -> int:

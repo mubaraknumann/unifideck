@@ -81,14 +81,13 @@ async def test_fallback_succeeds_persists_choice_and_restamps_marker(
         pass
 
     monkeypatch.setattr(sm, "restore_or_migrate_saves", _fake_restore)
-    saved: dict = {}
-
-    def _fake_save(store_game_id, tool_name):
-        saved["store_game_id"] = store_game_id
-        saved["tool_name"] = tool_name
-        return {"success": True}
-
-    monkeypatch.setattr(pth_mod, "save_proton_setting", _fake_save)
+    monkeypatch.setattr(
+        pth_mod, "save_proton_setting",
+        MagicMock(side_effect=AssertionError("no plugin-side Proton pin")),
+    )
+    plan.context.steam_app_id = "4184012976"
+    steam = MagicMock(return_value=True)
+    monkeypatch.setattr(gf, "request_steam_compat_tool", steam)
     toast = MagicMock()
     monkeypatch.setattr(gf, "launcher_toast", toast)
 
@@ -96,8 +95,27 @@ async def test_fallback_succeeds_persists_choice_and_restamps_marker(
 
     assert prepare_kwargs["proton_tool_id"] == "GE-Proton11-1"
     assert prepare_kwargs["proton_path"] == Path("/opt/ge/proton")
-    assert saved == {"store_game_id": "epic:Hazelnut", "tool_name": "GE-Proton11-1"}
+    # The choice goes into Steam's per-game setting; its request toasts the switch.
+    steam.assert_called_once_with("4184012976", "GE-Proton11-1", "epic:Hazelnut")
+    toast.assert_not_called()
     assert (root / pi._MARKER_NAME).read_text() == "GE-Proton11-1"
+
+
+async def test_fallback_without_an_appid_still_says_which_proton_it_uses(tmp_path, monkeypatch):
+    root = tmp_path / "prefix"
+    root.mkdir()
+    plan = _plan(root, "proton_experimental")
+    monkeypatch.setattr(gf, "_resolve_ge_proton", lambda: (Path("/opt/ge/proton"), "GE-Proton11-1"))
+    ge_plan = _plan(root, "GE-Proton11-1")
+    ge_plan.env = {}
+    monkeypatch.setattr(gf, "proton_prepare", lambda *a, **k: ge_plan)
+    monkeypatch.setattr(pi, "_run_createprefix_with_retry", AsyncMock(return_value=True))
+    monkeypatch.setattr(sm, "restore_or_migrate_saves", AsyncMock())
+    toast = MagicMock()
+    monkeypatch.setattr(gf, "launcher_toast", toast)
+
+    await gf.fallback_to_ge_proton(plan, root)
+
     assert toast.call_args.args[0] == "toasts.launcher.protonSwitchedTo"
 
 

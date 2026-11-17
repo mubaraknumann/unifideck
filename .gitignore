@@ -92,6 +92,7 @@ bin/nile
 bin/winetricks
 bin/comet
 bin/butler/
+bin/cabextract/
 bin/maxima-cli
 bin/maxima-cli.LICENSE
 

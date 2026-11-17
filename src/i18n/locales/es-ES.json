@@ -427,6 +427,7 @@
       "prerequisitesFailedMessage": "Posible fallo",
       "prerequisitesInstalled": "Requisitos OK",
       "protonDamagedMessage": "Se redescarga",
+      "protonRepairHeld": "Dañado: {{version}}",
       "protonReadyBody": "Instalado {{version}}",
       "protonSwitchedTo": "Usando {{version}}",
       "redistributablesInstalled": "Librerías listas",

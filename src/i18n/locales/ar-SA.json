@@ -427,6 +427,7 @@
       "prerequisitesFailedMessage": "متطلبات ناقصة",
       "prerequisitesInstalled": "المتطلبات جاهزة",
       "protonDamagedMessage": "إعادة التنزيل",
+      "protonRepairHeld": "تالف: {{version}}",
       "protonReadyBody": "تم تثبيت {{version}}",
       "protonSwitchedTo": "استخدام {{version}}",
       "redistributablesInstalled": "أُضيفت المكتبات",

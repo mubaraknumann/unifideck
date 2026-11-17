@@ -427,6 +427,7 @@
       "prerequisitesFailedMessage": "Partly installed",
       "prerequisitesInstalled": "Prerequisites OK",
       "protonDamagedMessage": "Re-downloading",
+      "protonRepairHeld": "Damaged: {{version}}",
       "protonReadyBody": "Installed {{version}}",
       "protonSwitchedTo": "Using {{version}}",
       "redistributablesInstalled": "Libraries added",

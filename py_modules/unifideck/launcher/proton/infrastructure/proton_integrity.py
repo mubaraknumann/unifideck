@@ -32,6 +32,7 @@ import hashlib
 import json
 import logging
 import os
+import stat
 import uuid
 from pathlib import Path
 from typing import Any
@@ -245,6 +246,50 @@ def deep_problem(root: Path) -> str | None:
         return problem
     manifest = load_manifest(root)
     return manifest_problem(root, manifest, deep=True) if manifest else None
+
+
+# Where Proton keeps Wine's builtin DLLs and libraries.
+_WINE_LIB_DIRS = ("files/lib/wine", "files/lib64/wine")
+_WRITE_BITS = 0o222
+
+
+def protect_wine_libs(root: Path) -> int:
+    """Make every file under the tree's Wine library dirs read-only; return how many changed.
+
+    A prefix's DLLs are symlinks into the Proton that set it up. When another
+    Proton later runs that prefix, every file the second one does not ship
+    stays linked to the first, and its Wine writes through those links into
+    the shared tree (measured: Proton Experimental rewrote GE's
+    ``igd10iumd64.dll``, so every GE game saw a damaged Proton). Valve ships
+    these files read-only for this reason; with the same permissions the
+    write is refused, Wine carries on, and the prefix update finishes the
+    same way (measured on a copy, 2026-11-17).
+
+    Directories stay writable, so replacing or deleting the tree, Proton's
+    ``__pycache__`` and ``dist.lock`` all keep working. Proton only reads these
+    files: it copies them into prefixes, and makes its copies writable. Never
+    raises; an entry it cannot change is skipped.
+    """
+    changed = 0
+    for rel in _WINE_LIB_DIRS:
+        base = root / rel
+        if not base.is_dir():
+            continue
+        for dirpath, _dirs, files in os.walk(base):
+            changed += sum(_drop_write_bits(Path(dirpath) / name) for name in files)
+    return changed
+
+
+def _drop_write_bits(path: Path) -> bool:
+    """Make one regular file read-only; True if it changed. Links are left alone."""
+    try:
+        mode = path.lstat().st_mode
+        if not stat.S_ISREG(mode) or not mode & _WRITE_BITS:
+            return False
+        path.chmod(mode & ~_WRITE_BITS)
+    except OSError:
+        return False
+    return True
 
 
 def damaged_marker(root: Path) -> str | None:

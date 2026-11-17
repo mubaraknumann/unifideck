@@ -427,6 +427,7 @@
       "prerequisitesFailedMessage": "Deels gelukt",
       "prerequisitesInstalled": "Vereisten gereed",
       "protonDamagedMessage": "Opnieuw ophalen",
+      "protonRepairHeld": "Defect: {{version}}",
       "protonReadyBody": "Klaar: {{version}}",
       "protonSwitchedTo": "Nu {{version}}",
       "redistributablesInstalled": "Libraries klaar",

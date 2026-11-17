@@ -427,6 +427,7 @@
       "prerequisitesFailedMessage": "必須項目が一部失敗",
       "prerequisitesInstalled": "必須項目の準備完了",
       "protonDamagedMessage": "再ダウンロード中",
+      "protonRepairHeld": "破損: {{version}}",
       "protonReadyBody": "導入完了：{{version}}",
       "protonSwitchedTo": "使用中：{{version}}",
       "redistributablesInstalled": "ライブラリを追加しました",

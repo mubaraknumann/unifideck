@@ -23,9 +23,13 @@ import { isConflictAction } from "./toast-action";
 import { showStageToast } from "./stage-toast";
 import { REPAIR_VERB, repairXboxPcGame } from "./store/xbox-pc-repair";
 import { DLC_VERB, installXboxPcDlc } from "./store/xbox-pc-dlc";
+import { specifyNamedCompatTool } from "../lib/steam-bridge/shortcut-types";
 import type { ToastActionPayload } from "../types/events";
 
 const POLL_INTERVAL_MS = 2000;
+
+/** The launcher's `request_steam_compat_tool` action: `[unsignedAppId, tool]`. */
+const COMPAT_TOOL_VERB = "set-compat-tool";
 
 /**
  * One toast row from the launcher bridge file.
@@ -120,6 +124,19 @@ function showLauncherToast(ev: LauncherToast): void {
   // bypassed the Update button): download the DLC now, as a queue row.
   if (ev.action?.verb === DLC_VERB && ev.action.args?.[0]) {
     void installXboxPcDlc(ev.action.args[0]);
+  }
+  // The launcher picked a Proton for a game nobody chose one for: make it the
+  // game's Steam Compatibility tool, the one setting every launch reads. The
+  // toast below names it.
+  if (ev.action?.verb === COMPAT_TOOL_VERB) {
+    const [appId, tool] = ev.action.args ?? [];
+    const id = Number(appId);
+    if (Number.isInteger(id) && id > 0 && tool) {
+      specifyNamedCompatTool(id, tool);
+      console.log(
+        `[LauncherToasts] compatibility tool for appId=${id} set to ${tool}`,
+      );
+    }
   }
 
   showStageToast(ev);

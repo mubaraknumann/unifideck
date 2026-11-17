@@ -427,6 +427,7 @@
       "prerequisitesFailedMessage": "Wymagania: błąd",
       "prerequisitesInstalled": "Wymagania gotowe",
       "protonDamagedMessage": "Pobieranie…",
+      "protonRepairHeld": "Wadliwy: {{version}}",
       "protonReadyBody": "Gotowe: {{version}}",
       "protonSwitchedTo": "Teraz: {{version}}",
       "redistributablesInstalled": "Gotowe",

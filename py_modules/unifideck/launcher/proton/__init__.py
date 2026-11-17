@@ -24,6 +24,7 @@ from .infrastructure.selector import (
     resolve_proton_path,
     select_managed_ge_proton,
     select_proton_version,
+    select_proton_with_source,
 )
 from .infrastructure.umu_runtime import (
     UMU_CACHE_DIR,
@@ -152,6 +153,7 @@ __all__ = [
     "run_umu_with_retry",
     "select_managed_ge_proton",
     "select_proton_version",
+    "select_proton_with_source",
     "setup_prefix",
     "ubisoft_launch",
     "unrecoverable_runtime_variants",

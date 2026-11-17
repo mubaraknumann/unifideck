@@ -268,6 +268,7 @@ Contains **only** compiled binaries and shell wrappers. All old `bin/*.py` helpe
 | `stubs/GalaxyCommunication.exe` | binary  | GOG Galaxy overlay stub (copied into Wine prefix by the GOG store)                       |
 | `umu/`                          | dir     | `umu-run` runtime bundle (upstream project)                                              |
 | `butler/`                       | dir     | itch.io's `butler` (~23 MB) plus the `7z.so` / `libc7zip.so` it loads from its own folder |
+| `cabextract/`                   | dir     | `cabextract` (~80 KB), on winetricks' `PATH` when redistributables install under a Valve Proton |
 
 ---
 
@@ -432,10 +433,13 @@ All remote binaries are declared in `package.json` under `"remote_binary"`. The 
 | `comet`      | v0.4.1   | `github.com/imLinguin/comet`                    |
 | `winetricks` | 20260125 | `github.com/Winetricks/winetricks`              |
 | `butler`     | 15.31.0  | `broth.itch.zone/butler/linux-amd64` (archive; see below) |
+| `cabextract` | 1.11     | `archive.archlinux.org` Arch build 1.11-3 (archive; see below) |
 
 `umu` is the exception: it is committed to the repo (`bin/umu/umu/umu-run`) rather than downloaded, so it has no `remote_binary` entry. Its version is recorded in `bin/umu/VERSION` (currently **1.4.4**) and reported in support bundles. Do not ship umu &lt;= 1.4.1: those versions fetch the Steam Linux Runtime from `repo.steampowered.com/<variant>/images/latest-public-beta[/VERSION.txt]`, which the repo now answers with HTTP 403. umu's *update* path tolerates that and keeps an existing runtime working, but its *install* path fails, so any Deck without a cached runtime can never obtain one. 1.4.3+ reads `images/latest-public-beta.txt` and fetches from the numbered directory it names, which serves normally.
 
 `butler` is the second exception, and the only **archive**: the broth zip holds `butler`, `7z.so` and `libc7zip.so`. It cannot be a `remote_binary` entry, because Decky writes a `remote_binary` download to `bin/<name>` byte for byte and never unzips it. Instead `build-plugin.sh` pins the zip (`BUTLER_URL` naming a version, never broth's moving `LATEST`, plus `BUTLER_SHA256`) and unpacks it into `bin/butler/`; `binary_signatures._KNOWN_HASHES["butler"]` pins the extracted executable; `test_binary_manifest_sync.py` checks all three. The two libraries are not optional: measured on 15.31.0, a butler without them silently downloads them next to itself on the first 7z install, which fails offline and on a read-only directory. (It prints "Ensuring dependencies…" in both cases; only the download adds files.) Licences: butler is MIT; the 7-zip components are LGPL-2.1 / MPL-2.0.
+
+`cabextract` is the second archive. winetricks needs it to unpack Microsoft's cab files (`vcrun2022`, `mfc140` and `d3dcompiler_43` in the default set) and aborts the whole run without it; SteamOS does not ship it. GE-Proton carries its own, so this only matters when redistributables install under a Proton without winetricks (a Valve Proton), where the launcher runs the bundled `winetricks` with that Proton's Wine and puts `bin/cabextract/` on its `PATH` (`launcher/proton/compat/winetricks_wine.py`). Upstream publishes source only, so `build-plugin.sh` pins Arch Linux's build in its permanent archive (`CABEXTRACT_URL` naming the exact package, plus `CABEXTRACT_SHA256`) and unpacks the one executable; `binary_signatures._KNOWN_HASHES["cabextract"]` pins it, and `test_binary_manifest_sync.py` checks all three. It links only libc and needs glibc >= 2.34. Licence: GPL-2.0-or-later.
 
 `nile` is deliberately held at v1.1.2. v1.2.0 migrates auth into an encrypted store and **deletes** `~/.config/nile/user.json` on first run — the file `AmazonStore._check_nile_authenticated` reads to decide the store is available. Bumping it without migrating that check silently empties the Amazon library for users who are still perfectly authenticated.
 

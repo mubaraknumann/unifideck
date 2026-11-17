@@ -261,6 +261,16 @@ WINETRICKS_URL="https://raw.githubusercontent.com/Winetricks/winetricks/20260125
 BUTLER_URL="https://broth.itch.zone/butler/linux-amd64/15.31.0/archive/default"
 BUTLER_SHA256="4f2a3f22b12f870923504d4b6935535cad377b45859f5fe9419e3adc0611a48c"
 
+# cabextract: winetricks needs it to unpack Microsoft's cab files (vcrun2022,
+# mfc140 and d3dcompiler_43 in the default set) and aborts the whole run
+# without it. SteamOS does not ship it. Upstream publishes source only, so this
+# pins Arch Linux's build in its permanent package archive: a .pkg.tar.zst,
+# hence an archive like butler, unpacked to bin/cabextract/cabextract. It links
+# only libc (needs glibc >= 2.34). CABEXTRACT_SHA256 pins the package; the
+# extracted executable is pinned in core/binaries/binary_signatures.py.
+CABEXTRACT_URL="https://archive.archlinux.org/packages/c/cabextract/cabextract-1.11-3-x86_64.pkg.tar.zst"
+CABEXTRACT_SHA256="89f90aa1aefd7215d4d78e656454dde49b29ca5d4526cdc4a8f1be1e07ac9a65"
+
 # ── Pre-build: download/verify bundled binaries ───────────────
 # Decky Loader expects all dependencies to be included in the zip file.
 # This function pulls down the large third-party store clients.
@@ -348,6 +358,7 @@ prebuild_binaries() {
     fi
 
     _prebuild_butler
+    _prebuild_cabextract
     _prebuild_maxima
 
     echo ""
@@ -419,6 +430,44 @@ _prebuild_butler() {
     printf '%s\n' "$BUTLER_URL" > "$stamp"
     rm -rf "$tmp"
     log_success "butler downloaded/verified"
+}
+
+# cabextract: download the pinned Arch package, check its sha256, unpack the
+# one executable into bin/cabextract/ (its own dir, so winetricks gets it on
+# PATH without every other tool in bin/). Stamp at bin/cabextract.url, stripped
+# from the shipped plugin like the others.
+_prebuild_cabextract() {
+    local dest="$SCRIPT_DIR/bin/cabextract" stamp="$SCRIPT_DIR/bin/cabextract.url"
+    log_info "Checking cabextract..."
+    if [ -x "$dest/cabextract" ] && [ "$(cat "$stamp" 2>/dev/null)" = "$CABEXTRACT_URL" ]; then
+        log_success "cabextract up to date (cached)"
+        return 0
+    fi
+    local tmp; tmp=$(mktemp -d)
+    if ! curl -fsSL "$CABEXTRACT_URL" -o "$tmp/pkg.tar.zst"; then
+        log_warn "cabextract: download failed, keeping existing"
+        rm -rf "$tmp"; return 0
+    fi
+    if [ "$(sha256sum "$tmp/pkg.tar.zst" | cut -d' ' -f1)" != "$CABEXTRACT_SHA256" ]; then
+        log_warn "cabextract: package checksum mismatch, keeping existing"
+        rm -rf "$tmp"; return 0
+    fi
+    mkdir -p "$tmp/out"
+    if ! tar --zstd -xf "$tmp/pkg.tar.zst" -C "$tmp/out" usr/bin/cabextract; then
+        log_warn "cabextract: unpack failed, keeping existing"
+        rm -rf "$tmp"; return 0
+    fi
+    chmod +x "$tmp/out/usr/bin/cabextract"
+    if ! "$tmp/out/usr/bin/cabextract" --version > /dev/null 2>&1; then
+        log_warn "cabextract: extracted binary failed validation, keeping existing"
+        rm -rf "$tmp"; return 0
+    fi
+    rm -rf "$dest"
+    mkdir -p "$dest"
+    mv "$tmp/out/usr/bin/cabextract" "$dest/cabextract"
+    printf '%s\n' "$CABEXTRACT_URL" > "$stamp"
+    rm -rf "$tmp"
+    log_success "cabextract downloaded/verified"
 }
 
 # ── Pre-build: requirements check ────────────────────────────
@@ -1193,6 +1242,7 @@ build_local() {
         "bin/butler/butler"
         "bin/butler/7z.so"
         "bin/butler/libc7zip.so"
+        "bin/cabextract/cabextract"
 
         # Defaults
         "defaults/config.json"

@@ -427,6 +427,7 @@
       "prerequisitesFailedMessage": "일부만 설치됨",
       "prerequisitesInstalled": "필수 구성요소 준비됨",
       "protonDamagedMessage": "다시 받는 중",
+      "protonRepairHeld": "손상됨: {{version}}",
       "protonReadyBody": "설치됨: {{version}}",
       "protonSwitchedTo": "사용 중: {{version}}",
       "redistributablesInstalled": "라이브러리 추가됨",

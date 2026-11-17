@@ -427,6 +427,7 @@
       "prerequisitesFailedMessage": "Kısmen yüklendi",
       "prerequisitesInstalled": "Ön koşul tamam",
       "protonDamagedMessage": "Yeniden iniyor",
+      "protonRepairHeld": "Hasarlı: {{version}}",
       "protonReadyBody": "Yüklendi: {{version}}",
       "protonSwitchedTo": "Aktif: {{version}}",
       "redistributablesInstalled": "Eklendi",

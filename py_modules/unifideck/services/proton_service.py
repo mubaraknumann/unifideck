@@ -113,6 +113,19 @@ class ProtonService:
                 "toasts.launcher.protonReadyBody",
                 result.tag,
             )
+        elif result.status == "held":
+            # Already re-downloaded once in this plugin version and damaged
+            # again: say so instead of downloading on every start.
+            logger.error(
+                "[ProtonService] %s damaged again after its repair (%s); "
+                "not re-downloading, see ge_repairs.json",
+                result.tag, result.problem,
+            )
+            await self._emit_proton_toast(
+                "toasts.header.proton",
+                "toasts.launcher.protonRepairHeld",
+                result.tag,
+            )
         elif result.status == "failed":
             logger.error(
                 "[ProtonService] %s could not be verified or repaired (%s); "

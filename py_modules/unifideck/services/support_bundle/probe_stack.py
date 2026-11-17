@@ -137,6 +137,8 @@ def plugin_block(plugin_dir: str | None) -> dict[str, Any]:
     # butler ships as a directory with the 7-zip libraries it dlopen()s.
     binaries["butler"] = _mode_of(base / "bin" / "butler" / "butler")
     binaries["butler-7z.so"] = _mode_of(base / "bin" / "butler" / "7z.so")
+    # winetricks unpacks Microsoft cab files with it (Valve Protons).
+    binaries["cabextract"] = _mode_of(base / "bin" / "cabextract" / "cabextract")
     return {
         "resolved": True,
         "path": plugin_dir,

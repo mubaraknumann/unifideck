@@ -145,6 +145,42 @@ def launcher_toast(
     record_event(_LAUNCHER_STAGE, payload)
 
 
+#: Toast action the frontend answers by making ``args[1]`` the Steam
+#: compatibility tool of the shortcut with unsigned appid ``args[0]``.
+COMPAT_TOOL_VERB = "set-compat-tool"
+
+
+def request_steam_compat_tool(steam_app_id: str | int | None, tool: str, game_title: str = "") -> bool:
+    """Ask the frontend to set ``tool`` as this game's Steam compatibility tool.
+
+    Steam's Properties > Compatibility setting is the only record of a game's
+    Proton (no plugin-side list), so when the launcher picks one for a game
+    nobody set one for, it writes it there. Steam stores it at once and the
+    next launch reads it first. The toast says which Proton is now in use.
+
+    Not muted by :func:`suppress_launcher_toasts`: the setting is the point,
+    the toast only reports it. Returns False when there is no appid to set.
+    """
+    if not steam_app_id or not tool:
+        return False
+    try:
+        from unifideck.core.compat_bridge import to_unsigned
+
+        appid = str(to_unsigned(steam_app_id))
+    except (TypeError, ValueError):
+        return False
+    record_event(_LAUNCHER_STAGE, {
+        "i18n_key": "toasts.launcher.protonSwitchedTo",
+        "i18n_title_key": "toasts.header.proton",
+        "i18n_params": {"version": tool},
+        "game_title": game_title,
+        "priority": "normal",
+        "action": {"verb": COMPAT_TOOL_VERB, "args": [appid, tool]},
+    })
+    logger.info("[frontend_bridge] asked Steam to use %s for appid %s", tool, appid)
+    return True
+
+
 def install_bus_forwarder(bus: Any) -> None:
     """Mirror the launcher bus's LAUNCHER_STAGE emits into the file.
 

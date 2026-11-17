@@ -427,6 +427,7 @@
       "prerequisitesFailedMessage": "Частково",
       "prerequisitesInstalled": "Все готово",
       "protonDamagedMessage": "Скачаємо знову",
+      "protonRepairHeld": "Зламано: {{version}}",
       "protonReadyBody": "Додано {{version}}",
       "protonSwitchedTo": "Тепер {{version}}",
       "redistributablesInstalled": "Файли додано",

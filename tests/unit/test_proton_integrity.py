@@ -189,3 +189,35 @@ def test_marker_round_trip(tmp_path):
 
     pi.clear_damaged(root)
     assert pi.damaged_marker(root) is None
+
+
+# ── read-only Wine libraries ─────────────────────────────────────────
+
+def test_protect_wine_libs_makes_only_wine_lib_files_read_only(tmp_path):
+    """Valve's layout: files under lib/wine read-only, everything else as shipped.
+
+    A prefix that another Proton later runs keeps symlinks into this tree,
+    and that Proton's Wine writes through them; a read-only file refuses it.
+    """
+    root = tmp_path / "GE-Proton11-12"
+    dll = root / "files/lib/wine/x86_64-windows/igd10iumd64.dll"
+    unix = root / "files/lib64/wine/x86_64-unix/ntdll.so"
+    other = root / "files/bin/wine"
+    for path in (dll, unix, other):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"x")
+        path.chmod(0o755)
+    link = dll.parent / "alias.dll"
+    link.symlink_to(other)
+
+    assert pi.protect_wine_libs(root) == 2
+
+    assert dll.stat().st_mode & 0o777 == 0o555
+    assert unix.stat().st_mode & 0o777 == 0o555
+    assert other.stat().st_mode & 0o777 == 0o755, "a link's target outside lib/wine is untouched"
+    assert dll.parent.stat().st_mode & 0o200, "directories stay writable"
+    assert pi.protect_wine_libs(root) == 0, "idempotent"
+
+
+def test_protect_wine_libs_tolerates_an_unfamiliar_layout(tmp_path):
+    assert pi.protect_wine_libs(tmp_path / "missing") == 0

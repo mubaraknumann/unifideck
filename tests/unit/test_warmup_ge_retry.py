@@ -60,8 +60,8 @@ def wired(monkeypatch, tmp_path):
     )
     ensure = AsyncMock()
     monkeypatch.setattr(prefix_init_mod, "ensure_prefix_initialized", ensure)
-    # Never touch disk / proton_settings.json in the ladder tests — the pin is
-    # asserted separately in the pin tests below.
+    # Never touch disk or Steam in the ladder tests — the pin is asserted
+    # separately in test_prefix_setup_pin.py.
     pin = MagicMock()
     monkeypatch.setattr(setup_mod, "_pin_final_tool", pin)
     return SimpleNamespace(ensure=ensure, pin=pin)
@@ -74,7 +74,7 @@ def _patch_compat(monkeypatch, timed_out_sequence):
     seq = iter(timed_out_sequence)
     calls = []
 
-    async def _compat(plan, *, vcreg_plan=None):
+    async def _compat(plan):
         val = next(seq)
         calls.append(plan.tool_id)
         return val
@@ -86,11 +86,10 @@ def _patch_compat(monkeypatch, timed_out_sequence):
 def _capable_proton(tmp_path, name):
     """A Proton dir that CAN run umu's winetricks verb.
 
-    ``setup_prefix`` short-circuits to managed GE for a Proton with no
-    ``protonfixes/`` (it could never run the compat step — see
+    The winetricks step skips a Proton with no ``protonfixes/`` (see
     test_prefix_setup_winetricks_capable.py). These tests exercise the
     *timeout* ladder, which only applies to a Proton that genuinely could
-    have worked, so the fakes have to carry the payload.
+    have worked, so the fakes carry the payload.
     """
     root = tmp_path / name
     (root / "protonfixes").mkdir(parents=True, exist_ok=True)
@@ -100,9 +99,11 @@ def _capable_proton(tmp_path, name):
 
 def _patch_selectors(monkeypatch, tmp_path, *, default_tool, ge_tool):
     default_path = _capable_proton(tmp_path, default_tool)
+    # The "steam" tier: the default is the game's own setting, so setup
+    # keeps it and only the hang ladder can move the game to GE.
     monkeypatch.setattr(
-        proton_pkg, "select_proton_version",
-        lambda steam_app_id, store_game_id: (str(default_path), default_tool),
+        proton_pkg, "select_proton_with_source",
+        lambda steam_app_id, store_game_id: (str(default_path), default_tool, "steam"),
     )
     ge = MagicMock(return_value=(str(_capable_proton(tmp_path, ge_tool)), ge_tool))
     monkeypatch.setattr(proton_pkg, "select_managed_ge_proton", ge)

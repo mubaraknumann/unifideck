@@ -1,21 +1,16 @@
-"""Tests for ``prefix_setup._pin_final_tool`` — the recovery pin.
+"""Tests for ``prefix_setup._pin_final_tool`` — keeping the recovered Proton.
 
 When ``setup_prefix`` recovers a hanging Proton by falling back to the managed
-GE-Proton, it pins GE for that game so the NEXT launch resolves GE directly
-(tier 1 of ``select_proton_version``) instead of re-picking the user's hanging
-global-default, seeing a "Proton family change" against the GE-built prefix, and
-wiping + rebuilding it at Play time (the observed Rise-of-the-Tomb-Raider redo).
+GE-Proton, the NEXT launch must resolve GE directly instead of re-picking the
+hanging Proton, seeing a "Proton family change" against the GE-built prefix,
+and wiping + rebuilding it at Play time (the observed Rise-of-the-Tomb-Raider
+redo).
 
-The pin has two halves, both asserted here:
+Two halves, both asserted here:
   1. re-stamp the prefix's ``.unifideck_proton_version`` marker (so
      ``ensure_prefix_initialized`` sees no family change next launch), and
-  2. write the per-game entry into ``proton_settings.json`` via
-     ``save_proton_setting`` (the tier-1 lookup the selector honours).
-
-``save_proton_setting`` lives in the aiohttp-heavy ``compatibility`` package and
-is imported lazily inside the function (the launcher must stay stdlib-safe under
-system Python) — so it's patched by module path, not by attribute on
-``prefix_setup``.
+  2. ask the frontend to make GE the game's Steam Compatibility setting, the
+     one record of a game's Proton. Nothing goes to ``proton_settings.json``.
 """
 from __future__ import annotations
 
@@ -24,6 +19,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from unifideck.launcher import frontend_bridge
 from unifideck.launcher.proton import prefix_setup as setup_mod
 from unifideck.launcher.proton.compat.prefix_init import _MARKER_NAME
 
@@ -35,8 +31,20 @@ def _isolated_prefixes(tmp_path, monkeypatch):
     return tmp_path
 
 
-def _ctx(game_key="gog:123"):
-    return SimpleNamespace(game_id="123", game_key=game_key)
+@pytest.fixture
+def steam(monkeypatch):
+    """Record Steam compat-tool requests; fail loudly on a plugin-side pin."""
+    request = MagicMock(return_value=True)
+    monkeypatch.setattr(frontend_bridge, "request_steam_compat_tool", request)
+    monkeypatch.setattr(
+        "unifideck.compatibility.proton_helpers.save_proton_setting",
+        MagicMock(side_effect=AssertionError("no plugin-side Proton pin")),
+    )
+    return request
+
+
+def _ctx(game_key="gog:123", steam_app_id="4184012976"):
+    return SimpleNamespace(game_id="123", game_key=game_key, steam_app_id=steam_app_id)
 
 
 def _state(prefix_path):
@@ -44,24 +52,16 @@ def _state(prefix_path):
     return SimpleNamespace(prefix_path=prefix_path)
 
 
-def test_pin_writes_marker_and_saves_setting(_isolated_prefixes, monkeypatch):
-    saved = MagicMock(return_value={"success": True})
-    monkeypatch.setattr(
-        "unifideck.compatibility.proton_helpers.save_proton_setting", saved,
-    )
+def test_pin_writes_marker_and_sets_steams_setting(_isolated_prefixes, steam):
     prefix = _isolated_prefixes / ".local/share/unifideck/prefixes/123"
 
     setup_mod._pin_final_tool(_ctx(), _state(prefix), "GE-Proton11-1")
 
-    # 1. the prefix marker is (re-)stamped to the pinned tool
     assert (prefix / _MARKER_NAME).read_text(encoding="utf-8") == "GE-Proton11-1"
-    # 2. the per-game pin is persisted (tier-1 of the selector)
-    saved.assert_called_once_with("gog:123", "GE-Proton11-1")
+    steam.assert_called_once_with("4184012976", "GE-Proton11-1", "gog:123")
 
 
-def test_pin_stamps_the_resolved_prefix_not_the_default_layout(
-    _isolated_prefixes, monkeypatch,
-):
+def test_pin_stamps_the_resolved_prefix_not_the_default_layout(_isolated_prefixes, steam):
     """A Ubisoft prefix under a user-picked base gets the marker, not a stray dir.
 
     Regression: the root used to be rebuilt as
@@ -70,26 +70,17 @@ def test_pin_stamps_the_resolved_prefix_not_the_default_layout(
     stamped ``prefixes/80``, a directory no launch opens, while the real prefix
     kept its stale marker and got wiped again on the next launch.
     """
-    monkeypatch.setattr(
-        "unifideck.compatibility.proton_helpers.save_proton_setting", MagicMock(),
-    )
     real = _isolated_prefixes / "Games/prefixes/ubisoft/80"
     real.mkdir(parents=True)
 
-    setup_mod._pin_final_tool(
-        _ctx("ubisoft:80"), _state(real), "GE-Proton11-3",
-    )
+    setup_mod._pin_final_tool(_ctx("ubisoft:80"), _state(real), "GE-Proton11-3")
 
     assert (real / _MARKER_NAME).read_text(encoding="utf-8") == "GE-Proton11-3"
-    # and nothing was created under the generic layout
     assert not (_isolated_prefixes / ".local/share/unifideck/prefixes/80").exists()
 
 
-def test_pin_normalizes_a_pfx_suffixed_prefix(_isolated_prefixes, monkeypatch):
+def test_pin_normalizes_a_pfx_suffixed_prefix(_isolated_prefixes, steam):
     """``<root>/pfx`` stamps ``<root>`` — the marker lives at the prefix root."""
-    monkeypatch.setattr(
-        "unifideck.compatibility.proton_helpers.save_proton_setting", MagicMock(),
-    )
     root = _isolated_prefixes / "Games/prefixes/ubisoft/80"
     (root / "pfx").mkdir(parents=True)
 
@@ -98,29 +89,7 @@ def test_pin_normalizes_a_pfx_suffixed_prefix(_isolated_prefixes, monkeypatch):
     assert (root / _MARKER_NAME).read_text(encoding="utf-8") == "GE-Proton11-3"
 
 
-def test_pin_saves_setting_when_prefix_unresolved(_isolated_prefixes, monkeypatch):
-    """No resolved prefix → skip the marker, still write the per-game pin."""
-    saved = MagicMock(return_value={"success": True})
-    monkeypatch.setattr(
-        "unifideck.compatibility.proton_helpers.save_proton_setting", saved,
-    )
-
+def test_pin_still_sets_steam_when_prefix_unresolved(_isolated_prefixes, steam):
     setup_mod._pin_final_tool(_ctx(), _state(None), "GE-Proton11-1")
 
-    saved.assert_called_once_with("gog:123", "GE-Proton11-1")
-
-
-def test_pin_survives_save_failure(_isolated_prefixes, monkeypatch):
-    # A failed save must never raise — the prefix is already built; worst case
-    # is a redo next launch, not a broken install/launch.
-    monkeypatch.setattr(
-        "unifideck.compatibility.proton_helpers.save_proton_setting",
-        MagicMock(side_effect=RuntimeError("boom")),
-    )
-    prefix = _isolated_prefixes / ".local/share/unifideck/prefixes/123"
-
-    # Must not raise.
-    setup_mod._pin_final_tool(_ctx(), _state(prefix), "GE-Proton11-1")
-
-    # The marker still got written before the save attempt.
-    assert (prefix / _MARKER_NAME).read_text(encoding="utf-8") == "GE-Proton11-1"
+    steam.assert_called_once_with("4184012976", "GE-Proton11-1", "gog:123")

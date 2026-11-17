@@ -164,6 +164,38 @@ def test_archive_binary_butler_is_fully_pinned(
     )
 
 
+def test_archive_binary_cabextract_is_fully_pinned(
+    manifest: dict[str, dict[str, str]], shell_urls: dict[str, str],
+) -> None:
+    """cabextract ships as an archive (an Arch package), pinned like butler.
+
+    Not a ``remote_binary``: Decky would write the raw .pkg.tar.zst over
+    ``bin/cabextract/``. build-plugin.sh pins the package (a versioned URL in
+    Arch's permanent archive + ``CABEXTRACT_SHA256``) and ``_KNOWN_HASHES``
+    pins the executable unpacked from it.
+    """
+    from unifideck.core.binaries.binary_signatures import _KNOWN_HASHES
+
+    assert "cabextract" not in manifest, (
+        "cabextract must not be a package.json remote_binary entry: Decky "
+        "would overwrite bin/cabextract/ with the unextracted package"
+    )
+    url = shell_urls.get("cabextract", "")
+    assert re.search(
+        r"^https://archive\.archlinux\.org/packages/c/cabextract/cabextract-[\d.]+-\d+-x86_64\.pkg\.tar\.zst$",
+        url,
+    ), f"CABEXTRACT_URL must name an exact archived build: {url!r}"
+    path = _repo_file("build-plugin.sh")
+    assert path is not None
+    text = path.read_text(encoding="utf-8")
+    assert re.search(r'^CABEXTRACT_SHA256="[0-9a-f]{64}"$', text, flags=re.MULTILINE), (
+        "build-plugin.sh must pin the cabextract package with CABEXTRACT_SHA256"
+    )
+    assert re.fullmatch(r"[0-9a-f]{64}", _KNOWN_HASHES.get("cabextract", "")), (
+        "binary_signatures._KNOWN_HASHES must pin the extracted cabextract"
+    )
+
+
 def test_bundled_umu_version_is_pinned() -> None:
     """``bin/umu/VERSION`` exists and names a plausible umu version.
 

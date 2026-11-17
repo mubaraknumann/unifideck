@@ -65,11 +65,7 @@ def compat_work_pending(plan: ProtonLaunchPlan) -> bool:
     return winetricks_pending(plan) or vcruntime_fix_pending(plan)
 
 
-async def apply_prefix_compat(
-    plan: ProtonLaunchPlan,
-    *,
-    vcreg_plan: ProtonLaunchPlan | None = None,
-) -> bool:
+async def apply_prefix_compat(plan: ProtonLaunchPlan) -> bool:
     """Run generic per-prefix compatibility setup for a Windows game.
 
     winetricks first (installs the redistributables), then the VC++
@@ -77,14 +73,10 @@ async def apply_prefix_compat(
     independently guarded so one failure doesn't skip the other or the
     launch.
 
-    ``vcreg_plan`` runs the registry step under a DIFFERENT Proton from
-    winetricks. Callers pass it when they had to borrow GE-Proton for the
-    winetricks verb but the game will actually run under something else:
-    the registry step must go last and under the *launch* Proton, because
-    that first umu-run is what triggers that Proton's ``wineboot -u``
-    prefix upgrade — and an upgrade AFTER the import would erase the keys
-    the import just wrote. regedit, unlike winetricks, works fine under an
-    official Valve Proton, so this is always possible.
+    Both steps run under ``plan``'s Proton, the one the game launches on.
+    Running a step under a second Proton leaves the prefix holding symlinks
+    into both installs, and the other Proton's Wine then writes through
+    them into the first one's shared files.
 
     Returns ``True`` if any step was force-killed for exceeding its
     timeout — the signal that the selected Proton hung at runtime (a
@@ -119,12 +111,12 @@ async def apply_prefix_compat(
         return False
 
     timed_out = False
-    for label, step, step_plan in (
-        ("winetricks", apply_winetricks, plan),
-        ("vcruntime", apply_vcruntime_fix, vcreg_plan or plan),
+    for label, step in (
+        ("winetricks", apply_winetricks),
+        ("vcruntime", apply_vcruntime_fix),
     ):
         try:
-            if await step(step_plan):
+            if await step(plan):
                 timed_out = True
         except Exception:
             logger.exception(

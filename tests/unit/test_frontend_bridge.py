@@ -51,6 +51,30 @@ def test_launcher_toast_omits_unset_optionals():
     assert "severity" not in kw
 
 
+def test_compat_tool_request_carries_the_unsigned_appid_and_the_tool():
+    """The frontend calls SpecifyCompatTool with exactly these args."""
+    assert fb.request_steam_compat_tool(-110954320, "GE-Proton11-12", "ea:1") is True
+
+    kw = json.loads(fb.EVENTS_FILE.read_text().splitlines()[-1])["kwargs"]
+    assert kw["action"] == {"verb": fb.COMPAT_TOOL_VERB, "args": ["4184012976", "GE-Proton11-12"]}
+    assert kw["i18n_key"] == "toasts.launcher.protonSwitchedTo"
+    assert kw["i18n_title_key"] == "toasts.header.proton"
+    assert kw["i18n_params"] == {"version": "GE-Proton11-12"}
+
+
+def test_compat_tool_request_is_not_muted_by_warmup_suppression():
+    """The setting is the point; only toasts are noise during an install."""
+    with fb.suppress_launcher_toasts():
+        assert fb.request_steam_compat_tool("4184012976", "GE-Proton11-12") is True
+    assert fb.EVENTS_FILE.is_file()
+
+
+@pytest.mark.parametrize("appid", [None, "", "not-a-number"])
+def test_compat_tool_request_without_an_appid_writes_nothing(appid):
+    assert fb.request_steam_compat_tool(appid, "GE-Proton11-12") is False
+    assert not fb.EVENTS_FILE.exists()
+
+
 def test_record_event_caps_file_length():
     for i in range(fb._MAX_LINES + 50):
         fb.record_event("launcher_stage", {"i": i})

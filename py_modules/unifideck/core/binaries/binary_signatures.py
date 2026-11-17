@@ -70,6 +70,12 @@ _KNOWN_HASHES: dict[str, str] = {
     "butler": (
         "578e1ebe8548ddf2a1b8374d5a85c0308668df3c06a2a1b9edb6ad1112c606eb"
     ),
+    # cabextract 1.11 (Arch 1.11-3): the EXTRACTED executable, not the
+    # package. Like butler it ships as an archive (build-plugin.sh
+    # CABEXTRACT_SHA256 pins the .pkg.tar.zst it comes out of).
+    "cabextract": (
+        "d27fe79d4a946d1143df35618011ccf243742da8fa36054c0f7ee81c7703b61a"
+    ),
 }
 
 

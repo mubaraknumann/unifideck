@@ -16,8 +16,6 @@ import pytest
 
 from unifideck.core.types import InstallResult
 from unifideck.launcher import proton as proton_pkg
-from unifideck.launcher.proton import prefix_setup
-from unifideck.launcher.types.context import LaunchContext
 from unifideck.launcher.wrapper_stores import WRAPPER_STORES
 from unifideck.services.download import worker_helpers
 from unifideck.services.download.models import DownloadItem
@@ -63,29 +61,6 @@ async def test_no_ge_available_leaves_steams_setting_alone(latest_ge: list[tuple
     item = _item()
     await worker_helpers.pick_new_install_proton(item, gets_prefix_setup=True)
     assert item.proton_tool is None
-
-
-def _ctx(tool: str | None) -> LaunchContext:
-    return LaunchContext(
-        store="ea", game_id="1", exe_path=Path("/g"), work_dir=Path("/g"), plugin_dir=Path("/p"), proton_tool=tool,
-    )
-
-
-def test_the_prefix_is_set_up_on_the_chosen_proton(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(proton_pkg, "resolve_proton_path", lambda tool: Path(f"/tools/{tool}/proton"))
-    selected = MagicMock(return_value=(Path("/x/proton"), "proton_experimental"))
-
-    assert prefix_setup._chosen_or_selected(_ctx("GE-Proton11-12"), selected) == (
-        Path("/tools/GE-Proton11-12/proton"), "GE-Proton11-12",
-    )
-    selected.assert_not_called()
-    assert prefix_setup._chosen_or_selected(_ctx(None), selected)[1] == "proton_experimental"
-
-
-def test_a_missing_chosen_proton_falls_back_to_the_selector(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(proton_pkg, "resolve_proton_path", lambda tool: None)
-    selected = MagicMock(return_value=(Path("/x/proton"), "proton_experimental"))
-    assert prefix_setup._chosen_or_selected(_ctx("GE-Proton99-1"), selected)[1] == "proton_experimental"
 
 
 class _Worker(_WorkerMixin):

@@ -427,6 +427,7 @@
       "prerequisitesFailedMessage": "Échec possible",
       "prerequisitesInstalled": "Prérequis prêts",
       "protonDamagedMessage": "Retéléchargement",
+      "protonRepairHeld": "Abîmé : {{version}}",
       "protonReadyBody": "Prêt : {{version}}",
       "protonSwitchedTo": "Utilise {{version}}",
       "redistributablesInstalled": "Ajout terminé",

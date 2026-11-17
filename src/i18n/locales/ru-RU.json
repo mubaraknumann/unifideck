@@ -427,6 +427,7 @@
       "prerequisitesFailedMessage": "Не всё встало",
       "prerequisitesInstalled": "Готово",
       "protonDamagedMessage": "Загрузка заново",
+      "protonRepairHeld": "Сломан: {{version}}",
       "protonReadyBody": "Готово: {{version}}",
       "protonSwitchedTo": "Теперь {{version}}",
       "redistributablesInstalled": "Установлено",

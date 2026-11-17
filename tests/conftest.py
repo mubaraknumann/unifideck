@@ -289,6 +289,35 @@ def _isolate_launcher_bridge(tmp_path, monkeypatch):
         "EVENTS_FILE",
         tmp_path / "launcher_events.jsonl",
     )
+    # Same leak class: an audit test that repairs a tree records the repair,
+    # and the real record would stop the user's next automatic repair.
+    from unifideck.launcher.proton.infrastructure import ge_repair
+
+    monkeypatch.setattr(ge_repair, "REPAIRS_FILE", tmp_path / "ge_repairs.json")
+
+
+@pytest.fixture(autouse=True)
+def _isolate_ge_install(tmp_path_factory, monkeypatch):
+    """Keep every test away from the real GE-Proton installs.
+
+    The Proton selector's default tier installs the latest GE on demand. A
+    test that reached it without stubbing the selector downloaded a real
+    release and rewrote the live ``compatibilitytools.d/GE-Proton*`` tree's
+    manifest (2026-11-17). So by default the install dir, the lock and the
+    latest-tag record live in a scratch dir of their own (not the test's
+    ``tmp_path``, which some tests list or populate themselves). A test that
+    patches any of these explicitly still wins.
+    """
+    from unifideck.launcher.proton.infrastructure import (
+        ge_install_lock,
+        ge_installer,
+        ge_marker,
+    )
+
+    scratch = tmp_path_factory.mktemp("ge-isolation")
+    monkeypatch.setattr(ge_installer, "COMPAT_TOOLS_DIR", scratch / "compatibilitytools.d")
+    monkeypatch.setattr(ge_install_lock, "INSTALL_LOCK", scratch / "ge_install.lock")
+    monkeypatch.setattr(ge_marker, "_MARKER", scratch / "proton_ge_latest.json")
 
 
 @pytest.fixture(autouse=True)

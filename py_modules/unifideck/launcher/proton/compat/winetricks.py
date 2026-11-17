@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 _MARKER_NAME = "unifideck_winetricks_complete.marker"
 # Marker bodies that mean "don't run again" (terminal states).
-_TERMINAL_MARKERS = ("complete", "no redistributables", "failed")
+_TERMINAL_MARKERS = ("complete", "no redistributables", "failed", "skipped")
 # Bounds the winetricks step so a hung Proton/Wine (e.g. a broken
 # auto-updated Proton-Experimental build spinning wineserver forever)
 # can't wedge the serial install queue during prefix warmup. Generous:
@@ -37,6 +37,8 @@ _TERMINAL_MARKERS = ("complete", "no redistributables", "failed")
 # force-killed and treated as failed (the game still launches; the
 # prefix finishes at launch).
 _WINETRICKS_TIMEOUT_SECONDS = 300.0
+# ``_command``'s answer when a tool is missing for now: no marker, no toast.
+_DEFER = "defer"
 
 
 def _prefix_root(plan: ProtonLaunchPlan) -> Path:
@@ -73,6 +75,26 @@ def _write_marker(marker: Path, body: str) -> None:
         logger.debug("[compat.winetricks] marker write failed: %s", e)
 
 
+def proton_runs_winetricks(proton_dir: str | None) -> bool:
+    """Whether ``umu-run winetricks`` can work with this Proton.
+
+    umu execs ``<PROTONPATH>/protonfixes/winetricks``. GE-Proton and
+    UMU-Proton bundle it; official Valve Protons ship no ``protonfixes``
+    directory, so the verb dies inside umu with a FileNotFoundError after
+    burning its whole timeout. False only for a Proton directory that exists
+    and has no ``protonfixes/``; anything it cannot judge (no path, a path
+    that is not there, an error) is True, so this only ever skips a run that
+    was certain to fail.
+    """
+    if not proton_dir:
+        return True
+    try:
+        root = Path(proton_dir)
+        return not root.is_dir() or (root / "protonfixes").is_dir()
+    except OSError:
+        return True
+
+
 def winetricks_pending(plan: ProtonLaunchPlan) -> bool:
     """Whether :func:`apply_winetricks` still has work for this prefix.
 
@@ -105,6 +127,14 @@ async def apply_winetricks(plan: ProtonLaunchPlan) -> bool:
         _write_marker(marker, "no redistributables")
         return False
 
+    command = _command(plan, packages, prefix_root)
+    if isinstance(command, str):  # _DEFER
+        return False  # no marker: retried on the next launch
+    if command is None:
+        _write_marker(marker, "failed: no wine or winetricks to run")
+        return False
+    argv, env, attempts = command
+
     logger.info(
         "[compat.winetricks] installing for %s: %s",
         plan.context.game_id, ", ".join(packages),
@@ -116,30 +146,70 @@ async def apply_winetricks(plan: ProtonLaunchPlan) -> bool:
         game_title=plan.context.game_key,
     )
 
-    # winetricks runs under the same Proton/prefix the game uses, so it takes
-    # the shared setup-helper env (GAMEID=umu-0, PROTON_VERB=run, no game-only
-    # sidecars — see infrastructure.setup_env for why each one matters), plus
-    # its own prefix pin and no runtime update so the redistributable install
-    # doesn't churn the umu runtime.
-    env = build_setup_env(plan)
-    env["WINEPREFIX"] = str(prefix_root)
-    env["UMU_RUNTIME_UPDATE"] = "0"
-    argv = [
-        str(plan.python_bin),
-        str(plan.umu_wrapper),
-        "winetricks",
-        "-q",  # unattended — never block on a GUI prompt
-        *packages,
-    ]
     try:
         rc = await run_umu_with_retry(
-            argv, env=env, timeout=_WINETRICKS_TIMEOUT_SECONDS,
+            argv, env=env, timeout=_WINETRICKS_TIMEOUT_SECONDS, max_attempts=attempts,
         )
     except Exception:
         logger.exception("[compat.winetricks] run failed")
         _write_marker(marker, "failed: exception")
         return False
     return _handle_winetricks_rc(plan, marker, rc)
+
+
+def _command(
+    plan: ProtonLaunchPlan, packages: list[str], prefix_root: Path,
+) -> tuple[list[str], dict[str, str], int] | str | None:
+    """``(argv, env, attempts)`` installing ``packages`` under the game's own Proton.
+
+    GE-Proton and UMU-Proton: umu's winetricks verb, which runs their bundled
+    winetricks. A Proton without one (Valve's): the plugin's winetricks with
+    that Proton's Wine (``winetricks_wine``). Never another Proton: a prefix
+    set up by two keeps symlinks into both. None when neither can run;
+    :data:`_DEFER` when the step should wait for the next launch.
+
+    The umu path gets the shared setup-helper env (GAMEID=umu-0,
+    PROTON_VERB=run, no game-only sidecars — see infrastructure.setup_env),
+    plus its own prefix pin and no runtime update so the redistributable
+    install doesn't churn the umu runtime. Its umu-level retry is kept; the
+    direct Wine run has no umu runtime to retry for.
+    """
+    proton_dir = plan.env.get("PROTONPATH")
+    if proton_runs_winetricks(proton_dir):
+        env = build_setup_env(plan)
+        env["WINEPREFIX"] = str(prefix_root)
+        env["UMU_RUNTIME_UPDATE"] = "0"
+        argv = [
+            str(plan.python_bin),
+            str(plan.umu_wrapper),
+            "winetricks",
+            "-q",  # unattended — never block on a GUI prompt
+            *packages,
+        ]
+        return argv, env, 2
+    from unifideck.launcher.proton.compat import winetricks_wine
+
+    cabextract = winetricks_wine.find_cabextract(plan.context.plugin_dir)
+    if cabextract is None:
+        # Three default packages (vcrun2022, mfc140, d3dcompiler_43) unpack
+        # Microsoft's cab files and winetricks aborts the whole run without
+        # it. A broken bundle is not this game's fault: try again next
+        # launch rather than mark the prefix done without its libraries.
+        logger.error(
+            "[compat.winetricks] no working cabextract at %s or on the host; "
+            "redistributables for %s wait for the next launch (reinstall the plugin)",
+            plan.context.plugin_dir / "bin" / "cabextract" / "cabextract", plan.context.game_id,
+        )
+        return _DEFER
+    proton = Path(str(proton_dir))
+    copied = winetricks_wine.winsxs_links_to_copies(prefix_root, proton)
+    logger.info(
+        "[compat.winetricks] %s ships no winetricks; using its Wine with the bundled "
+        "winetricks, cabextract %s (%d winsxs links copied into the prefix)",
+        proton, cabextract, copied,
+    )
+    wine_command = winetricks_wine.command(plan, packages, proton, prefix_root, cabextract)
+    return None if wine_command is None else (*wine_command, 1)
 
 
 def _handle_winetricks_rc(

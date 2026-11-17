@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -346,30 +347,48 @@ def select_proton_version(
     matter which build was chosen. Reading the live value first makes the
     picker authoritative and removes any dependence on frontend timing.
     """
+    path, tool, _source = select_proton_with_source(steam_app_id, store_game_id)
+    return path, tool
+
+
+#: Tiers that are a choice the user made, for this game or for all of
+#: Unifideck. The other two (Steam's global default and the GE default) are
+#: what a game gets when nobody chose.
+CHOSEN_SOURCES = frozenset({"steam", "saved", "unifideck"})
+
+
+def select_proton_with_source(
+    steam_app_id: str | None = None,
+    store_game_id: str | None = None,
+) -> tuple[Path, str, str]:
+    """:func:`select_proton_version` plus the tier that picked it.
+
+    The tier is ``steam``, ``saved``, ``unifideck``, ``global-default`` or
+    ``default``. Prefix setup uses it to tell a choice (``CHOSEN_SOURCES``)
+    from a game nobody set a Proton for.
+    """
     tried: list[str] = []
-    steam_tool = (
-        get_steam_compat_tool_override(steam_app_id) if steam_app_id else None
+
+    def _steam() -> str | None:
+        return get_steam_compat_tool_override(steam_app_id) if steam_app_id else None
+
+    def _saved() -> str | None:
+        return get_saved_proton_tool(store_game_id) if store_game_id else None
+
+    candidates: tuple[tuple[str, Callable[[], str | None]], ...] = (
+        ("steam", _steam),
+        ("saved", _saved),
+        ("unifideck", get_unifideck_proton_tool),
+        ("global-default", get_global_default_tool),
     )
-    if steam_tool:
-        path = _resolve_logged("steam", steam_tool, tried)
-        if path:
-            return path, steam_tool
-    saved_tool = get_saved_proton_tool(store_game_id) if store_game_id else None
-    if saved_tool:
-        path = _resolve_logged("saved", saved_tool, tried)
-        if path:
-            return path, saved_tool
-    unifideck_tool = get_unifideck_proton_tool()
-    if unifideck_tool:
-        path = _resolve_logged("unifideck", unifideck_tool, tried)
-        if path:
-            return path, unifideck_tool
-    global_tool = get_global_default_tool()
-    if global_tool:
-        path = _resolve_logged("global-default", global_tool, tried)
-        if path:
-            return path, global_tool
-    return _default_latest_ge(tried)
+    for source, lookup in candidates:
+        tool = lookup()
+        if tool:
+            path = _resolve_logged(source, tool, tried)
+            if path:
+                return path, tool, source
+    path, tool = _default_latest_ge(tried)
+    return path, tool, "default"
 
 
 def select_managed_ge_proton() -> tuple[Path, str]:

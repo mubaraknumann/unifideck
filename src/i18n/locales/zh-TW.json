@@ -427,6 +427,7 @@
       "prerequisitesFailedMessage": "必要元件不完整",
       "prerequisitesInstalled": "必要元件已就緒",
       "protonDamagedMessage": "重新下載中",
+      "protonRepairHeld": "已損壞：{{version}}",
       "protonReadyBody": "已安裝：{{version}}",
       "protonSwitchedTo": "改用 {{version}}",
       "redistributablesInstalled": "已加入程式庫",
