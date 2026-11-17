@@ -348,8 +348,39 @@ prebuild_binaries() {
     fi
 
     _prebuild_butler
+    _prebuild_maxima
 
     echo ""
+}
+
+# maxima-cli (EA): our own build, made in the unifideck-maxima repo, not a
+# download. Copy it from that repo's out/backend/ (or MAXIMA_BUILD_DIR) and
+# check its sha256 against the manifest.json the build wrote next to it.
+# Never run it here: Maxima's cloud sync can read files from its working dir.
+MAXIMA_BUILD_DIR="${MAXIMA_BUILD_DIR:-$SCRIPT_DIR/../../unifideck-maxima/out/backend}"
+_prebuild_maxima() {
+    local src="$MAXIMA_BUILD_DIR" dest="$SCRIPT_DIR/bin/maxima-cli"
+    log_info "Checking maxima-cli..."
+    if [ ! -f "$src/maxima-cli" ] || [ ! -f "$src/manifest.json" ]; then
+        log_warn "maxima-cli: no build at $src; this build has NO EA support"
+        log_warn "  (build it in unifideck-maxima, or set MAXIMA_BUILD_DIR)"
+        return 0
+    fi
+    local want have
+    want=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["files"]["maxima-cli"])' \
+        "$src/manifest.json" 2>/dev/null)
+    have=$(sha256sum "$src/maxima-cli" | cut -d' ' -f1)
+    if [ -z "$want" ] || [ "$want" != "$have" ]; then
+        log_warn "maxima-cli: $src/maxima-cli does not match its manifest.json; this build has NO EA support"
+        return 0
+    fi
+    if [ -x "$dest" ] && [ "$(sha256sum "$dest" | cut -d' ' -f1)" = "$have" ]; then
+        log_success "maxima-cli up to date (sha256 ${have:0:12})"
+        return 0
+    fi
+    cp -f "$src/maxima-cli" "$dest.new" && chmod +x "$dest.new" && mv -f "$dest.new" "$dest"
+    [ -f "$src/LICENSE" ] && cp -f "$src/LICENSE" "$SCRIPT_DIR/bin/maxima-cli.LICENSE"
+    log_success "maxima-cli copied from $src (sha256 ${have:0:12})"
 }
 
 # butler: download the pinned zip, check its sha256, unpack into bin/butler/.

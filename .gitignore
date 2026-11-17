@@ -92,6 +92,8 @@ bin/nile
 bin/winetricks
 bin/comet
 bin/butler/
+bin/maxima-cli
+bin/maxima-cli.LICENSE
 
 # Per-binary download stamps. Each holds the version-pinned URL the adjacent
 # binary came from, so a rebuild skips re-fetching ~28 MB it already has.
