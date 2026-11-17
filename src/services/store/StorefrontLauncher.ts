@@ -10,9 +10,9 @@
  * all — stranding the user with no way to sign in or out over a
  * shopping trip.
  *
- * Two shapes, because the six stores authenticate two ways:
+ * Two shapes, because the stores authenticate two ways:
  *
- *   Epic / GOG / Amazon / Microsoft — sign in through the bundled Edge
+ *   Epic / GOG / Amazon / Microsoft / itch.io / EA — sign in through the bundled Edge
  *     against a persistent profile. The shop opens in that same
  *     profile, so the live web session carries over.
  *
@@ -42,6 +42,7 @@ import { watchAppStopped } from "../../lib/steam-bridge/shortcut-types";
 import { authStore } from "../../stores/auth-store";
 import {
   launchAmazonStorefrontViaShortcut,
+  launchEaStorefrontViaShortcut,
   launchEpicStorefrontViaShortcut,
   launchGogStorefrontViaShortcut,
   launchItchStorefrontViaShortcut,
@@ -63,6 +64,7 @@ const BROWSER_STOREFRONTS: Partial<
   amazon: launchAmazonStorefrontViaShortcut,
   microsoft: launchMicrosoftStorefrontViaShortcut,
   itch: launchItchStorefrontViaShortcut,
+  ea: launchEaStorefrontViaShortcut,
 };
 
 /**

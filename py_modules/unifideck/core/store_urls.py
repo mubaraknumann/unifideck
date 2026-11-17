@@ -29,8 +29,8 @@ the existing precedent for "dependency-light and launcher-safe".
 
 Storefront sessions
 -------------------
-The four browser-OAuth stores (Epic, GOG, Amazon, Microsoft) sign in
-inside the shared Edge profile, so opening these URLs in that same
+The browser-OAuth stores (Epic, GOG, Amazon, Microsoft, itch.io, EA)
+sign in inside the shared Edge profile, so opening these URLs in that same
 profile reuses the live web session. The two *wrapper* stores
 (Ubisoft, Battle.net) sign in inside a Wine prefix and have no
 browser session at all — their shop is the vendor client's own
@@ -69,12 +69,16 @@ from pathlib import Path
 #   itch      — the front page. The sign-in leaves an itch.io session in
 #               the shared Edge profile (the user signs in on itch.io
 #               itself), so the shop opens signed in with no cookie work.
+#   ea        — www.ea.com. The sign-in runs on accounts.ea.com in the
+#               shared Edge profile (maxima-cli only takes the code), so
+#               the profile keeps EA's own web session for the shop.
 _STOREFRONT_URLS: dict[str, str] = {
     "itch": "https://itch.io/",
     "epic": "https://store.epicgames.com/",
     "gog": "https://www.gog.com/",
     "amazon": "https://luna.amazon.com/",
     "microsoft": "https://www.xbox.com/play",
+    "ea": "https://www.ea.com/",
 }
 
 

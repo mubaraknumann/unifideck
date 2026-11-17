@@ -17,7 +17,7 @@ import pytest
 
 from unifideck.launcher import dispatcher as d
 
-_BROWSER_STORES = ("epic", "gog", "amazon", "microsoft")
+_BROWSER_STORES = ("epic", "gog", "amazon", "microsoft", "itch", "ea")
 _WRAPPER_STORES = ("ubisoft", "battlenet")
 
 
@@ -30,7 +30,7 @@ class _FakeShortcutSvc:
 
 @pytest.fixture(autouse=True)
 def _hermetic(monkeypatch, tmp_path):
-    for store in ("EPIC", "GOG", "AMAZON", "MICROSOFT", "UBISOFT", "BATTLENET"):
+    for store in ("EPIC", "GOG", "AMAZON", "MICROSOFT", "ITCH", "EA", "UBISOFT", "BATTLENET"):
         monkeypatch.delenv(f"UNIFIDECK_{store}_ACTION", raising=False)
     monkeypatch.setattr(d, "_resolve_exe_from_install", lambda *a, **k: None)
     monkeypatch.setattr(d, "_install_path_from_cache", lambda *a, **k: "")

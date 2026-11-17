@@ -159,6 +159,11 @@ def test_capability_flags_are_all_false_for_an_unknown_store() -> None:
     assert flags and not any(flags.values())
 
 
+def test_ea_opens_its_shop_in_the_browser() -> None:
+    """EA signs in on accounts.ea.com in the shared profile, so its shop is web."""
+    assert capability_flags("ea")["has_browser_storefront"] is True
+
+
 def test_a_wrapper_store_gets_no_browser_storefront_flag() -> None:
     assert capability_flags("ubisoft")["has_browser_storefront"] is False
     assert capability_flags("battlenet")["has_browser_storefront"] is False

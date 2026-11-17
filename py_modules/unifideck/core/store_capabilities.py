@@ -58,7 +58,7 @@ LANGUAGE_PICKER_STORES = frozenset({"gog", "epic", "ea"})
 #: ``WRAPPER_STORES`` among the stores that have a storefront at all; kept as
 #: its own set because "has a browser storefront" and "is not a wrapper
 #: store" are not the same claim and a future store could be neither.
-BROWSER_STOREFRONT_STORES = frozenset({"epic", "gog", "amazon", "microsoft", "itch"})
+BROWSER_STOREFRONT_STORES = frozenset({"epic", "gog", "amazon", "microsoft", "itch", "ea"})
 
 #: Stores whose launcher runs the games.map ``exe`` itself (through umu), so an
 #: exe override is that column (``rpc/mixins/executable.py``).

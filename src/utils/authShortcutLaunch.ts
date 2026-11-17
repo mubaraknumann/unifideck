@@ -396,6 +396,11 @@ export const launchItchStorefrontViaShortcut =
   (): Promise<AuthShortcutLaunchResult> =>
     launchAuthViaShortcut(ITCH_AUTH_CONFIG, "storefront");
 
+/** EA shop on ea.com. See {@link launchEpicStorefrontViaShortcut}. */
+export const launchEaStorefrontViaShortcut =
+  (): Promise<AuthShortcutLaunchResult> =>
+    launchAuthViaShortcut(EA_AUTH_CONFIG, "storefront");
+
 /** Xbox / Game Pass. See {@link launchEpicStorefrontViaShortcut}. */
 export const launchMicrosoftStorefrontViaShortcut =
   (): Promise<AuthShortcutLaunchResult> =>

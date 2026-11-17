@@ -50,6 +50,8 @@ def test_search_url_is_empty_for_an_unknown_store() -> None:
         ("gog", "www.gog.com"),
         ("amazon", "luna.amazon.com"),
         ("microsoft", "www.xbox.com"),
+        ("itch", "itch.io"),
+        ("ea", "www.ea.com"),
     ],
 )
 def test_every_browser_store_has_a_shop(store: str, host: str) -> None:

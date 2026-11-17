@@ -77,7 +77,7 @@ def spy(monkeypatch):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("store", ["epic", "gog", "amazon", "microsoft"])
+@pytest.mark.parametrize("store", ["epic", "gog", "amazon", "microsoft", "itch", "ea"])
 async def test_a_shop_press_reaches_the_storefront_flow(spy, store: str) -> None:
     svc = _Service()
 
@@ -88,7 +88,7 @@ async def test_a_shop_press_reaches_the_storefront_flow(spy, store: str) -> None
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("store", ["epic", "gog", "amazon", "microsoft"])
+@pytest.mark.parametrize("store", ["epic", "gog", "amazon", "microsoft", "itch", "ea"])
 async def test_sign_in_still_reaches_the_auth_flow(spy, store: str) -> None:
     svc = _Service()
 

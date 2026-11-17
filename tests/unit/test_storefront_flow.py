@@ -131,6 +131,8 @@ def _no_waiting(monkeypatch):
         ("gog", "www.gog.com"),
         ("amazon", "luna.amazon.com"),
         ("microsoft", "www.xbox.com"),
+        ("itch", "itch.io"),
+        ("ea", "www.ea.com"),
     ],
 )
 async def test_opens_each_browser_store_on_its_own_shop(

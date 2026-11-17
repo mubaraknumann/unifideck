@@ -6,7 +6,7 @@ python3, launched by Steam via a temporary shortcut — because in
 Gaming Mode a window from a process Steam did not launch has no
 gamescope session and never renders.
 
-Only the four **browser-OAuth** stores reach this module. Ubisoft and
+Only the **browser-OAuth** stores reach this module. Ubisoft and
 Battle.net authenticate inside a Wine prefix, so they have no browser
 session and their shop is the vendor client's own Store/Shop tab;
 ``LauncherService._handle_auth_path`` routes them to
@@ -18,7 +18,7 @@ signed-out web page.
 Two properties are load-bearing and easy to break:
 
 1. **Cookies are never cleared on this path.** The shared Edge
-   profile's live web session IS the signed-in shop. The four
+   profile's live web session IS the signed-in shop. The
    ``clear_store_cookies`` call sites exist to force a fresh login
    form before a real sign-in; running one here would guarantee the
    signed-out page this flow exists to avoid.
