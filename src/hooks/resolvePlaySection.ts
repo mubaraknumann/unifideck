@@ -267,16 +267,16 @@ function isTerminal(item: DownloadItem): boolean {
   return TERMINAL_STATUSES.has(item.status);
 }
 
-/** The live queue row for `gameId`, current or pending. */
+/** The live queue row for `gameId`: downloading, setting up, or pending. */
 function queueRow(
   queue: DownloadQueueInfo | null | undefined,
   gameId: string,
 ): DownloadItem | null {
-  const current = queue?.current;
-  if (current && !isTerminal(current) && current.game_id === gameId) {
-    return current;
-  }
+  const live = (d: DownloadItem | null | undefined): d is DownloadItem =>
+    d != null && !isTerminal(d) && d.game_id === gameId;
   return (
-    queue?.queued?.find((d) => d.game_id === gameId && !isTerminal(d)) ?? null
+    (queue?.active ?? [queue?.current]).find(live) ??
+    queue?.queued?.find(live) ??
+    null
   );
 }

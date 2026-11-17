@@ -99,6 +99,10 @@ class DownloadService(_WorkerMixin):
         # finished and been made durable, so a cancel here abandons the setup
         # and leaves the install standing. See ``warmup_runner``.
         self._warmup_runner = PrefixWarmupRunner()
+        # Keys of ``_running`` items whose download is done and whose prefix
+        # is being set up. They do not hold a download slot, so the next
+        # queued game starts while they finish (see ``worker_warmup``).
+        self._warming: set[str] = set()
         # Recent finished items (capped FIFO). Populated by the
         # worker's ``_cleanup_running``; surfaced to the frontend
         # via ``get_queue()["finished"]`` so the Downloads page can
@@ -357,7 +361,14 @@ class DownloadService(_WorkerMixin):
             for item in self._running.values()
             if item.status not in _TERMINAL_STATUSES
         ]
-        current = running_items[0] if running_items else None
+        # The game still downloading is the headline row; a game that is only
+        # setting up its prefix is shown next to it via ``running``.
+        downloading = [
+            item for item in running_items
+            if f"{item.store}:{item.game_id}" not in self._warming
+        ]
+        active = downloading or running_items
+        current = active[0] if active else None
         # Newest-first: callers typically render the most recent
         # completion at the top of the Finished section.
         finished_items = list(reversed(self._finished))

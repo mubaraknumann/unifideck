@@ -57,10 +57,9 @@ class PrefixWarmupRunner:
     which touches process-wide and cross-game state: the shared umu runtime
     under ``~/.local/share/umu`` (whose retry ladder can ``rmtree`` the whole
     cache) and the shared winetricks download cache. Neither is protected by a
-    lock, and today the only thing keeping warmups apart is that the download
-    queue runs one install at a time. Owning the semaphore here keeps that
-    guarantee even if the queue is ever widened or the warmup is detached from
-    the install slot.
+    lock. The download queue no longer keeps warmups apart: a game in its
+    warmup gives up its download slot so the next game can download
+    (``worker_warmup``). This semaphore is what keeps two warmups apart.
     """
 
     def __init__(self, timeout: float = PREFIX_WARMUP_TIMEOUT_SEC) -> None:

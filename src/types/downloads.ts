@@ -103,6 +103,10 @@ export interface DownloadItem {
  */
 export interface DownloadQueueInfo extends Result {
   current: DownloadItem | null;
+  /** Every in-flight row: the game downloading plus any finished game still
+   *  setting up its prefix (which no longer holds up the next download).
+   *  `current` is one of these. */
+  active?: DownloadItem[];
   queued: DownloadItem[];
   finished: DownloadItem[];
   state: "idle" | "running";

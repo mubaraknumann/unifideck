@@ -52,12 +52,15 @@ export function useDownloadProgress(
 
     if (gameId == null || !queue) return empty;
 
-    if (queue.current && queue.current.game_id === gameId) {
+    const active = (queue.active ?? [queue.current]).find(
+      (d) => d != null && d.game_id === gameId,
+    );
+    if (active) {
       return {
-        item: queue.current,
+        item: active,
         isCurrent: true,
         isQueued: false,
-        progressPercent: queue.current.progress_percent,
+        progressPercent: active.progress_percent,
       };
     }
 

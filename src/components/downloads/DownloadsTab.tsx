@@ -120,14 +120,14 @@ export const DownloadsTab: FC = () => {
   if (loading || !queue) return null;
   // Defensive : backend may omit any of these keys on early
   // boot or partial-failure responses. Treat missing as empty.
-  const current = queue.current ?? null;
+  const active = queue.active ?? (queue.current ? [queue.current] : []);
   const queued = queue.queued ?? [];
   // Only failures survive in the history view now — completions are
   // represented by the game appearing in "Installed".
   const failed = (queue.finished ?? []).filter((i) => i.status === "failed");
 
   const empty =
-    !current &&
+    active.length === 0 &&
     queued.length === 0 &&
     failed.length === 0 &&
     installed.length === 0;
@@ -145,9 +145,11 @@ export const DownloadsTab: FC = () => {
       {/* Inline so the button/badge focus rules land in the QuickAccess
           CEF document (separate from the App-Details one). */}
       <style>{PLAY_FOCUS_CSS}</style>
-      {current && (
+      {active.length > 0 && (
         <PanelSection title={t("downloads.current")}>
-          <DownloadItemRow item={current} variant="current" />
+          {active.map((item) => (
+            <DownloadItemRow key={item.id} item={item} variant="current" />
+          ))}
         </PanelSection>
       )}
       {queued.length > 0 && (

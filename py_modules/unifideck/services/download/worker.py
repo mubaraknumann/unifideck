@@ -33,9 +33,9 @@ from .models import MAX_FINISHED_HISTORY, DownloadItem, classify_download_error
 from .worker_helpers import (
     apply_dict_progress,
     pick_new_install_proton,
-    prefix_warmup_supported,
     track_task,
 )
+from .worker_warmup import _WarmupMixin
 from .wrapper_signals import dispatch_wrapper_install
 
 if TYPE_CHECKING:
@@ -58,7 +58,7 @@ _ERROR_BACKOFF_SEC: float = 5.0
 _PHASE_DONE = "complete"
 
 
-class _WorkerMixin:
+class _WorkerMixin(_WarmupMixin):
     """Queue worker + install dispatcher for DownloadService.
 
     Attribute declarations satisfy mypy; at runtime they come
@@ -109,11 +109,16 @@ class _WorkerMixin:
         and ``self._running`` so concurrent producers (queue
         adders) see a consistent state. Returns the popped items
         for the caller to dispatch *outside* the lock — keeps
-        the critical section as short as possible.
+        the critical section as short as possible. A game that is only
+        setting up its prefix does not count against the cap; see
+        ``worker_warmup``.
         """
         to_start: list[DownloadItem] = []
         async with self._lock:
-            while len(self._running) < self._max_concurrent and self._queue:
+            while (
+                self._download_slots_used() < self._max_concurrent
+                and self._head_can_start()
+            ):
                 item = self._queue.pop(0)
                 key = f"{item.store}:{item.game_id}"
                 self._running[key] = item
@@ -418,36 +423,6 @@ class _WorkerMixin:
         from unifideck.core.types.events import Events
 
         await self._bus.emit(Events.DOWNLOAD_STARTED, item=item.to_dict())
-
-    def _warmup_applies(self, item: DownloadItem, result: Any = None) -> bool:
-        """Whether this install gets an install-time prefix warmup.
-
-        Store and depot eligibility lives in ``worker_helpers``. The rest is
-        whether the host actually wired both hooks — the launcher-subset
-        bootstrap wires neither.
-        """
-        if not prefix_warmup_supported(item, result):
-            return False
-        has_hook = callable(getattr(self, "_prefix_warmup", None))
-        return has_hook and getattr(self, "_warmup_runner", None) is not None
-
-    async def _run_prefix_warmup(self, item: DownloadItem, key: str) -> None:
-        """Run install-time prefix setup, surfaced as a "preparing" phase.
-
-        Callers must have checked :meth:`_warmup_applies`. Cancellation
-        semantics belong to :class:`~.warmup_runner.PrefixWarmupRunner`: a
-        cancel aimed at the warmup is absorbed there so the install still
-        finalises, while an outer teardown propagates. Best-effort either way —
-        a timeout or a failure is logged and the install completes, with the
-        launch-time path as the fallback.
-        """
-        hook: Any = getattr(self, "_prefix_warmup", None)
-        runner: Any = getattr(self, "_warmup_runner", None)
-        item.download_phase = "preparing"
-        await self._emit_queue_refresh(item)
-        logger.info("[DownloadWorker] running prefix warmup for %s", key)
-        outcome = await runner.run(key, lambda: hook(item))
-        logger.info("[DownloadWorker] prefix warmup %s for %s", outcome, key)
 
     async def _mark_cancelled(self, item: DownloadItem, key: str) -> None:
         """Mark the item cancelled and emit DOWNLOAD_CANCELLED."""

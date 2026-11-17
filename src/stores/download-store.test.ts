@@ -157,6 +157,23 @@ describe("mergeProgressIntoSnapshot", () => {
     const empty = snapshot(null);
     expect(mergeProgressIntoSnapshot(empty, { item: item() })).toBe(empty);
   });
+
+  it("updates a game still setting up without touching the one downloading", () => {
+    // B downloads while A, already downloaded, sets up its prefix.
+    const b = item({ id: "gog:b", game_id: "b", progress_percent: 5 });
+    const a = item({ id: "gog:a", game_id: "a", download_phase: "preparing" });
+    const prev = snapshot(b);
+    prev.queue!.active = [b, a];
+
+    const next = mergeProgressIntoSnapshot(prev, {
+      item: { ...a, download_phase: "complete", status: "complete" },
+    });
+
+    expect(next).not.toBe(prev);
+    expect(next.queue?.current).toBe(b);
+    expect(next.queue?.active?.[0]).toBe(b);
+    expect(next.queue?.active?.[1]?.download_phase).toBe("complete");
+  });
 });
 
 // The store toasts once per event it receives, so the count below pins the

@@ -74,7 +74,10 @@ export const GameInfoCompatRow: FC<Props> = ({
 
   const activeDownload = useMemo(() => {
     if (!game || !downloads.queue) return null;
-    const all = [downloads.queue.current, ...downloads.queue.queued];
+    const all = [
+      ...(downloads.queue.active ?? [downloads.queue.current]),
+      ...downloads.queue.queued,
+    ];
     return (
       all.find(
         (d) => d != null && d.store === game.store && d.game_id === game.id,

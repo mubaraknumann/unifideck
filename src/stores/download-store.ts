@@ -94,7 +94,9 @@ function applyInstallProton(payload: unknown): void {
   const appId = extractAppId(payload);
   if (!tool || appId == null) return;
   specifyNamedCompatTool(toUnsignedAppId(appId), tool);
-  console.log(`[DownloadStore] compatibility tool for appId=${appId} set to ${tool}`);
+  console.log(
+    `[DownloadStore] compatibility tool for appId=${appId} set to ${tool}`,
+  );
 }
 
 /** Pull the failure reason + title out of a `download_failed` payload.
@@ -137,11 +139,25 @@ export function mergeProgressIntoSnapshot(
 ): DownloadSnapshot {
   const queue = prev.queue;
   const item = extractItem(payload);
-  if (!queue || !queue.current || !item) return prev;
-  if (queue.current.id !== item.id) return prev;
+  if (!queue || !item) return prev;
+  const active = queue.active ?? [];
+  const idx = active.findIndex((row) => row.id === item.id);
+  const isCurrent = queue.current?.id === item.id;
+  if (idx < 0 && !isCurrent) return prev;
+  const nextActive =
+    idx < 0
+      ? active
+      : active.map((row, i) => (i === idx ? { ...row, ...item } : row));
   return {
     ...prev,
-    queue: { ...queue, current: { ...queue.current, ...item } },
+    queue: {
+      ...queue,
+      active: nextActive,
+      current:
+        isCurrent && queue.current
+          ? { ...queue.current, ...item }
+          : queue.current,
+    },
   };
 }
 
@@ -162,11 +178,17 @@ function adaptQueue(raw: unknown): DownloadQueueInfo {
     : [];
   const current =
     (obj.current as DownloadItem | undefined) ?? running[0] ?? null;
+  // `current` first, then any other running row (a finished game still
+  // setting up its prefix next to the one downloading).
+  const active = current
+    ? [current, ...running.filter((row) => row.id !== current.id)]
+    : running;
   return {
     success: true,
     queued,
     finished,
     current,
+    active,
     state: running.length > 0 ? "running" : "idle",
   };
 }
