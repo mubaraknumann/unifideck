@@ -49,6 +49,7 @@ export type StoreSlug =
   | "battlenet"
   | "microsoft"
   | "gamevault"
+  | "romm"
   | "itch"
   | "ea";
 
@@ -992,6 +993,7 @@ export async function loadUnifideckCache(): Promise<void> {
       battlenet: 0,
       microsoft: 0,
       gamevault: 0,
+      romm: 0,
       itch: 0,
       ea: 0,
     };

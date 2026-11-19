@@ -13,14 +13,15 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from unifideck.stores.gamevault.sources import (
-    AcquiredArchive,
-    LocalArchiveSource,
-    RemoteArchiveSource,
-    _parse_filename_from_cd,
-    _safe_archive_name,
-    safe_dir_name,
+from unifideck.stores.gamevault.sources import LocalArchiveSource, RemoteArchiveSource
+from unifideck.stores.shared.archive_download import (
+    parse_filename_from_cd as _parse_filename_from_cd,
 )
+from unifideck.stores.shared.archive_download import (
+    safe_archive_name as _safe_archive_name,
+)
+from unifideck.stores.shared.archive_download import safe_dir_name
+from unifideck.stores.shared.archive_source import AcquiredArchive
 
 
 def _auth(**overrides) -> MagicMock:
@@ -30,7 +31,7 @@ def _auth(**overrides) -> MagicMock:
     )
     auth.server_url = overrides.get("server_url", "https://gv.example.com")
     auth.verify_ssl = overrides.get("verify_ssl", True)
-    auth.download_dir = overrides.get("download_dir", None)
+    auth.download_dir = overrides.get("download_dir")
     return auth
 
 

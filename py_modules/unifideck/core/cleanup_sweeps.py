@@ -45,6 +45,7 @@ _AUTH_DATA_CANDIDATES = (
     # maxima-cli's EA tokens and a sign-in's waiting PKCE verifier.
     "~/.local/share/unifideck/ea/maxima/auth.toml",
     "~/.local/share/unifideck/ea/maxima/pkce_verifier",
+    "~/.local/share/unifideck/romm_config.json",
 )
 
 # Folders whose every file is a credential. Emptied, never removed: the

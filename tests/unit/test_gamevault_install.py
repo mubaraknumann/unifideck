@@ -1,8 +1,8 @@
-"""Tests for ``stores.gamevault.install`` and ``.archive``.
+"""Tests for the shared archive pipeline and archive-format detection.
 
-Covers the shared install pipeline, archive-format detection and the install
-marker. The pieces that used to live here and now have their own files:
-executable scoring → ``test_shared_launch_target.py``; the download and
+Covers the install pipeline and the install record, reached through the
+GameVault store. The pieces that used to live here and now have their own
+files: executable scoring → ``test_shared_launch_target.py``; the download and
 ``Content-Disposition`` handling → ``test_gamevault_sources.py``.
 
 The pipeline is deliberately exercised through a fake ``ArchiveSource``
@@ -19,20 +19,26 @@ from pathlib import Path
 
 import pytest
 
-from unifideck.stores.gamevault.archive import (
+from unifideck.stores.gamevault.filename import ARCHIVE_EXTENSIONS
+from unifideck.stores.shared.archive import (
     _zip_needs_tool,
     available_extractors,
     detect_format,
     extract_archive,
 )
-from unifideck.stores.gamevault.filename import ARCHIVE_EXTENSIONS
-from unifideck.stores.gamevault.install import GameVaultInstaller
-from unifideck.stores.gamevault.markers import (
-    load_install_info,
-    remove_install_info,
-    save_install_info,
-)
-from unifideck.stores.gamevault.sources import AcquiredArchive
+from unifideck.stores.shared.archive_install import ArchiveInstaller as _Installer
+from unifideck.stores.shared.archive_source import AcquiredArchive
+from unifideck.stores.shared.install_records import InstallRecords
+
+
+def _installer(**kwargs):
+    return _Installer(store="gamevault", **kwargs)
+
+
+_records = InstallRecords("gamevault")
+load_install_info = _records.load
+save_install_info = _records.save
+remove_install_info = _records.remove
 
 
 class _FakeSource:
@@ -80,11 +86,10 @@ def _zip_with(tmp_path: Path, name: str, members: dict[str, bytes]) -> Path:
 
 @pytest.fixture
 def markers_in(tmp_path, monkeypatch):
-    """Redirect the marker directory at its single binding."""
-    import unifideck.stores.gamevault.markers as markers_mod
-    marker_dir = tmp_path / "markers"
-    marker_dir.mkdir()
-    monkeypatch.setattr(markers_mod, "_marker_dir", lambda: marker_dir)
+    """Redirect the install records into a temporary data directory."""
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "xdg"))
+    marker_dir = tmp_path / "xdg" / "unifideck" / "gamevault_installed"
+    marker_dir.mkdir(parents=True)
     return marker_dir
 
 
@@ -244,7 +249,7 @@ async def test_extract_zip_the_stdlib_cannot_read_uses_the_ladder(
     upload) failed with "That compression method is not supported" although
     ``bsdtar`` on the same Deck reads it. Such zips must reach the ladder.
     """
-    import unifideck.stores.gamevault.archive as archive_mod
+    import unifideck.stores.shared.archive as archive_mod
 
     archive = _zip_with_method(tmp_path, "Game.rar", 98)  # PPMd
     calls: list[tuple[Path, Path, str]] = []
@@ -272,7 +277,7 @@ async def test_extract_unknown_format_raises(tmp_path):
 async def test_install_extracts_and_registers(tmp_path, markers_in):
     archive = _zip_with(tmp_path, "g.zip", {"Game.exe": b"x" * 2000})
     source = _FakeSource(archive)
-    installer = GameVaultInstaller(
+    installer = _installer(
         source=source, default_install_root=str(tmp_path / "installs"),
     )
 
@@ -296,7 +301,7 @@ async def test_install_reports_progress_phases(tmp_path, markers_in):
     async def progress(payload):
         seen.append(payload.get("phase", ""))
 
-    installer = GameVaultInstaller(
+    installer = _installer(
         source=_FakeSource(archive),
         default_install_root=str(tmp_path / "installs"),
     )
@@ -308,7 +313,7 @@ async def test_install_reports_progress_phases(tmp_path, markers_in):
 async def test_install_releases_the_source_on_success(tmp_path, markers_in):
     archive = _zip_with(tmp_path, "g.zip", {"Game.exe": b"x"})
     source = _FakeSource(archive)
-    installer = GameVaultInstaller(
+    installer = _installer(
         source=source, default_install_root=str(tmp_path / "installs"),
     )
 
@@ -324,7 +329,7 @@ async def test_install_releases_the_source_on_failure(tmp_path, markers_in):
     every failed install.
     """
     source = _FakeSource(tmp_path / "nope.zip", error=RuntimeError("boom"))
-    installer = GameVaultInstaller(
+    installer = _installer(
         source=source, default_install_root=str(tmp_path / "installs"),
     )
 
@@ -344,7 +349,7 @@ async def test_install_passes_the_native_hint_to_the_exe_finder(
         "g.zip",
         {"Game.exe": b"x" * 5_000_000, "start.sh": b"#!/bin/sh\n"},
     )
-    installer = GameVaultInstaller(
+    installer = _installer(
         source=_FakeSource(archive, prefer_native=True),
         default_install_root=str(tmp_path / "installs"),
     )
@@ -356,7 +361,7 @@ async def test_install_passes_the_native_hint_to_the_exe_finder(
 
 async def test_install_surfaces_the_installer_flag(tmp_path, markers_in):
     archive = _zip_with(tmp_path, "g.zip", {"Setup.exe": b"x" * 100})
-    installer = GameVaultInstaller(
+    installer = _installer(
         source=_FakeSource(archive, is_installer=True),
         default_install_root=str(tmp_path / "installs"),
     )
@@ -369,7 +374,7 @@ async def test_install_surfaces_the_installer_flag(tmp_path, markers_in):
 async def test_install_honours_an_explicit_install_path(tmp_path, markers_in):
     archive = _zip_with(tmp_path, "g.zip", {"Game.exe": b"x"})
     elsewhere = tmp_path / "sdcard"
-    installer = GameVaultInstaller(
+    installer = _installer(
         source=_FakeSource(archive),
         default_install_root=str(tmp_path / "installs"),
     )
@@ -380,7 +385,7 @@ async def test_install_honours_an_explicit_install_path(tmp_path, markers_in):
 
 
 async def test_get_game_size_comes_from_the_source(tmp_path):
-    installer = GameVaultInstaller(
+    installer = _installer(
         source=_FakeSource(tmp_path / "x.zip"),
         default_install_root=str(tmp_path),
     )
@@ -389,7 +394,7 @@ async def test_get_game_size_comes_from_the_source(tmp_path):
 
 # ── uninstall ────────────────────────────────────────────────────────
 async def test_uninstall_game_missing_install_returns_failure(tmp_path, markers_in):
-    installer = GameVaultInstaller(
+    installer = _installer(
         source=_FakeSource(tmp_path / "x.zip"),
         default_install_root=str(tmp_path),
     )
@@ -410,7 +415,7 @@ async def test_uninstall_game_removes_dir_and_marker(tmp_path, markers_in):
         install_path=str(game_dir),
         exe_path=str(game_dir / "Game.exe"),
     )
-    installer = GameVaultInstaller(
+    installer = _installer(
         source=_FakeSource(tmp_path / "x.zip"),
         default_install_root=str(tmp_path / "installs"),
     )
@@ -434,7 +439,7 @@ async def test_uninstall_removes_the_install_dir_and_leaves_the_vault_alone(
     vault = tmp_path / "vault"
     vault.mkdir()
     archive = _zip_with(vault, "My Game (2016).zip", {"Game.exe": b"x" * 100})
-    installer = GameVaultInstaller(
+    installer = _installer(
         source=_FakeSource(archive),
         default_install_root=str(tmp_path / "installs"),
     )
@@ -462,7 +467,7 @@ async def test_uninstall_never_touches_the_source_archive(tmp_path, markers_in):
     vault = tmp_path / "vault"
     vault.mkdir()
     archive = _zip_with(vault, "My Game (2016).zip", {"Game.exe": b"x" * 100})
-    installer = GameVaultInstaller(
+    installer = _installer(
         source=_FakeSource(archive),
         default_install_root=str(tmp_path / "installs"),
     )
@@ -523,7 +528,7 @@ def test_remove_install_info_missing_is_a_noop(markers_in):
 def test_get_installed_reads_all_markers(tmp_path, markers_in):
     save_install_info("1", title="A", install_path="/a", exe_path="")
     save_install_info("2", title="B", install_path="/b", exe_path="")
-    installer = GameVaultInstaller(
+    installer = _installer(
         source=_FakeSource(tmp_path / "x.zip"),
         default_install_root=str(tmp_path),
     )
@@ -531,16 +536,16 @@ def test_get_installed_reads_all_markers(tmp_path, markers_in):
 
 
 def test_get_installed_empty_dir_returns_empty(tmp_path, markers_in):
-    installer = GameVaultInstaller(
+    installer = _installer(
         source=_FakeSource(tmp_path / "x.zip"),
         default_install_root=str(tmp_path),
     )
     assert installer.get_installed() == {}
 
 
-def test_get_install_info_delegates_to_module_function(tmp_path, markers_in):
+def test_get_install_info_reads_the_saved_record(tmp_path, markers_in):
     save_install_info("7", title="T", install_path="/p", exe_path="/p/e.exe")
-    installer = GameVaultInstaller(
+    installer = _installer(
         source=_FakeSource(tmp_path / "x.zip"),
         default_install_root=str(tmp_path),
     )
@@ -549,7 +554,7 @@ def test_get_install_info_delegates_to_module_function(tmp_path, markers_in):
 
 # ── construction ─────────────────────────────────────────────────────
 def test_installer_expands_user_paths(tmp_path):
-    installer = GameVaultInstaller(
+    installer = _installer(
         source=_FakeSource(tmp_path / "x.zip"),
         default_install_root="~/Games/GameVault",
     )
@@ -587,7 +592,7 @@ async def test_install_avoids_a_directory_another_store_owns(
         f"gog:1423058311={taken}/game/Game.exe\t{taken}\t-123\n",
     )
     archive = _zip_with(tmp_path, "g.zip", {"Game.exe": b"x" * 2000})
-    installer = GameVaultInstaller(
+    installer = _installer(
         source=_FakeSource(archive), default_install_root=str(root),
     )
 
@@ -614,7 +619,7 @@ async def test_install_reuses_its_own_directory_on_reinstall(
         f"gamevault:g1={mine}/Game.exe\t{mine}\t-123\n",
     )
     archive = _zip_with(tmp_path, "g.zip", {"Game.exe": b"x" * 2000})
-    installer = GameVaultInstaller(
+    installer = _installer(
         source=_FakeSource(archive), default_install_root=str(root),
     )
 
@@ -632,7 +637,7 @@ async def test_install_ignores_an_unrelated_row_elsewhere(
     other.mkdir(parents=True)
     games_map_at.write_text(f"gog:99={other}/Game.exe\t{other}\t-1\n")
     archive = _zip_with(tmp_path, "g.zip", {"Game.exe": b"x" * 2000})
-    installer = GameVaultInstaller(
+    installer = _installer(
         source=_FakeSource(archive), default_install_root=str(root),
     )
 
@@ -671,7 +676,7 @@ async def test_cancel_during_acquire_propagates_and_releases(
     started = asyncio.Event()
     archive = _zip_with(tmp_path, "g.zip", {"Game.exe": b"x" * 10})
     source = _SlowSource(archive, started)
-    installer = GameVaultInstaller(
+    installer = _installer(
         source=source, default_install_root=str(tmp_path / "installs"),
     )
 
@@ -705,9 +710,9 @@ async def test_cancel_removes_the_half_extracted_directory(
         await asyncio.sleep(3600)
 
     monkeypatch.setattr(
-        "unifideck.stores.gamevault.install.extract_archive", _hang,
+        "unifideck.stores.shared.archive_install.extract_archive", _hang,
     )
-    installer = GameVaultInstaller(
+    installer = _installer(
         source=_FakeSource(archive), default_install_root=str(root),
     )
 
@@ -739,10 +744,10 @@ async def test_cancel_keeps_a_directory_that_already_existed(
         await asyncio.sleep(3600)
 
     monkeypatch.setattr(
-        "unifideck.stores.gamevault.install.extract_archive", _hang,
+        "unifideck.stores.shared.archive_install.extract_archive", _hang,
     )
     archive = _zip_with(tmp_path, "g.zip", {"Game.exe": b"x" * 10})
-    installer = GameVaultInstaller(
+    installer = _installer(
         source=_FakeSource(archive), default_install_root=str(root),
     )
 
@@ -777,10 +782,10 @@ async def test_cancel_leaves_a_directory_another_store_has_claimed(
         await asyncio.sleep(3600)
 
     monkeypatch.setattr(
-        "unifideck.stores.gamevault.install.extract_archive", _hang,
+        "unifideck.stores.shared.archive_install.extract_archive", _hang,
     )
     archive = _zip_with(tmp_path, "g.zip", {"Game.exe": b"x" * 10})
-    installer = GameVaultInstaller(
+    installer = _installer(
         source=_FakeSource(archive), default_install_root=str(root),
     )
 

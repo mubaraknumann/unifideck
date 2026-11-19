@@ -70,6 +70,12 @@ export const STORE_VISUALS: Record<StoreId, StoreVisual> = {
     brand_color: "#1a9c3e",
     icon_path: "/assets/gamevault.svg",
   },
+  romm: {
+    id: "romm",
+    display_name: "RomM",
+    brand_color: "#8b74e8",
+    icon_path: "",
+  },
   itch: {
     id: "itch",
     display_name: "itch.io",

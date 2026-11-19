@@ -26,6 +26,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from unifideck.core.types import Game
+from unifideck.stores.shared.archive_download import safe_dir_name
+from unifideck.stores.shared.archive_source import AcquiredArchive
 
 from . import variants
 from .filename import (
@@ -36,7 +38,6 @@ from .filename import (
     version_sort_key,
 )
 from .library import GameVaultFetchError
-from .sources import AcquiredArchive, safe_dir_name
 
 logger = logging.getLogger(__name__)
 

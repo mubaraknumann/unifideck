@@ -12,10 +12,10 @@ import pytest
 from unifideck.core.types import Game
 from unifideck.stores.gamevault.library import (
     GameVaultFetchError,
-    GameVaultLibraryReader,
     RemoteCatalog,
     _parse_title_from_filename,
 )
+from unifideck.stores.shared.archive_library import ArchiveLibraryReader as GameVaultLibraryReader
 
 
 def _reader() -> RemoteCatalog:
